@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MOCK_INVOICES } from "@/data/mock-invoices";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
@@ -21,77 +20,74 @@ export default function PortalInvoicesTab() {
   const invoices = MOCK_INVOICES.filter((inv) => inv.clientId === CLIENT_ID);
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-8" />
-          <TableHead>Invoice #</TableHead>
-          <TableHead>Date</TableHead>
-          <TableHead>Rugs</TableHead>
-          <TableHead>Total</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="w-10" />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {invoices.map((inv) => {
-          const isExpanded = expandedRow === inv.id;
-          return (
-            <>
-              <TableRow
-                key={inv.id}
-                className="cursor-pointer"
-                onClick={() => setExpandedRow(isExpanded ? null : inv.id)}
-              >
-                <TableCell className="w-8 pr-0">
-                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </TableCell>
-                <TableCell className="font-medium">{inv.invoiceNumber}</TableCell>
-                <TableCell>{new Date(inv.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</TableCell>
-                <TableCell>{inv.rugCount}</TableCell>
-                <TableCell>${inv.totalAmount.toLocaleString()}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[inv.status] ?? "outline"}>
-                    {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toast({ title: "Download started", description: `${inv.invoiceNumber}.pdf` });
-                    }}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-              {isExpanded && (
-                <TableRow key={`${inv.id}-detail`}>
-                  <TableCell colSpan={7} className="bg-muted/30">
-                    <div className="py-2 pl-8 space-y-1 text-sm">
-                      {inv.lineItems.map((li, i) => (
-                        <div key={i} className="flex justify-between max-w-md">
-                          <span>
-                            <span className="font-medium">{li.rugNumber}</span>
-                            <span className="text-muted-foreground ml-2">{li.services.join(", ")}</span>
-                          </span>
-                          <span>${li.subtotal.toFixed(2)}</span>
-                        </div>
-                      ))}
-                      {inv.notes && (
-                        <p className="text-muted-foreground mt-2 italic">{inv.notes}</p>
-                      )}
+    <div className="rounded-lg border bg-background divide-y">
+      {/* Header */}
+      <div className="hidden sm:grid grid-cols-[1fr_80px_60px_80px_80px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <span>Invoice</span>
+        <span>Date</span>
+        <span>Rugs</span>
+        <span className="text-right">Total</span>
+        <span>Status</span>
+        <span />
+      </div>
+
+      {invoices.map((inv) => {
+        const isExpanded = expandedRow === inv.id;
+        return (
+          <div key={inv.id}>
+            <button
+              onClick={() => setExpandedRow(isExpanded ? null : inv.id)}
+              className="w-full grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_80px_60px_80px_80px_40px] gap-2 items-center px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">
+                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                </span>
+                <span className="text-sm font-medium">{inv.invoiceNumber}</span>
+              </div>
+              <span className="text-sm text-muted-foreground hidden sm:block">
+                {new Date(inv.date).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}
+              </span>
+              <span className="text-sm hidden sm:block">{inv.rugCount}</span>
+              <span className="text-sm font-medium text-right hidden sm:block">${inv.totalAmount.toLocaleString()}</span>
+              <Badge variant={STATUS_VARIANT[inv.status] ?? "outline"} className="text-[11px] w-fit">
+                {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+              </Badge>
+              <div className="hidden sm:flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast({ title: "Download started", description: `${inv.invoiceNumber}.pdf` });
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </button>
+            {isExpanded && (
+              <div className="px-4 pb-3 pl-10 space-y-1 border-t bg-muted/20">
+                <div className="pt-2 space-y-1">
+                  {inv.lineItems.map((li, i) => (
+                    <div key={i} className="flex justify-between text-sm max-w-md">
+                      <span>
+                        <span className="font-medium">{li.rugNumber}</span>
+                        <span className="text-muted-foreground ml-2 text-xs">{li.services.join(", ")}</span>
+                      </span>
+                      <span className="tabular-nums">${li.subtotal.toFixed(2)}</span>
                     </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </>
-          );
-        })}
-      </TableBody>
-    </Table>
+                  ))}
+                </div>
+                {inv.notes && (
+                  <p className="text-xs text-muted-foreground italic pt-1">{inv.notes}</p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
