@@ -33,6 +33,7 @@ import {
   type Service,
 } from "@/data/services";
 import { type PendingRug } from "@/data/mock-pending-rugs";
+import { type CheckInEntry } from "@/data/check-in-log";
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -53,10 +54,20 @@ const CLIENT_OVERRIDES: Record<string, Record<string, number>> = {
 
 interface CheckInFormProps {
   selectedRug?: PendingRug | null;
-  onCheckInComplete?: (rugId: string) => void;
+  editingEntry?: CheckInEntry | null;
+  onCheckInComplete?: (data: {
+    rugId?: string;
+    rugNumber: string;
+    clientName: string;
+    rugType: string;
+    length: number;
+    width: number;
+    selectedServices: string[];
+    totalPrice: number;
+  }) => void;
 }
 
-export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps) {
+export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +99,22 @@ export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps
       setPhotos([]);
     }
   }, [selectedRug, form]);
+
+  // Pre-fill form when editing a log entry
+  useEffect(() => {
+    if (editingEntry) {
+      form.reset({
+        rugNumber: editingEntry.rugNumber,
+        clientName: editingEntry.clientName,
+        rugType: editingEntry.rugType,
+        length: editingEntry.length,
+        width: editingEntry.width,
+        conditionNotes: "",
+        selectedServices: editingEntry.services.map((s) => s.id),
+      });
+      setPhotos([]);
+    }
+  }, [editingEntry, form]);
 
   const watchedClient = form.watch("clientName");
   const watchedLength = form.watch("length");
@@ -152,15 +179,29 @@ export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps
   };
 
   const onSubmit = (data: CheckInValues) => {
-    if (photos.length < 1) {
+    // Skip photo requirement when editing an existing entry
+    if (!editingEntry && photos.length < 1) {
       toast({ title: "Photos required", description: "Upload at least 1 photo.", variant: "destructive" });
       return;
     }
-    console.log("Check-in submitted:", { ...data, photos: photos.length, totalPrice });
-    toast({ title: "Check-in complete", description: `Rug ${data.rugNumber} checked in.` });
 
-    if (selectedRug && onCheckInComplete) {
-      onCheckInComplete(selectedRug.id);
+    const isEditing = !!editingEntry;
+    const label = isEditing ? "updated" : "checked in";
+
+    console.log(`Check-in ${label}:`, { ...data, photos: photos.length, totalPrice });
+    toast({ title: isEditing ? "Entry updated" : "Check-in complete", description: `Rug ${data.rugNumber} ${label}.` });
+
+    if (onCheckInComplete) {
+      onCheckInComplete({
+        rugId: selectedRug?.id,
+        rugNumber: data.rugNumber,
+        clientName: data.clientName,
+        rugType: data.rugType,
+        length: data.length,
+        width: data.width,
+        selectedServices: data.selectedServices,
+        totalPrice,
+      });
     }
 
     form.reset();
@@ -168,12 +209,16 @@ export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps
   };
 
   const isFromPanel = !!selectedRug;
+  const isEditing = !!editingEntry;
+  const isReadOnlyIdentity = isFromPanel || isEditing;
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-primary text-primary-foreground px-4 py-3 rounded-t-lg flex items-center justify-between">
+        <div className={`sticky top-0 z-10 px-4 py-3 rounded-t-lg flex items-center justify-between ${
+          isEditing ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
+        }`}>
           <div className="flex items-center gap-3">
             <span className="text-lg font-bold font-mono">
               {form.watch("rugNumber") || "—"}
@@ -181,13 +226,16 @@ export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps
             <span className="text-sm opacity-80">
               {form.watch("clientName") || "No client"}
             </span>
+            {isEditing && (
+              <span className="text-xs bg-white/20 px-2 py-0.5 rounded">Editing</span>
+            )}
           </div>
           <span className="text-lg font-bold">${totalPrice.toFixed(2)}</span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Identity row — read-only when loaded from panel */}
-          {isFromPanel ? (
+          {/* Identity row — read-only when loaded from panel or editing */}
+          {isReadOnlyIdentity ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Rug #</Label>
@@ -432,7 +480,7 @@ export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps
             Total: <span className="text-foreground font-bold text-lg">${totalPrice.toFixed(2)}</span>
           </div>
           <Button type="submit" size="lg">
-            Complete Check-In
+            {isEditing ? "Update Entry" : "Complete Check-In"}
           </Button>
         </div>
       </form>
