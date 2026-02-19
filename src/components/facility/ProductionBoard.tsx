@@ -59,7 +59,7 @@ export function ProductionBoard() {
                 className="flex flex-col w-64 border-r last:border-r-0 shrink-0"
               >
                 {/* Column header */}
-                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20">
+                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20 animate-fade-in-up">
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {stage.label}
                   </span>

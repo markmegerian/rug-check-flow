@@ -6,7 +6,7 @@ export function AuditLogTab() {
   const entries = [...MOCK_AUDIT_LOG].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
       <h2 className="text-lg font-semibold">Audit Log</h2>
       <Table>
         <TableHeader>

@@ -127,7 +127,7 @@ export function InvoicesTab() {
   };
 
   return (
-    <div className="p-4 md:p-6 overflow-auto h-full space-y-6">
+    <div className="p-4 md:p-6 overflow-auto h-full space-y-6 animate-fade-in-up">
       {/* Status Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -203,7 +203,7 @@ export function InvoicesTab() {
             {Object.entries(uninvoicedGroups).map(([clientName, entries]) => {
               const total = entries.reduce((sum, e) => sum + e.totalPrice, 0);
               return (
-                <div key={clientName} className="border border-border rounded-lg p-3 space-y-2">
+                <div key={clientName} className="border border-border rounded-lg p-3 space-y-2 shadow-card">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="font-medium text-foreground">{clientName}</span>

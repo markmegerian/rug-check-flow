@@ -132,7 +132,7 @@ export function PricingTab() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-8 overflow-auto h-full">
+    <div className="p-4 md:p-6 space-y-8 overflow-auto h-full animate-fade-in-up">
       {/* Services Table */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -240,7 +240,7 @@ export function PricingTab() {
           {presets.map((p) => (
             <div
               key={p.id}
-              className="border border-border rounded-lg p-3 flex items-start justify-between bg-card"
+              className="border border-border rounded-lg p-3 flex items-start justify-between bg-card shadow-card"
             >
               <div>
                 <p className="font-medium text-sm text-foreground">{p.name}</p>
