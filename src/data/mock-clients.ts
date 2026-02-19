@@ -1,3 +1,9 @@
+export interface PortalUser {
+  id: string;
+  email: string;
+  status: "active" | "invited";
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -9,6 +15,7 @@ export interface Client {
   pricingTier: "standard" | "preferred" | "vip";
   rugCount: number;
   outstandingBalance: number;
+  portalUsers: PortalUser[];
 }
 
 export const MOCK_CLIENTS: Client[] = [
@@ -23,6 +30,7 @@ export const MOCK_CLIENTS: Client[] = [
     pricingTier: "preferred",
     rugCount: 24,
     outstandingBalance: 1250.0,
+    portalUsers: [],
   },
   {
     id: "client-2",
@@ -35,6 +43,7 @@ export const MOCK_CLIENTS: Client[] = [
     pricingTier: "standard",
     rugCount: 8,
     outstandingBalance: 430.0,
+    portalUsers: [],
   },
   {
     id: "client-3",
@@ -47,6 +56,10 @@ export const MOCK_CLIENTS: Client[] = [
     pricingTier: "vip",
     rugCount: 67,
     outstandingBalance: 4800.0,
+    portalUsers: [
+      { id: "pu-1", email: "amir@pacificrugs.com", status: "active" },
+      { id: "pu-2", email: "sales@pacificrugs.com", status: "active" },
+    ],
   },
   {
     id: "client-4",
@@ -59,6 +72,7 @@ export const MOCK_CLIENTS: Client[] = [
     pricingTier: "standard",
     rugCount: 12,
     outstandingBalance: 0,
+    portalUsers: [],
   },
   {
     id: "client-5",
@@ -71,5 +85,8 @@ export const MOCK_CLIENTS: Client[] = [
     pricingTier: "preferred",
     rugCount: 31,
     outstandingBalance: 2100.0,
+    portalUsers: [
+      { id: "pu-3", email: "marco@bellacasa.com", status: "active" },
+    ],
   },
 ];
