@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, X, AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
   RUG_TYPES,
   type Service,
 } from "@/data/services";
+import { type PendingRug } from "@/data/mock-pending-rugs";
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -50,7 +51,12 @@ const CLIENT_OVERRIDES: Record<string, Record<string, number>> = {
   "Acme Corp": { "wash-standard": 2.75, "protect-scotch": 1.5 },
 };
 
-export function CheckInForm() {
+interface CheckInFormProps {
+  selectedRug?: PendingRug | null;
+  onCheckInComplete?: (rugId: string) => void;
+}
+
+export function CheckInForm({ selectedRug, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,6 +72,22 @@ export function CheckInForm() {
       selectedServices: [],
     },
   });
+
+  // Pre-fill form when a rug is selected from left panel
+  useEffect(() => {
+    if (selectedRug) {
+      form.reset({
+        rugNumber: selectedRug.rugNumber,
+        clientName: selectedRug.clientName,
+        rugType: selectedRug.rugType ?? "",
+        length: selectedRug.length ?? (undefined as unknown as number),
+        width: selectedRug.width ?? (undefined as unknown as number),
+        conditionNotes: "",
+        selectedServices: [],
+      });
+      setPhotos([]);
+    }
+  }, [selectedRug, form]);
 
   const watchedClient = form.watch("clientName");
   const watchedLength = form.watch("length");
@@ -136,9 +158,16 @@ export function CheckInForm() {
     }
     console.log("Check-in submitted:", { ...data, photos: photos.length, totalPrice });
     toast({ title: "Check-in complete", description: `Rug ${data.rugNumber} checked in.` });
+
+    if (selectedRug && onCheckInComplete) {
+      onCheckInComplete(selectedRug.id);
+    }
+
     form.reset();
     setPhotos([]);
   };
+
+  const isFromPanel = !!selectedRug;
 
   return (
     <Form {...form}>
@@ -157,35 +186,48 @@ export function CheckInForm() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Identity row */}
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="rugNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Rug #</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g. R-4521" autoFocus {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="clientName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Client Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Client name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          {/* Identity row — read-only when loaded from panel */}
+          {isFromPanel ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Rug #</Label>
+                <p className="font-mono font-bold text-lg">{form.watch("rugNumber")}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Client</Label>
+                <p className="font-medium">{form.watch("clientName")}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="rugNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rug #</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. R-4521" autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="clientName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Client Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Client name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
 
           {/* Rug details */}
           <div className="grid grid-cols-3 gap-4">
