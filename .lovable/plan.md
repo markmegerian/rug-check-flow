@@ -1,101 +1,85 @@
 
 
-## Check-In Tab: Three-Panel Layout
+## Right Panel: Today's Check-In Log
 
 ### Overview
-Replace the current single-panel `CheckInForm` with a three-panel simultaneous layout when the Check-In tab is active. All three panels are visible at once on desktop/tablet.
+Replace the "Order Summary -- coming soon" placeholder in the right panel with a live, chronological log of all rugs checked in today. Each entry is expandable to show service details and totals. Entries are editable within a 2-hour window for check-in staff (no auth yet, so simulated with a mock role toggle).
 
 ### Layout
 
 ```text
-+------------------+------------------------+------------------+
-|  LEFT PANEL      |  CENTER PANEL          |  RIGHT PANEL     |
-|  ~280px          |  flex-1                |  (future)        |
-|                  |                        |                  |
-|  Pending Rugs    |  Active Check-In Form  |  placeholder     |
-|  grouped by      |  (existing form,       |  "Order Summary" |
-|  client          |   mostly unchanged)    |  coming soon     |
-|                  |                        |                  |
-+------------------+------------------------+------------------+
+RIGHT PANEL (~260px)
++----------------------------+
+|  Today's Check-Ins (count) |
++----------------------------+
+|  10:32 AM                  |
+|  R-4521  Acme Corp         |
+|  $280.00         [v expand]|
+|  -------------------------  |
+|  10:15 AM                  |
+|  R-4530  Desert Rug Gallery|
+|  $195.00         [v expand]|
+|  ...                       |
++----------------------------+
 ```
 
----
+### Behavior
 
-### Left Panel: `PendingRugsPanel`
+**Chronological list (newest first)**
+- Each row shows: timestamp, rug number (monospace), client name, total price
+- Clicking a row expands it inline to reveal:
+  - Rug type, dimensions
+  - List of selected services with individual prices
+  - Total
+  - Edit button (if editable)
 
-**Walk-In Drop-Off section (top, always visible)**
-- Inline section titled "+ Walk-In Drop-Off"
-- Client search input (text field with filtering against mock client list)
-- Once client selected: rug number input appears inline
-- Pressing Enter or clicking "Add" loads the rug into the center form (sets rugNumber + clientName)
-- No modal, no navigation -- just two input fields that expand inline
+**Editability rules (simulated for now)**
+- Since there is no auth/roles system yet, use a mock `userRole` variable in `CheckInLayout` (default: `"checkin_staff"`)
+- Check-in staff: entry is editable for 2 hours after `checkedInAt` timestamp
+- Office/admin role: always editable
+- "Edit" button appears on eligible rows; clicking it re-loads the entry into the center form for modification
+- After re-submission, the log entry updates in place (not duplicated)
 
-**Pending Rugs List (below walk-in section)**
-- Grouped by wholesale client name with client headers
-- Each rug row shows:
-  - Rug number (monospace, large text)
-  - Type (if known, smaller muted text)
-  - Size (if known, e.g. "8x10")
-  - Requested services (inline, truncated with ellipsis)
-- Clicking a rug row populates the center form with that rug's data
-- After successful check-in, the rug disappears from the list immediately
-- Scrollable within the panel
-
-**Data source**: Mock data array for now (no DB yet). Simulates rugs from verified pickups and walk-ins.
-
----
-
-### Center Panel: Existing `CheckInForm`
-
-Minor modifications:
-- Accept a `selectedRug` prop so clicking a rug in the left panel pre-fills the form
-- Accept an `onCheckInComplete` callback so the left panel can remove the checked-in rug
-- Remove the rugNumber and clientName manual inputs when a rug is loaded from the left panel (they become read-only display)
-- Keep all existing functionality (photos, services, pricing, presets)
-
----
-
-### Right Panel: Placeholder
-
-- Simple placeholder: "Order Summary -- coming soon"
-- Reserved for future use (no specs yet)
+**Integration with Check-In flow**
+- When `CheckInForm` completes a check-in, the submitted data (rug info + services + total + timestamp) is pushed into the log
+- The log lives as state in `CheckInLayout` alongside `pendingRugs`
 
 ---
 
 ### File Changes
 
-1. **New: `src/data/mock-pending-rugs.ts`**
-   - Mock data: array of pending rugs with clientName, rugNumber, rugType, length, width, requestedServices
-   - Grouped by client for display
+1. **New: `src/components/facility/CheckInLogPanel.tsx`**
+   - Accepts `entries` array and `userRole` prop
+   - Renders a scrollable list of check-in entries, newest first
+   - Each row is a collapsible/expandable section (using Radix Collapsible)
+   - Shows edit button based on role + 2-hour window logic
+   - Fires `onEdit(entryId)` callback when edit is clicked
 
-2. **New: `src/components/facility/PendingRugsPanel.tsx`**
-   - Walk-in drop-off inline section at top
-   - Pending rugs list grouped by client
-   - Click handler to select a rug
+2. **New: `src/data/check-in-log.ts`**
+   - `CheckInEntry` interface: id, rugNumber, clientName, rugType, length, width, services (id + name + price), totalPrice, checkedInAt (Date), checkedInBy (string)
+   - Optional: a few seed entries for visual testing
 
-3. **New: `src/components/facility/CheckInLayout.tsx`**
-   - Three-panel CSS grid container (`grid-cols-[280px_1fr_260px]`)
-   - Manages shared state: selected rug, pending rugs list
-   - Wires left panel selection to center form
-   - Wires check-in completion to remove rug from left panel
+3. **Edit: `src/components/facility/CheckInLayout.tsx`**
+   - Add `checkInLog` state (array of `CheckInEntry`)
+   - Add mock `userRole` state (`"checkin_staff" | "office" | "admin"`)
+   - On check-in complete: build a `CheckInEntry` from form data and prepend to log
+   - Pass log + role to `CheckInLogPanel`
+   - Handle `onEdit` callback: load entry back into center form for editing (set `editingEntryId` state)
+   - On re-submit of an edited entry: update the existing log entry instead of creating a new one
+   - Replace the placeholder right panel div with `<CheckInLogPanel />`
 
 4. **Edit: `src/components/facility/CheckInForm.tsx`**
-   - Add `selectedRug` prop (optional) to pre-fill form fields
-   - Add `onCheckInComplete` callback prop
-   - When selectedRug is set, populate form via `form.reset()` with rug data
-   - On successful submit, call `onCheckInComplete` with the rug number
-
-5. **Edit: `src/pages/FacilityOps.tsx`**
-   - Replace `<CheckInForm />` with `<CheckInLayout />` for the checkin tab
+   - Extend `onCheckInComplete` callback to pass the full form data (not just rugId) so the layout can build a log entry
+   - Accept optional `editingEntry` prop for when re-editing a previously checked-in rug
 
 ---
 
 ### Technical Details
 
-- State management: `CheckInLayout` holds `pendingRugs` state (initialized from mock data) and `selectedRugId`
-- Selecting a rug sets `selectedRugId`, which passes the rug object to `CheckInForm`
-- On check-in complete: filter rug out of `pendingRugs`, clear `selectedRugId`, form resets
-- Walk-in drop-off: pushes a new entry into `pendingRugs` then auto-selects it
-- Panel heights: all three panels are `h-full overflow-y-auto` within the grid
-- Responsive: on smaller screens, the grid collapses (left panel stacks above center, right panel hidden)
+- `CheckInEntry` stores the resolved service names and prices at check-in time (snapshot, not computed from current pricing)
+- Editability: `isEditable = userRole === "admin" || userRole === "office" || (userRole === "checkin_staff" && Date.now() - entry.checkedInAt < 2 * 60 * 60 * 1000)`
+- Editing loads the entry into the center form and sets a flag so re-submission updates the log entry rather than creating a new one
+- The panel uses `ScrollArea` for overflow, consistent with the left panel
+- Collapsible rows use `@radix-ui/react-collapsible` (already installed)
+- No DB persistence yet -- all in-memory state, seeded with a couple of mock entries for visual testing
 
