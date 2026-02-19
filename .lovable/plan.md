@@ -1,90 +1,131 @@
 
 
-## Clients Tab: Row-Click Drawer with Portal Users
+## Wholesale Portal: Rug List with Status Filters + Tabs
 
-### What Changes
+### What This Is
 
-Rewrite `ClientsTab.tsx` so that clicking any table row opens the client drawer (not just a pencil icon). The drawer is restructured into two sections: client info (editable) and portal users management (inline create/delete). The "Add Client" button stays in the header and opens the same drawer in create mode.
+A client-facing portal at `/portal` where wholesale clients see their rugs, pickups, and invoices. No dashboard -- the default landing is a rug list with status filters and summary pills.
 
-### Drawer Layout
+### Layout
 
 ```text
-+--------------------------------------+
-| Pacific Rug Gallery            [Save]|
-| "Update client details"             |
-+--------------------------------------+
-| Client Name    [Pacific Rug Gallery ]|
-| Contact Name   [Amir Farouk        ]|
-| Phone  [(555) 456-7890]  Email [...] |
-| Address        [3300 NW 23rd Ave... ]|
-| Pricing Tier   [VIP v]              |
-| Notes          [VIP -- high volume..]|
-+--------------------------------------+
-| Portal Users                         |
-+--------------------------------------+
-| amir@pacificrugs.com   Active  [x]  |
-| sales@pacificrugs.com  Active  [x]  |
-|                                      |
-| [Email___________] [Create Login]    |
-+--------------------------------------+
++----------------------------------------------------------+
+| Pacific Rug Gallery                                      |
+| [Rugs]  [Pickups]  [Invoices]                            |
++----------------------------------------------------------+
+
+Rugs tab (default):
+
++----------------------------------------------------------+
+| [12 Total] [3 In Progress] [2 Ready] [1 Delivered]       |
++----------------------------------------------------------+
+| [All] [In Progress] [Ready] [Delivered]                  |
++----------------------------------------------------------+
+| Rug #    | Type    | Services         | Status    | Date |
+|----------|---------|------------------|-----------|------|
+| R-4501   | Persian | Deep Wash, Fri.. | In Progr. | 2/17 |
+| R-4442   | Kilim   | Standard Wash    | Ready     | 2/15 |
+| R-4430   | Afghan  | Antique Restor.. | Delivered | 2/14 |
++----------------------------------------------------------+
+
+Pickups tab:
+
++----------------------------------------------------------+
+| Ready for Pickup (2 rugs)                                |
++----------------------------------------------------------+
+| R-4442  Kilim   Standard Wash         Ready since 2/15   |
+| R-4460  Persian Silk Treatment, Mo..  Ready since 2/16   |
+|                                                          |
+| [Request Pickup]                                         |
++----------------------------------------------------------+
+| Scheduled Pickups                                        |
++----------------------------------------------------------+
+| Feb 20 — 2 rugs (R-4442, R-4460)         Status: Pending|
++----------------------------------------------------------+
+
+Invoices tab:
+
++----------------------------------------------------------+
+| Invoice #  | Date  | Rugs | Total   | Status   |        |
+|------------|-------|------|---------|----------|--------|
+| INV-2026-001| 2/15 |  5   | $2,340  | Sent     | [View] |
+| INV-2026-002| 2/12 |  3   | $890    | Paid     |        |
++----------------------------------------------------------+
 ```
 
 ### Behavior
 
-**Table changes:**
-- Remove the pencil icon column
-- Make entire row clickable (cursor-pointer, hover highlight already exists)
-- Row click opens the drawer with that client's data
+**Header**: Shows the client name (hardcoded to "Pacific Rug Gallery" for now). Tabs below for Rugs / Pickups / Invoices. Uses local tab state, not routes.
 
-**Drawer -- Client Info section** (top):
-- Same fields as today: name, contact, phone, email, address, pricing tier, notes
-- Save button in the footer
+**Rugs tab** (default):
+- Summary pills at the top showing counts by status (Total, In Progress, Ready, Delivered)
+- Status filter tabs below the pills: All, In Progress, Ready, Delivered
+- Table of rugs belonging to this client, filtered by selected status
+- Clicking a row expands inline to show service details and dates (no drawer, no navigation)
+- Statuses mapped from internal production stages: checked_in/in_progress -> "In Progress", qc/ready -> "Ready", out_for_delivery -> "Delivered"
 
-**Drawer -- Portal Users section** (bottom, only shown when editing an existing client):
-- List of portal users associated with this client
-- Each user row shows: email, status badge (Active/Invited), and a remove button (X)
-- Below the list: inline form with an email input and "Create Login" button
-- Creating a login adds the user to the local list with status "Invited" and shows a toast
-- Removing a user removes from local list with a toast
-- No separate user management screen, no modal, no navigation
+**Pickups tab**:
+- "Ready for Pickup" section listing rugs with stage `ready`
+- "Request Pickup" button -- shows a toast "Pickup requested" (placeholder)
+- "Scheduled Pickups" section below showing mock scheduled pickups
+- Simple list layout, no table overhead
 
-### Data Model Changes
+**Invoices tab**:
+- Table of invoices for this client (filtered from `MOCK_INVOICES` by `clientId`)
+- Clicking a row expands inline to show line items (no drawer)
+- Shows status badge, total, date
+- "Download PDF" link per invoice (toast placeholder)
 
-**Add to `Client` interface** in `mock-clients.ts`:
-```
-portalUsers: PortalUser[]
-```
+### Data
 
-**New type** in `mock-clients.ts`:
-```
-interface PortalUser {
-  id: string;
-  email: string;
-  status: "active" | "invited";
-}
-```
+**New mock data file**: `src/data/mock-portal.ts`
+- `PortalRug` interface: maps production data to client-facing view (rug number, type, size, services list, portal status, checked-in date)
+- `PORTAL_RUGS`: seed data for Pacific Rug Gallery -- reuses some rug numbers from production data, adds a few more for variety (~8-10 rugs across statuses)
+- `PortalPickup` interface: `{ id, date, rugNumbers, status }`
+- `PORTAL_PICKUPS`: 1-2 mock scheduled pickups
+- Portal status type: `"in_progress" | "ready" | "delivered"`
 
-**Seed data**: 2-3 clients get portal users, others get empty arrays.
+**Reuses existing data**:
+- `MOCK_INVOICES` filtered by `clientId: "client-3"` (Pacific Rug Gallery)
 
 ### File Changes
 
-1. **Edit: `src/data/mock-clients.ts`**
-   - Add `PortalUser` interface and export it
-   - Add `portalUsers` field to `Client` interface
-   - Add seed portal users to a few clients (Pacific Rug Gallery gets 2 users, Bella Casa gets 1, others get `[]`)
+1. **New: `src/data/mock-portal.ts`**
+   - `PortalStatus` type, `PortalRug` interface, `PORTAL_RUGS` seed data
+   - `PortalPickup` interface, `PORTAL_PICKUPS` seed data
+   - All scoped to Pacific Rug Gallery for now
 
-2. **Rewrite: `src/components/office/ClientsTab.tsx`**
-   - Remove pencil icon column; make rows clickable
-   - Restructure drawer: client info fields at top, portal users section below (only in edit mode)
-   - Inline "Create Login" form: email input + button, adds to local `portalUsers` array on the client
-   - Remove button per portal user
-   - Toast feedback for create/remove actions
+2. **New: `src/pages/WholesalePortal.tsx`**
+   - Main page component with client header and tab navigation (Rugs / Pickups / Invoices)
+   - Uses local state for active tab, no routes
+   - Renders the three tab components
+
+3. **New: `src/components/portal/PortalRugsTab.tsx`**
+   - Summary pills (count badges by status)
+   - Status filter tabs
+   - Rug table with inline row expansion for details
+   - No drawer, no navigation
+
+4. **New: `src/components/portal/PortalPickupsTab.tsx`**
+   - Ready for pickup list
+   - Request pickup button (toast)
+   - Scheduled pickups list
+
+5. **New: `src/components/portal/PortalInvoicesTab.tsx`**
+   - Invoice table filtered to this client
+   - Inline row expansion for line items
+   - Download PDF button (toast)
+
+6. **Edit: `src/App.tsx`**
+   - Add route: `/portal` -> `WholesalePortal`
 
 ### Technical Details
 
-- Portal users are stored on the `Client` object in local state -- no separate state map needed
-- When saving a client edit, the full client object (including portal users) is updated in the `clients` state array
-- "Create Login" validates email is non-empty and not already in the list
-- No auth integration yet -- this is UI scaffolding for future Supabase auth hookup
-- The portal users section is hidden when adding a new client (no client ID yet)
+- Client is hardcoded to Pacific Rug Gallery (`client-3`) -- no auth yet, this is UI scaffolding
+- Tab state is local `useState`, not URL-based -- keeps it simple
+- Portal statuses are a simplified mapping: facility uses 5 stages, portal shows 3
+- Inline expansion uses a `expandedRow` state (rug ID or null), toggled on row click
+- Summary pills use `Badge` or small div with counts, not a dashboard widget
+- No new dependencies needed -- uses existing UI components (Table, Badge, Tabs, Button)
+- The portal layout is intentionally simpler than the facility views -- no sidebar nav, just a header with tabs
 
