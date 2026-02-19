@@ -1,137 +1,70 @@
 
 
-## Office Page: `/facility/office`
+## Pricing Tab: Simplified Single Table with Client Overrides
 
-### Overview
-A new page at `/facility/office` following the same vertical tab nav pattern as `/facility/ops`. Contains three tabs: Pricing, Invoices, and Clients. All edit/create forms open in right-side Sheet drawers (no modals, no route changes).
+### What Changes
+
+Replace the current PricingTab (grouped tables + Sheet drawers + presets section) with a single flat table and a client selector dropdown. No modals, no sheets, no grouped sub-tables.
 
 ### Layout
 
 ```text
-+----------+--------------------------------------------+
-| Pricing  |                                            |
-| Invoices |  Tab content area                          |
-| Clients  |  (full-width, scrollable)                  |
-|          |                                            |
-+----------+--------------------------------------------+
++--------------------------------------------------+
+| Services          [Client: None v]               |
++--------------------------------------------------+
+| Service        | Category | Base Price | Unit    |
+|----------------|----------|-----------|---------|
+| Standard Wash  | Cleaning | $3.50     | / sq ft |
+| Deep Wash      | Cleaning | $5.00     | / sq ft |
+| ...            |          |           |         |
++--------------------------------------------------+
 ```
 
-Same vertical nav pattern as `FacilityOps.tsx`.
+When a client is selected:
 
----
+```text
++--------------------------------------------------------------+
+| Services          [Client: Pacific Rug Gallery v]  [Clear x] |
++--------------------------------------------------------------+
+| Service        | Category | Base Price | Unit    | Override  |
+|----------------|----------|-----------|---------|-----------|
+| Standard Wash  | Cleaning | $3.50     | / sq ft | [__3.00_] |
+| Deep Wash      | Cleaning | $5.00     | / sq ft | [______]  |
+| ...            |          |           |         |           |
++--------------------------------------------------------------+
+```
 
-### Tab 1: Pricing
+### Behavior
 
-**Main view**: Editable table of all services from `src/data/services.ts`, grouped by category.
+- **Client selector**: A `Select` dropdown in the header. Default is "None" (no client). Selecting a client reveals the "Client Override" column.
+- **Override column**: Each cell is an inline `Input` (number). Empty means "use base price". Entering a value sets a per-client override. Clearing the input removes the override.
+- **No row duplication**: The service list is always the same rows. Overrides are stored in a separate map keyed by `clientId -> serviceId -> price`.
+- **Inline base price editing**: Base price cells are also editable inline (click to edit, blur to save). No sheet/modal needed.
+- **Presets section**: Kept below the table as-is (it's small and useful), but the preset sheet drawers remain since they're multi-select forms that don't fit inline.
 
-Each row shows:
-- Service name
-- Category
-- Base price
-- Unit (sqft / flat)
-- Edit button
+### Data Model
 
-**Header actions**:
-- "Add Service" button
-- Preset management section (list of presets, edit/create)
-
-**Sheet drawers**:
-- "Add/Edit Service" sheet: form with name, category (select), base price, unit (radio)
-- "Add/Edit Preset" sheet: form with preset name, multi-select of services
-
-All changes update the in-memory state (no DB yet).
-
----
-
-### Tab 2: Invoices
-
-**Main view**: Table of mock invoices, newest first.
-
-Each row shows:
-- Invoice number
-- Client name
-- Date
-- Rug count
-- Total amount
-- Status (Draft / Sent / Paid / Overdue)
-- View/Edit button
-
-**Sheet drawer**: Invoice detail/edit form showing:
-- Client info (read-only)
-- Line items (rug number, services, subtotal per rug)
-- Totals
-- Status change dropdown
-- Notes field
-
-Mock data: 4-5 seed invoices referencing existing clients.
-
----
-
-### Tab 3: Clients
-
-**Main view**: Table of wholesale clients.
-
-Each row shows:
-- Client name
-- Contact info (phone, email)
-- Rug count (total checked in)
-- Outstanding balance
-- Edit button
-
-**Header actions**: "Add Client" button
-
-**Sheet drawer**: Add/Edit Client form with:
-- Client name
-- Contact name
-- Phone
-- Email
-- Address
-- Notes
-- Pricing tier (standard / preferred / VIP) for future discount logic
-
-Mock data: seed from existing `MOCK_CLIENTS` list with added detail.
-
----
+- **Client overrides**: `Record<string, Record<string, number>>` -- maps `clientId` to `serviceId` to override price
+- Seed a couple of overrides for visual testing (e.g., Pacific Rug Gallery gets a discount on Standard Wash)
 
 ### File Changes
 
-1. **New: `src/pages/FacilityOffice.tsx`**
-   - Same vertical tab nav pattern as `FacilityOps.tsx`
-   - Three tabs: Pricing, Invoices, Clients
-   - Icons: DollarSign, FileText, Users
-
-2. **New: `src/components/office/PricingTab.tsx`**
-   - Service table grouped by category
-   - Preset list section
-   - State initialized from `SERVICES` and `SERVICE_PRESETS`
-   - Opens Sheet drawer for add/edit service and add/edit preset
-
-3. **New: `src/components/office/InvoicesTab.tsx`**
-   - Invoice table with status badges
-   - Opens Sheet drawer for invoice detail/edit
-
-4. **New: `src/components/office/ClientsTab.tsx`**
-   - Client table
-   - Opens Sheet drawer for add/edit client
-
-5. **New: `src/data/mock-clients.ts`**
-   - `Client` interface (id, name, contactName, phone, email, address, notes, pricingTier, rugCount, outstandingBalance)
-   - Seed data from existing `MOCK_CLIENTS` names
-
-6. **New: `src/data/mock-invoices.ts`**
-   - `Invoice` interface (id, invoiceNumber, clientName, date, rugCount, totalAmount, status, lineItems, notes)
-   - 4-5 seed invoices
-
-7. **Edit: `src/App.tsx`**
-   - Add route: `<Route path="/facility/office" element={<FacilityOffice />} />`
+1. **Rewrite: `src/components/office/PricingTab.tsx`**
+   - Remove grouped sub-tables, replace with single flat table
+   - Remove service add/edit Sheet drawers
+   - Add client selector dropdown in header (from `MOCK_CLIENTS`)
+   - Add `clientOverrides` state map
+   - Base price cells become inline-editable inputs (click to focus, blur to save)
+   - Override column appears conditionally when `selectedClientId` is set
+   - Override cells are inline number inputs
+   - Keep presets section at bottom (unchanged)
 
 ### Technical Details
 
-- All state in-memory, seeded from mock data files
-- Sheet component (already installed via `@radix-ui/react-dialog`) used for all drawers -- slides in from right
-- Tables use the existing `src/components/ui/table.tsx` components
-- Status badges use existing `Badge` component with color variants
-- Forms use `react-hook-form` + `zod` for validation, matching existing patterns
-- No cross-page state sharing needed; each tab manages its own state
-- Pricing tab edits are local state only (they don't retroactively change check-in log prices)
+- `selectedClientId: string | null` state controls override column visibility
+- `clientOverrides: Record<string, Record<string, number>>` stores all overrides
+- When override input is empty/cleared, the entry is removed from the map (not stored as 0)
+- Base price inline edit: each row shows the price as text; clicking makes it an input; blur saves
+- No new files needed -- this is a rewrite of `PricingTab.tsx` only
+- Presets section and its Sheet drawer are preserved (multi-select service picker doesn't work inline)
 
