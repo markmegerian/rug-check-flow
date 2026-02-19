@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Package } from "lucide-react";
+import { X, Package, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,67 +15,83 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  SERVICES, SERVICE_PRESETS, SERVICE_CATEGORIES,
+  SERVICES, SERVICE_PRESETS,
   type Service, type ServicePreset,
 } from "@/data/services";
+import { MOCK_CLIENTS } from "@/data/mock-clients";
+
+// Seed overrides: Pacific Rug Gallery gets discount on Standard Wash
+const SEED_OVERRIDES: Record<string, Record<string, number>> = {
+  "client-3": {
+    "wash-standard": 3.0,
+    "wash-deep": 4.25,
+  },
+};
 
 export function PricingTab() {
   const [services, setServices] = useState<Service[]>([...SERVICES]);
   const [presets, setPresets] = useState<ServicePreset[]>([...SERVICE_PRESETS]);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [clientOverrides, setClientOverrides] = useState<Record<string, Record<string, number>>>(SEED_OVERRIDES);
 
-  // Service sheet
-  const [serviceSheetOpen, setServiceSheetOpen] = useState(false);
-  const [editingService, setEditingService] = useState<Service | null>(null);
-  const [svcName, setSvcName] = useState("");
-  const [svcCategory, setSvcCategory] = useState<string>(SERVICE_CATEGORIES[0]);
-  const [svcPrice, setSvcPrice] = useState("");
-  const [svcUnit, setSvcUnit] = useState<"sqft" | "flat">("sqft");
+  // Inline base price editing
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState("");
 
-  // Preset sheet
+  // Preset sheet (kept as-is)
   const [presetSheetOpen, setPresetSheetOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<ServicePreset | null>(null);
   const [presetName, setPresetName] = useState("");
   const [presetServiceIds, setPresetServiceIds] = useState<string[]>([]);
 
-  const openAddService = () => {
-    setEditingService(null);
-    setSvcName("");
-    setSvcCategory(SERVICE_CATEGORIES[0]);
-    setSvcPrice("");
-    setSvcUnit("sqft");
-    setServiceSheetOpen(true);
+  // Base price inline edit handlers
+  const startEditPrice = (s: Service) => {
+    setEditingPriceId(s.id);
+    setEditingPriceValue(String(s.basePrice));
   };
 
-  const openEditService = (s: Service) => {
-    setEditingService(s);
-    setSvcName(s.name);
-    setSvcCategory(s.category);
-    setSvcPrice(String(s.basePrice));
-    setSvcUnit(s.unit);
-    setServiceSheetOpen(true);
-  };
-
-  const saveService = () => {
-    const price = parseFloat(svcPrice);
-    if (!svcName.trim() || isNaN(price)) return;
-    if (editingService) {
+  const commitPrice = (serviceId: string) => {
+    const price = parseFloat(editingPriceValue);
+    if (!isNaN(price) && price >= 0) {
       setServices((prev) =>
-        prev.map((s) =>
-          s.id === editingService.id
-            ? { ...s, name: svcName.trim(), category: svcCategory, basePrice: price, unit: svcUnit }
-            : s
-        )
+        prev.map((s) => (s.id === serviceId ? { ...s, basePrice: price } : s))
       );
-    } else {
-      const newId = `svc-${Date.now()}`;
-      setServices((prev) => [
-        ...prev,
-        { id: newId, name: svcName.trim(), category: svcCategory, basePrice: price, unit: svcUnit },
-      ]);
     }
-    setServiceSheetOpen(false);
+    setEditingPriceId(null);
   };
 
+  // Override handlers
+  const getOverride = (serviceId: string): string => {
+    if (!selectedClientId) return "";
+    const val = clientOverrides[selectedClientId]?.[serviceId];
+    return val !== undefined ? String(val) : "";
+  };
+
+  const setOverride = (serviceId: string, raw: string) => {
+    if (!selectedClientId) return;
+    setClientOverrides((prev) => {
+      const next = { ...prev };
+      if (!raw.trim()) {
+        // Remove override
+        if (next[selectedClientId]) {
+          const { [serviceId]: _, ...rest } = next[selectedClientId];
+          if (Object.keys(rest).length === 0) {
+            delete next[selectedClientId];
+          } else {
+            next[selectedClientId] = rest;
+          }
+        }
+      } else {
+        const price = parseFloat(raw);
+        if (!isNaN(price) && price >= 0) {
+          next[selectedClientId] = { ...next[selectedClientId], [serviceId]: price };
+        }
+      }
+      return next;
+    });
+  };
+
+  // Preset handlers
   const openAddPreset = () => {
     setEditingPreset(null);
     setPresetName("");
@@ -115,55 +131,101 @@ export function PricingTab() {
     );
   };
 
-  const grouped = SERVICE_CATEGORIES.map((cat) => ({
-    category: cat,
-    items: services.filter((s) => s.category === cat),
-  }));
-
   return (
     <div className="p-4 md:p-6 space-y-8 overflow-auto h-full">
-      {/* Services */}
+      {/* Services Table */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">Services</h2>
-          <Button size="sm" onClick={openAddService}>
-            <Plus className="h-4 w-4 mr-1" /> Add Service
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedClientId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedClientId(null)}
+                className="text-muted-foreground"
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Clear
+              </Button>
+            )}
+            <Select
+              value={selectedClientId ?? "none"}
+              onValueChange={(v) => setSelectedClientId(v === "none" ? null : v)}
+            >
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="Client: None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Client</SelectItem>
+                {MOCK_CLIENTS.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {grouped.map((group) => (
-          <div key={group.category} className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">{group.category}</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service</TableHead>
-                  <TableHead className="w-28">Base Price</TableHead>
-                  <TableHead className="w-20">Unit</TableHead>
-                  <TableHead className="w-16" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {group.items.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell>${s.basePrice.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {s.unit === "sqft" ? "/ sq ft" : "flat"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => openEditService(s)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ))}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Service</TableHead>
+              <TableHead className="w-28">Category</TableHead>
+              <TableHead className="w-32">Base Price</TableHead>
+              <TableHead className="w-24">Unit</TableHead>
+              {selectedClientId && <TableHead className="w-32">Override</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {services.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell className="font-medium">{s.name}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs">{s.category}</Badge>
+                </TableCell>
+                <TableCell>
+                  {editingPriceId === s.id ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="h-8 w-24"
+                      value={editingPriceValue}
+                      onChange={(e) => setEditingPriceValue(e.target.value)}
+                      onBlur={() => commitPrice(s.id)}
+                      onKeyDown={(e) => e.key === "Enter" && commitPrice(s.id)}
+                      autoFocus
+                    />
+                  ) : (
+                    <button
+                      className="text-left hover:underline cursor-pointer"
+                      onClick={() => startEditPrice(s)}
+                    >
+                      ${s.basePrice.toFixed(2)}
+                    </button>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs text-muted-foreground">
+                    {s.unit === "sqft" ? "/ sq ft" : "flat"}
+                  </span>
+                </TableCell>
+                {selectedClientId && (
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="h-8 w-24"
+                      placeholder="—"
+                      value={getOverride(s.id)}
+                      onChange={(e) => setOverride(s.id, e.target.value)}
+                    />
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </section>
 
       {/* Presets */}
@@ -196,65 +258,6 @@ export function PricingTab() {
           ))}
         </div>
       </section>
-
-      {/* Service Sheet */}
-      <Sheet open={serviceSheetOpen} onOpenChange={setServiceSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>{editingService ? "Edit Service" : "Add Service"}</SheetTitle>
-            <SheetDescription>
-              {editingService ? "Update service details." : "Create a new service."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="space-y-4 py-6">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input value={svcName} onChange={(e) => setSvcName(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <Select value={svcCategory} onValueChange={setSvcCategory}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {SERVICE_CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Base Price ($)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={svcPrice}
-                onChange={(e) => setSvcPrice(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Unit</Label>
-              <div className="flex gap-4">
-                {(["sqft", "flat"] as const).map((u) => (
-                  <label key={u} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      name="unit"
-                      checked={svcUnit === u}
-                      onChange={() => setSvcUnit(u)}
-                      className="accent-primary"
-                    />
-                    {u === "sqft" ? "Per sq ft" : "Flat rate"}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <SheetFooter>
-            <Button onClick={saveService} className="w-full">Save</Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
 
       {/* Preset Sheet */}
       <Sheet open={presetSheetOpen} onOpenChange={setPresetSheetOpen}>
