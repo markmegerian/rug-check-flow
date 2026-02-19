@@ -1,171 +1,138 @@
 
 
-## Driver Portal: Mobile-First Pickup Verification
+## Admin Section: Users, Roles, and Audit Log
 
 ### What This Is
 
-A separate driver-facing portal at `/driver` optimized for mobile/tablet use. Drivers see only their assigned confirmed pickups, tap into one to verify each rug with a checklist, add per-rug notes, capture a signature, and complete the pickup -- which permanently locks the record.
+A new admin page at `/admin` with three tabs: Users, Roles, and Audit Log. This is internal-only tooling for managing who can access the system and reviewing what happened. No payouts, no platform configuration.
 
 ### Layout
 
 ```text
-Pickup List (/driver):
-+----------------------------------+
-| RugBoost Driver                  |
-+----------------------------------+
-| Today's Pickups (2)              |
-+----------------------------------+
-| Pacific Rug Gallery              |
-| 3300 NW 23rd Ave, Portland      |
-| Feb 20 — 2 rugs                 |
-| [Start Verification ->]         |
-+----------------------------------+
-| Bella Casa Furnishings           |
-| 7100 SW Macadam Ave, Portland   |
-| Feb 25 — 1 rug                  |
-| [Start Verification ->]         |
-+----------------------------------+
++----------------------------------------------------------+
+| Admin                                                    |
+| [Users]  [Roles]  [Audit Log]                            |
++----------------------------------------------------------+
 
-Completed pickups appear below, grayed:
-+----------------------------------+
-| Completed                        |
-+----------------------------------+
-| Riverside Interior Design        |
-| Feb 18 — 3 rugs   Completed     |
-+----------------------------------+
+Users tab (default):
++----------------------------------------------------------+
+| Name          | Email                | Role        | Status|
+|---------------|----------------------|-------------|-------|
+| Sarah Chen    | sarah@riverside..    | office      | Active|
+| Amir Farouk   | amir@pacificrugs..  | admin       | Active|
+| Tom Whitfield | tom@grandmas..       | checkin_staff| Active|
+| Driver Mike   | mike@rugboost..      | driver      | Active|
+| New Hire      | newhire@rugboost..   | checkin_staff| Invited|
++----------------------------------------------------------+
+| [Add User]                                               |
++----------------------------------------------------------+
 
+Roles tab:
++----------------------------------------------------------+
+| Role           | Description              | Users |      |
+|----------------|--------------------------|-------|------|
+| admin          | Full system access       |   1   |      |
+| office         | Office & billing access  |   1   |      |
+| checkin_staff  | Check-in only            |   2   |      |
+| driver         | Driver portal only       |   1   |      |
++----------------------------------------------------------+
+| Read-only — roles are predefined.                        |
++----------------------------------------------------------+
 
-Verification View (inline, replaces list):
-+----------------------------------+
-| <- Back    Pacific Rug Gallery   |
-+----------------------------------+
-| RB-1004  Kilim  5x3             |
-| Standard Wash, Fringe Repair    |
-| [  ] Verified                   |
-| Notes [____________________]    |
-+----------------------------------+
-| RB-1005  Persian  14x10         |
-| Silk Treatment                  |
-| [x] Verified                    |
-| Notes [Slight edge wear_____]  |
-+----------------------------------+
-| Signature                        |
-| +------------------------------+|
-| |                              ||
-| |    (draw area)               ||
-| |                              ||
-| +------------------------------+|
-| [Clear]                         |
-|                                  |
-| [Complete Pickup]                |
-| All rugs must be verified to    |
-| complete.                        |
-+----------------------------------+
-
-
-After completion (locked):
-+----------------------------------+
-| <- Back    Pacific Rug Gallery   |
-+----------------------------------+
-| ! Pickup completed on 2/20/2026 |
-|   at 2:34 PM. Record is locked. |
-+----------------------------------+
-| RB-1004  Kilim  Verified        |
-| Notes: —                        |
-+----------------------------------+
-| RB-1005  Persian  Verified      |
-| Notes: Slight edge wear         |
-+----------------------------------+
-| Signature                        |
-| [captured signature image]       |
-+----------------------------------+
+Audit Log tab:
++----------------------------------------------------------+
+| Timestamp         | User          | Action               |
+|-------------------|---------------|-----------------------|
+| 2/19 2:34 PM      | Amir Farouk   | Completed pickup dp-1|
+| 2/19 1:15 PM      | Sarah Chen    | Checked in R-4510    |
+| 2/19 12:40 PM     | Sarah Chen    | Updated client-3     |
+| 2/19 11:00 AM     | System        | Invoice INV-2026-001 |
++----------------------------------------------------------+
+| Read-only log. No actions.                               |
++----------------------------------------------------------+
 ```
 
 ### Behavior
 
-**Pickup List** (default view):
-- Shows only confirmed pickups assigned to this driver (hardcoded for now)
-- Each card shows: client name, address, date, rug count
-- "Start Verification" button opens the verification view
-- Completed pickups shown below in a separate section, grayed out, tappable to review locked record
+**Users tab** (default):
+- Table of all system users with name, email, role, and status (Active/Invited)
+- Click a row to open a side drawer (Sheet) for editing name, email, and role assignment
+- Role is a Select dropdown with the predefined roles
+- "Add User" button opens the same drawer in create mode
+- Save updates local state, shows toast
+- No delete -- just deactivate (status toggle) to keep audit trail clean
 
-**Verification View**:
-- Back button returns to list
-- Each rug in the pickup shown as a card with: rug number, type, size, services
-- Per-rug "Verified" toggle (checkbox)
-- Per-rug notes input (text, optional)
-- Signature capture area at bottom (canvas-based, draw with touch/mouse)
-- "Clear" button resets the signature canvas
-- "Complete Pickup" button: disabled until all rugs are verified AND signature is present
-- On complete: locks the pickup permanently, records timestamp, shows toast
+**Roles tab**:
+- Read-only table of predefined roles
+- Each row shows: role name, description, count of users with that role
+- No add/edit/delete -- roles are system-defined
+- Simple informational view
 
-**Locked State** (after completion):
-- Persistent banner: "Pickup completed on [date] at [time]. Record is locked."
-- All rug verifications shown as read-only text
-- Signature shown as static image
-- No action buttons
+**Audit Log tab**:
+- Read-only table of system events in reverse chronological order
+- Each row: timestamp, user name, action description
+- No filtering for now -- just a scrollable list
+- Seed data covers recent actions (check-ins, client updates, pickup completions, invoice creation)
 
-### Data Model
+### Data
 
-**New file: `src/data/mock-driver.ts`**
+**New file: `src/data/mock-admin.ts`**
 
-```typescript
-interface DriverPickup {
-  id: string;
-  pickupId: string;        // references PortalPickup
-  clientName: string;
-  clientAddress: string;
-  date: string;
-  rugs: DriverPickupRug[];
-  status: "assigned" | "completed";
-  completedAt?: string;     // ISO timestamp
-  signatureDataUrl?: string; // base64 canvas image
-}
+```text
+AdminUser interface:
+  id, name, email, role (admin | office | checkin_staff | driver), status (active | invited)
 
-interface DriverPickupRug {
-  rugNumber: string;
-  rugType: string;
-  length: number;
-  width: number;
-  services: string[];
-  verified: boolean;
-  notes: string;
-}
+MOCK_ADMIN_USERS: 5 seed users spanning all roles
+
+RoleDefinition interface:
+  id, name, description
+
+ROLE_DEFINITIONS: 4 predefined roles with descriptions
+
+AuditEntry interface:
+  id, timestamp (Date), userName, action (string)
+
+MOCK_AUDIT_LOG: ~8 seed entries covering various actions
 ```
-
-Seed data: 2 assigned pickups (matching the confirmed portal pickups) + 1 completed pickup for history.
 
 ### File Changes
 
-1. **New: `src/data/mock-driver.ts`**
-   - `DriverPickupRug` and `DriverPickup` interfaces
-   - `DRIVER_PICKUPS` seed data (2 assigned, 1 completed)
+1. **New: `src/data/mock-admin.ts`**
+   - `AdminUser` interface and `MOCK_ADMIN_USERS` seed data
+   - `RoleDefinition` interface and `ROLE_DEFINITIONS` array
+   - `AuditEntry` interface and `MOCK_AUDIT_LOG` seed data
 
-2. **New: `src/pages/DriverPortal.tsx`**
-   - Mobile-first layout: full-width, no sidebar, large touch targets
-   - Local state for `pickups` (initialized from seed data) and `activePickupId` (null = list view, string = verification view)
-   - List view renders pickup cards
-   - Verification view renders rug checklist + signature + complete button
-   - Completed view renders locked record with banner
+2. **New: `src/pages/AdminPanel.tsx`**
+   - Same sidebar-tab layout pattern as `FacilityOffice.tsx`
+   - Three tabs: Users, Roles, Audit Log
+   - Local tab state, no routes
 
-3. **New: `src/components/driver/SignatureCanvas.tsx`**
-   - HTML5 canvas component for touch/mouse signature drawing
-   - Props: `onSignatureChange(dataUrl: string | null)`, `disabled: boolean`, `initialDataUrl?: string`
-   - Draws with touch events (touchstart/touchmove) and mouse events (mousedown/mousemove)
-   - "Clear" button resets canvas and calls `onSignatureChange(null)`
-   - `toDataURL()` export on complete
-   - Sized for mobile: full-width, ~150px tall, rounded border
+3. **New: `src/components/admin/UsersTab.tsx`**
+   - User table with click-to-edit via Sheet drawer
+   - Add User button creates new user
+   - Role assignment via Select dropdown
+   - Status toggle (Active/Invited)
+   - Local state seeded from mock data
 
-4. **Edit: `src/App.tsx`**
-   - Add route: `/driver` -> `DriverPortal`
+4. **New: `src/components/admin/RolesTab.tsx`**
+   - Read-only table of role definitions
+   - Shows user count per role (computed from users list passed as prop)
+
+5. **New: `src/components/admin/AuditLogTab.tsx`**
+   - Read-only table of audit entries
+   - Reverse chronological, formatted timestamps
+   - No actions, no filtering
+
+6. **Edit: `src/App.tsx`**
+   - Add route: `/admin` -> `AdminPanel`
 
 ### Technical Details
 
-- **Mobile-first**: All padding/sizing uses touch-friendly defaults (min 44px tap targets, p-4 spacing, text-base font sizes)
-- **No tables**: Everything is stacked cards for mobile readability
-- **Signature canvas**: Uses native HTML5 Canvas API, no external library. Captures drawing via pointer events (works for both touch and mouse). Exports as `canvas.toDataURL("image/png")` on completion.
-- **View switching**: Uses `activePickupId` state instead of routes -- keeps it simple, no URL management needed
-- **Lock is permanent**: Once "Complete Pickup" is clicked, the pickup status changes to `"completed"`, `completedAt` is set, and `signatureDataUrl` is saved. The UI re-renders in locked mode. No undo.
-- **Complete button validation**: Disabled unless every rug has `verified: true` AND `signatureDataUrl` is non-null. Shows helper text explaining requirements.
-- **Driver is hardcoded**: No auth, driver identity is implicit for now
+- Follows the same layout pattern as `FacilityOffice.tsx`: sidebar nav with icon + label, main content area
+- Users tab uses Sheet (side drawer) for edit -- same pattern as ClientsTab
+- Role dropdown uses existing Select component with the 4 predefined roles
+- Roles tab receives the current users array as a prop to compute counts
+- Audit log is purely presentational -- no state mutations, just renders seed data
+- `AdminUser.role` matches the existing `UserRole` type from `check-in-log.ts` plus `"driver"`
+- No auth gating yet -- this is UI scaffolding like the rest of the app
 
