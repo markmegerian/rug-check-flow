@@ -1,70 +1,94 @@
 
 
-## Pricing Tab: Simplified Single Table with Client Overrides
+## Invoices Tab: Status Tabs + Uninvoiced Services + Draft Generation
 
 ### What Changes
 
-Replace the current PricingTab (grouped tables + Sheet drawers + presets section) with a single flat table and a client selector dropdown. No modals, no sheets, no grouped sub-tables.
+Rewrite `InvoicesTab.tsx` to add three features: (1) status filter tabs above the invoice table, (2) an "Uninvoiced Services" section below the table grouped by client, and (3) one-click draft invoice generation that opens the invoice drawer for review.
 
 ### Layout
 
 ```text
-+--------------------------------------------------+
-| Services          [Client: None v]               |
-+--------------------------------------------------+
-| Service        | Category | Base Price | Unit    |
-|----------------|----------|-----------|---------|
-| Standard Wash  | Cleaning | $3.50     | / sq ft |
-| Deep Wash      | Cleaning | $5.00     | / sq ft |
-| ...            |          |           |         |
-+--------------------------------------------------+
-```
-
-When a client is selected:
-
-```text
-+--------------------------------------------------------------+
-| Services          [Client: Pacific Rug Gallery v]  [Clear x] |
-+--------------------------------------------------------------+
-| Service        | Category | Base Price | Unit    | Override  |
-|----------------|----------|-----------|---------|-----------|
-| Standard Wash  | Cleaning | $3.50     | / sq ft | [__3.00_] |
-| Deep Wash      | Cleaning | $5.00     | / sq ft | [______]  |
-| ...            |          |           |         |           |
-+--------------------------------------------------------------+
++----------------------------------------------------------+
+| [All] [Draft] [Sent] [Paid] [Overdue]                    |
++----------------------------------------------------------+
+| Invoice #  | Client       | Date  | Rugs | Total | Status|
+|------------|-------------|-------|------|-------|--------|
+| INV-2026-001| Pacific Rug | 02-15 |  5   | $2340 | Sent  |
+| ...        |              |       |      |       |       |
++----------------------------------------------------------+
+|                                                          |
+| Uninvoiced Services                                      |
++----------------------------------------------------------+
+| Acme Corp (3 rugs, $897.50)              [Generate Draft]|
+|   R-4510: Standard Wash, Scotchgard — $400               |
+|   R-4508: Deep Wash — $270                               |
+|   R-4501: Pet Stain Treatment, Odor Removal — $227.50    |
++----------------------------------------------------------+
+| Desert Rug Gallery (1 rug, $270)         [Generate Draft] |
+|   ...                                                    |
++----------------------------------------------------------+
 ```
 
 ### Behavior
 
-- **Client selector**: A `Select` dropdown in the header. Default is "None" (no client). Selecting a client reveals the "Client Override" column.
-- **Override column**: Each cell is an inline `Input` (number). Empty means "use base price". Entering a value sets a per-client override. Clearing the input removes the override.
-- **No row duplication**: The service list is always the same rows. Overrides are stored in a separate map keyed by `clientId -> serviceId -> price`.
-- **Inline base price editing**: Base price cells are also editable inline (click to edit, blur to save). No sheet/modal needed.
-- **Presets section**: Kept below the table as-is (it's small and useful), but the preset sheet drawers remain since they're multi-select forms that don't fit inline.
+**Status tabs** (using existing Tabs component):
+- Tabs: All, Draft, Sent, Paid, Overdue
+- Filters the invoice table; "All" shows everything
+- Count badge on each tab showing number of invoices in that status
 
-### Data Model
+**Uninvoiced Services section**:
+- Sources data from `SEED_CHECK_IN_LOG` (check-in entries that haven't been invoiced yet)
+- Groups entries by `clientName`
+- Each group shows: client name, rug count, total amount, and a list of rugs with their services
+- "Generate Draft" button per client group
 
-- **Client overrides**: `Record<string, Record<string, number>>` -- maps `clientId` to `serviceId` to override price
-- Seed a couple of overrides for visual testing (e.g., Pacific Rug Gallery gets a discount on Standard Wash)
+**Generate Draft flow**:
+- Clicking "Generate Draft" creates a new `Invoice` object with status `"draft"`, auto-generated invoice number, today's date, line items from the uninvoiced entries
+- The new invoice is added to the invoices state
+- The uninvoiced entries for that client are removed from the uninvoiced list
+- The invoice detail drawer opens immediately showing the new draft
+
+**Invoice drawer** (enhanced from current Sheet):
+- Shows invoice number, client, date, line items, total
+- Action buttons based on status:
+  - Draft: "Mark as Sent", "Delete Draft"
+  - Sent: "Mark as Paid", "Mark as Overdue"
+  - Paid: (read-only, download only)
+  - Overdue: "Mark as Paid"
+- "Download PDF" button (shows a toast "PDF downloaded" -- no actual PDF generation yet)
+- Status dropdown replaced by action buttons for clarity
+- Notes field (editable)
+- Save button
+
+### Data Flow
+
+- Uninvoiced services come from `SEED_CHECK_IN_LOG` entries
+- A local state `uninvoicedEntries` is initialized from the seed data
+- When a draft is generated, entries move from `uninvoicedEntries` into a new invoice in `invoices` state
+- Invoice numbers auto-increment: `INV-2026-006`, `INV-2026-007`, etc.
 
 ### File Changes
 
-1. **Rewrite: `src/components/office/PricingTab.tsx`**
-   - Remove grouped sub-tables, replace with single flat table
-   - Remove service add/edit Sheet drawers
-   - Add client selector dropdown in header (from `MOCK_CLIENTS`)
-   - Add `clientOverrides` state map
-   - Base price cells become inline-editable inputs (click to focus, blur to save)
-   - Override column appears conditionally when `selectedClientId` is set
-   - Override cells are inline number inputs
-   - Keep presets section at bottom (unchanged)
+1. **Rewrite: `src/components/office/InvoicesTab.tsx`**
+   - Add `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent` for status filtering
+   - Add `uninvoicedEntries` state initialized from `SEED_CHECK_IN_LOG`
+   - Group uninvoiced entries by client name
+   - "Generate Draft" button per group: creates invoice, removes from uninvoiced, opens drawer
+   - Rework drawer actions: status-specific buttons instead of dropdown
+   - Add "Download PDF" button (toast only)
+   - Keep line items display and notes field
+
+2. **No new files needed** -- all changes in `InvoicesTab.tsx`
 
 ### Technical Details
 
-- `selectedClientId: string | null` state controls override column visibility
-- `clientOverrides: Record<string, Record<string, number>>` stores all overrides
-- When override input is empty/cleared, the entry is removed from the map (not stored as 0)
-- Base price inline edit: each row shows the price as text; clicking makes it an input; blur saves
-- No new files needed -- this is a rewrite of `PricingTab.tsx` only
-- Presets section and its Sheet drawer are preserved (multi-select service picker doesn't work inline)
+- `uninvoicedEntries: CheckInEntry[]` state, seeded from `SEED_CHECK_IN_LOG`
+- Grouping: `Object.groupBy` or reduce to `Record<string, CheckInEntry[]>`
+- Invoice number generation: find max existing number, increment
+- Status-specific action buttons replace the generic status dropdown for faster workflow
+- "Download PDF" calls `toast("PDF downloaded")` as a placeholder
+- Tabs component from `@/components/ui/tabs` used for status filtering
+- Active tab stored in local state; "All" is default
+- Count badges use the existing `Badge` component
 
