@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ClipboardCheck, Factory, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CheckInForm } from "@/components/facility/CheckInForm";
+import { CheckInLayout } from "@/components/facility/CheckInLayout";
 
 const TABS = [
   { id: "checkin", label: "Check-In", icon: ClipboardCheck },
@@ -41,7 +41,7 @@ export default function FacilityOps() {
 
       {/* Tab content */}
       <main className="flex-1 min-w-0 overflow-hidden">
-        {activeTab === "checkin" && <CheckInForm />}
+        {activeTab === "checkin" && <CheckInLayout />}
         {activeTab === "production" && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             Production tracking — coming soon
