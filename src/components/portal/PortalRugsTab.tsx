@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PORTAL_RUGS, PortalStatus } from "@/data/mock-portal";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
@@ -32,89 +31,74 @@ export default function PortalRugsTab() {
 
   const filtered = filter === "all" ? rugs : rugs.filter((r) => r.status === filter);
 
-  const filters: { key: Filter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "in_progress", label: "In Progress" },
-    { key: "ready", label: "Ready" },
-    { key: "delivered", label: "Delivered" },
+  const filters: { key: Filter; label: string; count: number }[] = [
+    { key: "all", label: "All", count: counts.total },
+    { key: "in_progress", label: "In Progress", count: counts.in_progress },
+    { key: "ready", label: "Ready", count: counts.ready },
+    { key: "delivered", label: "Delivered", count: counts.delivered },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Summary pills */}
-      <div className="flex flex-wrap gap-2">
-        <div className="rounded-md bg-muted px-3 py-1.5 text-sm font-medium">{counts.total} Total</div>
-        <div className="rounded-md bg-primary/10 text-primary px-3 py-1.5 text-sm font-medium">{counts.in_progress} In Progress</div>
-        <div className="rounded-md bg-secondary px-3 py-1.5 text-sm font-medium">{counts.ready} Ready</div>
-        <div className="rounded-md bg-muted px-3 py-1.5 text-sm font-medium">{counts.delivered} Delivered</div>
-      </div>
-
-      {/* Filter tabs */}
-      <div className="flex gap-1 border-b">
+      {/* Filter pills */}
+      <div className="flex flex-wrap gap-1.5">
         {filters.map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               filter === f.key
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "bg-foreground text-background"
+                : "bg-background border border-border text-muted-foreground hover:text-foreground"
             }`}
           >
-            {f.label}
+            {f.label} · {f.count}
           </button>
         ))}
       </div>
 
-      {/* Rug table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-8" />
-            <TableHead>Rug #</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Services</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Date</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((rug) => {
-            const isExpanded = expandedRow === rug.id;
-            return (
-              <>
-                <TableRow
-                  key={rug.id}
-                  className="cursor-pointer"
-                  onClick={() => setExpandedRow(isExpanded ? null : rug.id)}
-                >
-                  <TableCell className="w-8 pr-0">
-                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  </TableCell>
-                  <TableCell className="font-medium">{rug.rugNumber}</TableCell>
-                  <TableCell>{rug.rugType}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{rug.services.join(", ")}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANTS[rug.status]}>{STATUS_LABELS[rug.status]}</Badge>
-                  </TableCell>
-                  <TableCell>{new Date(rug.checkedInDate).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</TableCell>
-                </TableRow>
-                {isExpanded && (
-                  <TableRow key={`${rug.id}-detail`}>
-                    <TableCell colSpan={6} className="bg-muted/30">
-                      <div className="py-2 pl-8 space-y-1 text-sm">
-                        <p><span className="text-muted-foreground">Size:</span> {rug.length}' × {rug.width}'</p>
-                        <p><span className="text-muted-foreground">Services:</span> {rug.services.join(", ")}</p>
-                        <p><span className="text-muted-foreground">Checked in:</span> {new Date(rug.checkedInDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </>
-            );
-          })}
-        </TableBody>
-      </Table>
+      {/* Rug list */}
+      <div className="rounded-lg border bg-background divide-y">
+        {filtered.map((rug) => {
+          const isExpanded = expandedRow === rug.id;
+          return (
+            <div key={rug.id}>
+              <button
+                onClick={() => setExpandedRow(isExpanded ? null : rug.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+              >
+                <span className="text-muted-foreground">
+                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                </span>
+                <span className="text-sm font-medium w-20 shrink-0">{rug.rugNumber}</span>
+                <span className="text-sm text-muted-foreground w-20 shrink-0">{rug.rugType}</span>
+                <span className="text-sm text-muted-foreground flex-1 truncate hidden sm:block">
+                  {rug.services.join(", ")}
+                </span>
+                <Badge variant={STATUS_VARIANTS[rug.status]} className="text-[11px] shrink-0">
+                  {STATUS_LABELS[rug.status]}
+                </Badge>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-3 pl-12 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm">
+                  <div>
+                    <span className="text-muted-foreground text-xs">Size</span>
+                    <p>{rug.length}' × {rug.width}'</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Checked in</span>
+                    <p>{new Date(rug.checkedInDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="text-muted-foreground text-xs">Services</span>
+                    <p>{rug.services.join(", ")}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
