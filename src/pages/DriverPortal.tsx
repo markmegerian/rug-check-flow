@@ -65,8 +65,8 @@ const DriverPortal: React.FC = () => {
             <h2 className="text-base font-semibold mb-3">Assigned Pickups ({assigned.length})</h2>
             {assigned.length === 0 && <p className="text-sm text-muted-foreground">No assigned pickups.</p>}
             <div className="space-y-3">
-              {assigned.map((pickup) => (
-                <div key={pickup.id} className="rounded-lg border bg-card p-4 space-y-2">
+              {assigned.map((pickup, i) => (
+                <div key={pickup.id} className="rounded-lg border bg-card p-4 space-y-2 shadow-card animate-fade-in-up" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>
                   <p className="font-medium text-base">{pickup.clientName}</p>
                   <p className="text-sm text-muted-foreground">{pickup.clientAddress}</p>
                   <p className="text-sm text-muted-foreground">
@@ -135,7 +135,7 @@ const DriverPortal: React.FC = () => {
         )}
 
         {activePickup.rugs.map((rug, i) => (
-          <div key={rug.rugNumber} className="rounded-lg border bg-card p-4 space-y-3">
+          <div key={rug.rugNumber} className="rounded-lg border bg-card p-4 space-y-3 shadow-card animate-fade-in-up" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>
             <div>
               <p className="font-medium text-base">
                 {rug.rugNumber} &nbsp;{rug.rugType} &nbsp;{rug.length}×{rug.width}

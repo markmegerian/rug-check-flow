@@ -17,8 +17,8 @@ export default function FacilityOffice() {
   const [activeTab, setActiveTab] = useState<TabId>("pricing");
 
   return (
-    <div className="h-screen flex">
-      <nav className="w-16 md:w-48 border-r border-border bg-muted/50 flex flex-col py-2 shrink-0">
+    <div className="h-screen flex bg-background">
+      <nav className="w-16 md:w-48 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col py-2 shrink-0">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;

@@ -16,9 +16,9 @@ export default function FacilityOps() {
   const [activeTab, setActiveTab] = useState<TabId>("checkin");
 
   return (
-    <div className="h-screen flex">
+    <div className="h-screen flex bg-background">
       {/* Vertical tab nav */}
-      <nav className="w-16 md:w-48 border-r border-border bg-muted/50 flex flex-col py-2 shrink-0">
+      <nav className="w-16 md:w-48 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col py-2 shrink-0">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
