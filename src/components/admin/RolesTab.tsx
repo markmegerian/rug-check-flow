@@ -10,7 +10,7 @@ export function RolesTab({ users }: RolesTabProps) {
   const countByRole = (role: string) => users.filter((u) => u.role === role).length;
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
       <h2 className="text-lg font-semibold">Roles</h2>
       <Table>
         <TableHeader>

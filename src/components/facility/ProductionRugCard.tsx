@@ -81,7 +81,7 @@ export function ProductionRugCard({
   };
 
   return (
-    <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+    <div className="rounded-md border bg-card text-card-foreground shadow-card animate-fade-in-up">
       {/* Collapsed header */}
       <button
         className="w-full text-left px-3 py-2.5 flex items-start justify-between gap-2"

@@ -134,7 +134,7 @@ export function ClientsTab() {
   };
 
   return (
-    <div className="p-4 md:p-6 overflow-auto h-full">
+    <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-foreground">Clients</h2>
         <Button size="sm" onClick={openAdd}>

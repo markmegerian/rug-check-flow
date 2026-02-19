@@ -53,7 +53,7 @@ export function UsersTab() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Users</h2>
         <Button size="sm" onClick={openCreate}>
