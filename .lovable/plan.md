@@ -1,85 +1,80 @@
 
 
-## Right Panel: Today's Check-In Log
+## Production Tab: Kanban Board
 
 ### Overview
-Replace the "Order Summary -- coming soon" placeholder in the right panel with a live, chronological log of all rugs checked in today. Each entry is expandable to show service details and totals. Entries are editable within a 2-hour window for check-in staff (no auth yet, so simulated with a mock role toggle).
+Replace the Production placeholder with a horizontal kanban board showing rugs moving through five stages. Each rug is a card with service status indicators. Staff interactions are streamlined with bulk actions and role-gated controls.
 
-### Layout
+### Stages (columns, left to right)
 
 ```text
-RIGHT PANEL (~260px)
-+----------------------------+
-|  Today's Check-Ins (count) |
-+----------------------------+
-|  10:32 AM                  |
-|  R-4521  Acme Corp         |
-|  $280.00         [v expand]|
-|  -------------------------  |
-|  10:15 AM                  |
-|  R-4530  Desert Rug Gallery|
-|  $195.00         [v expand]|
-|  ...                       |
-+----------------------------+
+| Checked In | In Progress | QC | Ready | Out for Delivery |
+|------------|-------------|-----|-------|------------------|
+| [rug card] | [rug card]  |     |       |                  |
+| [rug card] |             |     |       |                  |
 ```
 
-### Behavior
+### Data Model
 
-**Chronological list (newest first)**
-- Each row shows: timestamp, rug number (monospace), client name, total price
-- Clicking a row expands it inline to reveal:
-  - Rug type, dimensions
-  - List of selected services with individual prices
-  - Total
-  - Edit button (if editable)
+**New file: `src/data/production.ts`**
 
-**Editability rules (simulated for now)**
-- Since there is no auth/roles system yet, use a mock `userRole` variable in `CheckInLayout` (default: `"checkin_staff"`)
-- Check-in staff: entry is editable for 2 hours after `checkedInAt` timestamp
-- Office/admin role: always editable
-- "Edit" button appears on eligible rows; clicking it re-loads the entry into the center form for modification
-- After re-submission, the log entry updates in place (not duplicated)
+- `ProductionStage` type: `"checked_in" | "in_progress" | "qc" | "ready" | "out_for_delivery"`
+- `PRODUCTION_STAGES` array with id, label, color for each stage
+- `ServiceTask` interface: extends service info with `status` (`"pending" | "in_progress" | "complete"`), `assignedTo` (staff name or null)
+- `ProductionRug` interface: id, rugNumber, clientName, rugType, length, width, stage, services (array of `ServiceTask`), checkedInAt
+- `SEED_PRODUCTION_RUGS`: 6-8 mock rugs spread across stages for visual testing
+- Mock `currentStaffName` constant (e.g. `"Alex"`) to simulate staff identity
 
-**Integration with Check-In flow**
-- When `CheckInForm` completes a check-in, the submitted data (rug info + services + total + timestamp) is pushed into the log
-- The log lives as state in `CheckInLayout` alongside `pendingRugs`
+### Rug Card (`ProductionRugCard.tsx`)
 
----
+Each card displays:
+- **Rug number** (monospace, bold) and **client name**
+- **Dimensions** (e.g. "8x10 ft")
+- **Service list** with status indicators:
+  - Pending: gray circle
+  - In Progress: blue spinning/pulse dot
+  - Complete: green checkmark
+  - Each service shows name and its status icon inline
+- **Assigned-to badge** only visible in Edit Mode
+
+**Expand on click** (inline, not modal):
+- Shows full service detail
+- "Start All Assigned" button: sets all services assigned to current staff from pending to in_progress
+- "Complete All Assigned" button: sets all in_progress services assigned to current staff to complete
+- "Advance Stage" button: enabled only when ALL services on the rug are complete; moves rug to next stage
+
+**Staff filtering (default view)**:
+- By default, services not assigned to the current staff are dimmed (shown but de-emphasized)
+- A "Show All" toggle in the card reveals all services equally
+
+**Edit Mode** (toggled from board header):
+- Service assignment dropdowns become visible on each service row
+- Allows reassigning services to different staff members
+
+### Board Component (`ProductionBoard.tsx`)
+
+- Horizontal scrollable layout with five columns
+- Each column: stage header with count badge, scrollable list of rug cards
+- **Board header bar** with:
+  - "Edit Mode" toggle (switch component)
+  - Staff filter display showing current mock staff name
+- Columns use `ScrollArea` for vertical overflow
+- Cards are not drag-and-drop (stage advancement is action-based only)
 
 ### File Changes
 
-1. **New: `src/components/facility/CheckInLogPanel.tsx`**
-   - Accepts `entries` array and `userRole` prop
-   - Renders a scrollable list of check-in entries, newest first
-   - Each row is a collapsible/expandable section (using Radix Collapsible)
-   - Shows edit button based on role + 2-hour window logic
-   - Fires `onEdit(entryId)` callback when edit is clicked
-
-2. **New: `src/data/check-in-log.ts`**
-   - `CheckInEntry` interface: id, rugNumber, clientName, rugType, length, width, services (id + name + price), totalPrice, checkedInAt (Date), checkedInBy (string)
-   - Optional: a few seed entries for visual testing
-
-3. **Edit: `src/components/facility/CheckInLayout.tsx`**
-   - Add `checkInLog` state (array of `CheckInEntry`)
-   - Add mock `userRole` state (`"checkin_staff" | "office" | "admin"`)
-   - On check-in complete: build a `CheckInEntry` from form data and prepend to log
-   - Pass log + role to `CheckInLogPanel`
-   - Handle `onEdit` callback: load entry back into center form for editing (set `editingEntryId` state)
-   - On re-submit of an edited entry: update the existing log entry instead of creating a new one
-   - Replace the placeholder right panel div with `<CheckInLogPanel />`
-
-4. **Edit: `src/components/facility/CheckInForm.tsx`**
-   - Extend `onCheckInComplete` callback to pass the full form data (not just rugId) so the layout can build a log entry
-   - Accept optional `editingEntry` prop for when re-editing a previously checked-in rug
-
----
+1. **New: `src/data/production.ts`** -- Types, stage definitions, seed data
+2. **New: `src/components/facility/ProductionBoard.tsx`** -- Board layout with columns, header, edit mode toggle
+3. **New: `src/components/facility/ProductionRugCard.tsx`** -- Individual rug card with expand, service status, bulk actions
+4. **Edit: `src/pages/FacilityOps.tsx`** -- Replace production placeholder with `<ProductionBoard />`
 
 ### Technical Details
 
-- `CheckInEntry` stores the resolved service names and prices at check-in time (snapshot, not computed from current pricing)
-- Editability: `isEditable = userRole === "admin" || userRole === "office" || (userRole === "checkin_staff" && Date.now() - entry.checkedInAt < 2 * 60 * 60 * 1000)`
-- Editing loads the entry into the center form and sets a flag so re-submission updates the log entry rather than creating a new one
-- The panel uses `ScrollArea` for overflow, consistent with the left panel
-- Collapsible rows use `@radix-ui/react-collapsible` (already installed)
-- No DB persistence yet -- all in-memory state, seeded with a couple of mock entries for visual testing
+- All state is in-memory (no DB), seeded from `SEED_PRODUCTION_RUGS`
+- Stage advancement: when "Advance Stage" is clicked, rug moves to next stage in the array; button disabled if not all services complete
+- "Start All Assigned" filters `services` where `assignedTo === currentStaff && status === "pending"`, sets to `"in_progress"`
+- "Complete All Assigned" filters `services` where `assignedTo === currentStaff && status === "in_progress"`, sets to `"complete"`
+- Edit Mode is a boolean toggle at board level, passed down to cards
+- No drag-and-drop to keep it simple and avoid accidental stage changes on tablets
+- Responsive: columns scroll horizontally on narrower screens
 
