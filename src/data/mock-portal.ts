@@ -16,6 +16,7 @@ export interface PortalPickup {
   date: string;
   rugNumbers: string[];
   status: "pending" | "confirmed";
+  notes?: string;
 }
 
 export const PORTAL_RUGS: PortalRug[] = [
@@ -32,6 +33,6 @@ export const PORTAL_RUGS: PortalRug[] = [
 ];
 
 export const PORTAL_PICKUPS: PortalPickup[] = [
-  { id: "pk-1", date: "2026-02-20", rugNumbers: ["RB-1004", "RB-1005"], status: "pending" },
+  { id: "pk-1", date: "2026-02-20", rugNumbers: ["RB-1004", "RB-1005"], status: "pending", notes: "Please call before arriving" },
   { id: "pk-2", date: "2026-02-25", rugNumbers: ["RB-1010"], status: "confirmed" },
 ];
