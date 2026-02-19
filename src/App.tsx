@@ -8,6 +8,7 @@ import FacilityOps from "./pages/FacilityOps";
 import FacilityOffice from "./pages/FacilityOffice";
 import WholesalePortal from "./pages/WholesalePortal";
 import DriverPortal from "./pages/DriverPortal";
+import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/facility/office" element={<FacilityOffice />} />
           <Route path="/portal" element={<WholesalePortal />} />
           <Route path="/driver" element={<DriverPortal />} />
+          <Route path="/admin" element={<AdminPanel />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
