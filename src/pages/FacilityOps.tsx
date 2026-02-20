@@ -8,7 +8,7 @@ import { PendingPickupsPanel } from "@/components/facility/PendingPickupsPanel";
 const TABS = [
   { id: "checkin", label: "Check-In", icon: ClipboardCheck },
   { id: "production", label: "Production", icon: Factory },
-  { id: "pickups", label: "Pending Pickups", icon: Truck },
+  { id: "pickups", label: "Pickups", icon: Truck },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -17,9 +17,9 @@ export default function FacilityOps() {
   const [activeTab, setActiveTab] = useState<TabId>("checkin");
 
   return (
-    <div className="h-screen flex bg-background">
-      {/* Vertical tab nav */}
-      <nav className="w-16 md:w-48 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col py-2 shrink-0">
+    <div className="h-screen flex flex-col md:flex-row bg-background">
+      {/* Bottom tab bar on mobile, vertical sidebar on desktop */}
+      <nav className="order-last md:order-first md:w-48 border-t md:border-t-0 md:border-r border-border bg-card/60 backdrop-blur-sm flex md:flex-col shrink-0 z-20">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -28,21 +28,21 @@ export default function FacilityOps() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-3 px-3 py-3 md:px-4 text-sm font-medium transition-colors text-left",
+                "flex-1 md:flex-none flex flex-col md:flex-row items-center gap-0.5 md:gap-3 px-1 py-2 md:px-4 md:py-3 text-xs md:text-sm font-medium transition-colors",
                 active
-                  ? "bg-background text-foreground shadow-sm border-r-2 border-primary"
+                  ? "bg-background text-foreground md:shadow-sm md:border-r-2 md:border-primary border-t-2 md:border-t-0 border-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-background/50"
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
-              <span className="hidden md:inline">{tab.label}</span>
+              <span className="md:inline">{tab.label}</span>
             </button>
           );
         })}
       </nav>
 
       {/* Tab content */}
-      <main className="flex-1 min-w-0 overflow-hidden">
+      <main className="flex-1 min-w-0 min-h-0 overflow-hidden">
         {activeTab === "checkin" && <CheckInLayout />}
         {activeTab === "production" && <ProductionBoard />}
         {activeTab === "pickups" && <PendingPickupsPanel />}

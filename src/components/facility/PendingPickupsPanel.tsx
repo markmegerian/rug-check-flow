@@ -86,20 +86,20 @@ export function PendingPickupsPanel() {
         <Badge variant="outline" className="text-xs">{rugs.length} ready</Badge>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-3 md:p-4">
         {rugs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
             <Package className="h-8 w-8" />
             <p className="text-sm">No rugs waiting for pickup</p>
           </div>
         ) : (
-          <div className="space-y-2 max-w-xl">
+          <div className="space-y-2">
             {rugs.map((rug) => (
               <div
                 key={rug.id}
-                className="flex items-center justify-between border rounded-md bg-card px-4 py-3"
+                className="flex items-center justify-between border rounded-md bg-card px-3 md:px-4 py-3 gap-3"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-sm">{rug.tag}</span>
                     {rug.client_name && (
@@ -122,12 +122,12 @@ export function PendingPickupsPanel() {
                   size="sm"
                   onClick={() => markPickedUp(rug.id)}
                   disabled={updating === rug.id}
-                  className="shrink-0 ml-4"
+                  className="shrink-0"
                 >
                   {updating === rug.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    "Mark Picked Up"
+                    "Picked Up"
                   )}
                 </Button>
               </div>

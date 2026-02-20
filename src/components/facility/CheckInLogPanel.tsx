@@ -31,7 +31,7 @@ export function CheckInLogPanel({ entries, userRole, onEdit }: CheckInLogPanelPr
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <div className="hidden lg:flex flex-col border-l border-border bg-muted/20 h-full">
+    <div className="flex flex-col border-l-0 md:border-l border-border bg-muted/20 h-full">
       <div className="px-3 py-3 border-b border-border">
         <h2 className="text-sm font-semibold">
           Today's Check-Ins{" "}
