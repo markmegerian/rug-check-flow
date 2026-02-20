@@ -50,9 +50,9 @@ interface ClientOption {
 interface RugOption {
   id: string;
   tag: string;
-  services: string[];
   size_length: number | null;
   size_width: number | null;
+  rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string } | null }[];
 }
 
 export function InvoicesTab() {
@@ -68,7 +68,6 @@ export function InvoicesTab() {
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
-  const [servicePrices, setServicePrices] = useState<Record<string, number>>({});
   const [creating, setCreating] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
@@ -96,7 +95,7 @@ export function InvoicesTab() {
     setSelectedClientId("");
     setClientRugs([]);
     setSelectedRugIds(new Set());
-    setServicePrices({});
+    setCreateOpen(true);
     setCreateOpen(true);
   };
 
@@ -109,30 +108,16 @@ export function InvoicesTab() {
     (async () => {
       const { data } = await supabase
         .from("rugs")
-        .select("id, tag, services, size_length, size_width")
+        .select("id, tag, size_length, size_width, rug_services(service_id, unit_price, line_total, services(name))")
         .eq("client_id", selectedClientId)
         .in("status", ["checked_in", "in_production", "ready"])
         .order("checked_in_at", { ascending: false });
-      setClientRugs(data ?? []);
+      setClientRugs((data as any) ?? []);
       setSelectedRugIds(new Set());
     })();
   }, [selectedClientId]);
 
-  // Load service prices when client changes
-  useEffect(() => {
-    if (!selectedClientId) return;
-    const client = clients.find((c) => c.id === selectedClientId);
-    const tier = client?.pricing_tier ?? "standard";
-    const priceCol = tier === "vip" ? "vip_price" : tier === "preferred" ? "preferred_price" : "base_price";
-    (async () => {
-      const { data } = await supabase.from("services").select(`name, ${priceCol}`);
-      const map: Record<string, number> = {};
-      for (const s of data ?? []) {
-        map[s.name] = Number((s as any)[priceCol]) || 0;
-      }
-      setServicePrices(map);
-    })();
-  }, [selectedClientId, clients]);
+  // No longer need separate service price lookup — prices come from rug_services snapshots
 
   const toggleRug = (rugId: string) => {
     setSelectedRugIds((prev) => {
@@ -147,24 +132,19 @@ export function InvoicesTab() {
     return clientRugs
       .filter((r) => selectedRugIds.has(r.id))
       .flatMap((rug) => {
-        const sqft = (rug.size_length ?? 0) * (rug.size_width ?? 0);
-        return rug.services.map((svc) => {
-          const unitPrice = servicePrices[svc] ?? 0;
-          const total = unitPrice * sqft;
-          return {
-            rug_id: rug.id,
-            description: `${svc} — ${rug.tag}`,
-            quantity: sqft,
-            unit_price: unitPrice,
-            total,
-          };
-        });
+        return (rug.rug_services ?? []).map((rs) => ({
+          rug_id: rug.id,
+          description: `${rs.services?.name ?? "Service"} — ${rug.tag}`,
+          quantity: 1,
+          unit_price: Number(rs.line_total),
+          total: Number(rs.line_total),
+        }));
       });
   };
 
   const draftTotal = useMemo(() => {
     return computeLineItems().reduce((sum, li) => sum + li.total, 0);
-  }, [selectedRugIds, clientRugs, servicePrices]);
+  }, [selectedRugIds, clientRugs]);
 
   const createDraft = async () => {
     if (!selectedClientId || selectedRugIds.size === 0) return;
@@ -471,8 +451,8 @@ export function InvoicesTab() {
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {rug.services.map((s) => (
-                                <Badge key={s} variant="outline" className="text-xs h-5 px-1.5">{s}</Badge>
+                              {(rug.rug_services ?? []).map((rs, i) => (
+                                <Badge key={i} variant="outline" className="text-xs h-5 px-1.5">{rs.services?.name ?? "Service"}</Badge>
                               ))}
                             </div>
                           </div>

@@ -35,29 +35,51 @@ export function CheckInLayout() {
       return;
     }
 
-    const entries: CheckInEntry[] = (data ?? []).map((r) => ({
+    const rugIds = (data ?? []).map((r: any) => r.id);
+
+    // Fetch junction service data for these rugs
+    let rugServiceMap = new Map<string, { id: string; name: string; price: number }[]>();
+    let rugTotalMap = new Map<string, number>();
+    if (rugIds.length > 0) {
+      const { data: rs } = await supabase
+        .from("rug_services")
+        .select("rug_id, service_id, unit_price, line_total, services(name)")
+        .in("rug_id", rugIds);
+      for (const row of rs ?? []) {
+        const list = rugServiceMap.get(row.rug_id) ?? [];
+        list.push({
+          id: row.service_id,
+          name: (row as any).services?.name ?? "Unknown",
+          price: Number(row.line_total),
+        });
+        rugServiceMap.set(row.rug_id, list);
+        rugTotalMap.set(row.rug_id, (rugTotalMap.get(row.rug_id) ?? 0) + Number(row.line_total));
+      }
+    }
+
+    const entries: CheckInEntry[] = (data ?? []).map((r: any) => ({
       id: r.id,
       rugNumber: r.tag,
-      clientName: "", // We'll resolve below
+      clientName: "",
       rugType: r.description,
       length: Number(r.size_length) || 0,
       width: Number(r.size_width) || 0,
-      services: (r.services ?? []).map((s) => ({ id: s, name: s, price: 0 })),
-      totalPrice: 0,
+      services: rugServiceMap.get(r.id) ?? (r.services ?? []).map((s: string) => ({ id: s, name: s, price: 0 })),
+      totalPrice: rugTotalMap.get(r.id) ?? 0,
       checkedInAt: new Date(r.checked_in_at),
       checkedInBy: "Staff",
     }));
 
     // Resolve client names
-    const clientIds = [...new Set((data ?? []).map((r) => r.client_id).filter(Boolean))] as string[];
+    const clientIds = [...new Set((data ?? []).map((r: any) => r.client_id).filter(Boolean))] as string[];
     if (clientIds.length > 0) {
       const { data: clients } = await supabase
         .from("clients")
         .select("id, name")
         .in("id", clientIds);
-      const clientMap = new Map((clients ?? []).map((c) => [c.id, c.name]));
+      const clientMap = new Map((clients ?? []).map((c: any) => [c.id, c.name]));
       entries.forEach((e, i) => {
-        const cid = data![i].client_id;
+        const cid = (data as any)![i].client_id;
         if (cid) e.clientName = clientMap.get(cid) ?? "";
       });
     }
@@ -86,6 +108,7 @@ export function CheckInLayout() {
       length: number;
       width: number;
       selectedServices: string[];
+      serviceSnapshots: { service_id: string; unit_price: number; line_total: number }[];
       totalPrice: number;
     }) => {
       // Find or skip client lookup
@@ -117,10 +140,24 @@ export function CheckInLayout() {
           toast({ title: "Update failed", description: error.message, variant: "destructive" });
           return;
         }
+
+        // Replace junction rows: delete old, insert new
+        await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
+        if (data.serviceSnapshots.length > 0) {
+          await supabase.from("rug_services").insert(
+            data.serviceSnapshots.map((s) => ({
+              rug_id: editingEntryId,
+              service_id: s.service_id,
+              unit_price: s.unit_price,
+              line_total: s.line_total,
+            }))
+          );
+        }
+
         setEditingEntryId(null);
       } else {
         // Insert new rug
-        const { error } = await supabase.from("rugs").insert({
+        const { data: inserted, error } = await supabase.from("rugs").insert({
           tag: data.rugNumber,
           description: data.rugType,
           size_length: data.length,
@@ -129,11 +166,23 @@ export function CheckInLayout() {
           client_id: clientId,
           checked_in_by: user?.id ?? null,
           notes: "",
-        });
+        }).select("id").single();
 
-        if (error) {
-          toast({ title: "Check-in failed", description: error.message, variant: "destructive" });
+        if (error || !inserted) {
+          toast({ title: "Check-in failed", description: error?.message, variant: "destructive" });
           return;
+        }
+
+        // Insert junction rows
+        if (data.serviceSnapshots.length > 0) {
+          await supabase.from("rug_services").insert(
+            data.serviceSnapshots.map((s) => ({
+              rug_id: inserted.id,
+              service_id: s.service_id,
+              unit_price: s.unit_price,
+              line_total: s.line_total,
+            }))
+          );
         }
 
         // Remove from pending if it came from there

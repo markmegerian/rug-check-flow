@@ -231,6 +231,48 @@ export type Database = {
         }
         Relationships: []
       }
+      rug_services: {
+        Row: {
+          created_at: string
+          id: string
+          line_total: number
+          rug_id: string
+          service_id: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_total: number
+          rug_id: string
+          service_id: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_total?: number
+          rug_id?: string
+          service_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rug_services_rug_id_fkey"
+            columns: ["rug_id"]
+            isOneToOne: false
+            referencedRelation: "rugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rug_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rugs: {
         Row: {
           checked_in_at: string

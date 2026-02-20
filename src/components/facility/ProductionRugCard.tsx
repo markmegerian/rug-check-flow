@@ -36,9 +36,9 @@ export function ProductionRugCard({ rug, onAdvanceStage }: Props) {
           )}
           {rug.services.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {rug.services.map((s) => (
-                <Badge key={s} variant="outline" className="text-xs h-5 px-1.5">
-                  {s}
+              {rug.services.map((s, i) => (
+                <Badge key={i} variant="outline" className="text-xs h-5 px-1.5">
+                  {s.name}
                 </Badge>
               ))}
             </div>

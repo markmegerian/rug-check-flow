@@ -11,7 +11,7 @@ export interface DbRug {
   id: string;
   tag: string;
   description: string;
-  services: string[];
+  services: { name: string; line_total: number }[];
   status: ProductionStage;
   size_length: number | null;
   size_width: number | null;
@@ -27,7 +27,7 @@ export function ProductionBoard() {
   const fetchRugs = async () => {
     const { data, error } = await supabase
       .from("rugs")
-      .select("id, tag, description, services, status, size_length, size_width, checked_in_at, notes, clients(name)")
+      .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, clients(name)")
       .order("checked_in_at", { ascending: false });
 
     if (error) {
@@ -36,12 +36,31 @@ export function ProductionBoard() {
       return;
     }
 
+    const rugIds = (data ?? []).map((r: any) => r.id);
+
+    // Fetch junction services
+    let rugServiceMap = new Map<string, { name: string; line_total: number }[]>();
+    if (rugIds.length > 0) {
+      const { data: rs } = await supabase
+        .from("rug_services")
+        .select("rug_id, line_total, services(name)")
+        .in("rug_id", rugIds);
+      for (const row of rs ?? []) {
+        const list = rugServiceMap.get(row.rug_id) ?? [];
+        list.push({
+          name: (row as any).services?.name ?? "Unknown",
+          line_total: Number(row.line_total),
+        });
+        rugServiceMap.set(row.rug_id, list);
+      }
+    }
+
     setRugs(
       (data ?? []).map((r: any) => ({
         id: r.id,
         tag: r.tag,
         description: r.description,
-        services: r.services ?? [],
+        services: rugServiceMap.get(r.id) ?? [],
         status: r.status as ProductionStage,
         size_length: r.size_length,
         size_width: r.size_width,
