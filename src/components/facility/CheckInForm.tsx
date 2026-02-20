@@ -64,7 +64,7 @@ interface CheckInFormProps {
     length: number;
     width: number;
     selectedServices: string[];
-    serviceSnapshots: { service_id: string; unit_price: number; line_total: number }[];
+    serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number }[];
     totalPrice: number;
   }) => void;
 }
@@ -247,9 +247,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         .map((id) => {
           const svc = dbServices.find((s) => s.id === id);
           if (!svc) return null;
-          return { service_id: id, unit_price: getUnitPrice(svc), line_total: getLineTotal(svc) };
+          return { service_id: id, service_name: svc.name, unit_price: getUnitPrice(svc), line_total: getLineTotal(svc) };
         })
-        .filter(Boolean) as { service_id: string; unit_price: number; line_total: number }[];
+        .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number }[];
 
       onCheckInComplete({
         rugId: selectedRug?.id,

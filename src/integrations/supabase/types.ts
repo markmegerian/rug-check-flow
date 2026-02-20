@@ -238,6 +238,7 @@ export type Database = {
           line_total: number
           rug_id: string
           service_id: string
+          service_name: string
           unit_price: number
         }
         Insert: {
@@ -246,6 +247,7 @@ export type Database = {
           line_total: number
           rug_id: string
           service_id: string
+          service_name?: string
           unit_price: number
         }
         Update: {
@@ -254,6 +256,7 @@ export type Database = {
           line_total?: number
           rug_id?: string
           service_id?: string
+          service_name?: string
           unit_price?: number
         }
         Relationships: [
