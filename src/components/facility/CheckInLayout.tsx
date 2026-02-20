@@ -43,13 +43,13 @@ export function CheckInLayout() {
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
         .from("rug_services")
-        .select("rug_id, service_id, unit_price, line_total, services(name)")
+        .select("rug_id, service_id, unit_price, line_total, service_name")
         .in("rug_id", rugIds);
       for (const row of rs ?? []) {
         const list = rugServiceMap.get(row.rug_id) ?? [];
         list.push({
           id: row.service_id,
-          name: (row as any).services?.name ?? "Unknown",
+          name: (row as any).service_name || "Unknown",
           price: Number(row.line_total),
         });
         rugServiceMap.set(row.rug_id, list);
@@ -108,7 +108,7 @@ export function CheckInLayout() {
       length: number;
       width: number;
       selectedServices: string[];
-      serviceSnapshots: { service_id: string; unit_price: number; line_total: number }[];
+      serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number }[];
       totalPrice: number;
     }) => {
       // Find or skip client lookup
@@ -148,6 +148,7 @@ export function CheckInLayout() {
             data.serviceSnapshots.map((s) => ({
               rug_id: editingEntryId,
               service_id: s.service_id,
+              service_name: s.service_name,
               unit_price: s.unit_price,
               line_total: s.line_total,
             }))
@@ -179,6 +180,7 @@ export function CheckInLayout() {
             data.serviceSnapshots.map((s) => ({
               rug_id: inserted.id,
               service_id: s.service_id,
+              service_name: s.service_name,
               unit_price: s.unit_price,
               line_total: s.line_total,
             }))
