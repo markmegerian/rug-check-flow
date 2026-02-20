@@ -64,6 +64,7 @@ interface CheckInFormProps {
     length: number;
     width: number;
     selectedServices: string[];
+    serviceSnapshots: { service_id: string; unit_price: number; line_total: number }[];
     totalPrice: number;
   }) => void;
 }
@@ -242,6 +243,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     toast({ title: isEditing ? "Entry updated" : "Check-in complete", description: `Rug ${data.rugNumber} ${label}.` });
 
     if (onCheckInComplete) {
+      const serviceSnapshots = data.selectedServices
+        .map((id) => {
+          const svc = dbServices.find((s) => s.id === id);
+          if (!svc) return null;
+          return { service_id: id, unit_price: getUnitPrice(svc), line_total: getLineTotal(svc) };
+        })
+        .filter(Boolean) as { service_id: string; unit_price: number; line_total: number }[];
+
       onCheckInComplete({
         rugId: selectedRug?.id,
         rugNumber: data.rugNumber,
@@ -250,6 +259,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         length: data.length,
         width: data.width,
         selectedServices: data.selectedServices,
+        serviceSnapshots,
         totalPrice,
       });
     }
