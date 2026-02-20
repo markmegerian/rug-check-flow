@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { ClipboardList, FileText, Plus } from "lucide-react";
 import { PendingRugsPanel } from "./PendingRugsPanel";
 import { CheckInForm } from "./CheckInForm";
 import { CheckInLogPanel } from "./CheckInLogPanel";
@@ -7,17 +8,23 @@ import { type CheckInEntry, type UserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 let walkInCounter = 100;
+
+type MobilePanel = "form" | "pending" | "log";
 
 export function CheckInLayout() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [pendingRugs, setPendingRugs] = useState<PendingRug[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [userRole] = useState<UserRole>("checkin_staff");
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("form");
 
   // Fetch today's check-ins from DB
   const fetchTodayLog = useCallback(async () => {
@@ -37,7 +44,6 @@ export function CheckInLayout() {
 
     const rugIds = (data ?? []).map((r: any) => r.id);
 
-    // Fetch junction service data for these rugs
     let rugServiceMap = new Map<string, { id: string; name: string; price: number }[]>();
     let rugTotalMap = new Map<string, number>();
     if (rugIds.length > 0) {
@@ -70,7 +76,6 @@ export function CheckInLayout() {
       checkedInBy: "Staff",
     }));
 
-    // Resolve client names
     const clientIds = [...new Set((data ?? []).map((r: any) => r.client_id).filter(Boolean))] as string[];
     if (clientIds.length > 0) {
       const { data: clients } = await supabase
@@ -97,7 +102,8 @@ export function CheckInLayout() {
   const handleSelectRug = useCallback((id: string) => {
     setSelectedRugId(id);
     setEditingEntryId(null);
-  }, []);
+    if (isMobile) setMobilePanel("form");
+  }, [isMobile]);
 
   const handleCheckInComplete = useCallback(
     async (data: {
@@ -111,7 +117,6 @@ export function CheckInLayout() {
       serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number }[];
       totalPrice: number;
     }) => {
-      // Find or skip client lookup
       let clientId: string | null = null;
       if (data.clientName) {
         const { data: clients } = await supabase
@@ -123,7 +128,6 @@ export function CheckInLayout() {
       }
 
       if (editingEntryId) {
-        // Update existing rug
         const { error } = await supabase
           .from("rugs")
           .update({
@@ -141,7 +145,6 @@ export function CheckInLayout() {
           return;
         }
 
-        // Replace junction rows: delete old, insert new
         await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
         if (data.serviceSnapshots.length > 0) {
           await supabase.from("rug_services").insert(
@@ -157,7 +160,6 @@ export function CheckInLayout() {
 
         setEditingEntryId(null);
       } else {
-        // Insert new rug
         const { data: inserted, error } = await supabase.from("rugs").insert({
           tag: data.rugNumber,
           description: data.rugType,
@@ -174,7 +176,6 @@ export function CheckInLayout() {
           return;
         }
 
-        // Insert junction rows
         if (data.serviceSnapshots.length > 0) {
           await supabase.from("rug_services").insert(
             data.serviceSnapshots.map((s) => ({
@@ -187,7 +188,6 @@ export function CheckInLayout() {
           );
         }
 
-        // Remove from pending if it came from there
         if (data.rugId) {
           setPendingRugs((prev) => prev.filter((r) => r.id !== data.rugId));
         }
@@ -202,7 +202,8 @@ export function CheckInLayout() {
   const handleEditEntry = useCallback((entryId: string) => {
     setEditingEntryId(entryId);
     setSelectedRugId(null);
-  }, []);
+    if (isMobile) setMobilePanel("form");
+  }, [isMobile]);
 
   const handleAddWalkIn = useCallback((clientName: string, rugNumber: string) => {
     const id = `walkin-${++walkInCounter}`;
@@ -216,10 +217,71 @@ export function CheckInLayout() {
     setPendingRugs((prev) => [...prev, newRug]);
     setSelectedRugId(id);
     setEditingEntryId(null);
-  }, []);
+    if (isMobile) setMobilePanel("form");
+  }, [isMobile]);
 
+  // Mobile: tabbed view
+  if (isMobile) {
+    return (
+      <div className="h-full flex flex-col">
+        {/* Sub-tab bar */}
+        <div className="flex border-b border-border bg-muted/30 shrink-0">
+          {([
+            { id: "form" as MobilePanel, label: "Check-In", icon: ClipboardList },
+            { id: "pending" as MobilePanel, label: `Pending (${pendingRugs.length})`, icon: Plus },
+            { id: "log" as MobilePanel, label: `Log (${checkInLog.length})`, icon: FileText },
+          ]).map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setMobilePanel(tab.id)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
+                  mobilePanel === tab.id
+                    ? "text-foreground border-b-2 border-primary bg-background"
+                    : "text-muted-foreground"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Panel content */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {mobilePanel === "form" && (
+            <CheckInForm
+              selectedRug={selectedRug}
+              editingEntry={editingEntry}
+              onCheckInComplete={handleCheckInComplete}
+            />
+          )}
+          {mobilePanel === "pending" && (
+            <PendingRugsPanel
+              rugs={pendingRugs}
+              selectedRugId={selectedRugId}
+              onSelectRug={handleSelectRug}
+              onAddWalkIn={handleAddWalkIn}
+            />
+          )}
+          {mobilePanel === "log" && (
+            <CheckInLogPanel
+              entries={checkInLog}
+              userRole={userRole}
+              onEdit={handleEditEntry}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop: 3-panel layout
   return (
-    <div className="h-full grid grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr] max-md:grid-cols-1">
+    <div className="h-full grid grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr]">
       <PendingRugsPanel
         rugs={pendingRugs}
         selectedRugId={selectedRugId}

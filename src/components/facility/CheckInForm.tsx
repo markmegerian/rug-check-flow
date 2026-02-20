@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, X, AlertTriangle } from "lucide-react";
+import { Camera, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface DbService {
   id: string;
   name: string;
-  unit: string; // "per sqft" | "per linear ft" | "flat"
+  unit: string;
   base_price: number;
   preferred_price: number;
   vip_price: number;
@@ -88,7 +88,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     },
   });
 
-  // Fetch active services from database
   useEffect(() => {
     async function fetchServices() {
       const { data, error } = await supabase
@@ -103,7 +102,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     fetchServices();
   }, []);
 
-  // Pre-fill form when a rug is selected from left panel
   useEffect(() => {
     if (selectedRug) {
       form.reset({
@@ -119,7 +117,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }
   }, [selectedRug, form]);
 
-  // Pre-fill form when editing a log entry
   useEffect(() => {
     if (editingEntry) {
       form.reset({
@@ -140,7 +137,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const watchedWidth = form.watch("width");
   const watchedServices = form.watch("selectedServices");
 
-  // Look up client pricing tier when client name changes
   useEffect(() => {
     if (!watchedClient) {
       setClientTier("standard");
@@ -159,7 +155,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         setClientTier("standard");
       }
     };
-    const timer = setTimeout(lookup, 300); // debounce
+    const timer = setTimeout(lookup, 300);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [watchedClient]);
 
@@ -191,7 +187,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       const unitPrice = getUnitPrice(svc);
       if (svc.unit === "per sqft") return unitPrice * sqft;
       if (svc.unit === "per linear ft") return unitPrice * linearFt;
-      return unitPrice; // flat
+      return unitPrice;
     },
     [getUnitPrice, sqft, linearFt]
   );
@@ -278,41 +274,41 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
         {/* Sticky header */}
-        <div className={`sticky top-0 z-10 px-4 py-3 rounded-t-lg flex items-center justify-between ${
+        <div className={`sticky top-0 z-10 px-3 md:px-4 py-2.5 md:py-3 rounded-t-lg flex items-center justify-between ${
           isEditing ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
         }`}>
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-bold font-mono">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
+            <span className="text-base md:text-lg font-bold font-mono truncate">
               {form.watch("rugNumber") || "—"}
             </span>
-            <span className="text-sm opacity-80">
+            <span className="text-xs md:text-sm opacity-80 truncate hidden sm:inline">
               {form.watch("clientName") || "No client"}
             </span>
             {tierLabel && (
-              <span className="text-xs bg-white/20 px-2 py-0.5 rounded">{tierLabel}</span>
+              <span className="text-xs bg-white/20 px-2 py-0.5 rounded shrink-0">{tierLabel}</span>
             )}
             {isEditing && (
-              <span className="text-xs bg-white/20 px-2 py-0.5 rounded">Editing</span>
+              <span className="text-xs bg-white/20 px-2 py-0.5 rounded shrink-0">Editing</span>
             )}
           </div>
-          <span className="text-lg font-bold">${totalPrice.toFixed(2)}</span>
+          <span className="text-base md:text-lg font-bold shrink-0">${totalPrice.toFixed(2)}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-6">
           {/* Identity row */}
           {isReadOnlyIdentity ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Rug #</Label>
-                <p className="font-mono font-bold text-lg">{form.watch("rugNumber")}</p>
+                <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Client</Label>
-                <p className="font-medium">{form.watch("clientName")}</p>
+                <p className="font-medium text-sm md:text-base">{form.watch("clientName")}</p>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <FormField
                 control={form.control}
                 name="rugNumber"
@@ -342,13 +338,13 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </div>
           )}
 
-          {/* Rug details */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Rug details — stack on mobile */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
             <FormField
               control={form.control}
               name="rugType"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="col-span-2 sm:col-span-1">
                   <FormLabel>Rug Type</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
@@ -375,7 +371,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 <FormItem>
                   <FormLabel>Length (ft)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.1" placeholder="0.0" {...field} />
+                    <Input type="number" step="0.1" placeholder="0.0" inputMode="decimal" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -388,7 +384,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 <FormItem>
                   <FormLabel>Width (ft)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.1" placeholder="0.0" {...field} />
+                    <Input type="number" step="0.1" placeholder="0.0" inputMode="decimal" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -397,7 +393,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           </div>
 
           {sqft > 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs md:text-sm text-muted-foreground">
               Area: <span className="font-medium text-foreground">{sqft.toFixed(1)} sq ft</span>
               {linearFt > 0 && (
                 <> · Perimeter: <span className="font-medium text-foreground">{linearFt.toFixed(1)} linear ft</span></>
@@ -435,7 +431,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               {photos.map((photo, i) => (
                 <div
                   key={i}
-                  className="relative w-20 h-20 rounded-md overflow-hidden border border-border group"
+                  className="relative w-16 h-16 md:w-20 md:h-20 rounded-md overflow-hidden border border-border group"
                 >
                   <img
                     src={photo.preview}
@@ -455,7 +451,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-20 h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  className="w-16 h-16 md:w-20 md:h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
                 >
                   <Camera className="h-5 w-5" />
                 </button>
@@ -465,16 +461,17 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              capture="environment"
               multiple
               className="hidden"
               onChange={handlePhotos}
             />
           </div>
 
-          {/* Service selection — from database */}
-          <div className="space-y-3">
+          {/* Service selection */}
+          <div className="space-y-2 md:space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-base">Services</Label>
+              <Label className="text-sm md:text-base">Services</Label>
               {tierLabel && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded bg-accent text-accent-foreground">
                   {tierLabel} pricing
@@ -490,12 +487,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               const unitPrice = getUnitPrice(svc);
               const lineTotal = getLineTotal(svc);
               const checked = watchedServices.includes(svc.id);
-              const hasDimensions = svc.unit === "per sqft" ? sqft > 0 : svc.unit === "per linear ft" ? linearFt > 0 : true;
 
               return (
                 <label
                   key={svc.id}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
                     checked ? "bg-accent" : "hover:bg-muted"
                   }`}
                 >
@@ -503,21 +499,13 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                     checked={checked}
                     onCheckedChange={() => toggleService(svc.id)}
                   />
-                  <span className="flex-1 text-sm">{svc.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {svc.unit === "flat" ? "flat" : svc.unit === "per linear ft" ? "/lin ft" : "/sqft"}
-                  </span>
-                  <span className="text-sm font-mono text-muted-foreground w-20 text-right">
+                  <span className="flex-1 text-sm truncate">{svc.name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
                     ${unitPrice.toFixed(2)}
-                    {svc.unit !== "flat" && <span className="text-xs">/{svc.unit === "per linear ft" ? "lf" : "sf"}</span>}
+                    {svc.unit !== "flat" && <span>/{svc.unit === "per linear ft" ? "lf" : "sf"}</span>}
                   </span>
-                  {checked && hasDimensions && svc.unit !== "flat" && (
-                    <span className="text-sm font-semibold w-20 text-right">
-                      ${lineTotal.toFixed(2)}
-                    </span>
-                  )}
-                  {checked && svc.unit === "flat" && (
-                    <span className="text-sm font-semibold w-20 text-right">
+                  {checked && (
+                    <span className="text-sm font-semibold shrink-0">
                       ${lineTotal.toFixed(2)}
                     </span>
                   )}
@@ -534,12 +522,12 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 border-t border-border bg-background p-4 flex items-center justify-between rounded-b-lg">
+        <div className="sticky bottom-0 border-t border-border bg-background p-3 md:p-4 flex items-center justify-between rounded-b-lg">
           <div className="text-sm text-muted-foreground">
-            Total: <span className="text-foreground font-bold text-lg">${totalPrice.toFixed(2)}</span>
+            Total: <span className="text-foreground font-bold text-base md:text-lg">${totalPrice.toFixed(2)}</span>
           </div>
-          <Button type="submit" size="lg">
-            {isEditing ? "Update Entry" : "Complete Check-In"}
+          <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6">
+            {isEditing ? "Update" : "Complete Check-In"}
           </Button>
         </div>
       </form>

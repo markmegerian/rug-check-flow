@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTION_STAGES, ProductionStage } from "@/data/production";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export interface DbRug {
   id: string;
@@ -23,6 +24,7 @@ export interface DbRug {
 export function ProductionBoard() {
   const [rugs, setRugs] = useState<DbRug[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeStage, setActiveStage] = useState<string | null>(null);
 
   const fetchRugs = async () => {
     const { data, error } = await supabase
@@ -38,7 +40,6 @@ export function ProductionBoard() {
 
     const rugIds = (data ?? []).map((r: any) => r.id);
 
-    // Fetch junction services (using denormalized service_name)
     let rugServiceMap = new Map<string, { name: string; line_total: number }[]>();
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
@@ -102,15 +103,16 @@ export function ProductionBoard() {
     return (
       <div className="p-4 space-y-3">
         <Skeleton className="h-8 w-48" />
-        <div className="flex gap-4">
+        <div className="flex gap-4 overflow-x-auto">
           {PRODUCTION_STAGES.map((s) => (
-            <Skeleton key={s.id} className="h-64 w-64" />
+            <Skeleton key={s.id} className="h-64 w-64 shrink-0" />
           ))}
         </div>
       </div>
     );
   }
 
+  // On mobile, show stage tabs; on desktop, show columns
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 shrink-0">
@@ -118,7 +120,51 @@ export function ProductionBoard() {
         <Badge variant="outline" className="text-xs">{rugs.length} rugs</Badge>
       </div>
 
-      <div className="flex-1 overflow-x-auto">
+      {/* Mobile: stage tabs */}
+      <div className="flex md:hidden border-b border-border overflow-x-auto shrink-0">
+        {PRODUCTION_STAGES.map((stage) => {
+          const count = rugs.filter((r) => r.status === stage.id).length;
+          const isActive = (activeStage ?? PRODUCTION_STAGES[0].id) === stage.id;
+          return (
+            <button
+              key={stage.id}
+              onClick={() => setActiveStage(stage.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors shrink-0",
+                isActive
+                  ? "text-foreground border-b-2 border-primary"
+                  : "text-muted-foreground"
+              )}
+            >
+              {stage.label}
+              <Badge variant="secondary" className="text-xs h-4 min-w-4 px-1 justify-center">
+                {count}
+              </Badge>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Mobile: single stage content */}
+      <div className="flex-1 overflow-auto md:hidden p-2">
+        {(() => {
+          const stageId = activeStage ?? PRODUCTION_STAGES[0].id;
+          const stageRugs = rugs.filter((r) => r.status === stageId);
+          return (
+            <div className="space-y-2">
+              {stageRugs.map((rug) => (
+                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} />
+              ))}
+              {stageRugs.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-6">No rugs</p>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Desktop: column layout */}
+      <div className="flex-1 overflow-x-auto hidden md:block">
         <div className="flex h-full min-w-max">
           {PRODUCTION_STAGES.map((stage) => {
             const stageRugs = rugs.filter((r) => r.status === stage.id);
