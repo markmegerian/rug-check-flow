@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { type PendingRug, MOCK_CLIENTS } from "@/data/mock-pending-rugs";
+import { type PendingRug } from "@/data/mock-pending-rugs";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PendingRugsPanelProps {
   rugs: PendingRug[];
@@ -23,12 +24,23 @@ export function PendingRugsPanel({
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [rugNumber, setRugNumber] = useState("");
+  const [clientNames, setClientNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("clients")
+      .select("name")
+      .order("name")
+      .then(({ data }) => {
+        setClientNames((data ?? []).map((c) => c.name));
+      });
+  }, []);
 
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return [];
     const q = clientSearch.toLowerCase();
-    return MOCK_CLIENTS.filter((c) => c.toLowerCase().includes(q));
-  }, [clientSearch]);
+    return clientNames.filter((c) => c.toLowerCase().includes(q));
+  }, [clientSearch, clientNames]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, PendingRug[]>();
