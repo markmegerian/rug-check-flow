@@ -1,24 +1,73 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { PendingRugsPanel } from "./PendingRugsPanel";
 import { CheckInForm } from "./CheckInForm";
 import { CheckInLogPanel } from "./CheckInLogPanel";
-import { MOCK_PENDING_RUGS, type PendingRug } from "@/data/mock-pending-rugs";
-import {
-  SEED_CHECK_IN_LOG,
-  type CheckInEntry,
-  type UserRole,
-} from "@/data/check-in-log";
-import { SERVICES } from "@/data/services";
+import { type PendingRug } from "@/data/mock-pending-rugs";
+import { type CheckInEntry, type UserRole } from "@/data/check-in-log";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 let walkInCounter = 100;
-let logIdCounter = 100;
 
 export function CheckInLayout() {
-  const [pendingRugs, setPendingRugs] = useState<PendingRug[]>(MOCK_PENDING_RUGS);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [pendingRugs, setPendingRugs] = useState<PendingRug[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
-  const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>(SEED_CHECK_IN_LOG);
+  const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [userRole] = useState<UserRole>("checkin_staff");
+
+  // Fetch today's check-ins from DB
+  const fetchTodayLog = useCallback(async () => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const { data, error } = await supabase
+      .from("rugs")
+      .select("*")
+      .gte("checked_in_at", todayStart.toISOString())
+      .order("checked_in_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to fetch log", error);
+      return;
+    }
+
+    const entries: CheckInEntry[] = (data ?? []).map((r) => ({
+      id: r.id,
+      rugNumber: r.tag,
+      clientName: "", // We'll resolve below
+      rugType: r.description,
+      length: Number(r.size_length) || 0,
+      width: Number(r.size_width) || 0,
+      services: (r.services ?? []).map((s) => ({ id: s, name: s, price: 0 })),
+      totalPrice: 0,
+      checkedInAt: new Date(r.checked_in_at),
+      checkedInBy: "Staff",
+    }));
+
+    // Resolve client names
+    const clientIds = [...new Set((data ?? []).map((r) => r.client_id).filter(Boolean))] as string[];
+    if (clientIds.length > 0) {
+      const { data: clients } = await supabase
+        .from("clients")
+        .select("id, name")
+        .in("id", clientIds);
+      const clientMap = new Map((clients ?? []).map((c) => [c.id, c.name]));
+      entries.forEach((e, i) => {
+        const cid = data![i].client_id;
+        if (cid) e.clientName = clientMap.get(cid) ?? "";
+      });
+    }
+
+    setCheckInLog(entries);
+  }, []);
+
+  useEffect(() => {
+    fetchTodayLog();
+  }, [fetchTodayLog]);
 
   const selectedRug = pendingRugs.find((r) => r.id === selectedRugId) ?? null;
   const editingEntry = checkInLog.find((e) => e.id === editingEntryId) ?? null;
@@ -29,7 +78,7 @@ export function CheckInLayout() {
   }, []);
 
   const handleCheckInComplete = useCallback(
-    (data: {
+    async (data: {
       rugId?: string;
       rugNumber: string;
       clientName: string;
@@ -39,52 +88,53 @@ export function CheckInLayout() {
       selectedServices: string[];
       totalPrice: number;
     }) => {
-      const sqft = data.length * data.width;
-
-      const services = data.selectedServices.map((svcId) => {
-        const svc = SERVICES.find((s) => s.id === svcId);
-        const price = svc ? (svc.unit === "sqft" ? svc.basePrice * sqft : svc.basePrice) : 0;
-        return {
-          id: svcId,
-          name: svc?.name ?? svcId,
-          price,
-        };
-      });
+      // Find or skip client lookup
+      let clientId: string | null = null;
+      if (data.clientName) {
+        const { data: clients } = await supabase
+          .from("clients")
+          .select("id")
+          .ilike("name", data.clientName)
+          .limit(1);
+        clientId = clients?.[0]?.id ?? null;
+      }
 
       if (editingEntryId) {
-        // Update existing log entry
-        setCheckInLog((prev) =>
-          prev.map((e) =>
-            e.id === editingEntryId
-              ? {
-                  ...e,
-                  rugNumber: data.rugNumber,
-                  clientName: data.clientName,
-                  rugType: data.rugType,
-                  length: data.length,
-                  width: data.width,
-                  services,
-                  totalPrice: data.totalPrice,
-                }
-              : e
-          )
-        );
+        // Update existing rug
+        const { error } = await supabase
+          .from("rugs")
+          .update({
+            tag: data.rugNumber,
+            description: data.rugType,
+            size_length: data.length,
+            size_width: data.width,
+            services: data.selectedServices,
+            client_id: clientId,
+          })
+          .eq("id", editingEntryId);
+
+        if (error) {
+          toast({ title: "Update failed", description: error.message, variant: "destructive" });
+          return;
+        }
         setEditingEntryId(null);
       } else {
-        // New check-in → add to log
-        const entry: CheckInEntry = {
-          id: `log-${++logIdCounter}`,
-          rugNumber: data.rugNumber,
-          clientName: data.clientName,
-          rugType: data.rugType,
-          length: data.length,
-          width: data.width,
-          services,
-          totalPrice: data.totalPrice,
-          checkedInAt: new Date(),
-          checkedInBy: "Staff",
-        };
-        setCheckInLog((prev) => [entry, ...prev]);
+        // Insert new rug
+        const { error } = await supabase.from("rugs").insert({
+          tag: data.rugNumber,
+          description: data.rugType,
+          size_length: data.length,
+          size_width: data.width,
+          services: data.selectedServices,
+          client_id: clientId,
+          checked_in_by: user?.id ?? null,
+          notes: "",
+        });
+
+        if (error) {
+          toast({ title: "Check-in failed", description: error.message, variant: "destructive" });
+          return;
+        }
 
         // Remove from pending if it came from there
         if (data.rugId) {
@@ -93,8 +143,9 @@ export function CheckInLayout() {
       }
 
       setSelectedRugId(null);
+      fetchTodayLog();
     },
-    [editingEntryId]
+    [editingEntryId, user, toast, fetchTodayLog]
   );
 
   const handleEditEntry = useCallback((entryId: string) => {
@@ -118,22 +169,17 @@ export function CheckInLayout() {
 
   return (
     <div className="h-full grid grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr] max-md:grid-cols-1">
-      {/* Left Panel */}
       <PendingRugsPanel
         rugs={pendingRugs}
         selectedRugId={selectedRugId}
         onSelectRug={handleSelectRug}
         onAddWalkIn={handleAddWalkIn}
       />
-
-      {/* Center Panel */}
       <CheckInForm
         selectedRug={selectedRug}
         editingEntry={editingEntry}
         onCheckInComplete={handleCheckInComplete}
       />
-
-      {/* Right Panel */}
       <CheckInLogPanel
         entries={checkInLog}
         userRole={userRole}

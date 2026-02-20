@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,15 +16,20 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { MOCK_CLIENTS, type Client, type PortalUser } from "@/data/mock-clients";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
-const TIER_LABELS: Record<Client["pricingTier"], string> = {
+type Client = Tables<"clients">;
+type PortalUser = Tables<"portal_users">;
+type PricingTier = "standard" | "preferred" | "vip";
+
+const TIER_LABELS: Record<PricingTier, string> = {
   standard: "Standard",
   preferred: "Preferred",
   vip: "VIP",
 };
 
-const TIER_COLORS: Record<Client["pricingTier"], string> = {
+const TIER_COLORS: Record<PricingTier, string> = {
   standard: "bg-muted text-muted-foreground",
   preferred: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   vip: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
@@ -32,32 +37,73 @@ const TIER_COLORS: Record<Client["pricingTier"], string> = {
 
 type FormData = {
   name: string;
-  contactName: string;
+  contact_name: string;
   phone: string;
   email: string;
   address: string;
   notes: string;
-  pricingTier: Client["pricingTier"];
+  pricing_tier: PricingTier;
 };
 
 const emptyForm: FormData = {
   name: "",
-  contactName: "",
+  contact_name: "",
   phone: "",
   email: "",
   address: "",
   notes: "",
-  pricingTier: "standard",
+  pricing_tier: "standard",
 };
 
 export function ClientsTab() {
   const { toast } = useToast();
-  const [clients, setClients] = useState<Client[]>([...MOCK_CLIENTS]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [rugCounts, setRugCounts] = useState<Record<string, number>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newPortalEmail, setNewPortalEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const fetchClients = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .order("name");
+    if (error) {
+      toast({ title: "Failed to load clients", description: error.message, variant: "destructive" });
+    } else {
+      setClients(data ?? []);
+    }
+    setLoading(false);
+  }, [toast]);
+
+  const fetchRugCounts = useCallback(async () => {
+    const { data } = await supabase
+      .from("rugs")
+      .select("client_id");
+    if (data) {
+      const counts: Record<string, number> = {};
+      data.forEach((r) => {
+        if (r.client_id) counts[r.client_id] = (counts[r.client_id] || 0) + 1;
+      });
+      setRugCounts(counts);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClients();
+    fetchRugCounts();
+  }, [fetchClients, fetchRugCounts]);
+
+  const fetchPortalUsers = async (clientId: string) => {
+    const { data } = await supabase
+      .from("portal_users")
+      .select("*")
+      .eq("client_id", clientId);
+    setPortalUsers(data ?? []);
+  };
 
   const openAdd = () => {
     setEditingId(null);
@@ -71,67 +117,75 @@ export function ClientsTab() {
     setEditingId(c.id);
     setForm({
       name: c.name,
-      contactName: c.contactName,
+      contact_name: c.contact_name,
       phone: c.phone,
       email: c.email,
       address: c.address,
       notes: c.notes,
-      pricingTier: c.pricingTier,
+      pricing_tier: c.pricing_tier,
     });
-    setPortalUsers([...c.portalUsers]);
+    fetchPortalUsers(c.id);
     setNewPortalEmail("");
     setSheetOpen(true);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.name.trim()) return;
     if (editingId) {
-      setClients((prev) =>
-        prev.map((c) =>
-          c.id === editingId ? { ...c, ...form, portalUsers } : c
-        )
-      );
+      const { error } = await supabase
+        .from("clients")
+        .update(form)
+        .eq("id", editingId);
+      if (error) {
+        toast({ title: "Update failed", description: error.message, variant: "destructive" });
+        return;
+      }
     } else {
-      setClients((prev) => [
-        ...prev,
-        {
-          id: `client-${Date.now()}`,
-          ...form,
-          rugCount: 0,
-          outstandingBalance: 0,
-          portalUsers: [],
-        },
-      ]);
+      const { error } = await supabase.from("clients").insert(form);
+      if (error) {
+        toast({ title: "Create failed", description: error.message, variant: "destructive" });
+        return;
+      }
     }
     setSheetOpen(false);
+    fetchClients();
   };
 
   const updateField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const addPortalUser = () => {
+  const addPortalUser = async () => {
     const email = newPortalEmail.trim().toLowerCase();
-    if (!email) return;
+    if (!email || !editingId) return;
     if (portalUsers.some((u) => u.email === email)) {
       toast({ title: "Email already exists", variant: "destructive" });
       return;
     }
-    setPortalUsers((prev) => [
-      ...prev,
-      { id: `pu-${Date.now()}`, email, status: "invited" },
-    ]);
+    const { error } = await supabase
+      .from("portal_users")
+      .insert({ client_id: editingId, email, status: "invited" });
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
     setNewPortalEmail("");
     toast({ title: "Portal login created", description: `Invite sent to ${email}` });
+    fetchPortalUsers(editingId);
   };
 
-  const removePortalUser = (id: string) => {
+  const removePortalUser = async (id: string) => {
     const user = portalUsers.find((u) => u.id === id);
-    setPortalUsers((prev) => prev.filter((u) => u.id !== id));
+    await supabase.from("portal_users").delete().eq("id", id);
     if (user) {
       toast({ title: "Portal user removed", description: user.email });
     }
+    if (editingId) fetchPortalUsers(editingId);
   };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-full text-muted-foreground">Loading clients…</div>;
+  }
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
@@ -149,31 +203,19 @@ export function ClientsTab() {
             <TableHead className="hidden md:table-cell">Contact</TableHead>
             <TableHead className="hidden sm:table-cell">Phone</TableHead>
             <TableHead className="w-16 text-center">Rugs</TableHead>
-            <TableHead className="w-28 text-right">Balance</TableHead>
             <TableHead className="w-24">Tier</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {clients.map((c) => (
-            <TableRow
-              key={c.id}
-              className="cursor-pointer"
-              onClick={() => openEdit(c)}
-            >
+            <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
               <TableCell className="font-medium">{c.name}</TableCell>
-              <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
-                {c.contactName}
-              </TableCell>
-              <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
-                {c.phone}
-              </TableCell>
-              <TableCell className="text-center">{c.rugCount}</TableCell>
-              <TableCell className="text-right font-medium">
-                {c.outstandingBalance > 0 ? `$${c.outstandingBalance.toFixed(2)}` : "—"}
-              </TableCell>
+              <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
+              <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{c.phone}</TableCell>
+              <TableCell className="text-center">{rugCounts[c.id] ?? 0}</TableCell>
               <TableCell>
-                <Badge className={TIER_COLORS[c.pricingTier]} variant="secondary">
-                  {TIER_LABELS[c.pricingTier]}
+                <Badge className={TIER_COLORS[c.pricing_tier]} variant="secondary">
+                  {TIER_LABELS[c.pricing_tier]}
                 </Badge>
               </TableCell>
             </TableRow>
@@ -197,7 +239,7 @@ export function ClientsTab() {
             </div>
             <div className="space-y-2">
               <Label>Contact Name</Label>
-              <Input value={form.contactName} onChange={(e) => updateField("contactName", e.target.value)} />
+              <Input value={form.contact_name} onChange={(e) => updateField("contact_name", e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -215,7 +257,7 @@ export function ClientsTab() {
             </div>
             <div className="space-y-2">
               <Label>Pricing Tier</Label>
-              <Select value={form.pricingTier} onValueChange={(v) => updateField("pricingTier", v as Client["pricingTier"])}>
+              <Select value={form.pricing_tier} onValueChange={(v) => updateField("pricing_tier", v as PricingTier)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="standard">Standard</SelectItem>

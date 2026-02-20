@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { Factory, Briefcase, Store, Truck, ShieldCheck } from "lucide-react";
+import { Factory, Briefcase, Store, Truck, ShieldCheck, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const SECTIONS = [
   {
@@ -35,10 +37,18 @@ const SECTIONS = [
 ];
 
 export default function Index() {
+  const { user, signOut } = useAuth();
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card/80 backdrop-blur-md px-6 py-4">
+      <header className="border-b border-border bg-card/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-bold text-foreground tracking-tight">RugBoost</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground hidden sm:inline">{user?.email}</span>
+          <Button variant="ghost" size="sm" onClick={signOut}>
+            <LogOut className="h-4 w-4 mr-1" /> Sign Out
+          </Button>
+        </div>
       </header>
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 w-full max-w-3xl">
