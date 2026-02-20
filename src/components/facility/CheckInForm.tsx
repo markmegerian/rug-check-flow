@@ -25,15 +25,21 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
-import {
-  SERVICES,
-  SERVICE_CATEGORIES,
-  SERVICE_PRESETS,
-  RUG_TYPES,
-  type Service,
-} from "@/data/services";
+import { RUG_TYPES } from "@/data/services";
 import { type PendingRug } from "@/data/mock-pending-rugs";
 import { type CheckInEntry } from "@/data/check-in-log";
+import { supabase } from "@/integrations/supabase/client";
+
+interface DbService {
+  id: string;
+  name: string;
+  unit: string; // "per sqft" | "per linear ft" | "flat"
+  base_price: number;
+  preferred_price: number;
+  vip_price: number;
+}
+
+type PricingTier = "standard" | "preferred" | "vip";
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -46,11 +52,6 @@ const checkInSchema = z.object({
 });
 
 type CheckInValues = z.infer<typeof checkInSchema>;
-
-// Simulated client overrides — will come from DB later
-const CLIENT_OVERRIDES: Record<string, Record<string, number>> = {
-  "Acme Corp": { "wash-standard": 2.75, "protect-scotch": 1.5 },
-};
 
 interface CheckInFormProps {
   selectedRug?: PendingRug | null;
@@ -70,6 +71,8 @@ interface CheckInFormProps {
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dbServices, setDbServices] = useState<DbService[]>([]);
+  const [clientTier, setClientTier] = useState<PricingTier>("standard");
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -83,6 +86,21 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       selectedServices: [],
     },
   });
+
+  // Fetch active services from database
+  useEffect(() => {
+    async function fetchServices() {
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name, unit, base_price, preferred_price, vip_price")
+        .eq("active", true)
+        .order("name");
+      if (!error && data) {
+        setDbServices(data as DbService[]);
+      }
+    }
+    fetchServices();
+  }, []);
 
   // Pre-fill form when a rug is selected from left panel
   useEffect(() => {
@@ -121,28 +139,68 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const watchedWidth = form.watch("width");
   const watchedServices = form.watch("selectedServices");
 
+  // Look up client pricing tier when client name changes
+  useEffect(() => {
+    if (!watchedClient) {
+      setClientTier("standard");
+      return;
+    }
+    let cancelled = false;
+    const lookup = async () => {
+      const { data } = await supabase
+        .from("clients")
+        .select("pricing_tier")
+        .ilike("name", watchedClient)
+        .limit(1);
+      if (!cancelled && data?.[0]) {
+        setClientTier(data[0].pricing_tier as PricingTier);
+      } else if (!cancelled) {
+        setClientTier("standard");
+      }
+    };
+    const timer = setTimeout(lookup, 300); // debounce
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [watchedClient]);
+
   const sqft = useMemo(() => {
     const l = Number(watchedLength) || 0;
     const w = Number(watchedWidth) || 0;
     return l * w;
   }, [watchedLength, watchedWidth]);
 
-  const overrides = CLIENT_OVERRIDES[watchedClient] ?? {};
+  const linearFt = useMemo(() => {
+    const l = Number(watchedLength) || 0;
+    const w = Number(watchedWidth) || 0;
+    return 2 * (l + w);
+  }, [watchedLength, watchedWidth]);
 
-  const getPrice = useCallback(
-    (service: Service) => {
-      const price = overrides[service.id] ?? service.basePrice;
-      return service.unit === "sqft" ? price * sqft : price;
+  const getUnitPrice = useCallback(
+    (svc: DbService): number => {
+      switch (clientTier) {
+        case "vip": return Number(svc.vip_price);
+        case "preferred": return Number(svc.preferred_price);
+        default: return Number(svc.base_price);
+      }
     },
-    [overrides, sqft]
+    [clientTier]
+  );
+
+  const getLineTotal = useCallback(
+    (svc: DbService): number => {
+      const unitPrice = getUnitPrice(svc);
+      if (svc.unit === "per sqft") return unitPrice * sqft;
+      if (svc.unit === "per linear ft") return unitPrice * linearFt;
+      return unitPrice; // flat
+    },
+    [getUnitPrice, sqft, linearFt]
   );
 
   const totalPrice = useMemo(() => {
     return watchedServices.reduce((sum, id) => {
-      const svc = SERVICES.find((s) => s.id === id);
-      return svc ? sum + getPrice(svc) : sum;
+      const svc = dbServices.find((s) => s.id === id);
+      return svc ? sum + getLineTotal(svc) : sum;
     }, 0);
-  }, [watchedServices, getPrice]);
+  }, [watchedServices, dbServices, getLineTotal]);
 
   const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -163,13 +221,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     });
   };
 
-  const applyPreset = (presetId: string) => {
-    const preset = SERVICE_PRESETS.find((p) => p.id === presetId);
-    if (preset) {
-      form.setValue("selectedServices", preset.serviceIds, { shouldValidate: true });
-    }
-  };
-
   const toggleService = (serviceId: string) => {
     const current = form.getValues("selectedServices");
     const next = current.includes(serviceId)
@@ -179,7 +230,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   };
 
   const onSubmit = (data: CheckInValues) => {
-    // Skip photo requirement when editing an existing entry
     if (!editingEntry && photos.length < 1) {
       toast({ title: "Photos required", description: "Upload at least 1 photo.", variant: "destructive" });
       return;
@@ -212,6 +262,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const isEditing = !!editingEntry;
   const isReadOnlyIdentity = isFromPanel || isEditing;
 
+  const tierLabel = clientTier !== "standard" ? clientTier.charAt(0).toUpperCase() + clientTier.slice(1) : null;
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
@@ -226,6 +278,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             <span className="text-sm opacity-80">
               {form.watch("clientName") || "No client"}
             </span>
+            {tierLabel && (
+              <span className="text-xs bg-white/20 px-2 py-0.5 rounded">{tierLabel}</span>
+            )}
             {isEditing && (
               <span className="text-xs bg-white/20 px-2 py-0.5 rounded">Editing</span>
             )}
@@ -234,7 +289,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Identity row — read-only when loaded from panel or editing */}
+          {/* Identity row */}
           {isReadOnlyIdentity ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -334,6 +389,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           {sqft > 0 && (
             <p className="text-sm text-muted-foreground">
               Area: <span className="font-medium text-foreground">{sqft.toFixed(1)} sq ft</span>
+              {linearFt > 0 && (
+                <> · Perimeter: <span className="font-medium text-foreground">{linearFt.toFixed(1)} linear ft</span></>
+              )}
             </p>
           )}
 
@@ -403,66 +461,57 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             />
           </div>
 
-          {/* Service selection */}
-          <div className="space-y-4">
+          {/* Service selection — from database */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-base">Services</Label>
-              <Select onValueChange={applyPreset}>
-                <SelectTrigger className="w-[180px] h-8 text-xs">
-                  <SelectValue placeholder="Apply preset…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SERVICE_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {tierLabel && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded bg-accent text-accent-foreground">
+                  {tierLabel} pricing
+                </span>
+              )}
             </div>
 
-            {SERVICE_CATEGORIES.map((category) => {
-              const catServices = SERVICES.filter((s) => s.category === category);
+            {dbServices.length === 0 && (
+              <p className="text-sm text-muted-foreground italic">Loading services…</p>
+            )}
+
+            {dbServices.map((svc) => {
+              const unitPrice = getUnitPrice(svc);
+              const lineTotal = getLineTotal(svc);
+              const checked = watchedServices.includes(svc.id);
+              const hasDimensions = svc.unit === "per sqft" ? sqft > 0 : svc.unit === "per linear ft" ? linearFt > 0 : true;
+
               return (
-                <div key={category} className="space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {category}
-                  </p>
-                  {catServices.map((svc) => {
-                    const isOverridden = svc.id in overrides;
-                    const price = getPrice(svc);
-                    const checked = watchedServices.includes(svc.id);
-                    return (
-                      <label
-                        key={svc.id}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
-                          checked
-                            ? "bg-accent"
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggleService(svc.id)}
-                        />
-                        <span className="flex-1 text-sm">{svc.name}</span>
-                        {isOverridden && (
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                        )}
-                        <span className="text-sm font-mono text-muted-foreground">
-                          {svc.unit === "sqft"
-                            ? `$${(overrides[svc.id] ?? svc.basePrice).toFixed(2)}/sqft`
-                            : `$${svc.basePrice.toFixed(2)}`}
-                        </span>
-                        {checked && sqft > 0 && svc.unit === "sqft" && (
-                          <span className="text-sm font-medium w-20 text-right">
-                            ${price.toFixed(2)}
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
+                <label
+                  key={svc.id}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                    checked ? "bg-accent" : "hover:bg-muted"
+                  }`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => toggleService(svc.id)}
+                  />
+                  <span className="flex-1 text-sm">{svc.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {svc.unit === "flat" ? "flat" : svc.unit === "per linear ft" ? "/lin ft" : "/sqft"}
+                  </span>
+                  <span className="text-sm font-mono text-muted-foreground w-20 text-right">
+                    ${unitPrice.toFixed(2)}
+                    {svc.unit !== "flat" && <span className="text-xs">/{svc.unit === "per linear ft" ? "lf" : "sf"}</span>}
+                  </span>
+                  {checked && hasDimensions && svc.unit !== "flat" && (
+                    <span className="text-sm font-semibold w-20 text-right">
+                      ${lineTotal.toFixed(2)}
+                    </span>
+                  )}
+                  {checked && svc.unit === "flat" && (
+                    <span className="text-sm font-semibold w-20 text-right">
+                      ${lineTotal.toFixed(2)}
+                    </span>
+                  )}
+                </label>
               );
             })}
 
