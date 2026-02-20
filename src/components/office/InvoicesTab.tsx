@@ -1,13 +1,17 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Eye, FileText, Download, Send, Trash2, DollarSign, AlertTriangle, Loader2 } from "lucide-react";
+import { Eye, Download, Send, Trash2, DollarSign, AlertTriangle, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -37,12 +41,35 @@ const STATUSES: Array<{ value: string; label: string }> = [
   { value: "overdue", label: "Overdue" },
 ];
 
+interface ClientOption {
+  id: string;
+  name: string;
+  pricing_tier: string;
+}
+
+interface RugOption {
+  id: string;
+  tag: string;
+  services: string[];
+  size_length: number | null;
+  size_width: number | null;
+}
+
 export function InvoicesTab() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selected, setSelected] = useState<InvoiceRow | null>(null);
+
+  // Create flow state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
+  const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
+  const [servicePrices, setServicePrices] = useState<Record<string, number>>({});
+  const [creating, setCreating] = useState(false);
 
   const fetchInvoices = useCallback(async () => {
     const { data, error } = await supabase
@@ -61,6 +88,115 @@ export function InvoicesTab() {
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  // Fetch clients for create flow
+  const openCreate = async () => {
+    const { data } = await supabase.from("clients").select("id, name, pricing_tier").order("name");
+    setClients(data ?? []);
+    setSelectedClientId("");
+    setClientRugs([]);
+    setSelectedRugIds(new Set());
+    setServicePrices({});
+    setCreateOpen(true);
+  };
+
+  // When client changes, fetch their checked-in rugs
+  useEffect(() => {
+    if (!selectedClientId) {
+      setClientRugs([]);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("rugs")
+        .select("id, tag, services, size_length, size_width")
+        .eq("client_id", selectedClientId)
+        .in("status", ["checked_in", "in_production", "ready"])
+        .order("checked_in_at", { ascending: false });
+      setClientRugs(data ?? []);
+      setSelectedRugIds(new Set());
+    })();
+  }, [selectedClientId]);
+
+  // Load service prices when client changes
+  useEffect(() => {
+    if (!selectedClientId) return;
+    const client = clients.find((c) => c.id === selectedClientId);
+    const tier = client?.pricing_tier ?? "standard";
+    const priceCol = tier === "vip" ? "vip_price" : tier === "preferred" ? "preferred_price" : "base_price";
+    (async () => {
+      const { data } = await supabase.from("services").select(`name, ${priceCol}`);
+      const map: Record<string, number> = {};
+      for (const s of data ?? []) {
+        map[s.name] = Number((s as any)[priceCol]) || 0;
+      }
+      setServicePrices(map);
+    })();
+  }, [selectedClientId, clients]);
+
+  const toggleRug = (rugId: string) => {
+    setSelectedRugIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rugId)) next.delete(rugId);
+      else next.add(rugId);
+      return next;
+    });
+  };
+
+  const computeLineItems = () => {
+    return clientRugs
+      .filter((r) => selectedRugIds.has(r.id))
+      .flatMap((rug) => {
+        const sqft = (rug.size_length ?? 0) * (rug.size_width ?? 0);
+        return rug.services.map((svc) => {
+          const unitPrice = servicePrices[svc] ?? 0;
+          const total = unitPrice * sqft;
+          return {
+            rug_id: rug.id,
+            description: `${svc} — ${rug.tag}`,
+            quantity: sqft,
+            unit_price: unitPrice,
+            total,
+          };
+        });
+      });
+  };
+
+  const draftTotal = useMemo(() => {
+    return computeLineItems().reduce((sum, li) => sum + li.total, 0);
+  }, [selectedRugIds, clientRugs, servicePrices]);
+
+  const createDraft = async () => {
+    if (!selectedClientId || selectedRugIds.size === 0) return;
+    setCreating(true);
+
+    const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
+    const lineItems = computeLineItems();
+    const total = lineItems.reduce((s, li) => s + li.total, 0);
+
+    const { data: inv, error: invErr } = await supabase
+      .from("invoices")
+      .insert({ invoice_number: invNum, client_id: selectedClientId, status: "draft" as const, total })
+      .select()
+      .single();
+
+    if (invErr || !inv) {
+      toast({ title: "Error creating invoice", description: invErr?.message, variant: "destructive" });
+      setCreating(false);
+      return;
+    }
+
+    const rows = lineItems.map((li) => ({ ...li, invoice_id: inv.id }));
+    const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
+    if (itemsErr) {
+      toast({ title: "Error adding line items", description: itemsErr.message, variant: "destructive" });
+    }
+
+    toast({ title: `Draft ${invNum} created` });
+    setCreateOpen(false);
+    setCreating(false);
+    fetchInvoices();
+  };
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: invoices.length };
@@ -93,16 +229,10 @@ export function InvoicesTab() {
     }
     toast({ title: `Marked as ${newStatus}` });
     await fetchInvoices();
-    // Re-select updated invoice
-    setSelected((prev) => {
-      if (!prev) return null;
-      return invoices.find((i) => i.id === prev.id) ?? prev;
-    });
   };
 
   const deleteDraft = async () => {
     if (!selected) return;
-    // Delete items first, then invoice
     await supabase.from("invoice_items").delete().eq("invoice_id", selected.id);
     const { error } = await supabase.from("invoices").delete().eq("id", selected.id);
     if (error) {
@@ -115,7 +245,6 @@ export function InvoicesTab() {
     fetchInvoices();
   };
 
-  // Refresh selected after invoices update
   useEffect(() => {
     if (selected) {
       const updated = invoices.find((i) => i.id === selected.id);
@@ -136,20 +265,25 @@ export function InvoicesTab() {
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full space-y-6 animate-fade-in-up">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          {STATUSES.map((s) => (
-            <TabsTrigger key={s.value} value={s.value} className="gap-1.5">
-              {s.label}
-              {(statusCounts[s.value] ?? 0) > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-xs">
-                  {statusCounts[s.value]}
-                </Badge>
-              )}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex items-center justify-between">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            {STATUSES.map((s) => (
+              <TabsTrigger key={s.value} value={s.value} className="gap-1.5">
+                {s.label}
+                {(statusCounts[s.value] ?? 0) > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-xs">
+                    {statusCounts[s.value]}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <Button size="sm" onClick={openCreate} className="gap-1.5">
+          <Plus className="h-4 w-4" /> New Invoice
+        </Button>
+      </div>
 
       <Table>
         <TableHeader>
@@ -224,7 +358,6 @@ export function InvoicesTab() {
                   </div>
                 </div>
 
-                {/* Line Items */}
                 <div>
                   <Label className="mb-2 block">Line Items ({rugCount(selected)})</Label>
                   <div className="border border-border rounded-lg divide-y divide-border text-sm">
@@ -232,9 +365,7 @@ export function InvoicesTab() {
                       <div key={li.id} className="flex items-center justify-between px-3 py-2.5">
                         <div>
                           <span className="font-medium text-foreground">{li.description}</span>
-                          <span className="text-muted-foreground ml-2">
-                            ×{Number(li.quantity)}
-                          </span>
+                          <span className="text-muted-foreground ml-2">×{Number(li.quantity)}</span>
                         </div>
                         <span className="font-medium text-foreground">${Number(li.total).toFixed(2)}</span>
                       </div>
@@ -246,7 +377,6 @@ export function InvoicesTab() {
                   </div>
                 </div>
 
-                {/* Status Actions */}
                 <div className="space-y-2">
                   <Label>Actions</Label>
                   <div className="flex flex-wrap gap-2">
@@ -288,6 +418,99 @@ export function InvoicesTab() {
               </div>
             </>
           )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Create Invoice Sheet */}
+      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>New Invoice</SheetTitle>
+            <SheetDescription>Select a client and their rugs to generate a draft invoice.</SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-5 py-6">
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedClientId && (
+              <div className="space-y-2">
+                <Label>Rugs ({clientRugs.length} available)</Label>
+                {clientRugs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No rugs found for this client.</p>
+                ) : (
+                  <div className="border border-border rounded-lg divide-y divide-border">
+                    {clientRugs.map((rug) => {
+                      const sqft = (rug.size_length ?? 0) * (rug.size_width ?? 0);
+                      return (
+                        <label
+                          key={rug.id}
+                          className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50"
+                        >
+                          <Checkbox
+                            checked={selectedRugIds.has(rug.id)}
+                            onCheckedChange={() => toggleRug(rug.id)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold">{rug.tag}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {rug.size_length ?? "?"}×{rug.size_width ?? "?"} ft ({sqft} sqft)
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {rug.services.map((s) => (
+                                <Badge key={s} variant="outline" className="text-xs h-5 px-1.5">{s}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedRugIds.size > 0 && (
+              <div className="space-y-2">
+                <Label>Line Items Preview</Label>
+                <div className="border border-border rounded-lg divide-y divide-border text-sm">
+                  {computeLineItems().map((li, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-foreground">{li.description}</span>
+                      <span className="font-medium text-foreground">${li.total.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between px-3 py-2 font-semibold text-foreground">
+                  <span>Total</span>
+                  <span>${draftTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={createDraft}
+              disabled={!selectedClientId || selectedRugIds.size === 0 || creating}
+              className="w-full gap-1.5"
+            >
+              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+              Create Draft Invoice
+            </Button>
+          </div>
         </SheetContent>
       </Sheet>
     </div>
