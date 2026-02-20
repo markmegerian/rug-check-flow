@@ -14,16 +14,360 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          user_id: string | null
+          user_name: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          user_id?: string | null
+          user_name?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          user_id?: string | null
+          user_name?: string
+        }
+        Relationships: []
+      }
+      clients: {
+        Row: {
+          address: string
+          contact_name: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          notes: string
+          phone: string
+          pricing_tier: Database["public"]["Enums"]["pricing_tier"]
+          updated_at: string
+        }
+        Insert: {
+          address?: string
+          contact_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name: string
+          notes?: string
+          phone?: string
+          pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          contact_name?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          notes?: string
+          phone?: string
+          pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      invoice_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          invoice_id: string
+          quantity: number
+          rug_id: string | null
+          total: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id: string
+          quantity?: number
+          rug_id?: string | null
+          total?: number
+          unit_price?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id?: string
+          quantity?: number
+          rug_id?: string | null
+          total?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_rug_id_fkey"
+            columns: ["rug_id"]
+            isOneToOne: false
+            referencedRelation: "rugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          due_at: string | null
+          id: string
+          invoice_number: string
+          issued_at: string | null
+          paid_at: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          invoice_number: string
+          issued_at?: string | null
+          paid_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          invoice_number?: string
+          issued_at?: string | null
+          paid_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_users: {
+        Row: {
+          client_id: string
+          created_at: string
+          email: string
+          id: string
+          status: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          email: string
+          id?: string
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_users_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rugs: {
+        Row: {
+          checked_in_at: string
+          checked_in_by: string | null
+          client_id: string | null
+          completed_at: string | null
+          created_at: string
+          description: string
+          id: string
+          notes: string
+          photo_url: string | null
+          picked_up_at: string | null
+          services: string[]
+          size_length: number | null
+          size_width: number | null
+          status: Database["public"]["Enums"]["rug_status"]
+          tag: string
+          updated_at: string
+        }
+        Insert: {
+          checked_in_at?: string
+          checked_in_by?: string | null
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          notes?: string
+          photo_url?: string | null
+          picked_up_at?: string | null
+          services?: string[]
+          size_length?: number | null
+          size_width?: number | null
+          status?: Database["public"]["Enums"]["rug_status"]
+          tag: string
+          updated_at?: string
+        }
+        Update: {
+          checked_in_at?: string
+          checked_in_by?: string | null
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          notes?: string
+          photo_url?: string | null
+          picked_up_at?: string | null
+          services?: string[]
+          size_length?: number | null
+          size_width?: number | null
+          status?: Database["public"]["Enums"]["rug_status"]
+          tag?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rugs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          active: boolean
+          base_price: number
+          created_at: string
+          id: string
+          name: string
+          preferred_price: number
+          unit: string
+          updated_at: string
+          vip_price: number
+        }
+        Insert: {
+          active?: boolean
+          base_price?: number
+          created_at?: string
+          id?: string
+          name: string
+          preferred_price?: number
+          unit?: string
+          updated_at?: string
+          vip_price?: number
+        }
+        Update: {
+          active?: boolean
+          base_price?: number
+          created_at?: string
+          id?: string
+          name?: string
+          preferred_price?: number
+          unit?: string
+          updated_at?: string
+          vip_price?: number
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "office" | "checkin_staff" | "driver"
+      invoice_status: "draft" | "sent" | "paid" | "overdue"
+      pricing_tier: "standard" | "preferred" | "vip"
+      rug_status: "checked_in" | "in_production" | "ready" | "picked_up"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +494,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "office", "checkin_staff", "driver"],
+      invoice_status: ["draft", "sent", "paid", "overdue"],
+      pricing_tier: ["standard", "preferred", "vip"],
+      rug_status: ["checked_in", "in_production", "ready", "picked_up"],
+    },
   },
 } as const
