@@ -520,6 +520,7 @@ export function DeliveriesTab() {
           </div>
         </div>
 
+        <TooltipProvider delayDuration={300}>
         <div className="space-y-6">
           {Object.entries(itemsByClient).map(([cid, clientItems]) => (
             <div key={cid} className="border border-border rounded-lg overflow-hidden">
@@ -535,29 +536,31 @@ export function DeliveriesTab() {
               <div className="divide-y divide-border">
                 {clientItems.map((item) => {
                   const rug = rugMap[item.rug_id];
-                  const isReady = rug?.status === "ready";
                   const isInProduction = rug?.status === "in_production";
                   return (
                     <div key={item.id} className={`px-4 py-2.5 flex items-center gap-3 ${isInProduction && !isCheckedOut ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`}>
                       {isCompiling && (
-                        <TooltipProvider>
+                        isInProduction ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span>
                                 <Checkbox
                                   checked={item.confirmed_for_delivery}
                                   onCheckedChange={(v) => toggleConfirmed(item.id, !!v)}
-                                  disabled={isInProduction}
+                                  disabled
                                 />
                               </span>
                             </TooltipTrigger>
-                            {isInProduction && (
-                              <TooltipContent>
-                                <p>Cannot confirm — rug is still in production</p>
-                              </TooltipContent>
-                            )}
+                            <TooltipContent side="right">
+                              <p>Cannot confirm — rug is still in production</p>
+                            </TooltipContent>
                           </Tooltip>
-                        </TooltipProvider>
+                        ) : (
+                          <Checkbox
+                            checked={item.confirmed_for_delivery}
+                            onCheckedChange={(v) => toggleConfirmed(item.id, !!v)}
+                          />
+                        )
                       )}
                       {isConfirmed && (
                         <Checkbox
@@ -579,16 +582,14 @@ export function DeliveriesTab() {
                       </div>
                       {rug && rugStatusBadge(rug.status)}
                       {isInProduction && !isCheckedOut && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Still in production — cannot be confirmed yet</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                          </TooltipTrigger>
+                          <TooltipContent side="left">
+                            <p>Still in production — cannot be confirmed yet</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   );
@@ -597,6 +598,7 @@ export function DeliveriesTab() {
             </div>
           ))}
         </div>
+        </TooltipProvider>
       </div>
     );
   }
