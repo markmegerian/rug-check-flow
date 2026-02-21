@@ -1,7 +1,23 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { PORTAL_RUGS, PortalStatus } from "@/data/mock-portal";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import type { Tables } from "@/integrations/supabase/types";
+
+type PortalStatus = "in_progress" | "ready" | "delivered";
+type Filter = "all" | PortalStatus;
+
+type PortalRug = {
+  id: string;
+  rugNumber: string;
+  rugType: string;
+  length: number;
+  width: number;
+  services: string[];
+  status: PortalStatus;
+  checkedInDate: string;
+};
 
 const STATUS_LABELS: Record<PortalStatus, string> = {
   in_progress: "In Progress",
@@ -15,13 +31,82 @@ const STATUS_VARIANTS: Record<PortalStatus, "default" | "secondary" | "outline">
   delivered: "outline",
 };
 
-type Filter = "all" | PortalStatus;
+const mapPortalStatus = (status: Tables<"rugs">["status"]): PortalStatus => {
+  if (status === "ready") return "ready";
+  if (status === "picked_up") return "delivered";
+  return "in_progress";
+};
 
 export default function PortalRugsTab() {
+  const { toast } = useToast();
+  const [rugs, setRugs] = useState<PortalRug[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-  const rugs = PORTAL_RUGS;
+  const fetchRugs = useCallback(async () => {
+    setLoading(true);
+    setAccessError(null);
+
+    const { data: authData } = await supabase.auth.getUser();
+    const email = authData.user?.email?.toLowerCase();
+    if (!email) {
+      setAccessError("Portal account required. Please sign in again.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: portalUser, error: portalError } = await supabase
+      .from("portal_users")
+      .select("client_id")
+      .eq("email", email)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (portalError) {
+      toast({ title: "Failed to load portal profile", description: portalError.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    if (!portalUser?.client_id) {
+      setAccessError("No active portal access was found for your account.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: rugRows, error: rugsError } = await supabase
+      .from("rugs")
+      .select("id, tag, description, size_length, size_width, services, status, checked_in_at")
+      .eq("client_id", portalUser.client_id)
+      .order("checked_in_at", { ascending: false });
+
+    if (rugsError) {
+      toast({ title: "Failed to load rugs", description: rugsError.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    const mapped = (rugRows ?? []).map((rug) => ({
+      id: rug.id,
+      rugNumber: rug.tag,
+      rugType: rug.description || "Rug",
+      length: Number(rug.size_length ?? 0),
+      width: Number(rug.size_width ?? 0),
+      services: rug.services ?? [],
+      status: mapPortalStatus(rug.status),
+      checkedInDate: rug.checked_in_at,
+    }));
+
+    setRugs(mapped);
+    setLoading(false);
+  }, [toast]);
+
+  useEffect(() => {
+    fetchRugs();
+  }, [fetchRugs]);
+
   const counts = {
     total: rugs.length,
     in_progress: rugs.filter((r) => r.status === "in_progress").length,
@@ -29,7 +114,10 @@ export default function PortalRugsTab() {
     delivered: rugs.filter((r) => r.status === "delivered").length,
   };
 
-  const filtered = filter === "all" ? rugs : rugs.filter((r) => r.status === filter);
+  const filtered = useMemo(
+    () => (filter === "all" ? rugs : rugs.filter((r) => r.status === filter)),
+    [filter, rugs]
+  );
 
   const filters: { key: Filter; label: string; count: number }[] = [
     { key: "all", label: "All", count: counts.total },
@@ -37,6 +125,14 @@ export default function PortalRugsTab() {
     { key: "ready", label: "Ready", count: counts.ready },
     { key: "delivered", label: "Delivered", count: counts.delivered },
   ];
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading rugs...</p>;
+  }
+
+  if (accessError) {
+    return <p className="text-sm text-muted-foreground">{accessError}</p>;
+  }
 
   return (
     <div className="space-y-4">
@@ -59,6 +155,9 @@ export default function PortalRugsTab() {
 
       {/* Rug list */}
       <div className="rounded-lg border bg-background divide-y">
+        {filtered.length === 0 && (
+          <div className="px-4 py-6 text-sm text-muted-foreground">No rugs found.</div>
+        )}
         {filtered.map((rug) => {
           const isExpanded = expandedRow === rug.id;
           return (
@@ -91,7 +190,7 @@ export default function PortalRugsTab() {
                   </div>
                   <div className="col-span-2 sm:col-span-1">
                     <span className="text-muted-foreground text-xs">Services</span>
-                    <p>{rug.services.join(", ")}</p>
+                    <p>{rug.services.length > 0 ? rug.services.join(", ") : "—"}</p>
                   </div>
                 </div>
               )}
