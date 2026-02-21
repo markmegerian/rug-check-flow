@@ -37,6 +37,14 @@ type RugOption = {
   clients?: { name: string; email?: string | null } | null;
 };
 
+const ALLOWED_STATUS_TRANSITIONS: Record<EstimateStatus, EstimateStatus[]> = {
+  draft: ["sent", "expired"],
+  sent: ["approved", "rejected", "expired"],
+  approved: [],
+  rejected: [],
+  expired: [],
+};
+
 export function EstimatesTab() {
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
@@ -143,6 +151,7 @@ export function EstimatesTab() {
 
     const { error: itemErr } = await (supabase as any).from("estimate_items").insert(items);
     if (itemErr) {
+      await (supabase as any).from("estimates").delete().eq("id", insertedEstimate.id);
       toast({ title: "Estimate items failed", description: itemErr.message, variant: "destructive" });
       setCreating(false);
       return;
@@ -172,7 +181,7 @@ export function EstimatesTab() {
 
 
   const logCommunicationEvent = async (estimate: EstimateRow, eventType: string, subject: string, body: string) => {
-    await (supabase as any).from("communication_events").insert({
+    const { error } = await (supabase as any).from("communication_events").insert({
       client_id: estimate.client_id,
       rug_id: estimate.rug_id,
       estimate_id: estimate.id,
@@ -183,9 +192,28 @@ export function EstimatesTab() {
       body,
       sent_to: estimate.clients?.email ?? null,
     });
+
+    if (error) {
+      toast({
+        title: "Communication event logging failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    return !error;
   };
 
   const setEstimateStatus = async (estimate: EstimateRow, status: EstimateStatus) => {
+    if (!ALLOWED_STATUS_TRANSITIONS[estimate.status].includes(status)) {
+      toast({
+        title: "Invalid status transition",
+        description: `Cannot move estimate from ${estimate.status} to ${status}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const updates: Record<string, unknown> = { status };
     if (status === "sent") updates.sent_at = new Date().toISOString();
     if (status === "approved") updates.approved_at = new Date().toISOString();
@@ -201,11 +229,12 @@ export function EstimatesTab() {
       return;
     }
 
-    setEstimates((prev) => prev.map((e) => (e.id === estimate.id ? { ...e, ...updates } as EstimateRow : e)));
+    const updatedEstimate = { ...estimate, ...updates } as EstimateRow;
+    setEstimates((prev) => prev.map((e) => (e.id === estimate.id ? updatedEstimate : e)));
 
     const baseSubject = `${estimate.estimate_number} ${status}`;
     const baseBody = `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} is now ${status}.`;
-    await logCommunicationEvent(estimate, `estimate_${status}`, baseSubject, baseBody);
+    await logCommunicationEvent(updatedEstimate, `estimate_${status}`, baseSubject, baseBody);
 
     toast({ title: `Estimate ${status}` });
   };
