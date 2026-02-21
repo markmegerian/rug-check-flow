@@ -23,7 +23,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <DevAccountSwitcher />
+        {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true") && <DevAccountSwitcher />}
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />

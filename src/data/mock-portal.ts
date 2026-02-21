@@ -22,6 +22,8 @@ export interface PickupRugEntry {
 export interface PortalPickup {
   id: string;
   date: string;
+  routeDay: string;
+  region: string;
   rugNumbers: string[];
   newRugs: PickupRugEntry[];
   status: "pending" | "confirmed";
@@ -42,6 +44,6 @@ export const PORTAL_RUGS: PortalRug[] = [
 ];
 
 export const PORTAL_PICKUPS: PortalPickup[] = [
-  { id: "pk-1", date: "2026-02-20", rugNumbers: ["RB-1004", "RB-1005"], newRugs: [], status: "pending", notes: "Please call before arriving" },
-  { id: "pk-2", date: "2026-02-25", rugNumbers: ["RB-1010"], newRugs: [{ id: "nr-1", label: "Living Room Rug", rugType: "Persian", length: 12, width: 9 }], status: "confirmed" },
+  { id: "pk-1", date: "2026-02-20", routeDay: "Thursday", region: "Westchester", rugNumbers: ["RB-1004", "RB-1005"], newRugs: [], status: "pending", notes: "Please call before arriving" },
+  { id: "pk-2", date: "2026-02-25", routeDay: "Thursday", region: "Westchester", rugNumbers: ["RB-1010"], newRugs: [{ id: "nr-1", label: "Living Room Rug", rugType: "Persian", length: 12, width: 9 }], status: "confirmed" },
 ];
