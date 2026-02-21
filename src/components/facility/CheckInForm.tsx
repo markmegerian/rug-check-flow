@@ -648,6 +648,48 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               )}
             </div>
 
+            {/* Preset quick-select chips */}
+            {dbServices.length > 0 && (() => {
+              const PRESETS = [
+                { label: "Basic Clean", names: ["Standard Wash"] },
+                { label: "Full Service", names: ["Deep Wash", "Scotchgard"] },
+                { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
+              ];
+              return (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {PRESETS.map((preset) => {
+                    const ids = preset.names
+                      .map((n) => dbServices.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id)
+                      .filter(Boolean) as string[];
+                    if (ids.length === 0) return null;
+                    const allSelected = ids.length > 0 && ids.every((id) => watchedServices.includes(id));
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          if (allSelected) {
+                            const next = watchedServices.filter((id) => !ids.includes(id));
+                            form.setValue("selectedServices", next, { shouldValidate: true });
+                          } else {
+                            const merged = Array.from(new Set([...watchedServices, ...ids]));
+                            form.setValue("selectedServices", merged, { shouldValidate: true });
+                          }
+                        }}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                          allSelected
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted/50 text-muted-foreground border-border hover:border-primary hover:text-foreground"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
             {dbServices.length > 0 && (
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
