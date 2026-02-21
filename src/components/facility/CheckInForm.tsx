@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ChevronDown, X } from "lucide-react";
+import { Camera, ChevronDown, Search, X } from "lucide-react";
 import RugEdgeDiagram, { calcSelectedLinearFt, type RugEdge } from "./RugEdgeDiagram";
 
 import { Button } from "@/components/ui/button";
@@ -211,6 +211,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dbServices, setDbServices] = useState<DbService[]>([]);
+  const [serviceSearch, setServiceSearch] = useState("");
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   // Per-service edge selections for linear-ft services
@@ -632,6 +633,19 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               )}
             </div>
 
+            {dbServices.length > 0 && (
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search services…"
+                  className="h-8 pl-8 text-sm"
+                  value={serviceSearch}
+                  onChange={(e) => setServiceSearch(e.target.value)}
+                />
+              </div>
+            )}
+
             {dbServices.length === 0 && (
               <p className="text-sm text-muted-foreground italic">Loading services…</p>
             )}
@@ -639,8 +653,12 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md">
               {(() => {
                 const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
+                const searchLower = serviceSearch.toLowerCase();
+                const filteredServices = searchLower
+                  ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
+                  : dbServices;
                 const grouped: Record<string, DbService[]> = {};
-                dbServices.forEach((svc) => {
+                filteredServices.forEach((svc) => {
                   const cat = svc.category || "Other";
                   if (!grouped[cat]) grouped[cat] = [];
                   grouped[cat].push(svc);
