@@ -16,11 +16,11 @@ const devSwitcherEnabled =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
 
 export function DevAccountSwitcher() {
-  if (!devSwitcherEnabled) return null;
-
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
+
+  if (!devSwitcherEnabled) return null;
 
   const switchTo = async (role: string) => {
     setSwitching(role);
