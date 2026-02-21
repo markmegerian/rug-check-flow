@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Truck, CheckCircle2, Package, Calendar, ChevronRight, AlertCircle } from "lucide-react";
+import { Truck, CheckCircle2, Package, Calendar, ChevronRight, AlertCircle, RefreshCw, History, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format, addDays, startOfWeek, previousDay, nextDay, isAfter, isBefore } from "date-fns";
+import { format, addDays } from "date-fns";
 
 const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 const DAY_INDEX: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
@@ -48,7 +51,15 @@ type ClientInfo = {
   address: string;
 };
 
-type ViewMode = "weekly" | "detail";
+type InvoiceInfo = {
+  id: string;
+  invoice_number: string;
+  client_id: string | null;
+  total: number;
+  status: string;
+};
+
+type ViewMode = "weekly" | "detail" | "history";
 
 export function DeliveriesTab() {
   const { toast } = useToast();
@@ -61,6 +72,7 @@ export function DeliveriesTab() {
   const [loading, setLoading] = useState(true);
   const [compiling, setCompiling] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [historyInvoices, setHistoryInvoices] = useState<Record<string, InvoiceInfo[]>>({});
 
   const fetchClients = useCallback(async () => {
     const { data } = await supabase.from("clients").select("id, name, route_day, address").order("name");
@@ -93,7 +105,6 @@ export function DeliveriesTab() {
     return map;
   }, [clients]);
 
-  // Get the next occurrence of a given day
   const getNextTargetDate = (routeDay: string): string => {
     const dayIdx = DAY_INDEX[routeDay];
     if (dayIdx === undefined) return format(new Date(), "yyyy-MM-dd");
@@ -108,8 +119,6 @@ export function DeliveriesTab() {
   const compileDeliveryList = async (routeDay: string) => {
     setCompiling(true);
     const targetDate = getNextTargetDate(routeDay);
-
-    // Get clients for this route day
     const routeClients = clientsByDay[routeDay] ?? [];
     if (routeClients.length === 0) {
       toast({ title: "No clients on this route day", variant: "destructive" });
@@ -118,8 +127,6 @@ export function DeliveriesTab() {
     }
 
     const clientIds = routeClients.map((c) => c.id);
-
-    // Find rugs: ready OR in_production, belonging to these clients, not already picked up
     const { data: eligibleRugs, error: rugError } = await supabase
       .from("rugs")
       .select("id, tag, status, size_length, size_width, client_id")
@@ -138,7 +145,6 @@ export function DeliveriesTab() {
       return;
     }
 
-    // Check if delivery list for this date already exists
     const { data: existing } = await supabase
       .from("delivery_lists")
       .select("id")
@@ -149,13 +155,11 @@ export function DeliveriesTab() {
     if (existing && existing.length > 0) {
       toast({ title: "List already exists", description: `A delivery list for ${routeDay} ${targetDate} already exists.` });
       setCompiling(false);
-      // Open the existing one
       const { data: dl } = await supabase.from("delivery_lists").select("*").eq("id", existing[0].id).single();
       if (dl) openDetail(dl as DeliveryList);
       return;
     }
 
-    // Create delivery list
     const { data: newList, error: listError } = await supabase
       .from("delivery_lists")
       .insert({ route_day: routeDay, target_date: targetDate })
@@ -168,7 +172,6 @@ export function DeliveriesTab() {
       return;
     }
 
-    // Create items
     const itemsToInsert = eligibleRugs.map((r) => ({
       delivery_list_id: newList.id,
       rug_id: r.id,
@@ -180,6 +183,47 @@ export function DeliveriesTab() {
     toast({ title: "Delivery list compiled", description: `${eligibleRugs.length} rugs for ${routeDay}` });
     await fetchDeliveryLists();
     openDetail(newList as DeliveryList);
+    setCompiling(false);
+  };
+
+  // Re-compile: add any new eligible rugs not already on the list
+  const recompileDeliveryList = async () => {
+    if (!selectedList || selectedList.status === "checked_out") return;
+    setCompiling(true);
+
+    const routeClients = clientsByDay[selectedList.route_day] ?? [];
+    const clientIds = routeClients.map((c) => c.id);
+
+    const { data: eligibleRugs } = await supabase
+      .from("rugs")
+      .select("id, tag, status, size_length, size_width, client_id")
+      .in("client_id", clientIds)
+      .in("status", ["ready", "in_production"]);
+
+    if (!eligibleRugs) {
+      toast({ title: "No new rugs found" });
+      setCompiling(false);
+      return;
+    }
+
+    const existingRugIds = new Set(items.map((i) => i.rug_id));
+    const newRugs = eligibleRugs.filter((r) => !existingRugIds.has(r.id));
+
+    if (newRugs.length === 0) {
+      toast({ title: "No new rugs", description: "All eligible rugs are already on the list." });
+      setCompiling(false);
+      return;
+    }
+
+    const itemsToInsert = newRugs.map((r) => ({
+      delivery_list_id: selectedList.id,
+      rug_id: r.id,
+      client_id: r.client_id,
+    }));
+
+    await supabase.from("delivery_list_items").insert(itemsToInsert);
+    toast({ title: "List updated", description: `${newRugs.length} new rugs added.` });
+    await openDetail(selectedList);
     setCompiling(false);
   };
 
@@ -195,7 +239,6 @@ export function DeliveriesTab() {
     const typedItems = (listItems ?? []) as DeliveryItem[];
     setItems(typedItems);
 
-    // Fetch rug info
     const rugIds = typedItems.map((i) => i.rug_id);
     if (rugIds.length > 0) {
       const { data: rugs } = await supabase
@@ -210,6 +253,15 @@ export function DeliveriesTab() {
   };
 
   const toggleConfirmed = async (itemId: string, value: boolean) => {
+    // Prevent confirming in-production rugs
+    const item = items.find((i) => i.id === itemId);
+    if (value && item) {
+      const rug = rugMap[item.rug_id];
+      if (rug && rug.status !== "ready") {
+        toast({ title: "Cannot confirm", description: "This rug is still in production.", variant: "destructive" });
+        return;
+      }
+    }
     await supabase
       .from("delivery_list_items")
       .update({ confirmed_for_delivery: value })
@@ -275,7 +327,6 @@ export function DeliveriesTab() {
     return clients.find((c) => c.id === clientId)?.name ?? "Unknown";
   };
 
-  // Group items by client for display
   const itemsByClient = useMemo(() => {
     const map: Record<string, DeliveryItem[]> = {};
     items.forEach((item) => {
@@ -285,6 +336,48 @@ export function DeliveriesTab() {
     });
     return map;
   }, [items]);
+
+  // Fetch invoices for checked-out lists in history view
+  const openHistory = async () => {
+    setViewMode("history");
+    const checkedOutLists = deliveryLists.filter((dl) => dl.status === "checked_out");
+    if (checkedOutLists.length === 0) return;
+
+    // Fetch invoices created around the checkout times
+    const { data: invoices } = await supabase
+      .from("invoices")
+      .select("id, invoice_number, client_id, total, status")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    // For each checked-out list, find matching invoices by fetching their items
+    const invoiceMap: Record<string, InvoiceInfo[]> = {};
+    if (invoices) {
+      // For simplicity, associate invoices with delivery lists by matching delivery list items' client_ids
+      for (const dl of checkedOutLists) {
+        const { data: dlItems } = await supabase
+          .from("delivery_list_items")
+          .select("client_id, rug_id")
+          .eq("delivery_list_id", dl.id)
+          .eq("loaded_on_truck", true);
+
+        if (dlItems) {
+          const clientIds = [...new Set(dlItems.map((i) => i.client_id).filter(Boolean))];
+          // Find invoices for these clients created around checkout time
+          const matchingInvoices = invoices.filter((inv) =>
+            inv.client_id && clientIds.includes(inv.client_id) &&
+            dl.checked_out_at &&
+            new Date(inv.id) <= new Date(dl.checked_out_at) // rough match - invoices have UUIDs so we use created_at proximity
+          );
+          // Simpler approach: just match by client_id from the list
+          invoiceMap[dl.id] = invoices.filter((inv) =>
+            inv.client_id && clientIds.includes(inv.client_id)
+          ) as InvoiceInfo[];
+        }
+      }
+    }
+    setHistoryInvoices(invoiceMap);
+  };
 
   const statusBadge = (status: string) => {
     switch (status) {
@@ -307,6 +400,74 @@ export function DeliveriesTab() {
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading deliveries…</div>;
+  }
+
+  // HISTORY VIEW
+  if (viewMode === "history") {
+    const checkedOutLists = deliveryLists.filter((dl) => dl.status === "checked_out");
+
+    return (
+      <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
+        <button
+          onClick={() => setViewMode("weekly")}
+          className="text-sm text-muted-foreground hover:text-foreground mb-4 flex items-center gap-1"
+        >
+          ← Back to routes
+        </button>
+
+        <h2 className="text-lg font-semibold text-foreground mb-4">Delivery History</h2>
+
+        {checkedOutLists.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No completed deliveries yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {checkedOutLists.map((dl) => {
+              const invoices = historyInvoices[dl.id] ?? [];
+              return (
+                <div key={dl.id} className="border border-border rounded-lg bg-card overflow-hidden">
+                  <div className="px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm text-foreground">
+                        {dl.route_day} — {format(new Date(dl.target_date + "T00:00:00"), "MMM d, yyyy")}
+                      </p>
+                      {dl.checked_out_at && (
+                        <p className="text-xs text-muted-foreground">
+                          Checked out {format(new Date(dl.checked_out_at), "MMM d, h:mm a")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {statusBadge(dl.status)}
+                      <Button size="sm" variant="ghost" onClick={() => openDetail(dl)}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {invoices.length > 0 && (
+                    <>
+                      <Separator />
+                      <div className="px-4 py-2 space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Invoices generated</p>
+                        {invoices.map((inv) => (
+                          <div key={inv.id} className="flex items-center justify-between text-sm py-0.5">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="font-mono text-xs">{inv.invoice_number}</span>
+                              <span className="text-muted-foreground text-xs">— {clientName(inv.client_id)}</span>
+                            </div>
+                            <span className="text-xs font-medium">${Number(inv.total).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // DETAIL VIEW
@@ -338,6 +499,12 @@ export function DeliveriesTab() {
           </div>
 
           <div className="flex gap-2">
+            {!isCheckedOut && (
+              <Button size="sm" variant="outline" onClick={recompileDeliveryList} disabled={compiling}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                Re-compile
+              </Button>
+            )}
             {isCompiling && (
               <Button onClick={confirmList} disabled={confirmedCount === 0}>
                 <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -369,13 +536,28 @@ export function DeliveriesTab() {
                 {clientItems.map((item) => {
                   const rug = rugMap[item.rug_id];
                   const isReady = rug?.status === "ready";
+                  const isInProduction = rug?.status === "in_production";
                   return (
-                    <div key={item.id} className="px-4 py-2.5 flex items-center gap-3">
+                    <div key={item.id} className={`px-4 py-2.5 flex items-center gap-3 ${isInProduction && !isCheckedOut ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`}>
                       {isCompiling && (
-                        <Checkbox
-                          checked={item.confirmed_for_delivery}
-                          onCheckedChange={(v) => toggleConfirmed(item.id, !!v)}
-                        />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Checkbox
+                                  checked={item.confirmed_for_delivery}
+                                  onCheckedChange={(v) => toggleConfirmed(item.id, !!v)}
+                                  disabled={isInProduction}
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            {isInProduction && (
+                              <TooltipContent>
+                                <p>Cannot confirm — rug is still in production</p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                       {isConfirmed && (
                         <Checkbox
@@ -396,8 +578,17 @@ export function DeliveriesTab() {
                         )}
                       </div>
                       {rug && rugStatusBadge(rug.status)}
-                      {!isReady && !isCheckedOut && (
-                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                      {isInProduction && !isCheckedOut && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Still in production — cannot be confirmed yet</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                     </div>
                   );
@@ -415,6 +606,10 @@ export function DeliveriesTab() {
     <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-foreground">Weekly Routes & Deliveries</h2>
+        <Button size="sm" variant="outline" onClick={openHistory}>
+          <History className="h-3.5 w-3.5 mr-1" />
+          History
+        </Button>
       </div>
 
       {/* Route days */}
@@ -422,7 +617,6 @@ export function DeliveriesTab() {
         {DAYS_OF_WEEK.map((day) => {
           const dayClients = clientsByDay[day];
           const dayLists = deliveryLists.filter((dl) => dl.route_day === day);
-          const latestList = dayLists[0];
 
           return (
             <div key={day} className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">

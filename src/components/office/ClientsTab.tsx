@@ -204,6 +204,7 @@ export function ClientsTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Days</SelectItem>
+              <SelectItem value="unassigned">No Route Assigned</SelectItem>
               {ROUTE_DAYS.filter(Boolean).map((day) => (
                 <SelectItem key={day} value={day}>{day}</SelectItem>
               ))}
@@ -211,7 +212,7 @@ export function ClientsTab() {
           </Select>
           {filterDay && (
             <Badge variant="secondary" className="text-xs">
-              {clients.filter((c) => c.route_day === filterDay).length}
+              {clients.filter((c) => filterDay === "unassigned" ? !c.route_day : c.route_day === filterDay).length}
             </Badge>
           )}
           <Button size="sm" onClick={openAdd}>
@@ -232,7 +233,7 @@ export function ClientsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {clients.filter((c) => !filterDay || c.route_day === filterDay).map((c) => (
+          {clients.filter((c) => !filterDay || (filterDay === "unassigned" ? !c.route_day : c.route_day === filterDay)).map((c) => (
             <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
