@@ -1,42 +1,278 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PORTAL_RUGS, PORTAL_PICKUPS, type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
+import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
-import { Truck, Lock, Plus, X } from "lucide-react";
+import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
+const DEFAULT_ROUTE_DAY = "Thursday";
+const DEFAULT_REGION = "Westchester";
+
+const DAY_INDEX: Record<string, number> = {
+  Sunday: 0,
+  Monday: 1,
+  Tuesday: 2,
+  Wednesday: 3,
+  Thursday: 4,
+  Friday: 5,
+  Saturday: 6,
+};
+
+const getNextDateForRouteDay = (routeDay: string) => {
+  const targetDay = DAY_INDEX[routeDay] ?? 4;
+  const today = new Date();
+  const diff = (targetDay - today.getDay() + 7) % 7 || 7;
+  const nextDate = new Date(today);
+  nextDate.setDate(today.getDate() + diff);
+  return nextDate.toISOString().split("T")[0];
+};
+
+type PickupRequestRow = {
+  id: string;
+  client_id: string;
+  route_day: string;
+  scheduled_date: string;
+  status: "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
+  notes: string | null;
+};
+
+type PickupRequestItemRow = {
+  id: string;
+  pickup_request_id: string;
+  rug_number: string;
+  rug_type: string | null;
+  length: number | null;
+  width: number | null;
+  is_new: boolean;
+};
 
 export default function PortalPickupsTab() {
   const { toast } = useToast();
-  const readyRugs = PORTAL_RUGS.filter((r) => r.status === "ready");
-  const [pickups, setPickups] = useState<PortalPickup[]>([...PORTAL_PICKUPS]);
+  const [readyRugs, setReadyRugs] = useState<Array<{ id: string; rugNumber: string; rugType: string; services: string[] }>>([]);
+  const [pickups, setPickups] = useState<PortalPickup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
+  const [region, setRegion] = useState(DEFAULT_REGION);
 
-  const handleRequestPickup = () => {
-    const newPickup: PortalPickup = {
-      id: `pk-${Date.now()}`,
-      date: new Date().toISOString().split("T")[0],
-      rugNumbers: readyRugs.map((r) => r.rugNumber),
-      newRugs: [],
-      status: "pending",
-      notes: "",
+  const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
+
+  const fetchPickups = useCallback(async (activeClientId: string) => {
+    const { data: reqData, error: reqError } = await (supabase as any)
+      .from("pickup_requests")
+      .select("id, client_id, route_day, scheduled_date, status, notes")
+      .eq("client_id", activeClientId)
+      .order("scheduled_date", { ascending: true });
+
+    if (reqError) {
+      toast({ title: "Failed to load pickup requests", description: reqError.message, variant: "destructive" });
+      return;
+    }
+
+    const requests = (reqData ?? []) as PickupRequestRow[];
+    if (requests.length === 0) {
+      setPickups([]);
+      return;
+    }
+
+    const requestIds = requests.map((r) => r.id);
+    const { data: itemData, error: itemError } = await (supabase as any)
+      .from("pickup_request_items")
+      .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
+      .in("pickup_request_id", requestIds);
+
+    if (itemError) {
+      toast({ title: "Failed to load pickup items", description: itemError.message, variant: "destructive" });
+      return;
+    }
+
+    const items = (itemData ?? []) as PickupRequestItemRow[];
+
+    const mapped: PortalPickup[] = requests.map((req) => {
+      const reqItems = items.filter((i) => i.pickup_request_id === req.id);
+      return {
+        id: req.id,
+        date: req.scheduled_date,
+        routeDay: req.route_day || DEFAULT_ROUTE_DAY,
+        region,
+        status: (req.status === "pending" || req.status === "confirmed") ? req.status : "confirmed",
+        notes: req.notes ?? "",
+        rugNumbers: reqItems.filter((i) => !i.is_new).map((i) => i.rug_number),
+        newRugs: reqItems
+          .filter((i) => i.is_new)
+          .map((i) => ({
+            id: i.id,
+            label: i.rug_number,
+            rugType: i.rug_type ?? "",
+            length: Number(i.length ?? 0),
+            width: Number(i.width ?? 0),
+          })),
+      };
+    });
+
+    setPickups(mapped);
+  }, [region, toast]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+
+      const { data: authData } = await supabase.auth.getUser();
+      const userEmail = authData.user?.email?.toLowerCase();
+      if (!userEmail) {
+        toast({ title: "Portal account required", description: "Please sign in again.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      const { data: portalUser } = await (supabase as any)
+        .from("portal_users")
+        .select("client_id")
+        .eq("email", userEmail)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (!portalUser?.client_id) {
+        toast({ title: "No portal access", description: "Your email is not linked to an active client portal account.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      const { data: selectedClient } = await supabase
+        .from("clients")
+        .select("id, route_day, address")
+        .eq("id", portalUser.client_id)
+        .maybeSingle();
+
+      if (!selectedClient?.id) {
+        toast({ title: "No client found", description: "Please create at least one client record first.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      const derivedRouteDay = selectedClient.route_day || DEFAULT_ROUTE_DAY;
+      setRouteDay(derivedRouteDay);
+      setRegion(selectedClient.address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION);
+      setClientId(selectedClient.id);
+
+      const { data: rugRows } = await (supabase as any)
+        .from("rugs")
+        .select("id, tag, description, services")
+        .eq("client_id", selectedClient.id)
+        .eq("status", "ready")
+        .order("checked_in_at", { ascending: false });
+
+      setReadyRugs((rugRows ?? []).map((r: any) => ({
+        id: r.id,
+        rugNumber: r.tag,
+        rugType: r.description || "Rug",
+        services: r.services ?? [],
+      })));
+
+      await fetchPickups(selectedClient.id);
+      setLoading(false);
     };
-    setPickups((prev) => [...prev, newPickup]);
-    toast({ title: "Pickup created", description: "Edit the details below." });
+
+    init();
+  }, [fetchPickups, toast]);
+
+  const handleRequestPickup = async () => {
+    if (!clientId) return;
+
+    const scheduledDate = getNextDateForRouteDay(routeDay);
+
+    const { data: inserted, error } = await (supabase as any)
+      .from("pickup_requests")
+      .insert({
+        client_id: clientId,
+        route_day: routeDay,
+        scheduled_date: scheduledDate,
+        status: "pending",
+        notes: "",
+      })
+      .select("id")
+      .single();
+
+    if (error || !inserted) {
+      toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
+      return;
+    }
+
+    const items = readyRugNumbers.map((rugNumber) => ({
+      pickup_request_id: inserted.id,
+      rug_number: rugNumber,
+      rug_type: "",
+      is_new: false,
+    }));
+
+    if (items.length > 0) {
+      await (supabase as any).from("pickup_request_items").insert(items);
+    }
+
+    await fetchPickups(clientId);
+    toast({
+      title: "Pickup requested",
+      description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
+    });
   };
 
-  const handleSave = (id: string, updates: Partial<PortalPickup>) => {
-    setPickups((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+  const handleSave = async (id: string, updates: Partial<PortalPickup>) => {
+    if (!clientId) return;
+
+    const { error: updateErr } = await (supabase as any)
+      .from("pickup_requests")
+      .update({ notes: updates.notes ?? "" })
+      .eq("id", id);
+
+    if (updateErr) {
+      toast({ title: "Save failed", description: updateErr.message, variant: "destructive" });
+      return;
+    }
+
+    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
+
+    const readyItems = (updates.rugNumbers ?? []).map((rugNumber) => ({
+      pickup_request_id: id,
+      rug_number: rugNumber,
+      rug_type: "",
+      is_new: false,
+    }));
+
+    const newRugItems = (updates.newRugs ?? []).map((rug) => ({
+      pickup_request_id: id,
+      rug_number: rug.label,
+      rug_type: rug.rugType,
+      length: rug.length,
+      width: rug.width,
+      is_new: true,
+    }));
+
+    const insertItems = [...readyItems, ...newRugItems];
+    if (insertItems.length > 0) {
+      await (supabase as any).from("pickup_request_items").insert(insertItems);
+    }
+
+    await fetchPickups(clientId);
     toast({ title: "Pickup saved" });
   };
 
-  const handleCancel = (id: string) => {
-    setPickups((prev) => prev.filter((p) => p.id !== id));
+  const handleCancel = async (id: string) => {
+    if (!clientId) return;
+    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
+    await (supabase as any).from("pickup_requests").delete().eq("id", id);
+    await fetchPickups(clientId);
     toast({ title: "Pickup cancelled" });
   };
 
   return (
     <div className="space-y-6">
-      {/* Ready for pickup */}
+      <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2 text-muted-foreground">
+        <CalendarClock className="h-4 w-4" />
+        Service region: <span className="font-medium text-foreground">{region}</span> · Pickup route day: <span className="font-medium text-foreground">{routeDay}</span>
+      </div>
+
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Ready for Pickup · {readyRugs.length}
@@ -57,7 +293,7 @@ export default function PortalPickupsTab() {
                 </div>
               ))}
             </div>
-            <Button size="sm" className="mt-3" onClick={handleRequestPickup}>
+            <Button size="sm" className="mt-3" onClick={handleRequestPickup} disabled={loading || !clientId}>
               <Truck className="mr-1.5 h-3.5 w-3.5" />
               Request Pickup
             </Button>
@@ -65,7 +301,6 @@ export default function PortalPickupsTab() {
         )}
       </section>
 
-      {/* Pickup requests */}
       {pickups.length > 0 && (
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
@@ -76,7 +311,7 @@ export default function PortalPickupsTab() {
               <PickupCard
                 key={pickup.id}
                 pickup={pickup}
-                readyRugNumbers={readyRugs.map((r) => r.rugNumber)}
+                readyRugNumbers={readyRugNumbers}
                 onSave={handleSave}
                 onCancel={handleCancel}
               />
@@ -87,8 +322,6 @@ export default function PortalPickupsTab() {
     </div>
   );
 }
-
-/* ──────────────────────────────── */
 
 function PickupCard({
   pickup,
@@ -102,13 +335,12 @@ function PickupCard({
   onCancel: (id: string) => void;
 }) {
   const locked = pickup.status === "confirmed";
-  const [date, setDate] = useState(pickup.date);
   const [selectedRugs, setSelectedRugs] = useState<string[]>(pickup.rugNumbers);
   const [notes, setNotes] = useState(pickup.notes || "");
   const [newRugs, setNewRugs] = useState<PickupRugEntry[]>(pickup.newRugs);
 
   const fmtDate = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
   const toggleRug = (rn: string) =>
     setSelectedRugs((prev) => (prev.includes(rn) ? prev.filter((r) => r !== rn) : [...prev, rn]));
@@ -131,15 +363,11 @@ function PickupCard({
       )}
 
       <div className="p-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">{fmtDate(pickup.date)}</span>
-          {!locked && (
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-8 w-40 text-xs" />
-          )}
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-semibold">{fmtDate(pickup.date)}</span>
+          <span className="text-muted-foreground">{pickup.routeDay} route · {pickup.region}</span>
         </div>
 
-        {/* Ready rugs selection */}
         {readyRugNumbers.length > 0 && (
           <FieldRow label="Ready rugs">
             {locked ? (
@@ -157,7 +385,6 @@ function PickupCard({
           </FieldRow>
         )}
 
-        {/* New rugs */}
         <FieldRow label="Additional rugs">
           {locked ? (
             newRugs.length > 0 ? (
@@ -221,7 +448,6 @@ function PickupCard({
           )}
         </FieldRow>
 
-        {/* Notes */}
         <FieldRow label="Notes">
           {locked ? (
             <span className="text-sm">{pickup.notes || "—"}</span>
@@ -235,13 +461,12 @@ function PickupCard({
           )}
         </FieldRow>
 
-        {/* Actions */}
         {!locked && (
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" size="sm" className="text-xs" onClick={() => onCancel(pickup.id)}>
               Cancel
             </Button>
-            <Button size="sm" className="text-xs" onClick={() => onSave(pickup.id, { date, rugNumbers: selectedRugs, newRugs, notes })}>
+            <Button size="sm" className="text-xs" onClick={() => onSave(pickup.id, { rugNumbers: selectedRugs, newRugs, notes })}>
               Save
             </Button>
           </div>
@@ -251,7 +476,7 @@ function PickupCard({
   );
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex gap-3 text-sm">
       <span className="w-24 shrink-0 text-muted-foreground text-xs pt-1">{label}</span>
