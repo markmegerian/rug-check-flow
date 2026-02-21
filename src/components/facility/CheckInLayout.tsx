@@ -114,7 +114,7 @@ export function CheckInLayout() {
       length: number;
       width: number;
       selectedServices: string[];
-      serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number }[];
+      serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
       totalPrice: number;
     }) => {
       let clientId: string | null = null;
@@ -154,6 +154,7 @@ export function CheckInLayout() {
               service_name: s.service_name,
               unit_price: s.unit_price,
               line_total: s.line_total,
+              edges: s.edges,
             }))
           );
         }
@@ -184,6 +185,7 @@ export function CheckInLayout() {
               service_name: s.service_name,
               unit_price: s.unit_price,
               line_total: s.line_total,
+              edges: s.edges,
             }))
           );
         }

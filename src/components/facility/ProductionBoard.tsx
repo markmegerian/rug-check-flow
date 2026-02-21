@@ -12,7 +12,7 @@ export interface DbRug {
   id: string;
   tag: string;
   description: string;
-  services: { name: string; line_total: number }[];
+  services: { name: string; line_total: number; edges?: string[] }[];
   status: ProductionStage;
   size_length: number | null;
   size_width: number | null;
@@ -40,17 +40,18 @@ export function ProductionBoard() {
 
     const rugIds = (data ?? []).map((r: any) => r.id);
 
-    let rugServiceMap = new Map<string, { name: string; line_total: number }[]>();
+    let rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
         .from("rug_services")
-        .select("rug_id, line_total, service_name")
+        .select("rug_id, line_total, service_name, edges")
         .in("rug_id", rugIds);
       for (const row of rs ?? []) {
         const list = rugServiceMap.get(row.rug_id) ?? [];
         list.push({
           name: (row as any).service_name || "Unknown",
           line_total: Number(row.line_total),
+          edges: (row as any).edges ?? [],
         });
         rugServiceMap.set(row.rug_id, list);
       }
