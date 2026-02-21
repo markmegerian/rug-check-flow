@@ -499,96 +499,98 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               <p className="text-sm text-muted-foreground italic">Loading services…</p>
             )}
 
-            {dbServices.map((svc) => {
-              const unitPrice = getUnitPrice(svc);
-              const lineTotal = getLineTotal(svc);
-              const checked = watchedServices.includes(svc.id);
+            <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md divide-y divide-border">
+              {dbServices.map((svc) => {
+                const unitPrice = getUnitPrice(svc);
+                const lineTotal = getLineTotal(svc);
+                const checked = watchedServices.includes(svc.id);
 
-              const isFlat = svc.unit === "flat";
-              const isLinear = svc.unit === "per linear ft";
-              const edges = edgeSelections[svc.id] ?? [];
-              const l = Number(watchedLength) || 0;
-              const w = Number(watchedWidth) || 0;
+                const isFlat = svc.unit === "flat";
+                const isLinear = svc.unit === "per linear ft";
+                const edges = edgeSelections[svc.id] ?? [];
+                const l = Number(watchedLength) || 0;
+                const w = Number(watchedWidth) || 0;
 
-              const toggleEdge = (edge: RugEdge) => {
-                setEdgeSelections((prev) => {
-                  const current = prev[svc.id] ?? [];
-                  return {
-                    ...prev,
-                    [svc.id]: current.includes(edge)
-                      ? current.filter((e) => e !== edge)
-                      : [...current, edge],
-                  };
-                });
-              };
+                const toggleEdge = (edge: RugEdge) => {
+                  setEdgeSelections((prev) => {
+                    const current = prev[svc.id] ?? [];
+                    return {
+                      ...prev,
+                      [svc.id]: current.includes(edge)
+                        ? current.filter((e) => e !== edge)
+                        : [...current, edge],
+                    };
+                  });
+                };
 
-              return (
-                <div key={svc.id}>
-                  <label
-                    className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
-                      checked ? "bg-accent" : "hover:bg-muted"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={() => toggleService(svc.id)}
-                    />
-                    <span className="flex-1 text-sm truncate">{svc.name}</span>
-                    {!isFlat && (
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
-                      </span>
-                    )}
-                    {isFlat && !checked && (
-                      <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
-                    )}
-                    {checked && !isFlat && !isLinear && (
-                      <span className="text-sm font-semibold shrink-0">
-                        ${lineTotal.toFixed(2)}
-                      </span>
-                    )}
-                    {checked && isLinear && edges.length > 0 && (
-                      <span className="text-sm font-semibold shrink-0">
-                        ${lineTotal.toFixed(2)}
-                      </span>
-                    )}
-                  </label>
-                  {checked && isLinear && l > 0 && w > 0 && (
-                    <div className="ml-4 md:ml-8 mt-2 mb-2">
-                      <RugEdgeDiagram
-                        lengthFt={l}
-                        widthFt={w}
-                        selectedEdges={edges}
-                        onToggleEdge={toggleEdge}
+                return (
+                  <div key={svc.id} className="px-1">
+                    <label
+                      className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
+                        checked ? "bg-accent" : "hover:bg-muted"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleService(svc.id)}
                       />
-                      {edges.length > 0 && (
-                        <p className="text-xs text-muted-foreground text-center mt-1">
-                          {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
-                        </p>
+                      <span className="flex-1 text-sm truncate">{svc.name}</span>
+                      {!isFlat && (
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
+                        </span>
                       )}
-                    </div>
-                  )}
-                  {checked && isFlat && (
-                    <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
-                      <span className="text-xs text-muted-foreground">Price $</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        inputMode="decimal"
-                        placeholder="Enter price"
-                        className="h-8 w-28"
-                        value={flatPrices[svc.id] ?? ""}
-                        onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
-                      />
-                      {lineTotal > 0 && (
-                        <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
+                      {isFlat && !checked && (
+                        <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
                       )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      {checked && !isFlat && !isLinear && (
+                        <span className="text-sm font-semibold shrink-0">
+                          ${lineTotal.toFixed(2)}
+                        </span>
+                      )}
+                      {checked && isLinear && edges.length > 0 && (
+                        <span className="text-sm font-semibold shrink-0">
+                          ${lineTotal.toFixed(2)}
+                        </span>
+                      )}
+                    </label>
+                    {checked && isLinear && l > 0 && w > 0 && (
+                      <div className="ml-4 md:ml-8 mt-2 mb-2">
+                        <RugEdgeDiagram
+                          lengthFt={l}
+                          widthFt={w}
+                          selectedEdges={edges}
+                          onToggleEdge={toggleEdge}
+                        />
+                        {edges.length > 0 && (
+                          <p className="text-xs text-muted-foreground text-center mt-1">
+                            {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {checked && isFlat && (
+                      <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
+                        <span className="text-xs text-muted-foreground">Price $</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          inputMode="decimal"
+                          placeholder="Enter price"
+                          className="h-8 w-28"
+                          value={flatPrices[svc.id] ?? ""}
+                          onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
+                        />
+                        {lineTotal > 0 && (
+                          <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
             {form.formState.errors.selectedServices && (
               <p className="text-sm text-destructive">
