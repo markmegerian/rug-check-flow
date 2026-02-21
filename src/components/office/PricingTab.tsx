@@ -177,6 +177,15 @@ export function PricingTab() {
     }
   };
 
+  const commitCategory = async (serviceId: string, category: string) => {
+    const { error } = await supabase.from("services").update({ category }).eq("id", serviceId);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    } else {
+      setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, category } : s)));
+    }
+  };
+
   const saveNewService = async () => {
     if (!newServiceName.trim()) return;
     setSavingService(true);
@@ -300,6 +309,7 @@ export function PricingTab() {
           <TableHeader>
             <TableRow>
               <TableHead>Service</TableHead>
+              <TableHead className="w-28">Category</TableHead>
               <TableHead className="w-32">Base Price</TableHead>
               <TableHead className="w-32">Preferred</TableHead>
               <TableHead className="w-32">VIP</TableHead>
@@ -361,6 +371,19 @@ export function PricingTab() {
                       </button>
                     )}
                     {!s.active && <Badge variant="outline" className="ml-2 text-xs">Hidden</Badge>}
+                   </TableCell>
+                  <TableCell>
+                    <Select value={(s as any).category || "Cleaning"} onValueChange={(v) => commitCategory(s.id, v)}>
+                      <SelectTrigger className="h-8 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cleaning">Cleaning</SelectItem>
+                        <SelectItem value="Repair">Repair</SelectItem>
+                        <SelectItem value="Protection">Protection</SelectItem>
+                        <SelectItem value="Specialty">Specialty</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell>{renderPrice("base_price")}</TableCell>
                   <TableCell>{renderPrice("preferred_price")}</TableCell>
