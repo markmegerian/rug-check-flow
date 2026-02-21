@@ -69,6 +69,7 @@ export function ClientsTab() {
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newPortalEmail, setNewPortalEmail] = useState("");
   const [loading, setLoading] = useState(true);
+  const [filterDay, setFilterDay] = useState("");
 
   const fetchClients = useCallback(async () => {
     const { data, error } = await supabase
@@ -194,11 +195,29 @@ export function ClientsTab() {
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3">
         <h2 className="text-lg font-semibold text-foreground">Clients</h2>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="h-4 w-4 mr-1" /> Add Client
-        </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          <Select value={filterDay || "all"} onValueChange={(v) => setFilterDay(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-[150px] h-9">
+              <SelectValue placeholder="Route Day" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Days</SelectItem>
+              {ROUTE_DAYS.filter(Boolean).map((day) => (
+                <SelectItem key={day} value={day}>{day}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {filterDay && (
+            <Badge variant="secondary" className="text-xs">
+              {clients.filter((c) => c.route_day === filterDay).length}
+            </Badge>
+          )}
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="h-4 w-4 mr-1" /> Add Client
+          </Button>
+        </div>
       </div>
 
       <Table>
@@ -213,7 +232,7 @@ export function ClientsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {clients.map((c) => (
+          {clients.filter((c) => !filterDay || c.route_day === filterDay).map((c) => (
             <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
