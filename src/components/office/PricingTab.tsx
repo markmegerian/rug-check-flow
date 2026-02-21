@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, Package, Pencil, Plus } from "lucide-react";
+import { X, Package, Pencil, Plus, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
 } from "@/components/ui/sheet";
@@ -32,6 +33,7 @@ export function PricingTab() {
   const [services, setServices] = useState<DbService[]>([]);
   const [clients, setClients] = useState<DbClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
 
   // Local presets (not yet persisted to DB)
   const [presets, setPresets] = useState<ServicePreset[]>([]);
@@ -48,11 +50,20 @@ export function PricingTab() {
   const [presetName, setPresetName] = useState("");
   const [presetServiceIds, setPresetServiceIds] = useState<string[]>([]);
 
+  // Add service sheet
+  const [addServiceOpen, setAddServiceOpen] = useState(false);
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceUnit, setNewServiceUnit] = useState("per sqft");
+  const [newServiceBasePrice, setNewServiceBasePrice] = useState("");
+  const [newServicePreferredPrice, setNewServicePreferredPrice] = useState("");
+  const [newServiceVipPrice, setNewServiceVipPrice] = useState("");
+  const [savingService, setSavingService] = useState(false);
+
   const fetchServices = useCallback(async () => {
+    // Fetch ALL services so we can show/hide them
     const { data, error } = await supabase
       .from("services")
       .select("*")
-      .eq("active", true)
       .order("name");
     if (error) {
       toast({ title: "Failed to load services", description: error.message, variant: "destructive" });
@@ -74,7 +85,6 @@ export function PricingTab() {
 
   const selectedClient = clients.find((c) => c.id === selectedClientId);
 
-  // Determine which price column to show based on selected client tier
   const priceColumn: "base_price" | "preferred_price" | "vip_price" = selectedClient
     ? selectedClient.pricing_tier === "vip"
       ? "vip_price"
@@ -82,6 +92,8 @@ export function PricingTab() {
         ? "preferred_price"
         : "base_price"
     : "base_price";
+
+  const visibleServices = showHidden ? services : services.filter((s) => s.active);
 
   const startEditPrice = (s: DbService, col: "base_price" | "preferred_price" | "vip_price") => {
     setEditingPriceId(s.id);
@@ -105,6 +117,54 @@ export function PricingTab() {
       }
     }
     setEditingPriceId(null);
+  };
+
+  const toggleServiceActive = async (service: DbService) => {
+    const newActive = !service.active;
+    const { error } = await supabase
+      .from("services")
+      .update({ active: newActive })
+      .eq("id", service.id);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    } else {
+      setServices((prev) =>
+        prev.map((s) => (s.id === service.id ? { ...s, active: newActive } : s))
+      );
+      toast({ title: newActive ? "Service shown" : "Service hidden" });
+    }
+  };
+
+  const saveNewService = async () => {
+    if (!newServiceName.trim()) return;
+    setSavingService(true);
+    const base = parseFloat(newServiceBasePrice) || 0;
+    const preferred = parseFloat(newServicePreferredPrice) || base;
+    const vip = parseFloat(newServiceVipPrice) || base;
+    const { data, error } = await supabase
+      .from("services")
+      .insert({
+        name: newServiceName.trim(),
+        unit: newServiceUnit,
+        base_price: base,
+        preferred_price: preferred,
+        vip_price: vip,
+      })
+      .select()
+      .single();
+    setSavingService(false);
+    if (error) {
+      toast({ title: "Failed to add service", description: error.message, variant: "destructive" });
+    } else if (data) {
+      setServices((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setAddServiceOpen(false);
+      setNewServiceName("");
+      setNewServiceBasePrice("");
+      setNewServicePreferredPrice("");
+      setNewServiceVipPrice("");
+      setNewServiceUnit("per sqft");
+      toast({ title: "Service added" });
+    }
   };
 
   // Preset handlers
@@ -155,9 +215,16 @@ export function PricingTab() {
     <div className="p-4 md:p-6 space-y-8 overflow-auto h-full animate-fade-in-up">
       {/* Services Table */}
       <section>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-foreground">Services</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <Switch checked={showHidden} onCheckedChange={setShowHidden} />
+              Show hidden
+            </label>
+            <Button size="sm" variant="outline" onClick={() => setAddServiceOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Service
+            </Button>
             {selectedClientId && (
               <Button
                 variant="ghost"
@@ -193,10 +260,11 @@ export function PricingTab() {
               <TableHead className="w-32">Preferred</TableHead>
               <TableHead className="w-32">VIP</TableHead>
               <TableHead className="w-24">Unit</TableHead>
+              <TableHead className="w-16 text-center">Visible</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {services.map((s) => {
+            {visibleServices.map((s) => {
               const renderPrice = (col: "base_price" | "preferred_price" | "vip_price") => {
                 const isEditing = editingPriceId === s.id && editingColumn === col;
                 const isHighlighted = selectedClient && priceColumn === col;
@@ -226,8 +294,11 @@ export function PricingTab() {
               };
 
               return (
-                <TableRow key={s.id}>
-                  <TableCell className="font-medium">{s.name}</TableCell>
+                <TableRow key={s.id} className={!s.active ? "opacity-50" : ""}>
+                  <TableCell className="font-medium">
+                    {s.name}
+                    {!s.active && <Badge variant="outline" className="ml-2 text-xs">Hidden</Badge>}
+                  </TableCell>
                   <TableCell>{renderPrice("base_price")}</TableCell>
                   <TableCell>{renderPrice("preferred_price")}</TableCell>
                   <TableCell>{renderPrice("vip_price")}</TableCell>
@@ -235,6 +306,17 @@ export function PricingTab() {
                     <span className="text-xs text-muted-foreground">
                       {s.unit === "per sqft" ? "/ sq ft" : "flat"}
                     </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => toggleServiceActive(s)}
+                      title={s.active ? "Hide service" : "Show service"}
+                    >
+                      {s.active ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
@@ -294,7 +376,7 @@ export function PricingTab() {
             <div className="space-y-2">
               <Label>Services</Label>
               <div className="border border-border rounded-lg divide-y divide-border max-h-64 overflow-y-auto">
-                {services.map((s) => (
+                {services.filter((s) => s.active).map((s) => (
                   <label
                     key={s.id}
                     className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 text-sm"
@@ -311,6 +393,51 @@ export function PricingTab() {
           </div>
           <SheetFooter>
             <Button onClick={savePreset} className="w-full">Save</Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Add Service Sheet */}
+      <Sheet open={addServiceOpen} onOpenChange={setAddServiceOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Add Service</SheetTitle>
+            <SheetDescription>Create a new service for the price list.</SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-6">
+            <div className="space-y-2">
+              <Label>Service Name</Label>
+              <Input value={newServiceName} onChange={(e) => setNewServiceName(e.target.value)} placeholder="e.g. Deep Wash" />
+            </div>
+            <div className="space-y-2">
+              <Label>Unit</Label>
+              <Select value={newServiceUnit} onValueChange={setNewServiceUnit}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="per sqft">Per Sq Ft</SelectItem>
+                  <SelectItem value="flat">Flat Rate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Base Price</Label>
+              <Input type="number" step="0.01" min="0" inputMode="decimal" value={newServiceBasePrice} onChange={(e) => setNewServiceBasePrice(e.target.value)} placeholder="0.00" />
+            </div>
+            <div className="space-y-2">
+              <Label>Preferred Price <span className="text-muted-foreground text-xs">(defaults to base)</span></Label>
+              <Input type="number" step="0.01" min="0" inputMode="decimal" value={newServicePreferredPrice} onChange={(e) => setNewServicePreferredPrice(e.target.value)} placeholder={newServiceBasePrice || "0.00"} />
+            </div>
+            <div className="space-y-2">
+              <Label>VIP Price <span className="text-muted-foreground text-xs">(defaults to base)</span></Label>
+              <Input type="number" step="0.01" min="0" inputMode="decimal" value={newServiceVipPrice} onChange={(e) => setNewServiceVipPrice(e.target.value)} placeholder={newServiceBasePrice || "0.00"} />
+            </div>
+          </div>
+          <SheetFooter>
+            <Button onClick={saveNewService} disabled={!newServiceName.trim() || savingService} className="w-full">
+              {savingService ? "Saving…" : "Add Service"}
+            </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
