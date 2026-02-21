@@ -6,6 +6,7 @@ import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePortalClient } from "@/hooks/usePortalClient";
 
 const DEFAULT_ROUTE_DAY = "Thursday";
 const DEFAULT_REGION = "Westchester";
@@ -48,47 +49,64 @@ type PickupRequestItemRow = {
   is_new: boolean;
 };
 
+type ClientLookupRow = {
+  id: string;
+  route_day: string;
+  address: string;
+};
+
+type ReadyRugRow = {
+  id: string;
+  tag: string;
+  description: string;
+  services: string[];
+};
+
+type PickupInsertResult = { id: string };
+
 export default function PortalPickupsTab() {
   const { toast } = useToast();
+  const { clientId, loading: portalLoading, error: portalError } = usePortalClient();
   const [readyRugs, setReadyRugs] = useState<Array<{ id: string; rugNumber: string; rugType: string; services: string[] }>>([]);
   const [pickups, setPickups] = useState<PortalPickup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
 
-  const fetchPickups = useCallback(async (activeClientId: string) => {
-    const { data: reqData, error: reqError } = await (supabase as any)
+  const fetchPickups = useCallback(async (activeClientId: string, currentRegion: string) => {
+    const { data: reqData, error: reqError } = await supabase
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes")
       .eq("client_id", activeClientId)
-      .order("scheduled_date", { ascending: true });
+      .order("scheduled_date", { ascending: true })
+      .returns<PickupRequestRow[]>();
 
     if (reqError) {
       toast({ title: "Failed to load pickup requests", description: reqError.message, variant: "destructive" });
       return;
     }
 
-    const requests = (reqData ?? []) as PickupRequestRow[];
+    const requests = reqData ?? [];
     if (requests.length === 0) {
       setPickups([]);
       return;
     }
 
     const requestIds = requests.map((r) => r.id);
-    const { data: itemData, error: itemError } = await (supabase as any)
+    const { data: itemData, error: itemError } = await supabase
       .from("pickup_request_items")
       .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
-      .in("pickup_request_id", requestIds);
+      .in("pickup_request_id", requestIds)
+      .returns<PickupRequestItemRow[]>();
 
     if (itemError) {
       toast({ title: "Failed to load pickup items", description: itemError.message, variant: "destructive" });
       return;
     }
 
-    const items = (itemData ?? []) as PickupRequestItemRow[];
+    const items = itemData ?? [];
 
     const mapped: PortalPickup[] = requests.map((req) => {
       const reqItems = items.filter((i) => i.pickup_request_id === req.id);
@@ -96,7 +114,7 @@ export default function PortalPickupsTab() {
         id: req.id,
         date: req.scheduled_date,
         routeDay: req.route_day || DEFAULT_ROUTE_DAY,
-        region,
+        region: currentRegion,
         status: (req.status === "pending" || req.status === "confirmed") ? req.status : "confirmed",
         notes: req.notes ?? "",
         rugNumbers: reqItems.filter((i) => !i.is_new).map((i) => i.rug_number),
@@ -113,77 +131,70 @@ export default function PortalPickupsTab() {
     });
 
     setPickups(mapped);
-  }, [region, toast]);
+  }, [toast]);
 
   useEffect(() => {
     const init = async () => {
+      if (portalError) {
+        toast({ title: "No portal access", description: portalError, variant: "destructive" });
+        setReadyRugs([]);
+        setPickups([]);
+        return;
+      }
+
+      if (!clientId) return;
       setLoading(true);
 
-      const { data: authData } = await supabase.auth.getUser();
-      const userEmail = authData.user?.email?.toLowerCase();
-      if (!userEmail) {
-        toast({ title: "Portal account required", description: "Please sign in again.", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
-      const { data: portalUser } = await (supabase as any)
-        .from("portal_users")
-        .select("client_id")
-        .eq("email", userEmail)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (!portalUser?.client_id) {
-        toast({ title: "No portal access", description: "Your email is not linked to an active client portal account.", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
-      const { data: selectedClient } = await supabase
+      const { data: selectedClient, error: clientError } = await supabase
         .from("clients")
         .select("id, route_day, address")
-        .eq("id", portalUser.client_id)
-        .maybeSingle();
+        .eq("id", clientId)
+        .maybeSingle<ClientLookupRow>();
 
-      if (!selectedClient?.id) {
+      if (clientError || !selectedClient?.id) {
         toast({ title: "No client found", description: "Please create at least one client record first.", variant: "destructive" });
         setLoading(false);
         return;
       }
 
       const derivedRouteDay = selectedClient.route_day || DEFAULT_ROUTE_DAY;
+      const derivedRegion = selectedClient.address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
-      setRegion(selectedClient.address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION);
-      setClientId(selectedClient.id);
+      setRegion(derivedRegion);
 
-      const { data: rugRows } = await (supabase as any)
+      const { data: rugRows, error: rugError } = await supabase
         .from("rugs")
         .select("id, tag, description, services")
         .eq("client_id", selectedClient.id)
         .eq("status", "ready")
-        .order("checked_in_at", { ascending: false });
+        .order("checked_in_at", { ascending: false })
+        .returns<ReadyRugRow[]>();
 
-      setReadyRugs((rugRows ?? []).map((r: any) => ({
-        id: r.id,
-        rugNumber: r.tag,
-        rugType: r.description || "Rug",
-        services: r.services ?? [],
-      })));
+      if (rugError) {
+        toast({ title: "Failed to load ready rugs", description: rugError.message, variant: "destructive" });
+        setReadyRugs([]);
+      } else {
+        setReadyRugs((rugRows ?? []).map((r) => ({
+          id: r.id,
+          rugNumber: r.tag,
+          rugType: r.description || "Rug",
+          services: r.services ?? [],
+        })));
+      }
 
-      await fetchPickups(selectedClient.id);
+      await fetchPickups(selectedClient.id, derivedRegion);
       setLoading(false);
     };
 
     init();
-  }, [fetchPickups, toast]);
+  }, [clientId, fetchPickups, portalError, toast]);
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
 
     const scheduledDate = getNextDateForRouteDay(routeDay);
 
-    const { data: inserted, error } = await (supabase as any)
+    const { data: inserted, error } = await supabase
       .from("pickup_requests")
       .insert({
         client_id: clientId,
@@ -193,7 +204,7 @@ export default function PortalPickupsTab() {
         notes: "",
       })
       .select("id")
-      .single();
+      .single<PickupInsertResult>();
 
     if (error || !inserted) {
       toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
@@ -208,10 +219,10 @@ export default function PortalPickupsTab() {
     }));
 
     if (items.length > 0) {
-      await (supabase as any).from("pickup_request_items").insert(items);
+      await supabase.from("pickup_request_items").insert(items);
     }
 
-    await fetchPickups(clientId);
+    await fetchPickups(clientId, region);
     toast({
       title: "Pickup requested",
       description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
@@ -221,7 +232,7 @@ export default function PortalPickupsTab() {
   const handleSave = async (id: string, updates: Partial<PortalPickup>) => {
     if (!clientId) return;
 
-    const { error: updateErr } = await (supabase as any)
+    const { error: updateErr } = await supabase
       .from("pickup_requests")
       .update({ notes: updates.notes ?? "" })
       .eq("id", id);
@@ -231,7 +242,7 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
+    await supabase.from("pickup_request_items").delete().eq("pickup_request_id", id);
 
     const readyItems = (updates.rugNumbers ?? []).map((rugNumber) => ({
       pickup_request_id: id,
@@ -251,20 +262,24 @@ export default function PortalPickupsTab() {
 
     const insertItems = [...readyItems, ...newRugItems];
     if (insertItems.length > 0) {
-      await (supabase as any).from("pickup_request_items").insert(insertItems);
+      await supabase.from("pickup_request_items").insert(insertItems);
     }
 
-    await fetchPickups(clientId);
+    await fetchPickups(clientId, region);
     toast({ title: "Pickup saved" });
   };
 
   const handleCancel = async (id: string) => {
     if (!clientId) return;
-    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
-    await (supabase as any).from("pickup_requests").delete().eq("id", id);
-    await fetchPickups(clientId);
+    await supabase.from("pickup_request_items").delete().eq("pickup_request_id", id);
+    await supabase.from("pickup_requests").delete().eq("id", id);
+    await fetchPickups(clientId, region);
     toast({ title: "Pickup cancelled" });
   };
+
+  if (portalLoading || loading) {
+    return <div className="text-sm text-muted-foreground">Loading pickups…</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -322,7 +337,6 @@ export default function PortalPickupsTab() {
     </div>
   );
 }
-
 function PickupCard({
   pickup,
   readyRugNumbers,
