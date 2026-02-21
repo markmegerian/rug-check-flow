@@ -304,7 +304,7 @@ export function PricingTab() {
                   <TableCell>{renderPrice("vip_price")}</TableCell>
                   <TableCell>
                     <span className="text-xs text-muted-foreground">
-                      {s.unit === "per sqft" ? "/ sq ft" : "flat"}
+                      {s.unit === "per sqft" ? "/ sq ft" : s.unit === "per linear ft" ? "/ lin ft" : "flat"}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
@@ -417,6 +417,7 @@ export function PricingTab() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="per sqft">Per Sq Ft</SelectItem>
+                  <SelectItem value="per linear ft">Per Linear Ft</SelectItem>
                   <SelectItem value="flat">Flat Rate</SelectItem>
                 </SelectContent>
               </Select>

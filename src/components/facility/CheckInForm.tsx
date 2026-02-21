@@ -74,6 +74,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dbServices, setDbServices] = useState<DbService[]>([]);
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
+  const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -187,9 +188,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       const unitPrice = getUnitPrice(svc);
       if (svc.unit === "per sqft") return unitPrice * sqft;
       if (svc.unit === "per linear ft") return unitPrice * linearFt;
+      // Flat rate: use manual entry if available
+      if (svc.unit === "flat") {
+        const manual = parseFloat(flatPrices[svc.id] ?? "");
+        return isNaN(manual) ? 0 : manual;
+      }
       return unitPrice;
     },
-    [getUnitPrice, sqft, linearFt]
+    [getUnitPrice, sqft, linearFt, flatPrices]
   );
 
   const totalPrice = useMemo(() => {
@@ -243,7 +249,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         .map((id) => {
           const svc = dbServices.find((s) => s.id === id);
           if (!svc) return null;
-          return { service_id: id, service_name: svc.name, unit_price: getUnitPrice(svc), line_total: getLineTotal(svc) };
+          const lt = getLineTotal(svc);
+          const up = svc.unit === "flat" ? lt : getUnitPrice(svc);
+          return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt };
         })
         .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number }[];
 
@@ -488,28 +496,52 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               const lineTotal = getLineTotal(svc);
               const checked = watchedServices.includes(svc.id);
 
+              const isFlat = svc.unit === "flat";
               return (
-                <label
-                  key={svc.id}
-                  className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
-                    checked ? "bg-accent" : "hover:bg-muted"
-                  }`}
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => toggleService(svc.id)}
-                  />
-                  <span className="flex-1 text-sm truncate">{svc.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    ${unitPrice.toFixed(2)}
-                    {svc.unit !== "flat" && <span>/{svc.unit === "per linear ft" ? "lf" : "sf"}</span>}
-                  </span>
-                  {checked && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
+                <div key={svc.id}>
+                  <label
+                    className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
+                      checked ? "bg-accent" : "hover:bg-muted"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleService(svc.id)}
+                    />
+                    <span className="flex-1 text-sm truncate">{svc.name}</span>
+                    {!isFlat && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        ${unitPrice.toFixed(2)}/{svc.unit === "per linear ft" ? "lf" : "sf"}
+                      </span>
+                    )}
+                    {isFlat && !checked && (
+                      <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
+                    )}
+                    {checked && !isFlat && (
+                      <span className="text-sm font-semibold shrink-0">
+                        ${lineTotal.toFixed(2)}
+                      </span>
+                    )}
+                  </label>
+                  {checked && isFlat && (
+                    <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
+                      <span className="text-xs text-muted-foreground">Price $</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        inputMode="decimal"
+                        placeholder="Enter price"
+                        className="h-8 w-28"
+                        value={flatPrices[svc.id] ?? ""}
+                        onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
+                      />
+                      {lineTotal > 0 && (
+                        <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
+                      )}
+                    </div>
                   )}
-                </label>
+                </div>
               );
             })}
 
