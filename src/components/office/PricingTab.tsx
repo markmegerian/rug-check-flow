@@ -44,6 +44,10 @@ export function PricingTab() {
   const [editingPriceValue, setEditingPriceValue] = useState("");
   const [editingColumn, setEditingColumn] = useState<"base_price" | "preferred_price" | "vip_price">("base_price");
 
+  // Inline name editing
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState("");
+
   // Preset sheet
   const [presetSheetOpen, setPresetSheetOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<ServicePreset | null>(null);
@@ -117,6 +121,28 @@ export function PricingTab() {
       }
     }
     setEditingPriceId(null);
+  };
+
+  const commitName = async (serviceId: string) => {
+    const name = editingNameValue.trim();
+    if (name) {
+      const { error } = await supabase.from("services").update({ name }).eq("id", serviceId);
+      if (error) {
+        toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      } else {
+        setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, name } : s)));
+      }
+    }
+    setEditingNameId(null);
+  };
+
+  const commitUnit = async (serviceId: string, unit: string) => {
+    const { error } = await supabase.from("services").update({ unit }).eq("id", serviceId);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    } else {
+      setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, unit } : s)));
+    }
   };
 
   const toggleServiceActive = async (service: DbService) => {
@@ -296,16 +322,39 @@ export function PricingTab() {
               return (
                 <TableRow key={s.id} className={!s.active ? "opacity-50" : ""}>
                   <TableCell className="font-medium">
-                    {s.name}
+                    {editingNameId === s.id ? (
+                      <Input
+                        className="h-8 w-40"
+                        value={editingNameValue}
+                        onChange={(e) => setEditingNameValue(e.target.value)}
+                        onBlur={() => commitName(s.id)}
+                        onKeyDown={(e) => e.key === "Enter" && commitName(s.id)}
+                        autoFocus
+                      />
+                    ) : (
+                      <button
+                        className="text-left hover:underline cursor-pointer"
+                        onClick={() => { setEditingNameId(s.id); setEditingNameValue(s.name); }}
+                      >
+                        {s.name}
+                      </button>
+                    )}
                     {!s.active && <Badge variant="outline" className="ml-2 text-xs">Hidden</Badge>}
                   </TableCell>
                   <TableCell>{renderPrice("base_price")}</TableCell>
                   <TableCell>{renderPrice("preferred_price")}</TableCell>
                   <TableCell>{renderPrice("vip_price")}</TableCell>
                   <TableCell>
-                    <span className="text-xs text-muted-foreground">
-                      {s.unit === "per sqft" ? "/ sq ft" : s.unit === "per linear ft" ? "/ lin ft" : "flat"}
-                    </span>
+                    <Select value={s.unit} onValueChange={(v) => commitUnit(s.id, v)}>
+                      <SelectTrigger className="h-8 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="per sqft">/ sq ft</SelectItem>
+                        <SelectItem value="per linear ft">/ lin ft</SelectItem>
+                        <SelectItem value="flat">Flat</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-center">
                     <Button
