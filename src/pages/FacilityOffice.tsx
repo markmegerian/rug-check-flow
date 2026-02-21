@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { DollarSign, FileText, Users } from "lucide-react";
+import { DollarSign, FileText, Users, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
+import { DeliveriesTab } from "@/components/office/DeliveriesTab";
 
 const TABS = [
   { id: "pricing", label: "Pricing", icon: DollarSign },
   { id: "invoices", label: "Invoices", icon: FileText },
   { id: "clients", label: "Clients", icon: Users },
+  { id: "deliveries", label: "Deliveries", icon: Truck },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -44,6 +46,7 @@ export default function FacilityOffice() {
         {activeTab === "pricing" && <PricingTab />}
         {activeTab === "invoices" && <InvoicesTab />}
         {activeTab === "clients" && <ClientsTab />}
+        {activeTab === "deliveries" && <DeliveriesTab />}
       </main>
     </div>
   );
