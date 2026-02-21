@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { Enums, Tables, TablesUpdate } from "@/integrations/supabase/types";
 
-type PickupStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
+type PickupStatus = Enums<"pickup_request_status">;
 
 type PickupRequestRow = {
   id: string;
@@ -37,6 +38,9 @@ type DriverOption = {
   name: string;
 };
 
+type UserRoleRow = Pick<Tables<"user_roles">, "user_id">;
+type ProfileRow = Pick<Tables<"profiles">, "user_id" | "full_name" | "email">;
+
 const STATUS_ORDER: PickupStatus[] = ["pending", "confirmed", "assigned", "completed", "cancelled"];
 
 export function PickupRequestsTab() {
@@ -51,9 +55,10 @@ export function PickupRequestsTab() {
     const { data: roleRows } = await supabase
       .from("user_roles")
       .select("user_id")
-      .eq("role", "driver");
+      .eq("role", "driver")
+      .returns<UserRoleRow[]>();
 
-    const driverIds = [...new Set((roleRows ?? []).map((r: any) => r.user_id))].filter(Boolean);
+    const driverIds = [...new Set((roleRows ?? []).map((r) => r.user_id))].filter(Boolean);
     if (driverIds.length === 0) {
       setDrivers([]);
       return;
@@ -62,9 +67,10 @@ export function PickupRequestsTab() {
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name, email")
-      .in("user_id", driverIds);
+      .in("user_id", driverIds)
+      .returns<ProfileRow[]>();
 
-    const mapped = (profiles ?? []).map((p: any) => ({
+    const mapped = (profiles ?? []).map((p) => ({
       id: p.user_id,
       name: p.full_name?.trim() || p.email || p.user_id,
     }));
@@ -73,10 +79,11 @@ export function PickupRequestsTab() {
   }, []);
 
   const fetchAll = useCallback(async () => {
-    const { data: reqData, error: reqErr } = await (supabase as any)
+    const { data: reqData, error: reqErr } = await supabase
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes, assigned_driver_id, clients(name)")
-      .order("scheduled_date", { ascending: true });
+      .order("scheduled_date", { ascending: true })
+      .returns<PickupRequestRow[]>();
 
     if (reqErr) {
       toast({ title: "Failed to load pickup requests", description: reqErr.message, variant: "destructive" });
@@ -84,7 +91,7 @@ export function PickupRequestsTab() {
       return;
     }
 
-    const typedRequests = (reqData ?? []) as PickupRequestRow[];
+    const typedRequests = reqData ?? [];
     setRequests(typedRequests);
 
     const defaultSelections: Record<string, string> = {};
@@ -100,12 +107,13 @@ export function PickupRequestsTab() {
       return;
     }
 
-    const { data: itemData } = await (supabase as any)
+    const { data: itemData } = await supabase
       .from("pickup_request_items")
       .select("id, pickup_request_id, rug_number, is_new")
-      .in("pickup_request_id", reqIds);
+      .in("pickup_request_id", reqIds)
+      .returns<PickupItemRow[]>();
 
-    setItems((itemData ?? []) as PickupItemRow[]);
+    setItems(itemData ?? []);
     setLoading(false);
   }, [toast]);
 
@@ -135,9 +143,10 @@ export function PickupRequestsTab() {
   }, [items]);
 
   const updateStatus = async (id: string, status: PickupStatus) => {
-    const { error } = await (supabase as any)
+    const updates: TablesUpdate<"pickup_requests"> = { status };
+    const { error } = await supabase
       .from("pickup_requests")
-      .update({ status })
+      .update(updates)
       .eq("id", id);
 
     if (error) {
@@ -157,13 +166,14 @@ export function PickupRequestsTab() {
     }
 
     const now = new Date().toISOString();
-    const { error } = await (supabase as any)
+    const updates: TablesUpdate<"pickup_requests"> = {
+      assigned_driver_id: selected,
+      assigned_at: now,
+      status: "assigned",
+    };
+    const { error } = await supabase
       .from("pickup_requests")
-      .update({
-        assigned_driver_id: selected,
-        assigned_at: now,
-        status: "assigned",
-      })
+      .update(updates)
       .eq("id", requestId);
 
     if (error) {

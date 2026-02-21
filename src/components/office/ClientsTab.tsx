@@ -128,7 +128,7 @@ export function ClientsTab() {
       address: c.address,
       notes: c.notes,
       pricing_tier: c.pricing_tier,
-      route_day: (c as any).route_day ?? "",
+      route_day: c.route_day ?? "",
     });
     fetchPortalUsers(c.id);
     setNewPortalEmail("");
@@ -238,7 +238,7 @@ export function ClientsTab() {
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
               <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{c.phone}</TableCell>
-              <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">{(c as any).route_day || "—"}</TableCell>
+              <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">{c.route_day || "—"}</TableCell>
               <TableCell className="text-center">{rugCounts[c.id] ?? 0}</TableCell>
               <TableCell>
                 <Badge className={TIER_COLORS[c.pricing_tier]} variant="secondary">
