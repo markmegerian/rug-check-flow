@@ -17,6 +17,8 @@ type EstimateRow = Pick<
   rugs?: { tag: string } | null;
 };
 
+type EstimateUpdateResult = { id: string };
+
 const statusBadge = (status: EstimateStatus) => {
   if (status === "sent") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Pending approval</Badge>;
   if (status === "approved") return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>;
@@ -29,7 +31,7 @@ export default function PortalEstimatesTab() {
   const { toast } = useToast();
   const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
@@ -90,6 +92,7 @@ export default function PortalEstimatesTab() {
       .eq("client_id", clientId)
       .eq("status", "sent")
       .select("id")
+      .maybeSingle<EstimateUpdateResult>();
       .maybeSingle<Pick<Tables<"estimates">, "id">>();
 
     if (error) {
@@ -125,7 +128,7 @@ export default function PortalEstimatesTab() {
   const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
-  if (loading) {
+  if (portalLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
   }
 

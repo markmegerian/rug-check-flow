@@ -35,6 +35,21 @@ type PickupRequestRow = Pick<Tables<"pickup_requests">, "id" | "client_id" | "ro
 type PickupRequestItemRow = Pick<Tables<"pickup_request_items">, "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "is_new">;
 type ReadyRugRow = Pick<Tables<"rugs">, "id" | "tag" | "description" | "services">;
 
+type ClientLookupRow = {
+  id: string;
+  route_day: string;
+  address: string;
+};
+
+type ReadyRugRow = {
+  id: string;
+  tag: string;
+  description: string;
+  services: string[];
+};
+
+type PickupInsertResult = { id: string };
+
 export default function PortalPickupsTab() {
   const { toast } = useToast();
   const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
@@ -261,6 +276,10 @@ export default function PortalPickupsTab() {
     toast({ title: "Pickup cancelled" });
   };
 
+  if (portalLoading || loading) {
+    return <div className="text-sm text-muted-foreground">Loading pickups…</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2 text-muted-foreground">
@@ -317,7 +336,6 @@ export default function PortalPickupsTab() {
     </div>
   );
 }
-
 function PickupCard({
   pickup,
   readyRugNumbers,

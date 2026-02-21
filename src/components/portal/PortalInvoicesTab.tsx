@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { usePortalClient } from "@/hooks/usePortalClient";
 
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
 
