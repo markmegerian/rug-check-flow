@@ -11,8 +11,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
-type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+type EstimateStatus = Enums<"estimate_status">;
 
 type EstimateRow = {
   id: string;
@@ -37,6 +38,8 @@ type RugOption = {
   clients?: { name: string; email?: string | null } | null;
 };
 
+type RugServiceRow = Pick<Tables<"rug_services">, "id" | "service_name" | "unit_price" | "line_total">;
+
 const ALLOWED_STATUS_TRANSITIONS: Record<EstimateStatus, EstimateStatus[]> = {
   draft: ["sent", "expired"],
   sent: ["approved", "rejected", "expired"],
@@ -54,26 +57,28 @@ export function EstimatesTab() {
   const [creating, setCreating] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const { data: estRows, error: estErr } = await (supabase as any)
+    const { data: estRows, error: estErr } = await supabase
       .from("estimates")
       .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email), rugs(tag)")
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(200)
+      .returns<EstimateRow[]>();
 
     if (estErr) {
       toast({ title: "Failed to load estimates", description: estErr.message, variant: "destructive" });
     } else {
-      setEstimates((estRows ?? []) as EstimateRow[]);
+      setEstimates(estRows ?? []);
     }
 
-    const { data: rugsData } = await (supabase as any)
+    const { data: rugsData } = await supabase
       .from("rugs")
       .select("id, tag, client_id, clients(name)")
       .in("status", ["checked_in", "in_production", "ready"])
       .order("checked_in_at", { ascending: false })
-      .limit(200);
+      .limit(200)
+      .returns<RugOption[]>();
 
-    setRugOptions((rugsData ?? []) as RugOption[]);
+    setRugOptions(rugsData ?? []);
     setLoading(false);
   }, [toast]);
 
@@ -100,10 +105,11 @@ export function EstimatesTab() {
 
     setCreating(true);
 
-    const { data: serviceRows, error: svcErr } = await (supabase as any)
+    const { data: serviceRows, error: svcErr } = await supabase
       .from("rug_services")
       .select("id, service_name, unit_price, line_total")
-      .eq("rug_id", selectedRugId);
+      .eq("rug_id", selectedRugId)
+      .returns<RugServiceRow[]>();
 
     if (svcErr) {
       toast({ title: "Failed to load rug services", description: svcErr.message, variant: "destructive" });
@@ -118,21 +124,23 @@ export function EstimatesTab() {
       return;
     }
 
-    const total = services.reduce((sum: number, s: any) => sum + Number(s.line_total ?? 0), 0);
+    const total = services.reduce((sum: number, s) => sum + Number(s.line_total ?? 0), 0);
     const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
 
-    const { data: insertedEstimate, error: estErr } = await (supabase as any)
+    const estimatePayload: TablesInsert<"estimates"> = {
+      rug_id: selectedRugId,
+      client_id: selectedRug.client_id,
+      estimate_number: estimateNumber,
+      status: "draft",
+      version: 1,
+      total,
+    };
+
+    const { data: insertedEstimate, error: estErr } = await supabase
       .from("estimates")
-      .insert({
-        rug_id: selectedRugId,
-        client_id: selectedRug.client_id,
-        estimate_number: estimateNumber,
-        status: "draft",
-        version: 1,
-        total,
-      })
+      .insert(estimatePayload)
       .select("id")
-      .single();
+      .single<Pick<Tables<"estimates">, "id">>();
 
     if (estErr || !insertedEstimate) {
       toast({ title: "Estimate creation failed", description: estErr?.message ?? "Unknown error", variant: "destructive" });
@@ -140,7 +148,7 @@ export function EstimatesTab() {
       return;
     }
 
-    const items = services.map((s: any) => ({
+    const items: TablesInsert<"estimate_items">[] = services.map((s) => ({
       estimate_id: insertedEstimate.id,
       rug_service_id: s.id,
       description: `${selectedRug.tag} — ${s.service_name}`,
@@ -149,9 +157,9 @@ export function EstimatesTab() {
       total: Number(s.line_total ?? 0),
     }));
 
-    const { error: itemErr } = await (supabase as any).from("estimate_items").insert(items);
+    const { error: itemErr } = await supabase.from("estimate_items").insert(items);
     if (itemErr) {
-      await (supabase as any).from("estimates").delete().eq("id", insertedEstimate.id);
+      await supabase.from("estimates").delete().eq("id", insertedEstimate.id);
       toast({ title: "Estimate items failed", description: itemErr.message, variant: "destructive" });
       setCreating(false);
       return;
@@ -181,7 +189,7 @@ export function EstimatesTab() {
 
 
   const logCommunicationEvent = async (estimate: EstimateRow, eventType: string, subject: string, body: string) => {
-    const { error } = await (supabase as any).from("communication_events").insert({
+    const commsPayload: TablesInsert<"communication_events"> = {
       client_id: estimate.client_id,
       rug_id: estimate.rug_id,
       estimate_id: estimate.id,
@@ -191,7 +199,9 @@ export function EstimatesTab() {
       subject,
       body,
       sent_to: estimate.clients?.email ?? null,
-    });
+    };
+
+    const { error } = await supabase.from("communication_events").insert(commsPayload);
 
     if (error) {
       toast({
@@ -214,12 +224,12 @@ export function EstimatesTab() {
       return;
     }
 
-    const updates: Record<string, unknown> = { status };
+    const updates: TablesUpdate<"estimates"> = { status };
     if (status === "sent") updates.sent_at = new Date().toISOString();
     if (status === "approved") updates.approved_at = new Date().toISOString();
     if (status === "rejected") updates.rejected_at = new Date().toISOString();
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("estimates")
       .update(updates)
       .eq("id", estimate.id);

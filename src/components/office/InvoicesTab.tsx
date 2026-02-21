@@ -59,6 +59,10 @@ interface RugOption {
   rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string } | null }[];
 }
 
+type ClientRugRow = Pick<Tables<"rugs">, "id" | "tag" | "size_length" | "size_width"> & {
+  rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string } | null }[];
+};
+
 export function InvoicesTab() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +107,6 @@ export function InvoicesTab() {
     setClientRugs([]);
     setSelectedRugIds(new Set());
     setCreateOpen(true);
-    setCreateOpen(true);
   };
 
   // When client changes, fetch their checked-in rugs
@@ -118,8 +121,9 @@ export function InvoicesTab() {
         .select("id, tag, size_length, size_width, rug_services(service_id, unit_price, line_total, services(name))")
         .eq("client_id", selectedClientId)
         .in("status", ["checked_in", "in_production", "ready"])
-        .order("checked_in_at", { ascending: false });
-      setClientRugs((data as any) ?? []);
+        .order("checked_in_at", { ascending: false })
+        .returns<ClientRugRow[]>();
+      setClientRugs(data ?? []);
       setSelectedRugIds(new Set());
     })();
   }, [selectedClientId]);
@@ -135,7 +139,7 @@ export function InvoicesTab() {
     });
   };
 
-  const computeLineItems = () => {
+  const computeLineItems = useCallback(() => {
     return clientRugs
       .filter((r) => selectedRugIds.has(r.id))
       .flatMap((rug) => {
@@ -147,11 +151,11 @@ export function InvoicesTab() {
           total: Number(rs.line_total),
         }));
       });
-  };
+  }, [clientRugs, selectedRugIds]);
 
   const draftTotal = useMemo(() => {
     return computeLineItems().reduce((sum, li) => sum + li.total, 0);
-  }, [selectedRugIds, clientRugs]);
+  }, [computeLineItems]);
 
   const createDraft = async () => {
     if (!selectedClientId || selectedRugIds.size === 0) return;
@@ -245,11 +249,10 @@ export function InvoicesTab() {
   };
 
   useEffect(() => {
-    if (selected) {
-      const updated = invoices.find((i) => i.id === selected.id);
-      if (updated) setSelected(updated);
-    }
-  }, [invoices]);
+    if (!selected?.id) return;
+    const updated = invoices.find((i) => i.id === selected.id);
+    if (updated) setSelected(updated);
+  }, [invoices, selected?.id]);
 
   const rugCount = (inv: InvoiceRow) => inv.invoice_items.length;
   const clientName = (inv: InvoiceRow) => inv.clients?.name ?? "Unknown";
