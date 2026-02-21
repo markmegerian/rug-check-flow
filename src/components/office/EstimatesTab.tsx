@@ -239,35 +239,6 @@ export function EstimatesTab() {
     toast({ title: `Estimate ${status}` });
   };
 
-  const sendEstimateEmail = async (estimate: EstimateRow) => {
-    const { data, error } = await supabase.functions.invoke("send-estimate-email", {
-      body: { estimate_id: estimate.id },
-    });
-
-    if (error) {
-      toast({ title: "Send failed", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    if (data?.error) {
-      toast({ title: "Send failed", description: data.error, variant: "destructive" });
-      return;
-    }
-
-    const nowIso = new Date().toISOString();
-    setEstimates((prev) => prev.map((row) => (
-      row.id === estimate.id
-        ? {
-            ...row,
-            status: "sent",
-            sent_at: row.sent_at ?? nowIso,
-          }
-        : row
-    )));
-
-    toast({ title: "Estimate sent", description: "Email event recorded." });
-  };
-
   const grouped = useMemo(() => {
     const map: Record<string, EstimateRow[]> = {};
     estimates.forEach((e) => {
@@ -332,8 +303,8 @@ export function EstimatesTab() {
 
                   <div className="flex flex-wrap gap-2">
                     {estimate.status === "draft" && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => sendEstimateEmail(estimate)}>
-                        Send estimate
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "sent")}>
+                        Mark sent
                       </Button>
                     )}
                     {estimate.status === "sent" && (
