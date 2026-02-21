@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, Package, Pencil, Plus, Eye, EyeOff } from "lucide-react";
+import { X, Package, Pencil, Plus, Eye, EyeOff, Search } from "lucide-react";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -43,6 +43,7 @@ export function PricingTab() {
   const [clients, setClients] = useState<DbClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState("");
 
   // Local presets (not yet persisted to DB)
   const [presets, setPresets] = useState<ServicePreset[]>([]);
@@ -108,7 +109,9 @@ export function PricingTab() {
     : "base_price";
 
   const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
+  const searchLower = serviceSearch.toLowerCase();
   const visibleServices = (showHidden ? services : services.filter((s) => s.active))
+    .filter((s) => !searchLower || s.name.toLowerCase().includes(searchLower))
     .sort((a, b) => {
       const catA = CATEGORY_ORDER.indexOf(a.category || "Cleaning");
       const catB = CATEGORY_ORDER.indexOf(b.category || "Cleaning");
@@ -344,6 +347,16 @@ export function PricingTab() {
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-foreground">Services</h2>
           <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search services…"
+                className="h-8 w-44 pl-8 text-sm"
+                value={serviceSearch}
+                onChange={(e) => setServiceSearch(e.target.value)}
+              />
+            </div>
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
               <Switch checked={showHidden} onCheckedChange={setShowHidden} />
               Show hidden
