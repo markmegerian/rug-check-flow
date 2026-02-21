@@ -137,6 +137,8 @@ export function PricingTab() {
   };
 
   const commitUnit = async (serviceId: string, unit: string) => {
+    const service = services.find((s) => s.id === serviceId);
+    const wasFlat = service?.unit === "flat";
     const updates: Record<string, unknown> = { unit };
     if (unit === "flat") {
       updates.base_price = 0;
@@ -148,6 +150,13 @@ export function PricingTab() {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
     } else {
       setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...updates } as DbService : s)));
+      if (wasFlat && unit !== "flat") {
+        // Prompt user to set the base price by opening inline edit
+        setEditingPriceId(serviceId);
+        setEditingColumn("base_price");
+        setEditingPriceValue("");
+        toast({ title: "Set pricing", description: "Prices were cleared — enter the new base price." });
+      }
     }
   };
 
