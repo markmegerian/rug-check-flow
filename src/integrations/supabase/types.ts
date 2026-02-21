@@ -447,6 +447,7 @@ export type Database = {
           id: string
           name: string
           preferred_price: number
+          sort_order: number
           unit: string
           updated_at: string
           vip_price: number
@@ -459,6 +460,7 @@ export type Database = {
           id?: string
           name: string
           preferred_price?: number
+          sort_order?: number
           unit?: string
           updated_at?: string
           vip_price?: number
@@ -471,6 +473,7 @@ export type Database = {
           id?: string
           name?: string
           preferred_price?: number
+          sort_order?: number
           unit?: string
           updated_at?: string
           vip_price?: number
