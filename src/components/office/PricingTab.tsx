@@ -62,6 +62,7 @@ export function PricingTab() {
   const [newServicePreferredPrice, setNewServicePreferredPrice] = useState("");
   const [newServiceVipPrice, setNewServiceVipPrice] = useState("");
   const [savingService, setSavingService] = useState(false);
+  const [newServiceCategory, setNewServiceCategory] = useState("Cleaning");
 
   const fetchServices = useCallback(async () => {
     // Fetch ALL services so we can show/hide them
@@ -190,6 +191,7 @@ export function PricingTab() {
         base_price: base,
         preferred_price: preferred,
         vip_price: vip,
+        category: newServiceCategory,
       })
       .select()
       .single();
@@ -204,6 +206,7 @@ export function PricingTab() {
       setNewServicePreferredPrice("");
       setNewServiceVipPrice("");
       setNewServiceUnit("per sqft");
+      setNewServiceCategory("Cleaning");
       toast({ title: "Service added" });
     }
   };
@@ -486,6 +489,20 @@ export function PricingTab() {
                   <SelectItem value="per sqft">Per Sq Ft</SelectItem>
                   <SelectItem value="per linear ft">Per Linear Ft</SelectItem>
                   <SelectItem value="flat">Flat Rate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={newServiceCategory} onValueChange={setNewServiceCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cleaning">Cleaning</SelectItem>
+                  <SelectItem value="Repair">Repair</SelectItem>
+                  <SelectItem value="Protection">Protection</SelectItem>
+                  <SelectItem value="Specialty">Specialty</SelectItem>
                 </SelectContent>
               </Select>
             </div>

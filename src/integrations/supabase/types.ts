@@ -442,6 +442,7 @@ export type Database = {
         Row: {
           active: boolean
           base_price: number
+          category: string
           created_at: string
           id: string
           name: string
@@ -453,6 +454,7 @@ export type Database = {
         Insert: {
           active?: boolean
           base_price?: number
+          category?: string
           created_at?: string
           id?: string
           name: string
@@ -464,6 +466,7 @@ export type Database = {
         Update: {
           active?: boolean
           base_price?: number
+          category?: string
           created_at?: string
           id?: string
           name?: string
