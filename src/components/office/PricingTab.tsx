@@ -292,6 +292,9 @@ export function PricingTab() {
           <TableBody>
             {visibleServices.map((s) => {
               const renderPrice = (col: "base_price" | "preferred_price" | "vip_price") => {
+                if (s.unit === "flat") {
+                  return <span className="text-muted-foreground text-xs">—</span>;
+                }
                 const isEditing = editingPriceId === s.id && editingColumn === col;
                 const isHighlighted = selectedClient && priceColumn === col;
                 if (isEditing) {
