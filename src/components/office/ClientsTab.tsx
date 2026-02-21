@@ -35,6 +35,8 @@ const TIER_COLORS: Record<PricingTier, string> = {
   vip: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
 };
 
+const ROUTE_DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
 type FormData = {
   name: string;
   contact_name: string;
@@ -43,6 +45,7 @@ type FormData = {
   address: string;
   notes: string;
   pricing_tier: PricingTier;
+  route_day: string;
 };
 
 const emptyForm: FormData = {
@@ -53,6 +56,7 @@ const emptyForm: FormData = {
   address: "",
   notes: "",
   pricing_tier: "standard",
+  route_day: "",
 };
 
 export function ClientsTab() {
@@ -123,6 +127,7 @@ export function ClientsTab() {
       address: c.address,
       notes: c.notes,
       pricing_tier: c.pricing_tier,
+      route_day: (c as any).route_day ?? "",
     });
     fetchPortalUsers(c.id);
     setNewPortalEmail("");
@@ -202,6 +207,7 @@ export function ClientsTab() {
             <TableHead>Client</TableHead>
             <TableHead className="hidden md:table-cell">Contact</TableHead>
             <TableHead className="hidden sm:table-cell">Phone</TableHead>
+            <TableHead className="hidden lg:table-cell w-24">Route Day</TableHead>
             <TableHead className="w-16 text-center">Rugs</TableHead>
             <TableHead className="w-24">Tier</TableHead>
           </TableRow>
@@ -212,6 +218,7 @@ export function ClientsTab() {
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
               <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{c.phone}</TableCell>
+              <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">{(c as any).route_day || "—"}</TableCell>
               <TableCell className="text-center">{rugCounts[c.id] ?? 0}</TableCell>
               <TableCell>
                 <Badge className={TIER_COLORS[c.pricing_tier]} variant="secondary">
@@ -263,6 +270,18 @@ export function ClientsTab() {
                   <SelectItem value="standard">Standard</SelectItem>
                   <SelectItem value="preferred">Preferred</SelectItem>
                   <SelectItem value="vip">VIP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Route Day</Label>
+              <Select value={form.route_day || "none"} onValueChange={(v) => updateField("route_day", v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Not set" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not set</SelectItem>
+                  {ROUTE_DAYS.filter(Boolean).map((day) => (
+                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
