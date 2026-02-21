@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
+import RugEdgeDiagram, { calcSelectedLinearFt, type RugEdge } from "./RugEdgeDiagram";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [dbServices, setDbServices] = useState<DbService[]>([]);
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
+  // Per-service edge selections for linear-ft services
+  const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -187,15 +190,19 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     (svc: DbService): number => {
       const unitPrice = getUnitPrice(svc);
       if (svc.unit === "per sqft") return unitPrice * sqft;
-      if (svc.unit === "per linear ft") return unitPrice * linearFt;
-      // Flat rate: use manual entry if available
+      if (svc.unit === "per linear ft") {
+        const edges = edgeSelections[svc.id] ?? [];
+        const l = Number(watchedLength) || 0;
+        const w = Number(watchedWidth) || 0;
+        return unitPrice * calcSelectedLinearFt(edges, l, w);
+      }
       if (svc.unit === "flat") {
         const manual = parseFloat(flatPrices[svc.id] ?? "");
         return isNaN(manual) ? 0 : manual;
       }
       return unitPrice;
     },
-    [getUnitPrice, sqft, linearFt, flatPrices]
+    [getUnitPrice, sqft, edgeSelections, flatPrices, watchedLength, watchedWidth]
   );
 
   const totalPrice = useMemo(() => {
@@ -497,6 +504,23 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               const checked = watchedServices.includes(svc.id);
 
               const isFlat = svc.unit === "flat";
+              const isLinear = svc.unit === "per linear ft";
+              const edges = edgeSelections[svc.id] ?? [];
+              const l = Number(watchedLength) || 0;
+              const w = Number(watchedWidth) || 0;
+
+              const toggleEdge = (edge: RugEdge) => {
+                setEdgeSelections((prev) => {
+                  const current = prev[svc.id] ?? [];
+                  return {
+                    ...prev,
+                    [svc.id]: current.includes(edge)
+                      ? current.filter((e) => e !== edge)
+                      : [...current, edge],
+                  };
+                });
+              };
+
               return (
                 <div key={svc.id}>
                   <label
@@ -511,18 +535,38 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                     <span className="flex-1 text-sm truncate">{svc.name}</span>
                     {!isFlat && (
                       <span className="text-xs text-muted-foreground shrink-0">
-                        ${unitPrice.toFixed(2)}/{svc.unit === "per linear ft" ? "lf" : "sf"}
+                        ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
                       </span>
                     )}
                     {isFlat && !checked && (
                       <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
                     )}
-                    {checked && !isFlat && (
+                    {checked && !isFlat && !isLinear && (
+                      <span className="text-sm font-semibold shrink-0">
+                        ${lineTotal.toFixed(2)}
+                      </span>
+                    )}
+                    {checked && isLinear && edges.length > 0 && (
                       <span className="text-sm font-semibold shrink-0">
                         ${lineTotal.toFixed(2)}
                       </span>
                     )}
                   </label>
+                  {checked && isLinear && l > 0 && w > 0 && (
+                    <div className="ml-4 md:ml-8 mt-2 mb-2">
+                      <RugEdgeDiagram
+                        lengthFt={l}
+                        widthFt={w}
+                        selectedEdges={edges}
+                        onToggleEdge={toggleEdge}
+                      />
+                      {edges.length > 0 && (
+                        <p className="text-xs text-muted-foreground text-center mt-1">
+                          {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {checked && isFlat && (
                     <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
                       <span className="text-xs text-muted-foreground">Price $</span>
