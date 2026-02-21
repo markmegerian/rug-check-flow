@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Eye, Download, Send, Trash2, DollarSign, AlertTriangle, Loader2, Plus, CalendarIcon, X } from "lucide-react";
+import { Eye, Download, Send, Trash2, DollarSign, AlertTriangle, Loader2, Plus, CalendarIcon, X, Search } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +66,7 @@ export function InvoicesTab() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [clientSearch, setClientSearch] = useState("");
   const [selected, setSelected] = useState<InvoiceRow | null>(null);
 
   // Create flow state
@@ -202,8 +203,12 @@ export function InvoicesTab() {
       const toStr = format(dateTo, "yyyy-MM-dd");
       list = list.filter((inv) => inv.created_at.slice(0, 10) <= toStr);
     }
+    if (clientSearch.trim()) {
+      const q = clientSearch.toLowerCase();
+      list = list.filter((inv) => (inv.clients?.name ?? "").toLowerCase().includes(q));
+    }
     return [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [invoices, activeTab, dateFrom, dateTo]);
+  }, [invoices, activeTab, dateFrom, dateTo, clientSearch]);
 
   const openInvoice = (inv: InvoiceRow) => {
     setSelected(inv);
@@ -281,6 +286,16 @@ export function InvoicesTab() {
 
       {/* Date range filter */}
       <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search client…"
+            className="h-8 w-44 pl-8 text-sm"
+            value={clientSearch}
+            onChange={(e) => setClientSearch(e.target.value)}
+          />
+        </div>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className={cn("gap-1.5 text-xs", !dateFrom && "text-muted-foreground")}>
