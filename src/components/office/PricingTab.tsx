@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { X, Package, Pencil, Plus, Eye, EyeOff } from "lucide-react";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers" ;
+import { SortableServiceRow } from "./SortableServiceRow";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -101,11 +110,63 @@ export function PricingTab() {
   const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
   const visibleServices = (showHidden ? services : services.filter((s) => s.active))
     .sort((a, b) => {
-      const catA = CATEGORY_ORDER.indexOf((a as any).category || "Cleaning");
-      const catB = CATEGORY_ORDER.indexOf((b as any).category || "Cleaning");
+      const catA = CATEGORY_ORDER.indexOf(a.category || "Cleaning");
+      const catB = CATEGORY_ORDER.indexOf(b.category || "Cleaning");
       if (catA !== catB) return (catA === -1 ? 99 : catA) - (catB === -1 ? 99 : catB);
-      return a.name.localeCompare(b.name);
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     });
+
+  // Group services by category for per-category drag containers
+  const groupedVisible: Record<string, typeof visibleServices> = {};
+  visibleServices.forEach((s) => {
+    const cat = s.category || "Cleaning";
+    if (!groupedVisible[cat]) groupedVisible[cat] = [];
+    groupedVisible[cat].push(s);
+  });
+  const orderedCategories = CATEGORY_ORDER.filter((c) => groupedVisible[c]?.length);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeService = services.find((s) => s.id === active.id);
+    const overService = services.find((s) => s.id === over.id);
+    if (!activeService || !overService) return;
+    // Only reorder within same category
+    if (activeService.category !== overService.category) return;
+
+    const cat = activeService.category || "Cleaning";
+    const catServices = [...(groupedVisible[cat] || [])];
+    const oldIdx = catServices.findIndex((s) => s.id === active.id);
+    const newIdx = catServices.findIndex((s) => s.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+
+    // Reorder
+    const [moved] = catServices.splice(oldIdx, 1);
+    catServices.splice(newIdx, 0, moved);
+
+    // Optimistic update
+    const updates: { id: string; sort_order: number }[] = catServices.map((s, i) => ({
+      id: s.id,
+      sort_order: i + 1,
+    }));
+    setServices((prev) =>
+      prev.map((s) => {
+        const u = updates.find((u) => u.id === s.id);
+        return u ? { ...s, sort_order: u.sort_order } : s;
+      })
+    );
+
+    // Persist
+    for (const u of updates) {
+      await supabase.from("services").update({ sort_order: u.sort_order }).eq("id", u.id);
+    }
+  };
 
   const startEditPrice = (s: DbService, col: "base_price" | "preferred_price" | "vip_price") => {
     setEditingPriceId(s.id);
@@ -199,6 +260,10 @@ export function PricingTab() {
     const base = parseFloat(newServiceBasePrice) || 0;
     const preferred = parseFloat(newServicePreferredPrice) || base;
     const vip = parseFloat(newServiceVipPrice) || base;
+    // Put new service at the end of its category
+    const maxOrder = services
+      .filter((s) => s.category === newServiceCategory)
+      .reduce((max, s) => Math.max(max, s.sort_order ?? 0), 0);
     const { data, error } = await supabase
       .from("services")
       .insert({
@@ -208,6 +273,7 @@ export function PricingTab() {
         preferred_price: preferred,
         vip_price: vip,
         category: newServiceCategory,
+        sort_order: maxOrder + 1,
       })
       .select()
       .single();
@@ -215,7 +281,7 @@ export function PricingTab() {
     if (error) {
       toast({ title: "Failed to add service", description: error.message, variant: "destructive" });
     } else if (data) {
-      setServices((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setServices((prev) => [...prev, data]);
       setAddServiceOpen(false);
       setNewServiceName("");
       setNewServiceBasePrice("");
@@ -312,9 +378,16 @@ export function PricingTab() {
           </div>
         </div>
 
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={handleDragEnd}
+        >
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead>Service</TableHead>
               <TableHead className="w-28">Category</TableHead>
               <TableHead className="w-32">Base Price</TableHead>
@@ -325,117 +398,119 @@ export function PricingTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleServices.map((s, idx) => {
-              const cat = (s as any).category || "Cleaning";
-              const prevCat = idx > 0 ? ((visibleServices[idx - 1] as any).category || "Cleaning") : null;
-              const showHeader = cat !== prevCat;
-
-              const renderPrice = (col: "base_price" | "preferred_price" | "vip_price") => {
-                if (s.unit === "flat") {
-                  return <span className="text-muted-foreground text-xs">—</span>;
-                }
-                const isEditing = editingPriceId === s.id && editingColumn === col;
-                const isHighlighted = selectedClient && priceColumn === col;
-                if (isEditing) {
-                  return (
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="h-8 w-24"
-                      value={editingPriceValue}
-                      onChange={(e) => setEditingPriceValue(e.target.value)}
-                      onBlur={() => commitPrice(s.id)}
-                      onKeyDown={(e) => e.key === "Enter" && commitPrice(s.id)}
-                      autoFocus
-                    />
-                  );
-                }
-                return (
-                  <button
-                    className={`text-left hover:underline cursor-pointer ${isHighlighted ? "font-bold text-primary" : ""}`}
-                    onClick={() => startEditPrice(s, col)}
-                  >
-                    ${Number(s[col]).toFixed(2)}
-                  </button>
-                );
-              };
-
+            {orderedCategories.map((cat) => {
+              const catServices = groupedVisible[cat] || [];
               return (
-                <React.Fragment key={s.id}>
-                  {showHeader && (
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableCell colSpan={7} className="py-1.5 px-3">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</span>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                <TableRow className={!s.active ? "opacity-50" : ""}>
-                  <TableCell className="font-medium">
-                    {editingNameId === s.id ? (
-                      <Input
-                        className="h-8 w-40"
-                        value={editingNameValue}
-                        onChange={(e) => setEditingNameValue(e.target.value)}
-                        onBlur={() => commitName(s.id)}
-                        onKeyDown={(e) => e.key === "Enter" && commitName(s.id)}
-                        autoFocus
-                      />
-                    ) : (
-                      <button
-                        className="text-left hover:underline cursor-pointer"
-                        onClick={() => { setEditingNameId(s.id); setEditingNameValue(s.name); }}
-                      >
-                        {s.name}
-                      </button>
-                    )}
-                    {!s.active && <Badge variant="outline" className="ml-2 text-xs">Hidden</Badge>}
-                   </TableCell>
-                  <TableCell>
-                    <Select value={(s as any).category || "Cleaning"} onValueChange={(v) => commitCategory(s.id, v)}>
-                      <SelectTrigger className="h-8 w-28 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Cleaning">Cleaning</SelectItem>
-                        <SelectItem value="Repair">Repair</SelectItem>
-                        <SelectItem value="Protection">Protection</SelectItem>
-                        <SelectItem value="Specialty">Specialty</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>{renderPrice("base_price")}</TableCell>
-                  <TableCell>{renderPrice("preferred_price")}</TableCell>
-                  <TableCell>{renderPrice("vip_price")}</TableCell>
-                  <TableCell>
-                    <Select value={s.unit} onValueChange={(v) => commitUnit(s.id, v)}>
-                      <SelectTrigger className="h-8 w-28 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="per sqft">/ sq ft</SelectItem>
-                        <SelectItem value="per linear ft">/ lin ft</SelectItem>
-                        <SelectItem value="flat">Flat</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => toggleServiceActive(s)}
-                      title={s.active ? "Hide service" : "Show service"}
-                    >
-                      {s.active ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                <React.Fragment key={cat}>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableCell colSpan={8} className="py-1.5 px-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</span>
+                    </TableCell>
+                  </TableRow>
+                  <SortableContext items={catServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                    {catServices.map((s) => {
+                      const renderPrice = (col: "base_price" | "preferred_price" | "vip_price") => {
+                        if (s.unit === "flat") {
+                          return <span className="text-muted-foreground text-xs">—</span>;
+                        }
+                        const isEditing = editingPriceId === s.id && editingColumn === col;
+                        const isHighlighted = selectedClient && priceColumn === col;
+                        if (isEditing) {
+                          return (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="h-8 w-24"
+                              value={editingPriceValue}
+                              onChange={(e) => setEditingPriceValue(e.target.value)}
+                              onBlur={() => commitPrice(s.id)}
+                              onKeyDown={(e) => e.key === "Enter" && commitPrice(s.id)}
+                              autoFocus
+                            />
+                          );
+                        }
+                        return (
+                          <button
+                            className={`text-left hover:underline cursor-pointer ${isHighlighted ? "font-bold text-primary" : ""}`}
+                            onClick={() => startEditPrice(s, col)}
+                          >
+                            ${Number(s[col]).toFixed(2)}
+                          </button>
+                        );
+                      };
+
+                      return (
+                        <SortableServiceRow key={s.id} id={s.id} className={!s.active ? "opacity-50" : ""}>
+                          <TableCell className="font-medium">
+                            {editingNameId === s.id ? (
+                              <Input
+                                className="h-8 w-40"
+                                value={editingNameValue}
+                                onChange={(e) => setEditingNameValue(e.target.value)}
+                                onBlur={() => commitName(s.id)}
+                                onKeyDown={(e) => e.key === "Enter" && commitName(s.id)}
+                                autoFocus
+                              />
+                            ) : (
+                              <button
+                                className="text-left hover:underline cursor-pointer"
+                                onClick={() => { setEditingNameId(s.id); setEditingNameValue(s.name); }}
+                              >
+                                {s.name}
+                              </button>
+                            )}
+                            {!s.active && <Badge variant="outline" className="ml-2 text-xs">Hidden</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            <Select value={s.category || "Cleaning"} onValueChange={(v) => commitCategory(s.id, v)}>
+                              <SelectTrigger className="h-8 w-28 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Cleaning">Cleaning</SelectItem>
+                                <SelectItem value="Repair">Repair</SelectItem>
+                                <SelectItem value="Protection">Protection</SelectItem>
+                                <SelectItem value="Specialty">Specialty</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>{renderPrice("base_price")}</TableCell>
+                          <TableCell>{renderPrice("preferred_price")}</TableCell>
+                          <TableCell>{renderPrice("vip_price")}</TableCell>
+                          <TableCell>
+                            <Select value={s.unit} onValueChange={(v) => commitUnit(s.id, v)}>
+                              <SelectTrigger className="h-8 w-28 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="per sqft">/ sq ft</SelectItem>
+                                <SelectItem value="per linear ft">/ lin ft</SelectItem>
+                                <SelectItem value="flat">Flat</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => toggleServiceActive(s)}
+                              title={s.active ? "Hide service" : "Show service"}
+                            >
+                              {s.active ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                            </Button>
+                          </TableCell>
+                        </SortableServiceRow>
+                      );
+                    })}
+                  </SortableContext>
                 </React.Fragment>
               );
             })}
           </TableBody>
         </Table>
+        </DndContext>
       </section>
 
       {/* Presets */}
