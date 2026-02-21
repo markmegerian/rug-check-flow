@@ -625,7 +625,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           {/* Service selection */}
           <div className="space-y-2 md:space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-sm md:text-base">Services</Label>
+              <div className="flex items-center gap-2">
+                <Label className="text-sm md:text-base">Services</Label>
+                {watchedServices.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      form.setValue("selectedServices", [], { shouldValidate: true });
+                      setFlatPrices({});
+                      setEdgeSelections({});
+                    }}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
               {tierLabel && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded bg-accent text-accent-foreground">
                   {tierLabel} pricing
