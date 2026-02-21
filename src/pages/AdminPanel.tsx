@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { RolesTab } from "@/components/admin/RolesTab";
 import { AuditLogTab } from "@/components/admin/AuditLogTab";
-import { MOCK_ADMIN_USERS } from "@/data/mock-admin";
 
 const TABS = [
   { id: "users", label: "Users", icon: Users },
@@ -43,7 +42,7 @@ export default function AdminPanel() {
 
       <main className="flex-1 min-w-0 overflow-auto">
         {activeTab === "users" && <UsersTab />}
-        {activeTab === "roles" && <RolesTab users={MOCK_ADMIN_USERS} />}
+        {activeTab === "roles" && <RolesTab />}
         {activeTab === "audit" && <AuditLogTab />}
       </main>
     </div>
