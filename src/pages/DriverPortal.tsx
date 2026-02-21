@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ const DriverPortal: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activePickupId, setActivePickupId] = useState<string | null>(null);
 
-  const fetchPickups = async () => {
+  const fetchPickups = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
 
@@ -89,11 +89,11 @@ const DriverPortal: React.FC = () => {
 
     setPickups(mapped);
     setLoading(false);
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchPickups();
-  }, [user?.id]);
+  }, [fetchPickups]);
 
   const assigned = useMemo(() => pickups.filter((p) => p.status === "assigned"), [pickups]);
   const completed = useMemo(() => pickups.filter((p) => p.status === "completed"), [pickups]);
