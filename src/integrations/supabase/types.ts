@@ -49,6 +49,7 @@ export type Database = {
           notes: string
           phone: string
           pricing_tier: Database["public"]["Enums"]["pricing_tier"]
+          route_day: string
           updated_at: string
         }
         Insert: {
@@ -61,6 +62,7 @@ export type Database = {
           notes?: string
           phone?: string
           pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
+          route_day?: string
           updated_at?: string
         }
         Update: {
@@ -73,6 +75,7 @@ export type Database = {
           notes?: string
           phone?: string
           pricing_tier?: Database["public"]["Enums"]["pricing_tier"]
+          route_day?: string
           updated_at?: string
         }
         Relationships: []
