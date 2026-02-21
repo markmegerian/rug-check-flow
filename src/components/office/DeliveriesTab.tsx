@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Truck, CheckCircle2, Package, Calendar, ChevronRight, AlertCircle, RefreshCw, History, FileText } from "lucide-react";
+import { Truck, CheckCircle2, Package, Calendar, ChevronRight, AlertCircle, RefreshCw, History, FileText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -275,6 +275,12 @@ export function DeliveriesTab() {
       .update({ loaded_on_truck: value })
       .eq("id", itemId);
     setItems((prev) => prev.map((i) => i.id === itemId ? { ...i, loaded_on_truck: value } : i));
+  };
+
+  const removeItem = async (itemId: string) => {
+    await supabase.from("delivery_list_items").delete().eq("id", itemId);
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
+    toast({ title: "Rug removed from list" });
   };
 
   const confirmList = async () => {
@@ -589,6 +595,20 @@ export function DeliveriesTab() {
                           <TooltipContent side="left">
                             <p>Still in production — cannot be confirmed yet</p>
                           </TooltipContent>
+                        </Tooltip>
+                      )}
+                      {isCompiling && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left"><p>Remove from list</p></TooltipContent>
                         </Tooltip>
                       )}
                     </div>
