@@ -16,6 +16,8 @@ import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const devSwitcherEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -23,7 +25,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <DevAccountSwitcher />
+        {devSwitcherEnabled ? <DevAccountSwitcher /> : null}
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />

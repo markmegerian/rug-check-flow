@@ -12,8 +12,12 @@ const ROLE_LABELS: Record<string, string> = {
   checkin_staff: "Check-in Staff",
   driver: "Driver",
 };
+const devSwitcherEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
 
 export function DevAccountSwitcher() {
+  if (!devSwitcherEnabled) return null;
+
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
@@ -43,10 +47,11 @@ export function DevAccountSwitcher() {
 
       toast({ title: `Switched to ${ROLE_LABELS[role]}` });
       setOpen(false);
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       toast({
         title: `Login failed (${role})`,
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {

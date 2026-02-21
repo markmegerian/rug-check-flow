@@ -5,7 +5,8 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const TEST_PASSWORD = "TestPass123!";
+const DEV_LOGIN_ENABLED = Deno.env.get("ENABLE_DEV_LOGIN") === "true";
+const TEST_PASSWORD = Deno.env.get("DEV_LOGIN_TEST_PASSWORD") ?? "";
 
 const ROLE_EMAILS: Record<string, string> = {
   admin: "test-admin@rugboost.local",
@@ -17,6 +18,20 @@ const ROLE_EMAILS: Record<string, string> = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
+  }
+
+  if (!DEV_LOGIN_ENABLED) {
+    return new Response(JSON.stringify({ error: "dev-login is disabled" }), {
+      status: 403,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  if (!TEST_PASSWORD) {
+    return new Response(JSON.stringify({ error: "DEV_LOGIN_TEST_PASSWORD is not configured" }), {
+      status: 500,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 
   try {

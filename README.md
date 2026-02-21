@@ -66,6 +66,16 @@ This interactive script can:
 
 It writes credentials to your home directory and does not commit secrets to this repository.
 
+## Frontend environment variables
+
+Copy `.env.example` to `.env` and set values for your Supabase project:
+
+```sh
+cp .env.example .env
+```
+
+`VITE_ENABLE_DEV_SWITCHER` defaults to `false` and should stay `false` outside local development.
+
 ## What technologies are used for this project?
 
 This project is built with:
