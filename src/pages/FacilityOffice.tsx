@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { DollarSign, FileText, Users, Truck } from "lucide-react";
+import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
 import { DeliveriesTab } from "@/components/office/DeliveriesTab";
+import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
+import { EstimatesTab } from "@/components/office/EstimatesTab";
 
 const TABS = [
   { id: "pricing", label: "Pricing", icon: DollarSign },
   { id: "invoices", label: "Invoices", icon: FileText },
+  { id: "estimates", label: "Estimates", icon: ClipboardCheck },
   { id: "clients", label: "Clients", icon: Users },
+  { id: "pickups", label: "Pickups", icon: CalendarCheck },
   { id: "deliveries", label: "Deliveries", icon: Truck },
 ] as const;
 
@@ -45,7 +49,9 @@ export default function FacilityOffice() {
       <main className="flex-1 min-w-0 overflow-hidden">
         {activeTab === "pricing" && <PricingTab />}
         {activeTab === "invoices" && <InvoicesTab />}
+        {activeTab === "estimates" && <EstimatesTab />}
         {activeTab === "clients" && <ClientsTab />}
+        {activeTab === "pickups" && <PickupRequestsTab />}
         {activeTab === "deliveries" && <DeliveriesTab />}
       </main>
     </div>

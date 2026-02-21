@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,50 +7,175 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import SignatureCanvas from "@/components/driver/SignatureCanvas";
-import { DRIVER_PICKUPS, type DriverPickup } from "@/data/mock-driver";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+type PickupStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
+
+type DriverPickup = {
+  id: string;
+  clientName: string;
+  clientAddress: string;
+  date: string;
+  status: PickupStatus;
+  completedAt?: string;
+  signatureDataUrl?: string;
+  rugs: {
+    id: string;
+    rugNumber: string;
+    rugType: string;
+    length: number;
+    width: number;
+    verified: boolean;
+    notes: string;
+  }[];
+};
 
 const DriverPortal: React.FC = () => {
-  const [pickups, setPickups] = useState<DriverPickup[]>(() =>
-    DRIVER_PICKUPS.map((p) => ({ ...p, rugs: p.rugs.map((r) => ({ ...r })) }))
-  );
+  const { user } = useAuth();
+  const [pickups, setPickups] = useState<DriverPickup[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activePickupId, setActivePickupId] = useState<string | null>(null);
 
-  const assigned = pickups.filter((p) => p.status === "assigned");
-  const completed = pickups.filter((p) => p.status === "completed");
+  const fetchPickups = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+
+    const { data: reqData, error: reqErr } = await (supabase as any)
+      .from("pickup_requests")
+      .select("id, scheduled_date, status, completed_at, signature_data_url, clients(name,address)")
+      .eq("assigned_driver_id", user.id)
+      .in("status", ["assigned", "completed"])
+      .order("scheduled_date", { ascending: true });
+
+    if (reqErr) {
+      toast({ title: "Failed to load pickups", description: reqErr.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    const requests = (reqData ?? []) as any[];
+    const requestIds = requests.map((r) => r.id);
+
+    const { data: itemData } = requestIds.length === 0
+      ? { data: [] }
+      : await (supabase as any)
+          .from("pickup_request_items")
+          .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes")
+          .in("pickup_request_id", requestIds);
+
+    const items = (itemData ?? []) as any[];
+
+    const mapped: DriverPickup[] = requests.map((r) => ({
+      id: r.id,
+      clientName: r.clients?.name ?? "Unknown",
+      clientAddress: r.clients?.address ?? "",
+      date: r.scheduled_date,
+      status: r.status,
+      completedAt: r.completed_at ?? undefined,
+      signatureDataUrl: r.signature_data_url ?? undefined,
+      rugs: items
+        .filter((i) => i.pickup_request_id === r.id)
+        .map((i) => ({
+          id: i.id,
+          rugNumber: i.rug_number,
+          rugType: i.rug_type || "Rug",
+          length: Number(i.length ?? 0),
+          width: Number(i.width ?? 0),
+          verified: Boolean(i.verified),
+          notes: i.driver_notes || "",
+        })),
+    }));
+
+    setPickups(mapped);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchPickups();
+  }, [user?.id]);
+
+  const assigned = useMemo(() => pickups.filter((p) => p.status === "assigned"), [pickups]);
+  const completed = useMemo(() => pickups.filter((p) => p.status === "completed"), [pickups]);
   const activePickup = activePickupId ? pickups.find((p) => p.id === activePickupId) : null;
 
-  const updatePickup = (id: string, updater: (p: DriverPickup) => DriverPickup) => {
+  const updateLocalPickup = (id: string, updater: (p: DriverPickup) => DriverPickup) => {
     setPickups((prev) => prev.map((p) => (p.id === id ? updater({ ...p, rugs: p.rugs.map((r) => ({ ...r })) }) : p)));
   };
 
-  const toggleVerified = (pickupId: string, rugIndex: number) => {
-    updatePickup(pickupId, (p) => {
-      p.rugs[rugIndex].verified = !p.rugs[rugIndex].verified;
+  const toggleVerified = async (pickupId: string, rugId: string) => {
+    const pickup = pickups.find((p) => p.id === pickupId);
+    const rug = pickup?.rugs.find((r) => r.id === rugId);
+    if (!pickup || !rug || pickup.status === "completed") return;
+
+    const next = !rug.verified;
+    const { error } = await (supabase as any)
+      .from("pickup_request_items")
+      .update({ verified: next })
+      .eq("id", rugId);
+
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    updateLocalPickup(pickupId, (p) => {
+      p.rugs = p.rugs.map((r) => (r.id === rugId ? { ...r, verified: next } : r));
       return p;
     });
   };
 
-  const setRugNotes = (pickupId: string, rugIndex: number, notes: string) => {
-    updatePickup(pickupId, (p) => {
-      p.rugs[rugIndex].notes = notes;
+  const setRugNotes = async (pickupId: string, rugId: string, notes: string) => {
+    const { error } = await (supabase as any)
+      .from("pickup_request_items")
+      .update({ driver_notes: notes })
+      .eq("id", rugId);
+
+    if (error) {
+      toast({ title: "Notes update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    updateLocalPickup(pickupId, (p) => {
+      p.rugs = p.rugs.map((r) => (r.id === rugId ? { ...r, notes } : r));
       return p;
     });
   };
 
-  const setSignature = (pickupId: string, dataUrl: string | null) => {
-    updatePickup(pickupId, (p) => ({ ...p, signatureDataUrl: dataUrl || undefined }));
+  const setSignature = async (pickupId: string, dataUrl: string | null) => {
+    const { error } = await (supabase as any)
+      .from("pickup_requests")
+      .update({ signature_data_url: dataUrl })
+      .eq("id", pickupId);
+
+    if (error) {
+      toast({ title: "Signature update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    updateLocalPickup(pickupId, (p) => ({ ...p, signatureDataUrl: dataUrl || undefined }));
   };
 
-  const completePickup = (pickupId: string) => {
-    updatePickup(pickupId, (p) => ({
-      ...p,
-      status: "completed",
-      completedAt: new Date().toISOString(),
-    }));
+  const completePickup = async (pickupId: string) => {
+    const completedAt = new Date().toISOString();
+    const { error } = await (supabase as any)
+      .from("pickup_requests")
+      .update({ status: "completed", completed_at: completedAt })
+      .eq("id", pickupId);
+
+    if (error) {
+      toast({ title: "Completion failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    updateLocalPickup(pickupId, (p) => ({ ...p, status: "completed", completedAt }));
     toast({ title: "Pickup completed", description: "Record has been locked." });
   };
 
-  // List view
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading pickups…</div>;
+  }
+
   if (!activePickup) {
     return (
       <div className="min-h-screen bg-background">
@@ -70,7 +195,7 @@ const DriverPortal: React.FC = () => {
                   <p className="font-medium text-base">{pickup.clientName}</p>
                   <p className="text-sm text-muted-foreground">{pickup.clientAddress}</p>
                   <p className="text-sm text-muted-foreground">
-                    {format(new Date(pickup.date), "MMM d")} — {pickup.rugs.length} rug{pickup.rugs.length !== 1 ? "s" : ""}
+                    {format(new Date(`${pickup.date}T00:00:00`), "MMM d")} — {pickup.rugs.length} rug{pickup.rugs.length !== 1 ? "s" : ""}
                   </p>
                   <Button className="w-full min-h-[44px]" onClick={() => setActivePickupId(pickup.id)}>
                     Start Verification <ArrowRight className="ml-1 h-4 w-4" />
@@ -85,17 +210,13 @@ const DriverPortal: React.FC = () => {
               <h2 className="text-base font-semibold mb-3 text-muted-foreground">Completed</h2>
               <div className="space-y-3">
                 {completed.map((pickup) => (
-                  <div
-                    key={pickup.id}
-                    className="rounded-lg border bg-muted/50 p-4 space-y-1 cursor-pointer"
-                    onClick={() => setActivePickupId(pickup.id)}
-                  >
+                  <div key={pickup.id} className="rounded-lg border bg-muted/50 p-4 space-y-1 cursor-pointer" onClick={() => setActivePickupId(pickup.id)}>
                     <div className="flex items-center justify-between">
                       <p className="font-medium text-muted-foreground">{pickup.clientName}</p>
                       <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(pickup.date), "MMM d")} — {pickup.rugs.length} rug{pickup.rugs.length !== 1 ? "s" : ""}
+                      {format(new Date(`${pickup.date}T00:00:00`), "MMM d")} — {pickup.rugs.length} rug{pickup.rugs.length !== 1 ? "s" : ""}
                     </p>
                   </div>
                 ))}
@@ -107,7 +228,6 @@ const DriverPortal: React.FC = () => {
     );
   }
 
-  // Verification / locked view
   const locked = activePickup.status === "completed";
   const allVerified = activePickup.rugs.every((r) => r.verified);
   const hasSignature = !!activePickup.signatureDataUrl;
@@ -128,19 +248,18 @@ const DriverPortal: React.FC = () => {
           <Alert>
             <Lock className="h-4 w-4" />
             <AlertDescription>
-              Pickup completed on {format(new Date(activePickup.completedAt!), "M/d/yyyy")} at{" "}
+              Pickup completed on {format(new Date(activePickup.completedAt!), "M/d/yyyy")} at {" "}
               {format(new Date(activePickup.completedAt!), "h:mm a")}. Record is locked.
             </AlertDescription>
           </Alert>
         )}
 
         {activePickup.rugs.map((rug, i) => (
-          <div key={rug.rugNumber} className="rounded-lg border bg-card p-4 space-y-3 shadow-card animate-fade-in-up" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>
+          <div key={rug.id} className="rounded-lg border bg-card p-4 space-y-3 shadow-card animate-fade-in-up" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>
             <div>
               <p className="font-medium text-base">
                 {rug.rugNumber} &nbsp;{rug.rugType} &nbsp;{rug.length}×{rug.width}
               </p>
-              <p className="text-sm text-muted-foreground">{rug.services.join(", ")}</p>
             </div>
 
             {locked ? (
@@ -153,18 +272,14 @@ const DriverPortal: React.FC = () => {
             ) : (
               <>
                 <label className="flex items-center gap-3 min-h-[44px] cursor-pointer">
-                  <Checkbox
-                    checked={rug.verified}
-                    onCheckedChange={() => toggleVerified(activePickup.id, i)}
-                    className="h-5 w-5"
-                  />
+                  <Checkbox checked={rug.verified} onCheckedChange={() => toggleVerified(activePickup.id, rug.id)} className="h-5 w-5" />
                   <span className="text-sm font-medium">Verified</span>
                 </label>
                 <div>
                   <label className="text-sm text-muted-foreground">Notes</label>
                   <Input
                     value={rug.notes}
-                    onChange={(e) => setRugNotes(activePickup.id, i, e.target.value)}
+                    onChange={(e) => setRugNotes(activePickup.id, rug.id, e.target.value)}
                     placeholder="Optional notes…"
                     className="mt-1 min-h-[44px]"
                   />
@@ -183,10 +298,7 @@ const DriverPortal: React.FC = () => {
           )
         ) : (
           <>
-            <SignatureCanvas
-              onSignatureChange={(url) => setSignature(activePickup.id, url)}
-              disabled={false}
-            />
+            <SignatureCanvas onSignatureChange={(url) => setSignature(activePickup.id, url)} disabled={false} initialDataUrl={activePickup.signatureDataUrl} />
             <div className="space-y-2 pt-2">
               <Button className="w-full min-h-[48px] text-base" disabled={!canComplete} onClick={() => completePickup(activePickup.id)}>
                 Complete Pickup

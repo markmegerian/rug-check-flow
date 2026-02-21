@@ -2,14 +2,16 @@ import { useState } from "react";
 import PortalRugsTab from "@/components/portal/PortalRugsTab";
 import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
+import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
-type Tab = "rugs" | "pickups" | "invoices";
+type Tab = "rugs" | "pickups" | "estimates" | "invoices";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "rugs", label: "Rugs" },
   { key: "pickups", label: "Pickups" },
+  { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
 ];
 
@@ -47,6 +49,7 @@ export default function WholesalePortal() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
         {activeTab === "rugs" && <PortalRugsTab />}
         {activeTab === "pickups" && <PortalPickupsTab />}
+        {activeTab === "estimates" && <PortalEstimatesTab />}
         {activeTab === "invoices" && <PortalInvoicesTab />}
       </main>
     </div>
