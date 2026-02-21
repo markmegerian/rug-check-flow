@@ -40,7 +40,7 @@ export function ProductionBoard() {
 
     const rugIds = (data ?? []).map((r: any) => r.id);
 
-    let rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
+    const rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
         .from("rug_services")

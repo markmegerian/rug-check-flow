@@ -44,8 +44,8 @@ export function CheckInLayout() {
 
     const rugIds = (data ?? []).map((r: any) => r.id);
 
-    let rugServiceMap = new Map<string, { id: string; name: string; price: number }[]>();
-    let rugTotalMap = new Map<string, number>();
+    const rugServiceMap = new Map<string, { id: string; name: string; price: number }[]>();
+    const rugTotalMap = new Map<string, number>();
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
         .from("rug_services")
