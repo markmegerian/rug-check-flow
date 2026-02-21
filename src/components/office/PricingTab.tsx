@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { X, Package, Pencil, Plus, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -98,7 +98,14 @@ export function PricingTab() {
         : "base_price"
     : "base_price";
 
-  const visibleServices = showHidden ? services : services.filter((s) => s.active);
+  const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
+  const visibleServices = (showHidden ? services : services.filter((s) => s.active))
+    .sort((a, b) => {
+      const catA = CATEGORY_ORDER.indexOf((a as any).category || "Cleaning");
+      const catB = CATEGORY_ORDER.indexOf((b as any).category || "Cleaning");
+      if (catA !== catB) return (catA === -1 ? 99 : catA) - (catB === -1 ? 99 : catB);
+      return a.name.localeCompare(b.name);
+    });
 
   const startEditPrice = (s: DbService, col: "base_price" | "preferred_price" | "vip_price") => {
     setEditingPriceId(s.id);
@@ -318,7 +325,11 @@ export function PricingTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleServices.map((s) => {
+            {visibleServices.map((s, idx) => {
+              const cat = (s as any).category || "Cleaning";
+              const prevCat = idx > 0 ? ((visibleServices[idx - 1] as any).category || "Cleaning") : null;
+              const showHeader = cat !== prevCat;
+
               const renderPrice = (col: "base_price" | "preferred_price" | "vip_price") => {
                 if (s.unit === "flat") {
                   return <span className="text-muted-foreground text-xs">—</span>;
@@ -351,7 +362,15 @@ export function PricingTab() {
               };
 
               return (
-                <TableRow key={s.id} className={!s.active ? "opacity-50" : ""}>
+                <React.Fragment key={s.id}>
+                  {showHeader && (
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableCell colSpan={7} className="py-1.5 px-3">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</span>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                <TableRow className={!s.active ? "opacity-50" : ""}>
                   <TableCell className="font-medium">
                     {editingNameId === s.id ? (
                       <Input
@@ -412,6 +431,7 @@ export function PricingTab() {
                     </Button>
                   </TableCell>
                 </TableRow>
+                </React.Fragment>
               );
             })}
           </TableBody>
