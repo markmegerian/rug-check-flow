@@ -353,14 +353,14 @@ export function DeliveriesTab() {
     // Fetch invoices with explicit delivery list linkage
     const { data: invoices } = await supabase
       .from("invoices")
-      .select("id, invoice_number, delivery_list_id, client_id, total, status")
+      .select("id, invoice_number, client_id, total, status")
       .order("created_at", { ascending: false })
       .limit(200);
 
     const invoiceMap: Record<string, InvoiceInfo[]> = {};
     if (invoices) {
       for (const dl of checkedOutLists) {
-        invoiceMap[dl.id] = invoices.filter((inv) => inv.delivery_list_id === dl.id) as InvoiceInfo[];
+        invoiceMap[dl.id] = (invoices as unknown as InvoiceInfo[]).filter((inv) => inv.delivery_list_id === dl.id);
       }
     }
     setHistoryInvoices(invoiceMap);
