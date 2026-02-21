@@ -696,14 +696,31 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 border-t border-border bg-background p-3 md:p-4 flex items-center justify-between rounded-b-lg">
-          <div className="text-sm text-muted-foreground">
-            Total: <span className="text-foreground font-bold text-base md:text-lg">${totalPrice.toFixed(2)}</span>
+        {/* Footer with line-item summary */}
+        <div className="sticky bottom-0 border-t border-border bg-background rounded-b-lg">
+          {watchedServices.length > 0 && (
+            <div className="px-3 md:px-4 pt-2 pb-1 space-y-0.5 max-h-28 overflow-y-auto">
+              {watchedServices.map((id) => {
+                const svc = dbServices.find((s) => s.id === id);
+                if (!svc) return null;
+                const lt = getLineTotal(svc);
+                return (
+                  <div key={id} className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="truncate mr-2">{svc.name}</span>
+                    <span className="shrink-0 font-medium text-foreground">${lt.toFixed(2)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Total: <span className="text-foreground font-bold text-base md:text-lg">${totalPrice.toFixed(2)}</span>
+            </div>
+            <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6">
+              {isEditing ? "Update" : "Complete Check-In"}
+            </Button>
           </div>
-          <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6">
-            {isEditing ? "Update" : "Complete Check-In"}
-          </Button>
         </div>
       </form>
     </Form>
