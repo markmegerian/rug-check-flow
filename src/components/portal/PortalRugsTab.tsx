@@ -1,7 +1,27 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { PORTAL_RUGS, PortalStatus } from "@/data/mock-portal";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { usePortalClient } from "@/hooks/usePortalClient";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import type { Enums, Tables } from "@/integrations/supabase/types";
+
+type PortalStatus = "in_progress" | "ready" | "delivered";
+type Filter = "all" | PortalStatus;
+type RugStatus = Enums<"rug_status">;
+
+type RugRow = Pick<Tables<"rugs">, "id" | "tag" | "description" | "services" | "size_length" | "size_width" | "checked_in_at" | "status">;
+
+type PortalRug = {
+  id: string;
+  rugNumber: string;
+  rugType: string;
+  services: string[];
+  status: PortalStatus;
+  length: number;
+  width: number;
+  checkedInDate: string;
+};
 
 const STATUS_LABELS: Record<PortalStatus, string> = {
   in_progress: "In Progress",
@@ -15,19 +35,79 @@ const STATUS_VARIANTS: Record<PortalStatus, "default" | "secondary" | "outline">
   delivered: "outline",
 };
 
-type Filter = "all" | PortalStatus;
+const mapRugStatus = (status: RugStatus): PortalStatus => {
+  if (status === "ready") return "ready";
+  if (status === "picked_up") return "delivered";
+  return "in_progress";
+};
 
 export default function PortalRugsTab() {
+  const { toast } = useToast();
+  const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
   const [filter, setFilter] = useState<Filter>("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [rugs, setRugs] = useState<PortalRug[]>([]);
 
-  const rugs = PORTAL_RUGS;
-  const counts = {
+  useEffect(() => {
+    if (portalClientLoading) {
+      setLoading(true);
+      return;
+    }
+
+    if (errorMessage) {
+      toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
+      setLoading(false);
+      setRugs([]);
+      return;
+    }
+
+    if (!clientId) {
+      setLoading(false);
+      return;
+    }
+
+    const loadRugs = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("rugs")
+        .select("id, tag, description, services, size_length, size_width, checked_in_at, status")
+        .eq("client_id", clientId)
+        .order("checked_in_at", { ascending: false })
+        .limit(250)
+        .returns<RugRow[]>();
+
+      if (error) {
+        toast({ title: "Failed to load rugs", description: error.message, variant: "destructive" });
+        setRugs([]);
+        setLoading(false);
+        return;
+      }
+
+      const mapped: PortalRug[] = (data ?? []).map((rug) => ({
+        id: rug.id,
+        rugNumber: rug.tag,
+        rugType: rug.description || "Rug",
+        services: rug.services ?? [],
+        status: mapRugStatus(rug.status),
+        length: Number(rug.size_length ?? 0),
+        width: Number(rug.size_width ?? 0),
+        checkedInDate: rug.checked_in_at,
+      }));
+
+      setRugs(mapped);
+      setLoading(false);
+    };
+
+    loadRugs();
+  }, [clientId, errorMessage, portalClientLoading, toast]);
+
+  const counts = useMemo(() => ({
     total: rugs.length,
     in_progress: rugs.filter((r) => r.status === "in_progress").length,
     ready: rugs.filter((r) => r.status === "ready").length,
     delivered: rugs.filter((r) => r.status === "delivered").length,
-  };
+  }), [rugs]);
 
   const filtered = filter === "all" ? rugs : rugs.filter((r) => r.status === filter);
 
@@ -38,9 +118,16 @@ export default function PortalRugsTab() {
     { key: "delivered", label: "Delivered", count: counts.delivered },
   ];
 
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading rugs…</div>;
+  }
+
+  if (rugs.length === 0) {
+    return <div className="text-sm text-muted-foreground">No rugs available yet.</div>;
+  }
+
   return (
     <div className="space-y-4">
-      {/* Filter pills */}
       <div className="flex flex-wrap gap-1.5">
         {filters.map((f) => (
           <button
@@ -57,7 +144,6 @@ export default function PortalRugsTab() {
         ))}
       </div>
 
-      {/* Rug list */}
       <div className="rounded-lg border bg-background divide-y">
         {filtered.map((rug) => {
           const isExpanded = expandedRow === rug.id;
