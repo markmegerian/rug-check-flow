@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, X } from "lucide-react";
+import { Camera, ChevronDown, X } from "lucide-react";
 import RugEdgeDiagram, { calcSelectedLinearFt, type RugEdge } from "./RugEdgeDiagram";
 
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ interface DbService {
   base_price: number;
   preferred_price: number;
   vip_price: number;
+  category: string;
 }
 
 type PricingTier = "standard" | "preferred" | "vip";
@@ -70,6 +71,142 @@ interface CheckInFormProps {
   }) => void;
 }
 
+function ServiceCategoryGroup({
+  category, services, isFirst, watchedServices, getUnitPrice, getLineTotal,
+  toggleService, edgeSelections, setEdgeSelections, flatPrices, setFlatPrices,
+  watchedLength, watchedWidth,
+}: {
+  category: string;
+  services: DbService[];
+  isFirst: boolean;
+  watchedServices: string[];
+  getUnitPrice: (svc: DbService) => number;
+  getLineTotal: (svc: DbService) => number;
+  toggleService: (id: string) => void;
+  edgeSelections: Record<string, RugEdge[]>;
+  setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
+  flatPrices: Record<string, string>;
+  setFlatPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  watchedLength: number;
+  watchedWidth: number;
+}) {
+  const [open, setOpen] = useState(true);
+  const selectedCount = services.filter((s) => watchedServices.includes(s.id)).length;
+
+  return (
+    <div className={!isFirst ? "border-t border-border" : ""}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted transition-colors text-left"
+      >
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {category}
+          {selectedCount > 0 && (
+            <span className="ml-1.5 text-foreground normal-case tracking-normal font-bold">
+              ({selectedCount})
+            </span>
+          )}
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+      </button>
+      {open && (
+        <div className="divide-y divide-border/50">
+          {services.map((svc) => {
+            const unitPrice = getUnitPrice(svc);
+            const lineTotal = getLineTotal(svc);
+            const checked = watchedServices.includes(svc.id);
+            const isFlat = svc.unit === "flat";
+            const isLinear = svc.unit === "per linear ft";
+            const edges = edgeSelections[svc.id] ?? [];
+            const l = Number(watchedLength) || 0;
+            const w = Number(watchedWidth) || 0;
+
+            const toggleEdge = (edge: RugEdge) => {
+              setEdgeSelections((prev) => {
+                const current = prev[svc.id] ?? [];
+                return {
+                  ...prev,
+                  [svc.id]: current.includes(edge)
+                    ? current.filter((e) => e !== edge)
+                    : [...current, edge],
+                };
+              });
+            };
+
+            return (
+              <div key={svc.id} className="px-1">
+                <label
+                  className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
+                    checked ? "bg-accent" : "hover:bg-muted"
+                  }`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => toggleService(svc.id)}
+                  />
+                  <span className="flex-1 text-sm truncate">{svc.name}</span>
+                  {!isFlat && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
+                    </span>
+                  )}
+                  {isFlat && !checked && (
+                    <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
+                  )}
+                  {checked && !isFlat && !isLinear && (
+                    <span className="text-sm font-semibold shrink-0">
+                      ${lineTotal.toFixed(2)}
+                    </span>
+                  )}
+                  {checked && isLinear && edges.length > 0 && (
+                    <span className="text-sm font-semibold shrink-0">
+                      ${lineTotal.toFixed(2)}
+                    </span>
+                  )}
+                </label>
+                {checked && isLinear && l > 0 && w > 0 && (
+                  <div className="ml-4 md:ml-8 mt-2 mb-2">
+                    <RugEdgeDiagram
+                      lengthFt={l}
+                      widthFt={w}
+                      selectedEdges={edges}
+                      onToggleEdge={toggleEdge}
+                    />
+                    {edges.length > 0 && (
+                      <p className="text-xs text-muted-foreground text-center mt-1">
+                        {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
+                      </p>
+                    )}
+                  </div>
+                )}
+                {checked && isFlat && (
+                  <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
+                    <span className="text-xs text-muted-foreground">Price $</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="Enter price"
+                      className="h-8 w-28"
+                      value={flatPrices[svc.id] ?? ""}
+                      onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
+                    />
+                    {lineTotal > 0 && (
+                      <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +233,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     async function fetchServices() {
       const { data, error } = await supabase
         .from("services")
-        .select("id, name, unit, base_price, preferred_price, vip_price")
+        .select("id, name, unit, base_price, preferred_price, vip_price, category")
         .eq("active", true)
         .order("name");
       if (!error && data) {
@@ -499,97 +636,38 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               <p className="text-sm text-muted-foreground italic">Loading services…</p>
             )}
 
-            <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md divide-y divide-border">
-              {dbServices.map((svc) => {
-                const unitPrice = getUnitPrice(svc);
-                const lineTotal = getLineTotal(svc);
-                const checked = watchedServices.includes(svc.id);
-
-                const isFlat = svc.unit === "flat";
-                const isLinear = svc.unit === "per linear ft";
-                const edges = edgeSelections[svc.id] ?? [];
-                const l = Number(watchedLength) || 0;
-                const w = Number(watchedWidth) || 0;
-
-                const toggleEdge = (edge: RugEdge) => {
-                  setEdgeSelections((prev) => {
-                    const current = prev[svc.id] ?? [];
-                    return {
-                      ...prev,
-                      [svc.id]: current.includes(edge)
-                        ? current.filter((e) => e !== edge)
-                        : [...current, edge],
-                    };
-                  });
-                };
-
-                return (
-                  <div key={svc.id} className="px-1">
-                    <label
-                      className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
-                        checked ? "bg-accent" : "hover:bg-muted"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => toggleService(svc.id)}
-                      />
-                      <span className="flex-1 text-sm truncate">{svc.name}</span>
-                      {!isFlat && (
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
-                        </span>
-                      )}
-                      {isFlat && !checked && (
-                        <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
-                      )}
-                      {checked && !isFlat && !isLinear && (
-                        <span className="text-sm font-semibold shrink-0">
-                          ${lineTotal.toFixed(2)}
-                        </span>
-                      )}
-                      {checked && isLinear && edges.length > 0 && (
-                        <span className="text-sm font-semibold shrink-0">
-                          ${lineTotal.toFixed(2)}
-                        </span>
-                      )}
-                    </label>
-                    {checked && isLinear && l > 0 && w > 0 && (
-                      <div className="ml-4 md:ml-8 mt-2 mb-2">
-                        <RugEdgeDiagram
-                          lengthFt={l}
-                          widthFt={w}
-                          selectedEdges={edges}
-                          onToggleEdge={toggleEdge}
-                        />
-                        {edges.length > 0 && (
-                          <p className="text-xs text-muted-foreground text-center mt-1">
-                            {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {checked && isFlat && (
-                      <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
-                        <span className="text-xs text-muted-foreground">Price $</span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          inputMode="decimal"
-                          placeholder="Enter price"
-                          className="h-8 w-28"
-                          value={flatPrices[svc.id] ?? ""}
-                          onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
-                        />
-                        {lineTotal > 0 && (
-                          <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+            <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md">
+              {(() => {
+                const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
+                const grouped: Record<string, DbService[]> = {};
+                dbServices.forEach((svc) => {
+                  const cat = svc.category || "Other";
+                  if (!grouped[cat]) grouped[cat] = [];
+                  grouped[cat].push(svc);
+                });
+                const categories = CATEGORY_ORDER.filter((c) => grouped[c]?.length).concat(
+                  Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c))
                 );
-              })}
+
+                return categories.map((cat, catIdx) => (
+                  <ServiceCategoryGroup
+                    key={cat}
+                    category={cat}
+                    services={grouped[cat]}
+                    isFirst={catIdx === 0}
+                    watchedServices={watchedServices}
+                    getUnitPrice={getUnitPrice}
+                    getLineTotal={getLineTotal}
+                    toggleService={toggleService}
+                    edgeSelections={edgeSelections}
+                    setEdgeSelections={setEdgeSelections}
+                    flatPrices={flatPrices}
+                    setFlatPrices={setFlatPrices}
+                    watchedLength={watchedLength}
+                    watchedWidth={watchedWidth}
+                  />
+                ));
+              })()}
             </div>
 
             {form.formState.errors.selectedServices && (
