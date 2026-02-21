@@ -38,7 +38,7 @@ type RugOption = {
 };
 
 const ALLOWED_STATUS_TRANSITIONS: Record<EstimateStatus, EstimateStatus[]> = {
-  draft: ["sent", "expired"],
+  draft: ["expired"],
   sent: ["approved", "rejected", "expired"],
   approved: [],
   rejected: [],
@@ -52,6 +52,7 @@ export function EstimatesTab() {
   const [selectedRugId, setSelectedRugId] = useState<string>("none");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const { data: estRows, error: estErr } = await (supabase as any)
@@ -204,6 +205,44 @@ export function EstimatesTab() {
     return !error;
   };
 
+  const sendEstimate = async (estimate: EstimateRow) => {
+    if (estimate.status !== "draft") return;
+
+    setSendingEstimateId(estimate.id);
+
+    type SendEstimateResponse = {
+      success?: boolean;
+      provider_status?: string;
+      provider_response?: unknown;
+      error?: string;
+      details?: unknown;
+    };
+
+    const { data, error } = await supabase.functions.invoke<SendEstimateResponse>("send-estimate-email", {
+      body: { estimate_id: estimate.id },
+    });
+
+    if (error || data?.error) {
+      toast({
+        title: "Estimate send failed",
+        description: data?.error || error?.message || "Unknown error",
+        variant: "destructive",
+      });
+      setSendingEstimateId(null);
+      return;
+    }
+
+    await fetchData();
+    setSendingEstimateId(null);
+    toast({
+      title: "Estimate sent",
+      description:
+        data?.provider_status === "sent"
+          ? `${estimate.estimate_number} email delivered to client.`
+          : `${estimate.estimate_number} marked sent (email provider not configured).`,
+    });
+  };
+
   const setEstimateStatus = async (estimate: EstimateRow, status: EstimateStatus) => {
     if (!ALLOWED_STATUS_TRANSITIONS[estimate.status].includes(status)) {
       toast({
@@ -215,7 +254,6 @@ export function EstimatesTab() {
     }
 
     const updates: Record<string, unknown> = { status };
-    if (status === "sent") updates.sent_at = new Date().toISOString();
     if (status === "approved") updates.approved_at = new Date().toISOString();
     if (status === "rejected") updates.rejected_at = new Date().toISOString();
 
@@ -303,8 +341,14 @@ export function EstimatesTab() {
 
                   <div className="flex flex-wrap gap-2">
                     {estimate.status === "draft" && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "sent")}>
-                        Mark sent
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => sendEstimate(estimate)}
+                        disabled={sendingEstimateId === estimate.id}
+                      >
+                        {sendingEstimateId === estimate.id ? "Sending..." : "Mark sent"}
                       </Button>
                     )}
                     {estimate.status === "sent" && (
