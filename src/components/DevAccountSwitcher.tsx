@@ -58,7 +58,7 @@ export function DevAccountSwitcher() {
     }
   };
 
-  if (import.meta.env.PROD) return null;
+  // Visible in all environments for internal ops tool
 
   return (
     <>
