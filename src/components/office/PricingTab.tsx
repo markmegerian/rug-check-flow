@@ -137,11 +137,17 @@ export function PricingTab() {
   };
 
   const commitUnit = async (serviceId: string, unit: string) => {
-    const { error } = await supabase.from("services").update({ unit }).eq("id", serviceId);
+    const updates: Record<string, unknown> = { unit };
+    if (unit === "flat") {
+      updates.base_price = 0;
+      updates.preferred_price = 0;
+      updates.vip_price = 0;
+    }
+    const { error } = await supabase.from("services").update(updates).eq("id", serviceId);
     if (error) {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
     } else {
-      setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, unit } : s)));
+      setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...updates } as DbService : s)));
     }
   };
 
