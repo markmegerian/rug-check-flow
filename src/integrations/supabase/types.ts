@@ -80,6 +80,97 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_list_items: {
+        Row: {
+          client_id: string | null
+          confirmed_for_delivery: boolean
+          created_at: string
+          delivery_list_id: string
+          id: string
+          loaded_on_truck: boolean
+          rug_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          confirmed_for_delivery?: boolean
+          created_at?: string
+          delivery_list_id: string
+          id?: string
+          loaded_on_truck?: boolean
+          rug_id: string
+        }
+        Update: {
+          client_id?: string | null
+          confirmed_for_delivery?: boolean
+          created_at?: string
+          delivery_list_id?: string
+          id?: string
+          loaded_on_truck?: boolean
+          rug_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_list_items_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_list_items_delivery_list_id_fkey"
+            columns: ["delivery_list_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_list_items_rug_id_fkey"
+            columns: ["rug_id"]
+            isOneToOne: false
+            referencedRelation: "rugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_lists: {
+        Row: {
+          checked_out_at: string | null
+          checked_out_by: string | null
+          compiled_by: string | null
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          route_day: string
+          status: Database["public"]["Enums"]["delivery_list_status"]
+          target_date: string
+          updated_at: string
+        }
+        Insert: {
+          checked_out_at?: string | null
+          checked_out_by?: string | null
+          compiled_by?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          route_day: string
+          status?: Database["public"]["Enums"]["delivery_list_status"]
+          target_date: string
+          updated_at?: string
+        }
+        Update: {
+          checked_out_at?: string | null
+          checked_out_by?: string | null
+          compiled_by?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          route_day?: string
+          status?: Database["public"]["Enums"]["delivery_list_status"]
+          target_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoice_items: {
         Row: {
           created_at: string
@@ -416,6 +507,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "office" | "checkin_staff" | "driver"
+      delivery_list_status: "compiling" | "confirmed" | "checked_out"
       invoice_status: "draft" | "sent" | "paid" | "overdue"
       pricing_tier: "standard" | "preferred" | "vip"
       rug_status: "checked_in" | "in_production" | "ready" | "picked_up"
@@ -547,6 +639,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "office", "checkin_staff", "driver"],
+      delivery_list_status: ["compiling", "confirmed", "checked_out"],
       invoice_status: ["draft", "sent", "paid", "overdue"],
       pricing_tier: ["standard", "preferred", "vip"],
       rug_status: ["checked_in", "in_production", "ready", "picked_up"],
