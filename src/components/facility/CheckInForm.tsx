@@ -65,7 +65,7 @@ interface CheckInFormProps {
     length: number;
     width: number;
     selectedServices: string[];
-    serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number }[];
+    serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
     totalPrice: number;
   }) => void;
 }
@@ -258,9 +258,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           if (!svc) return null;
           const lt = getLineTotal(svc);
           const up = svc.unit === "flat" ? lt : getUnitPrice(svc);
-          return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt };
+          const edges = svc.unit === "per linear ft" ? (edgeSelections[id] ?? []) : [];
+          return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
         })
-        .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number }[];
+        .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
 
       onCheckInComplete({
         rugId: selectedRug?.id,

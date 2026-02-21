@@ -36,11 +36,16 @@ export function ProductionRugCard({ rug, onAdvanceStage }: Props) {
           )}
           {rug.services.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {rug.services.map((s, i) => (
-                <Badge key={i} variant="outline" className="text-xs h-5 px-1.5">
-                  {s.name}
-                </Badge>
-              ))}
+              {rug.services.map((s, i) => {
+                const edgeLabel = s.edges && s.edges.length > 0 && s.edges.length < 4
+                  ? ` (${s.edges.map(e => e === "end1" ? "E1" : e === "end2" ? "E2" : e === "side1" ? "S1" : "S2").join("+")})`
+                  : "";
+                return (
+                  <Badge key={i} variant="outline" className="text-xs h-5 px-1.5">
+                    {s.name}{edgeLabel}
+                  </Badge>
+                );
+              })}
             </div>
           )}
         </div>

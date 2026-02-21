@@ -234,6 +234,7 @@ export type Database = {
       rug_services: {
         Row: {
           created_at: string
+          edges: string[]
           id: string
           line_total: number
           rug_id: string
@@ -243,6 +244,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          edges?: string[]
           id?: string
           line_total: number
           rug_id: string
@@ -252,6 +254,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          edges?: string[]
           id?: string
           line_total?: number
           rug_id?: string
