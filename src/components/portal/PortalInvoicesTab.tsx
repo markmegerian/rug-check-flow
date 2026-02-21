@@ -8,6 +8,10 @@ import { usePortalClient } from "@/hooks/usePortalClient";
 
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
 
+type PortalUserLookup = {
+  client_id: string;
+};
+
 type InvoiceLookup = {
   id: string;
   invoice_number: string;
@@ -46,18 +50,39 @@ const STATUS_VARIANT: Record<InvoiceStatus, "default" | "secondary" | "outline" 
 export default function PortalInvoicesTab() {
   const { toast } = useToast();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
-  const { clientId, loading: portalLoading, error: portalError } = usePortalClient();
 
-  const fetchInvoices = useCallback(async (activeClientId: string) => {
+  const fetchInvoices = useCallback(async () => {
     setLoading(true);
 
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const email = authData.user?.email?.toLowerCase();
+
+      if (!email) {
+        toast({ title: "Portal account required", description: "Please sign in again.", variant: "destructive" });
+        setInvoices([]);
+        return;
+      }
+
+      const { data: portalUser, error: portalError } = await supabase
+        .from("portal_users")
+        .select("client_id")
+        .eq("email", email)
+        .eq("status", "active")
+        .maybeSingle<PortalUserLookup>();
+
+      if (portalError || !portalUser?.client_id) {
+        toast({ title: "No portal access", description: "Your account is not linked to an active client portal user.", variant: "destructive" });
+        setInvoices([]);
+        return;
+      }
+
       const { data: invoiceRows, error: invoiceError } = await supabase
         .from("invoices")
         .select("id, invoice_number, status, total, issued_at, due_at, created_at")
-        .eq("client_id", activeClientId)
+        .eq("client_id", portalUser.client_id)
         .order("issued_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(200)
@@ -113,19 +138,12 @@ export default function PortalInvoicesTab() {
   }, [toast]);
 
   useEffect(() => {
-    if (portalError) {
-      toast({ title: "No portal access", description: portalError, variant: "destructive" });
-      setInvoices([]);
-      return;
-    }
-
-    if (!clientId) return;
-    fetchInvoices(clientId);
-  }, [clientId, fetchInvoices, portalError, toast]);
+    fetchInvoices();
+  }, [fetchInvoices]);
 
   const emptyState = useMemo(() => !loading && invoices.length === 0, [loading, invoices.length]);
 
-  if (portalLoading || loading) {
+  if (loading) {
     return <div className="text-sm text-muted-foreground">Loading invoices…</div>;
   }
 

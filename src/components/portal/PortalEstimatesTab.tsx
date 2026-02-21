@@ -4,20 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums, Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { usePortalClient } from "@/hooks/usePortalClient";
 
-type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+type EstimateStatus = Enums<"estimate_status">;
 
-type EstimateRow = {
-  id: string;
-  estimate_number: string;
-  status: EstimateStatus;
-  total: number;
-  created_at: string;
-  sent_at: string | null;
-  approved_at: string | null;
-  rejected_at: string | null;
+type EstimateRow = Pick<
+  Tables<"estimates">,
+  "id" | "estimate_number" | "status" | "total" | "created_at" | "sent_at" | "approved_at" | "rejected_at"
+> & {
   rugs?: { tag: string } | null;
 };
 
@@ -33,7 +29,7 @@ const statusBadge = (status: EstimateStatus) => {
 
 export default function PortalEstimatesTab() {
   const { toast } = useToast();
-  const { clientId, loading: portalLoading, error: portalError } = usePortalClient();
+  const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -51,26 +47,35 @@ export default function PortalEstimatesTab() {
       toast({ title: "Failed to load estimates", description: error.message, variant: "destructive" });
       return;
     }
-
     setEstimates(data ?? []);
   }, [toast]);
 
   useEffect(() => {
-    const load = async () => {
-      if (portalError) {
-        toast({ title: "No portal access", description: portalError, variant: "destructive" });
-        setEstimates([]);
-        return;
-      }
+    if (portalClientLoading) {
+      setLoading(true);
+      return;
+    }
 
-      if (!clientId) return;
+    if (errorMessage) {
+      toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
+      setLoading(false);
+      setEstimates([]);
+      return;
+    }
+
+    if (!clientId) {
+      setLoading(false);
+      return;
+    }
+
+    const init = async () => {
       setLoading(true);
       await fetchEstimates(clientId);
       setLoading(false);
     };
 
-    load();
-  }, [clientId, fetchEstimates, portalError, toast]);
+    init();
+  }, [clientId, errorMessage, fetchEstimates, portalClientLoading, toast]);
 
   const updateStatus = async (estimate: EstimateRow, nextStatus: "approved" | "rejected") => {
     if (!clientId || estimate.status !== "sent") return;
@@ -88,6 +93,7 @@ export default function PortalEstimatesTab() {
       .eq("status", "sent")
       .select("id")
       .maybeSingle<EstimateUpdateResult>();
+      .maybeSingle<Pick<Tables<"estimates">, "id">>();
 
     if (error) {
       toast({ title: "Failed to update estimate", description: error.message, variant: "destructive" });
@@ -103,7 +109,7 @@ export default function PortalEstimatesTab() {
     }
 
     const eventType = nextStatus === "approved" ? "estimate_approved_by_client" : "estimate_rejected_by_client";
-    await supabase.from("communication_events").insert({
+    const eventPayload: TablesInsert<"communication_events"> = {
       client_id: clientId,
       estimate_id: estimate.id,
       channel: "in_app_chat",
@@ -111,7 +117,8 @@ export default function PortalEstimatesTab() {
       event_type: eventType,
       subject: `${estimate.estimate_number} ${nextStatus}`,
       body: `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
-    });
+    };
+    await supabase.from("communication_events").insert(eventPayload);
 
     setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));
     toast({ title: `Estimate ${nextStatus}` });

@@ -1,26 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export type PortalUserRow = {
-  client_id: string;
+type PortalClientState = {
+  clientId: string | null;
+  loading: boolean;
+  errorMessage: string | null;
 };
 
 export function usePortalClient() {
-  const [clientId, setClientId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<PortalClientState>({
+    clientId: null,
+    loading: true,
+    errorMessage: null,
+  });
 
-  const resolveClient = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const resolve = useCallback(async () => {
+    setState((prev) => ({ ...prev, loading: true, errorMessage: null }));
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const { data: authData } = await supabase.auth.getUser();
     const email = authData.user?.email?.toLowerCase();
 
-    if (authError || !email) {
-      setClientId(null);
-      setError("Portal account required. Please sign in again.");
-      setLoading(false);
+    if (!email) {
+      setState({ clientId: null, loading: false, errorMessage: "Portal account required. Please sign in again." });
       return;
     }
 
@@ -29,22 +30,26 @@ export function usePortalClient() {
       .select("client_id")
       .eq("email", email)
       .eq("status", "active")
-      .maybeSingle<PortalUserRow>();
+      .maybeSingle();
 
     if (portalError || !portalUser?.client_id) {
-      setClientId(null);
-      setError("Your account is not linked to an active client portal user.");
-      setLoading(false);
+      setState({
+        clientId: null,
+        loading: false,
+        errorMessage: portalError?.message ?? "Your email is not linked to an active client portal account.",
+      });
       return;
     }
 
-    setClientId(portalUser.client_id);
-    setLoading(false);
+    setState({ clientId: portalUser.client_id, loading: false, errorMessage: null });
   }, []);
 
   useEffect(() => {
-    resolveClient();
-  }, [resolveClient]);
+    resolve();
+  }, [resolve]);
 
-  return { clientId, loading, error, refetch: resolveClient };
+  return {
+    ...state,
+    refresh: resolve,
+  };
 }

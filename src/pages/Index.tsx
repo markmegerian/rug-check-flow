@@ -1,7 +1,13 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Factory, Briefcase, Store, Truck, ShieldCheck, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+
+const ROLE_REDIRECTS: Record<string, string> = {
+  checkin_staff: "/facility/ops",
+  driver: "/driver",
+  office: "/facility/office",
+};
 
 const SECTIONS = [
   {
@@ -37,7 +43,16 @@ const SECTIONS = [
 ];
 
 export default function Index() {
-  const { user, signOut } = useAuth();
+  const { user, roles, signOut } = useAuth();
+
+  // Auto-redirect single-role non-admin users to their primary section
+  if (roles.length > 0 && !roles.includes("admin")) {
+    const primaryRole = roles[0];
+    const redirect = ROLE_REDIRECTS[primaryRole];
+    if (redirect) {
+      return <Navigate to={redirect} replace />;
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

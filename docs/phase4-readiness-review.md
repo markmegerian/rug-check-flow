@@ -125,3 +125,13 @@ To reduce rework, Phase 4 should be approved as:
 - **Can-have**: 4B item 7 + 4C items 9-10.
 
 If schedule is tight, ship 4A + invoice download first, then stage payment timeline and deeper test hardening in a 4.1 follow-up.
+
+---
+
+## Progress update
+
+- ✅ `PortalEstimatesTab`, `PortalPickupsTab`, and `PortalRugsTab` now use a shared portal client resolver and typed Supabase access.
+- ✅ Remaining portal mock surface for rugs has been removed.
+- ✅ Phase 2/3 portal-linked RLS policies are normalized to a single identity style (`lower(auth.jwt() ->> 'email')`) in a Phase 4A migration.
+
+With these changes, **Phase 4A is complete** and the codebase is ready to begin **Phase 4B feature completion**.
