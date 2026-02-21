@@ -136,6 +136,7 @@ Deno.serve(async (req) => {
         .from("invoices")
         .insert({
           client_id: clientId,
+          delivery_list_id,
           invoice_number: invoiceNumber,
           status: "sent",
           total: invoiceTotal,

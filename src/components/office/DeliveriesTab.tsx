@@ -54,6 +54,7 @@ type ClientInfo = {
 type InvoiceInfo = {
   id: string;
   invoice_number: string;
+  delivery_list_id: string | null;
   client_id: string | null;
   total: number;
   status: string;
@@ -349,37 +350,17 @@ export function DeliveriesTab() {
     const checkedOutLists = deliveryLists.filter((dl) => dl.status === "checked_out");
     if (checkedOutLists.length === 0) return;
 
-    // Fetch invoices created around the checkout times
+    // Fetch invoices with explicit delivery list linkage
     const { data: invoices } = await supabase
       .from("invoices")
-      .select("id, invoice_number, client_id, total, status")
+      .select("id, invoice_number, delivery_list_id, client_id, total, status")
       .order("created_at", { ascending: false })
       .limit(200);
 
-    // For each checked-out list, find matching invoices by fetching their items
     const invoiceMap: Record<string, InvoiceInfo[]> = {};
     if (invoices) {
-      // For simplicity, associate invoices with delivery lists by matching delivery list items' client_ids
       for (const dl of checkedOutLists) {
-        const { data: dlItems } = await supabase
-          .from("delivery_list_items")
-          .select("client_id, rug_id")
-          .eq("delivery_list_id", dl.id)
-          .eq("loaded_on_truck", true);
-
-        if (dlItems) {
-          const clientIds = [...new Set(dlItems.map((i) => i.client_id).filter(Boolean))];
-          // Find invoices for these clients created around checkout time
-          const matchingInvoices = invoices.filter((inv) =>
-            inv.client_id && clientIds.includes(inv.client_id) &&
-            dl.checked_out_at &&
-            new Date(inv.id) <= new Date(dl.checked_out_at) // rough match - invoices have UUIDs so we use created_at proximity
-          );
-          // Simpler approach: just match by client_id from the list
-          invoiceMap[dl.id] = invoices.filter((inv) =>
-            inv.client_id && clientIds.includes(inv.client_id)
-          ) as InvoiceInfo[];
-        }
+        invoiceMap[dl.id] = invoices.filter((inv) => inv.delivery_list_id === dl.id) as InvoiceInfo[];
       }
     }
     setHistoryInvoices(invoiceMap);
