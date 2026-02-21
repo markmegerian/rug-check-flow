@@ -50,6 +50,22 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+
+## Environment bootstrap (optional)
+
+If you are working in a fresh container/codespace and need private registry/git credentials, run:
+
+```sh
+./scripts/setup-env.sh
+```
+
+This interactive script can:
+- configure `~/.npmrc` with an npm auth token,
+- configure git credential storage with a GitHub PAT,
+- optionally run `npm install`.
+
+It writes credentials to your home directory and does not commit secrets to this repository.
+
 ## What technologies are used for this project?
 
 This project is built with:

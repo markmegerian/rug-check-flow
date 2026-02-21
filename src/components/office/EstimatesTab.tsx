@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -27,7 +26,7 @@ type EstimateRow = {
   sent_at: string | null;
   approved_at: string | null;
   rejected_at: string | null;
-  clients?: { name: string } | null;
+  clients?: { name: string; email?: string | null } | null;
   rugs?: { tag: string } | null;
 };
 
@@ -35,7 +34,15 @@ type RugOption = {
   id: string;
   tag: string;
   client_id: string | null;
-  clients?: { name: string } | null;
+  clients?: { name: string; email?: string | null } | null;
+};
+
+const ALLOWED_STATUS_TRANSITIONS: Record<EstimateStatus, EstimateStatus[]> = {
+  draft: ["sent", "expired"],
+  sent: ["approved", "rejected", "expired"],
+  approved: [],
+  rejected: [],
+  expired: [],
 };
 
 export function EstimatesTab() {
@@ -49,7 +56,7 @@ export function EstimatesTab() {
   const fetchData = useCallback(async () => {
     const { data: estRows, error: estErr } = await (supabase as any)
       .from("estimates")
-      .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name), rugs(tag)")
+      .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email), rugs(tag)")
       .order("created_at", { ascending: false })
       .limit(200);
 
@@ -144,10 +151,27 @@ export function EstimatesTab() {
 
     const { error: itemErr } = await (supabase as any).from("estimate_items").insert(items);
     if (itemErr) {
+      await (supabase as any).from("estimates").delete().eq("id", insertedEstimate.id);
       toast({ title: "Estimate items failed", description: itemErr.message, variant: "destructive" });
       setCreating(false);
       return;
     }
+
+    await logCommunicationEvent({
+      id: insertedEstimate.id,
+      rug_id: selectedRugId,
+      client_id: selectedRug.client_id,
+      estimate_number: estimateNumber,
+      status: "draft",
+      version: 1,
+      total,
+      created_at: new Date().toISOString(),
+      sent_at: null,
+      approved_at: null,
+      rejected_at: null,
+      clients: { name: selectedRug.clients?.name ?? "", email: null },
+      rugs: { tag: selectedRug.tag },
+    }, "estimate_created", `${estimateNumber} created`, `Estimate ${estimateNumber} created from service snapshot.`);
 
     toast({ title: "Estimate created", description: `${estimateNumber} created.` });
     setSelectedRugId("none");
@@ -155,7 +179,41 @@ export function EstimatesTab() {
     setCreating(false);
   };
 
+
+  const logCommunicationEvent = async (estimate: EstimateRow, eventType: string, subject: string, body: string) => {
+    const { error } = await (supabase as any).from("communication_events").insert({
+      client_id: estimate.client_id,
+      rug_id: estimate.rug_id,
+      estimate_id: estimate.id,
+      channel: "email",
+      direction: "outbound",
+      event_type: eventType,
+      subject,
+      body,
+      sent_to: estimate.clients?.email ?? null,
+    });
+
+    if (error) {
+      toast({
+        title: "Communication event logging failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    return !error;
+  };
+
   const setEstimateStatus = async (estimate: EstimateRow, status: EstimateStatus) => {
+    if (!ALLOWED_STATUS_TRANSITIONS[estimate.status].includes(status)) {
+      toast({
+        title: "Invalid status transition",
+        description: `Cannot move estimate from ${estimate.status} to ${status}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const updates: Record<string, unknown> = { status };
     if (status === "sent") updates.sent_at = new Date().toISOString();
     if (status === "approved") updates.approved_at = new Date().toISOString();
@@ -171,8 +229,43 @@ export function EstimatesTab() {
       return;
     }
 
-    setEstimates((prev) => prev.map((e) => (e.id === estimate.id ? { ...e, ...updates } as EstimateRow : e)));
+    const updatedEstimate = { ...estimate, ...updates } as EstimateRow;
+    setEstimates((prev) => prev.map((e) => (e.id === estimate.id ? updatedEstimate : e)));
+
+    const baseSubject = `${estimate.estimate_number} ${status}`;
+    const baseBody = `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} is now ${status}.`;
+    await logCommunicationEvent(updatedEstimate, `estimate_${status}`, baseSubject, baseBody);
+
     toast({ title: `Estimate ${status}` });
+  };
+
+  const sendEstimateEmail = async (estimate: EstimateRow) => {
+    const { data, error } = await supabase.functions.invoke("send-estimate-email", {
+      body: { estimate_id: estimate.id },
+    });
+
+    if (error) {
+      toast({ title: "Send failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    if (data?.error) {
+      toast({ title: "Send failed", description: data.error, variant: "destructive" });
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    setEstimates((prev) => prev.map((row) => (
+      row.id === estimate.id
+        ? {
+            ...row,
+            status: "sent",
+            sent_at: row.sent_at ?? nowIso,
+          }
+        : row
+    )));
+
+    toast({ title: "Estimate sent", description: "Email event recorded." });
   };
 
   const grouped = useMemo(() => {
@@ -239,8 +332,8 @@ export function EstimatesTab() {
 
                   <div className="flex flex-wrap gap-2">
                     {estimate.status === "draft" && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "sent")}>
-                        Mark sent
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => sendEstimateEmail(estimate)}>
+                        Send estimate
                       </Button>
                     )}
                     {estimate.status === "sent" && (
