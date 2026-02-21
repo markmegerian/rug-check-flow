@@ -47,6 +47,12 @@ const mapStatus = (status: RugLookup["status"]): PortalStatus => {
   return "in_progress";
 };
 
+const mapStatus = (status: RugLookup["status"]): PortalStatus => {
+  if (status === "ready") return "ready";
+  if (status === "picked_up") return "delivered";
+  return "in_progress";
+};
+
 export default function PortalRugsTab() {
   const { toast } = useToast();
   const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();

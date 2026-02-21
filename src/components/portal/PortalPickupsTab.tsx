@@ -145,6 +145,10 @@ export default function PortalPickupsTab() {
         .from("clients")
         .select("id, route_day, address")
         .eq("id", clientId)
+        .maybeSingle<ClientLookupRow>();
+
+      if (clientError || !selectedClient?.id) {
+        toast({ title: "No client found", description: "Please create at least one client record first.", variant: "destructive" });
         .maybeSingle();
 
       if (clientError || !selectedClient?.id) {
