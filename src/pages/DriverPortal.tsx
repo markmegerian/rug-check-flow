@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,17 +31,40 @@ type DriverPickup = {
   }[];
 };
 
+type PickupRequestRow = {
+  id: string;
+  scheduled_date: string;
+  status: PickupStatus;
+  completed_at: string | null;
+  signature_data_url: string | null;
+  clients: {
+    name: string | null;
+    address: string | null;
+  } | null;
+};
+
+type PickupRequestItemRow = {
+  id: string;
+  pickup_request_id: string;
+  rug_number: string;
+  rug_type: string | null;
+  length: number | null;
+  width: number | null;
+  verified: boolean | null;
+  driver_notes: string | null;
+};
+
 const DriverPortal: React.FC = () => {
   const { user } = useAuth();
   const [pickups, setPickups] = useState<DriverPickup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activePickupId, setActivePickupId] = useState<string | null>(null);
 
-  const fetchPickups = async () => {
+  const fetchPickups = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
 
-    const { data: reqData, error: reqErr } = await (supabase as any)
+    const { data: reqData, error: reqErr } = await supabase
       .from("pickup_requests")
       .select("id, scheduled_date, status, completed_at, signature_data_url, clients(name,address)")
       .eq("assigned_driver_id", user.id)
@@ -54,17 +77,17 @@ const DriverPortal: React.FC = () => {
       return;
     }
 
-    const requests = (reqData ?? []) as any[];
+    const requests = (reqData ?? []) as unknown as PickupRequestRow[];
     const requestIds = requests.map((r) => r.id);
 
     const { data: itemData } = requestIds.length === 0
       ? { data: [] }
-      : await (supabase as any)
+      : await supabase
           .from("pickup_request_items")
           .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes")
           .in("pickup_request_id", requestIds);
 
-    const items = (itemData ?? []) as any[];
+    const items = (itemData ?? []) as unknown as PickupRequestItemRow[];
 
     const mapped: DriverPickup[] = requests.map((r) => ({
       id: r.id,
@@ -89,11 +112,11 @@ const DriverPortal: React.FC = () => {
 
     setPickups(mapped);
     setLoading(false);
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchPickups();
-  }, [user?.id]);
+  }, [fetchPickups]);
 
   const assigned = useMemo(() => pickups.filter((p) => p.status === "assigned"), [pickups]);
   const completed = useMemo(() => pickups.filter((p) => p.status === "completed"), [pickups]);
@@ -109,7 +132,7 @@ const DriverPortal: React.FC = () => {
     if (!pickup || !rug || pickup.status === "completed") return;
 
     const next = !rug.verified;
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("pickup_request_items")
       .update({ verified: next })
       .eq("id", rugId);
@@ -126,7 +149,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setRugNotes = async (pickupId: string, rugId: string, notes: string) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("pickup_request_items")
       .update({ driver_notes: notes })
       .eq("id", rugId);
@@ -143,7 +166,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setSignature = async (pickupId: string, dataUrl: string | null) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("pickup_requests")
       .update({ signature_data_url: dataUrl })
       .eq("id", pickupId);
@@ -158,7 +181,7 @@ const DriverPortal: React.FC = () => {
 
   const completePickup = async (pickupId: string) => {
     const completedAt = new Date().toISOString();
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("pickup_requests")
       .update({ status: "completed", completed_at: completedAt })
       .eq("id", pickupId);

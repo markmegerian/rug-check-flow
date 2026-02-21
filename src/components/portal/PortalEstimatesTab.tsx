@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { usePortalClient } from "@/hooks/usePortalClient";
 
 type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
 
@@ -20,6 +21,8 @@ type EstimateRow = {
   rugs?: { tag: string } | null;
 };
 
+type EstimateUpdateResult = { id: string };
+
 const statusBadge = (status: EstimateStatus) => {
   if (status === "sent") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Pending approval</Badge>;
   if (status === "approved") return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>;
@@ -30,59 +33,44 @@ const statusBadge = (status: EstimateStatus) => {
 
 export default function PortalEstimatesTab() {
   const { toast } = useToast();
-  const [clientId, setClientId] = useState<string | null>(null);
+  const { clientId, loading: portalLoading, error: portalError } = usePortalClient();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("estimates")
       .select("id, estimate_number, status, total, created_at, sent_at, approved_at, rejected_at, rugs(tag)")
       .eq("client_id", activeClientId)
       .order("created_at", { ascending: false })
-      .limit(200);
+      .limit(200)
+      .returns<EstimateRow[]>();
 
     if (error) {
       toast({ title: "Failed to load estimates", description: error.message, variant: "destructive" });
       return;
     }
 
-    setEstimates((data ?? []) as EstimateRow[]);
+    setEstimates(data ?? []);
   }, [toast]);
 
   useEffect(() => {
-    const init = async () => {
+    const load = async () => {
+      if (portalError) {
+        toast({ title: "No portal access", description: portalError, variant: "destructive" });
+        setEstimates([]);
+        return;
+      }
+
+      if (!clientId) return;
       setLoading(true);
-
-      const { data: authData } = await supabase.auth.getUser();
-      const email = authData.user?.email?.toLowerCase();
-      if (!email) {
-        toast({ title: "Portal account required", description: "Please sign in again.", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
-      const { data: portalUser } = await (supabase as any)
-        .from("portal_users")
-        .select("client_id")
-        .eq("email", email)
-        .eq("status", "active")
-        .maybeSingle();
-
-      if (!portalUser?.client_id) {
-        toast({ title: "No portal access", description: "Your email is not linked to an active client portal account.", variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
-      setClientId(portalUser.client_id);
-      await fetchEstimates(portalUser.client_id);
+      await fetchEstimates(clientId);
       setLoading(false);
     };
 
-    init();
-  }, [fetchEstimates, toast]);
+    load();
+  }, [clientId, fetchEstimates, portalError, toast]);
 
   const updateStatus = async (estimate: EstimateRow, nextStatus: "approved" | "rejected") => {
     if (!clientId || estimate.status !== "sent") return;
@@ -92,14 +80,14 @@ export default function PortalEstimatesTab() {
     const timestampField = nextStatus === "approved" ? "approved_at" : "rejected_at";
     const nowIso = new Date().toISOString();
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("estimates")
       .update({ status: nextStatus, [timestampField]: nowIso })
       .eq("id", estimate.id)
       .eq("client_id", clientId)
       .eq("status", "sent")
       .select("id")
-      .maybeSingle();
+      .maybeSingle<EstimateUpdateResult>();
 
     if (error) {
       toast({ title: "Failed to update estimate", description: error.message, variant: "destructive" });
@@ -115,7 +103,7 @@ export default function PortalEstimatesTab() {
     }
 
     const eventType = nextStatus === "approved" ? "estimate_approved_by_client" : "estimate_rejected_by_client";
-    await (supabase as any).from("communication_events").insert({
+    await supabase.from("communication_events").insert({
       client_id: clientId,
       estimate_id: estimate.id,
       channel: "in_app_chat",
@@ -133,7 +121,7 @@ export default function PortalEstimatesTab() {
   const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
-  if (loading) {
+  if (portalLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
   }
 

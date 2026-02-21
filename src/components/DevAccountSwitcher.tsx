@@ -43,10 +43,11 @@ export function DevAccountSwitcher() {
 
       toast({ title: `Switched to ${ROLE_LABELS[role]}` });
       setOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
       toast({
         title: `Login failed (${role})`,
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
