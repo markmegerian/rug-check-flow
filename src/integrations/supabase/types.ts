@@ -285,6 +285,7 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          onboarding_completed_at: string | null
           status: string
         }
         Insert: {
@@ -292,6 +293,7 @@ export type Database = {
           created_at?: string
           email: string
           id?: string
+          onboarding_completed_at?: string | null
           status?: string
         }
         Update: {
@@ -299,6 +301,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          onboarding_completed_at?: string | null
           status?: string
         }
         Relationships: [
@@ -521,6 +524,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      mark_portal_onboarding_complete: {
+        Args: Record<PropertyKey, never>
         Returns: boolean
       }
     }

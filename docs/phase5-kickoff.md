@@ -25,6 +25,8 @@ Give office/admin teams a live operational pulse without reintroducing noisy sho
 
 ## Progress update
 
+- ✅ Wholesale portal now includes first-login onboarding with guided steps across Rugs, Pickups, Estimates, and Invoices.
+- ✅ Onboarding completion is persisted server-side via `portal_users.onboarding_completed_at` and `mark_portal_onboarding_complete()`.
 - ✅ Reminder cards now deep-link into Office tabs with pre-applied reminder filters (`tab`, `status`, `minAgeDays`).
 - ✅ SLA aging bands are shown on each reminder card (3-4d, 5-6d, 7+d) with severity styling.
 - ✅ Notification delivery layer added via `operational-alerts` edge function (Slack + email providers when configured).

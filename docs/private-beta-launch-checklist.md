@@ -39,6 +39,7 @@ This checklist is the final gate before sending private beta invitations.
   - open invoice detail,
   - download PDF successfully,
   - verify payment attempt timeline renders.
+- [ ] Verify first-login portal onboarding auto-opens for a portal-linked user and completion is persisted.
 - [ ] Mark a sent invoice as paid and verify a `payment_attempts` row is auto-created.
 - [ ] Trigger a dry-run of `operational-alerts` and confirm critical reminder summary returns.
 
