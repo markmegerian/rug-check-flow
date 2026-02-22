@@ -18,7 +18,6 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `VITE_ENABLE_DEV_SWITCHER` must remain `"false"` outside local development
-- `VITE_INVOICE_PDF_BUCKET` (defaults to `invoice-pdfs`; should match your storage bucket for invoice artifacts)
 
 ### Supabase Edge Function secrets
 
