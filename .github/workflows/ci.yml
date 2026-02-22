@@ -26,6 +26,10 @@ jobs:
       DRIVER_USER_PASSWORD: ${{ secrets.DRIVER_USER_PASSWORD }}
       EXPECTED_PORTAL_CLIENT_ID: ${{ secrets.EXPECTED_PORTAL_CLIENT_ID }}
       EXPECTED_DRIVER_USER_ID: ${{ secrets.EXPECTED_DRIVER_USER_ID }}
+      SMOKE_USER_EMAIL: ${{ secrets.SMOKE_USER_EMAIL }}
+      SMOKE_USER_PASSWORD: ${{ secrets.SMOKE_USER_PASSWORD }}
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+      SAMPLE_INVOICE_ID: ${{ secrets.SAMPLE_INVOICE_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +51,10 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Staging smoke script (optional)
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.SMOKE_USER_EMAIL != '' && env.SMOKE_USER_PASSWORD != '' }}
+        run: ./scripts/staging-smoke-test.sh
 
       - name: Role-scoped integration tests (optional)
         if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.PORTAL_USER_EMAIL != '' && env.PORTAL_USER_PASSWORD != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' && env.DRIVER_USER_EMAIL != '' && env.DRIVER_USER_PASSWORD != '' }}

@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  getInvoicePdfBucket,
+  renderInvoicePdfBytes,
+  resolveInvoicePdfStoragePath,
+  uploadInvoicePdf,
+} from "../_shared/invoice-pdf.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -97,6 +103,12 @@ Deno.serve(async (req) => {
 
     // Create one invoice per client
     for (const [clientId, rugIds] of Object.entries(clientRugs)) {
+      const { data: clientRow } = await supabase
+        .from("clients")
+        .select("name, email")
+        .eq("id", clientId)
+        .maybeSingle();
+
       // Get rug_services for these rugs to build line items
       const { data: rugServices } = await supabase
         .from("rug_services")
@@ -130,6 +142,7 @@ Deno.serve(async (req) => {
 
       // Generate invoice number
       const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}-${clientId.slice(0, 4).toUpperCase()}`;
+      const pdfStoragePath = resolveInvoicePdfStoragePath(clientId, invoiceNumber);
 
       // Create invoice
       const { data: invoice, error: invError } = await supabase
@@ -142,6 +155,7 @@ Deno.serve(async (req) => {
           total: invoiceTotal,
           issued_at: new Date().toISOString(),
           due_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          pdf_storage_path: pdfStoragePath,
         })
         .select("id")
         .single();
@@ -166,6 +180,36 @@ Deno.serve(async (req) => {
           }))
         );
       }
+
+      try {
+        const pdfBytes = await renderInvoicePdfBytes({
+          invoiceNumber,
+          clientName: clientRow?.name ?? "Client",
+          issuedAt: new Date().toISOString(),
+          dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          totalAmount: invoiceTotal,
+          lineItems: lineItems.map((line) => ({
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unit_price,
+            total: line.total,
+          })),
+        });
+        await uploadInvoicePdf(supabase, getInvoicePdfBucket(), pdfStoragePath, pdfBytes);
+      } catch (pdfError) {
+        console.error("Failed to generate invoice PDF", { invoiceId: invoice.id, error: pdfError });
+      }
+
+      await supabase.from("communication_events").insert({
+        client_id: clientId,
+        invoice_id: invoice.id,
+        channel: "email",
+        direction: "outbound",
+        event_type: "invoice_sent",
+        subject: `${invoiceNumber} created and sent`,
+        body: `Created invoice ${invoiceNumber} during delivery checkout for ${rugIds.length} rugs.`,
+        sent_to: clientRow?.email ?? null,
+      });
 
       // Update rugs to picked_up status
       await supabase

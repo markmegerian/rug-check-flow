@@ -353,7 +353,7 @@ export function DeliveriesTab() {
     // Fetch invoices with explicit delivery list linkage
     const { data: invoices } = await supabase
       .from("invoices")
-      .select("id, invoice_number, client_id, total, status")
+      .select("id, invoice_number, delivery_list_id, client_id, total, status")
       .order("created_at", { ascending: false })
       .limit(200);
 

@@ -5,7 +5,6 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
-import { supabaseExtended } from "@/integrations/supabase/extended";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
@@ -15,14 +14,12 @@ const PAGE_SIZE = 50;
 
 type InvoiceLookup = {
   id: string;
-  client_id: string;
   invoice_number: string;
   status: InvoiceStatus;
   total: number;
   issued_at: string | null;
   due_at: string | null;
   created_at: string;
-  pdf_storage_path: string | null;
 };
 
 type InvoiceItemLookup = {
@@ -54,13 +51,11 @@ type PortalInvoicePaymentAttempt = {
 
 type PortalInvoice = {
   id: string;
-  clientId: string;
   invoiceNumber: string;
   status: InvoiceStatus;
   totalAmount: number;
   date: string;
   dueAt: string | null;
-  pdfStoragePath: string | null;
   lineItems: { key: string; rugNumber: string; description: string; subtotal: number }[];
   paymentAttempts: PortalInvoicePaymentAttempt[];
 };
@@ -94,7 +89,7 @@ export default function PortalInvoicesTab() {
       const to = from + PAGE_SIZE - 1;
       const { data: invoiceRows, error: invoiceError } = await supabase
         .from("invoices")
-        .select("id, client_id, invoice_number, status, total, issued_at, due_at, created_at, pdf_storage_path")
+        .select("id, invoice_number, status, total, issued_at, due_at, created_at")
         .eq("client_id", activeClientId)
         .order("issued_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
@@ -162,13 +157,11 @@ export default function PortalInvoicesTab() {
 
         return {
           id: invoice.id,
-          clientId: invoice.client_id,
           invoiceNumber: invoice.invoice_number,
           status: invoice.status,
           totalAmount: Number(invoice.total ?? 0),
           date: invoice.issued_at ?? invoice.created_at,
           dueAt: invoice.due_at,
-          pdfStoragePath: invoice.pdf_storage_path,
           lineItems,
           paymentAttempts,
         };
@@ -233,31 +226,13 @@ export default function PortalInvoicesTab() {
 
     try {
       const artifact = await downloadInvoicePdf({
+        invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
-        pdfStoragePath: invoice.pdfStoragePath,
       });
       toast({
         title: "Invoice download started",
         description: `${invoice.invoiceNumber}.pdf (${artifact.bucket}/${artifact.path})`,
       });
-
-      const { error: eventError } = await supabaseExtended.from("communication_events").insert({
-        client_id: invoice.clientId,
-        invoice_id: invoice.id,
-        channel: "in_app_chat",
-        direction: "inbound",
-        event_type: "invoice_pdf_downloaded_by_client",
-        subject: `${invoice.invoiceNumber} downloaded`,
-        body: `Portal client downloaded ${invoice.invoiceNumber}.pdf from ${artifact.path}.`,
-      });
-
-      if (eventError) {
-        toast({
-          title: "Download completed with warning",
-          description: `Activity log update failed: ${eventError.message}`,
-          variant: "destructive",
-        });
-      }
     } catch (error) {
       const description = error instanceof Error ? error.message : "Unknown error";
       toast({
