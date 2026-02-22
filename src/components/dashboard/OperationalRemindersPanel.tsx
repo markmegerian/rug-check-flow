@@ -48,7 +48,8 @@ export function OperationalRemindersPanel() {
   const { roles } = useAuth();
   const { loading, errorMessage, reminders, updates, trends, refresh } = useOperationalReminders();
   const [sendingAlerts, setSendingAlerts] = useState(false);
-  const canSendAlerts = roles.includes("admin") || roles.includes("office");
+  const alertsEnabled = import.meta.env.VITE_ENABLE_OPERATIONAL_ALERTS === "true";
+  const canSendAlerts = alertsEnabled && (roles.includes("admin") || roles.includes("office"));
 
   const sendCriticalAlerts = async () => {
     if (!canSendAlerts) return;
