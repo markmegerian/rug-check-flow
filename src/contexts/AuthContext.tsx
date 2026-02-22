@@ -1,13 +1,20 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
 type AppRole = "admin" | "office" | "checkin_staff" | "driver";
+type PortalUserLink = {
+  client_id: string;
+  onboarding_completed_at: string | null;
+};
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   roles: AppRole[];
+  portalClientId: string | null;
+  portalOnboardingCompletedAt: string | null;
+  isPortalUser: boolean;
   loading: boolean;
   hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
@@ -19,52 +26,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [portalClientId, setPortalClientId] = useState<string | null>(null);
+  const [portalOnboardingCompletedAt, setPortalOnboardingCompletedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const syncTokenRef = useRef(0);
 
-  const fetchRoles = async (userId: string) => {
+  const fetchRoles = async (userId: string): Promise<AppRole[]> => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    setRoles((data ?? []).map((r) => r.role));
+    return (data ?? []).map((r) => r.role as AppRole);
+  };
+
+  const fetchPortalLink = async (email: string | null | undefined): Promise<PortalUserLink | null> => {
+    if (!email) return null;
+    const normalizedEmail = email.toLowerCase();
+    const { data } = await supabase
+      .from("portal_users")
+      .select("client_id, onboarding_completed_at")
+      .eq("email", normalizedEmail)
+      .eq("status", "active")
+      .maybeSingle<PortalUserLink>();
+    return data?.client_id ? data : null;
+  };
+
+  const syncAuthState = async (nextSession: Session | null) => {
+    const syncToken = ++syncTokenRef.current;
+    setLoading(true);
+    setSession(nextSession);
+    const nextUser = nextSession?.user ?? null;
+    setUser(nextUser);
+
+    if (!nextUser) {
+      setRoles([]);
+      setPortalClientId(null);
+      setPortalOnboardingCompletedAt(null);
+      setLoading(false);
+      return;
+    }
+
+    const [nextRoles, portalLink] = await Promise.all([
+      fetchRoles(nextUser.id),
+      fetchPortalLink(nextUser.email),
+    ]);
+
+    if (syncTokenRef.current !== syncToken) return;
+
+    setRoles(nextRoles);
+    setPortalClientId(portalLink?.client_id ?? null);
+    setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
+    setLoading(false);
   };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        if (newSession?.user) {
-          // Defer role fetch to avoid deadlocks
-          setTimeout(() => fetchRoles(newSession.user.id), 0);
-        } else {
-          setRoles([]);
-        }
-        setLoading(false);
+      (_event, newSession) => {
+        void syncAuthState(newSession);
       }
     );
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchRoles(s.user.id);
-      }
-      setLoading(false);
+      void syncAuthState(s);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   const hasRole = (role: AppRole) => roles.includes(role);
+  const isPortalUser = Boolean(portalClientId);
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
+    setPortalClientId(null);
+    setPortalOnboardingCompletedAt(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, roles, loading, hasRole, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        roles,
+        portalClientId,
+        portalOnboardingCompletedAt,
+        isPortalUser,
+        loading,
+        hasRole,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
