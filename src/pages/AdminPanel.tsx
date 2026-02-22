@@ -49,23 +49,25 @@ export default function AdminPanel() {
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
     >
-      <div className="h-full flex flex-col bg-background">
+      <div className="h-full flex flex-col bg-muted/20">
         <WorkspaceQuickActions
+          className="mx-3 mt-3 rounded-xl border border-border bg-card shadow-sm"
           actions={QUICK_ACTIONS}
           activeTab={activeTab}
           onSelectTab={setActiveTab}
         />
 
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-2 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             desktopWidthClassName="md:w-52"
             mobileLabelMode="desktop-only"
+            className="bg-muted/30"
           />
 
-          <main className="flex-1 min-w-0 overflow-auto">
+          <main className="flex-1 min-w-0 overflow-auto bg-background">
             {activeTab === "users" && <UsersTab />}
             {activeTab === "roles" && <RolesTab />}
             {activeTab === "audit" && <AuditLogTab />}

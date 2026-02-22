@@ -27,7 +27,7 @@ export function WorkspaceTabs<T extends string>({
   return (
     <nav
       className={cn(
-        "order-last md:order-first border-t md:border-t-0 md:border-r border-border bg-card/60 backdrop-blur-sm flex md:flex-col shrink-0 z-20",
+        "order-last md:order-first border-t md:border-t-0 md:border-r border-border/80 bg-card/70 backdrop-blur-sm flex md:flex-col shrink-0 z-20 p-1.5 md:p-2 gap-1",
         desktopWidthClassName,
         className
       )}
@@ -40,10 +40,10 @@ export function WorkspaceTabs<T extends string>({
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 px-1 py-2 md:px-4 md:py-3 text-xs md:text-sm font-medium transition-colors",
+              "flex-1 md:flex-none rounded-lg border flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 px-1.5 py-2 md:px-3 md:py-2.5 text-xs md:text-sm font-medium transition-all",
               active
-                ? "bg-background text-foreground md:shadow-sm md:border-r-2 md:border-primary border-t-2 md:border-t-0 border-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                : "text-muted-foreground border-transparent hover:text-foreground hover:bg-background/70"
             )}
           >
             <Icon className="h-5 w-5 shrink-0" />
