@@ -30,14 +30,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { role, secret } = body;
-
-    if (secret !== devSecret) {
-      return new Response(JSON.stringify({ error: "Invalid dev secret" }), {
-        status: 403,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
+    const { role } = body;
 
     if (!role || !ROLE_EMAILS[role]) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
