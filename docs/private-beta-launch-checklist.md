@@ -13,7 +13,9 @@ This checklist is the final gate before sending private beta invitations.
 
 - [ ] Deploy edge functions:
   - `checkout-delivery`
+  - `admin-provision-employee`
   - `send-estimate-email`
+  - `send-portal-onboarding-email`
   - `invoice-pdf`
   - `operational-alerts`
 - [ ] Ensure edge function secrets are configured:
@@ -22,6 +24,7 @@ This checklist is the final gate before sending private beta invitations.
   - `INVOICE_PDF_BUCKET` (optional; default `invoice-pdfs`)
   - `SLACK_WEBHOOK_URL` (optional for critical Slack notifications)
   - `OPS_ALERT_EMAILS` and `OPS_ALERT_FROM_EMAIL` (optional for email notifications)
+  - `PORTAL_ONBOARDING_EMAIL_FROM` and `PORTAL_APP_URL` (optional for wholesale onboarding emails)
 
 ## 3) Auth and role setup
 

@@ -89,6 +89,8 @@ Edge function environment:
 - `SLACK_WEBHOOK_URL` (optional) for critical operational alert notifications.
 - `OPS_ALERT_EMAILS` (optional CSV list) for email alert recipients.
 - `OPS_ALERT_FROM_EMAIL` (optional) sender used by operational alerts when email is configured.
+- `PORTAL_ONBOARDING_EMAIL_FROM` (optional) sender used for wholesale onboarding email.
+- `PORTAL_APP_URL` (optional) sign-in URL used in wholesale onboarding email body.
 
 ## Release runbook and smoke testing
 

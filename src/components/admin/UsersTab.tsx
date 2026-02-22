@@ -30,6 +30,17 @@ type FormState = {
   role: AppRole;
 };
 
+type CreateMode = "existing" | "new";
+type ProvisionEmployeeResponse = {
+  success?: boolean;
+  user_id?: string;
+  email?: string;
+  role?: AppRole;
+  reused_existing_user?: boolean;
+  error?: string;
+  details?: unknown;
+};
+
 const ROLE_PRIORITY: AppRole[] = ["admin", "office", "checkin_staff", "driver"];
 const EMPTY_FORM: FormState = {
   userId: "",
@@ -46,6 +57,8 @@ export function UsersTab() {
   const [saving, setSaving] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUserRow | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [createMode, setCreateMode] = useState<CreateMode>("existing");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [formState, setFormState] = useState<FormState>(EMPTY_FORM);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
@@ -127,12 +140,16 @@ export function UsersTab() {
   const openCreate = () => {
     setIsCreating(true);
     setEditingUser(null);
+    setCreateMode("existing");
+    setTemporaryPassword("");
     setFormState(EMPTY_FORM);
   };
 
   const closeSheet = () => {
     setEditingUser(null);
     setIsCreating(false);
+    setCreateMode("existing");
+    setTemporaryPassword("");
     setFormState(EMPTY_FORM);
   };
 
@@ -161,40 +178,84 @@ export function UsersTab() {
         return;
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, email")
-        .ilike("email", normalizedEmail)
-        .maybeSingle();
+      if (createMode === "new") {
+        if (!formState.name.trim()) {
+          toast({ title: "Full name required", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+        if (temporaryPassword.trim().length < 8) {
+          toast({
+            title: "Temporary password too short",
+            description: "Use at least 8 characters.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
 
-      if (profileError) {
-        toast({ title: "Lookup failed", description: profileError.message, variant: "destructive" });
-        setSaving(false);
-        return;
-      }
+        const { data, error } = await supabase.functions.invoke<ProvisionEmployeeResponse>(
+          "admin-provision-employee",
+          {
+            body: {
+              email: normalizedEmail,
+              full_name: formState.name.trim(),
+              password: temporaryPassword.trim(),
+              role: formState.role,
+            },
+          }
+        );
 
-      if (!profile?.user_id) {
+        if (error || data?.error) {
+          toast({
+            title: "Employee provisioning failed",
+            description: data?.error || error?.message || "Unknown error",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+
         toast({
-          title: "User not found",
-          description: "This email must sign in once before role assignment.",
-          variant: "destructive",
+          title: data?.reused_existing_user ? "Employee access updated" : "Employee account created",
+          description: `${normalizedEmail} can now sign in as ${formState.role}.`,
         });
-        setSaving(false);
-        return;
+      } else {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+
+        if (profileError) {
+          toast({ title: "Lookup failed", description: profileError.message, variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+
+        if (!profile?.user_id) {
+          toast({
+            title: "User not found",
+            description: "Switch to “Create new employee account” to provision this employee now.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+
+        await supabase.from("user_roles").delete().eq("user_id", profile.user_id);
+        const { error: insertError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: profile.user_id, role: formState.role });
+
+        if (insertError) {
+          toast({ title: "Role assignment failed", description: insertError.message, variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+
+        toast({ title: "Role assigned", description: `${profile.email} is now ${formState.role}.` });
       }
-
-      await supabase.from("user_roles").delete().eq("user_id", profile.user_id);
-      const { error: insertError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: profile.user_id, role: formState.role });
-
-      if (insertError) {
-        toast({ title: "Role assignment failed", description: insertError.message, variant: "destructive" });
-        setSaving(false);
-        return;
-      }
-
-      toast({ title: "Role assigned", description: `${profile.email} is now ${formState.role}.` });
     } else {
       if (!formState.userId) {
         toast({ title: "Missing user", variant: "destructive" });
@@ -236,7 +297,7 @@ export function UsersTab() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Users</h2>
         <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-1" /> Assign Role
+          <Plus className="h-4 w-4 mr-1" /> Add Employee
         </Button>
       </div>
 
@@ -270,10 +331,10 @@ export function UsersTab() {
       ) : users.length === 0 ? (
         <EmptyState
           title="No role assignments found"
-          description="Assign a role to start granting workspace access."
+          description="Add an employee account or assign a role to an existing user."
           action={
             <Button size="sm" onClick={openCreate}>
-              <Plus className="h-4 w-4 mr-1" /> Assign Role
+              <Plus className="h-4 w-4 mr-1" /> Add Employee
             </Button>
           }
         />
@@ -326,26 +387,74 @@ export function UsersTab() {
       <Sheet open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>{isCreating ? "Assign Role" : "Edit Role"}</SheetTitle>
+            <SheetTitle>{isCreating ? "Employee Access" : "Edit Role"}</SheetTitle>
             <SheetDescription>
               {isCreating
-                ? "Assign a role to an existing user profile."
+                ? "Create a new employee account or assign a role to an existing user."
                 : "Update role assignment for this user."}
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 mt-6">
             {isCreating ? (
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  placeholder="user@company.com"
-                  value={formState.email}
-                  onChange={(e) =>
-                    setFormState((prev) => ({ ...prev, email: e.target.value }))
-                  }
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label>Access Setup</Label>
+                  <Select
+                    value={createMode}
+                    onValueChange={(value) => {
+                      setCreateMode(value as CreateMode);
+                      setTemporaryPassword("");
+                      setFormState((prev) => ({ ...prev, name: "", email: "" }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="existing">Assign role to existing user</SelectItem>
+                      <SelectItem value="new">Create new employee account</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="user@company.com"
+                    value={formState.email}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, email: e.target.value }))
+                    }
+                  />
+                </div>
+                {createMode === "new" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Full Name</Label>
+                      <Input
+                        placeholder="Employee name"
+                        value={formState.name}
+                        onChange={(e) =>
+                          setFormState((prev) => ({ ...prev, name: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Temporary Password</Label>
+                      <Input
+                        type="password"
+                        placeholder="Minimum 8 characters"
+                        value={temporaryPassword}
+                        onChange={(e) => setTemporaryPassword(e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Existing-user mode expects this email to have signed in previously.
+                  </p>
+                )}
+              </>
             ) : (
               <>
                 <div className="space-y-1">
@@ -381,9 +490,20 @@ export function UsersTab() {
             <Button
               className="w-full mt-4"
               onClick={save}
-              disabled={saving || (isCreating && !formState.email.trim())}
+              disabled={
+                saving ||
+                (isCreating &&
+                  (!formState.email.trim() ||
+                    (createMode === "new" && (!formState.name.trim() || !temporaryPassword.trim()))))
+              }
             >
-              {saving ? "Saving..." : isCreating ? "Assign Role" : "Save Changes"}
+              {saving
+                ? "Saving..."
+                : isCreating
+                  ? createMode === "new"
+                    ? "Create Employee Account"
+                    : "Assign Role"
+                  : "Save Changes"}
             </Button>
           </div>
         </SheetContent>
