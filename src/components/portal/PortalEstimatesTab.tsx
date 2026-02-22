@@ -3,23 +3,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
-
-type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
+import type { Tables } from "@/integrations/supabase/types";
 
 type EstimateRow = {
-  id: string;
-  estimate_number: string;
-  status: EstimateStatus;
-  total: number;
-  created_at: string;
-  sent_at: string | null;
-  approved_at: string | null;
-  rejected_at: string | null;
-  rugs?: { tag: string } | null;
+  id: ExtendedTableRow<"estimates">["id"];
+  estimate_number: ExtendedTableRow<"estimates">["estimate_number"];
+  status: ExtendedTableRow<"estimates">["status"];
+  total: ExtendedTableRow<"estimates">["total"];
+  created_at: ExtendedTableRow<"estimates">["created_at"];
+  sent_at: ExtendedTableRow<"estimates">["sent_at"];
+  approved_at: ExtendedTableRow<"estimates">["approved_at"];
+  rejected_at: ExtendedTableRow<"estimates">["rejected_at"];
+  rugs?: Pick<Tables<"rugs">, "tag"> | null;
 };
+
+type PortalUserLookup = Pick<Tables<"portal_users">, "client_id">;
 
 const statusBadge = (status: EstimateStatus) => {
   if (status === "sent") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Pending approval</Badge>;
@@ -38,7 +40,7 @@ export default function PortalEstimatesTab() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabaseExtended
       .from("estimates")
       .select("id, estimate_number, status, total, created_at, sent_at, approved_at, rejected_at, rugs(tag)")
       .eq("client_id", activeClientId)
@@ -50,7 +52,7 @@ export default function PortalEstimatesTab() {
       return;
     }
 
-    setEstimates((data ?? []) as EstimateRow[]);
+    setEstimates((data ?? []) as unknown as EstimateRow[]);
   }, [toast]);
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function PortalEstimatesTab() {
       setLoading(true);
       setAccessError(null);
 
-      const { data: authData } = await supabase.auth.getUser();
+      const { data: authData } = await supabaseExtended.auth.getUser();
       const email = authData.user?.email?.toLowerCase();
       if (!email) {
         setAccessError("Portal account required. Please sign in again.");
@@ -66,21 +68,22 @@ export default function PortalEstimatesTab() {
         return;
       }
 
-      const { data: portalUser } = await (supabase as any)
+      const { data: portalUser } = await supabaseExtended
         .from("portal_users")
         .select("client_id")
         .eq("email", email)
         .eq("status", "active")
         .maybeSingle();
 
-      if (!portalUser?.client_id) {
+      const typedPortalUser = portalUser as PortalUserLookup | null;
+      if (!typedPortalUser?.client_id) {
         setAccessError("No active portal access was found for your account.");
         setLoading(false);
         return;
       }
 
-      setClientId(portalUser.client_id);
-      await fetchEstimates(portalUser.client_id);
+      setClientId(typedPortalUser.client_id);
+      await fetchEstimates(typedPortalUser.client_id);
       setLoading(false);
     };
 
@@ -88,14 +91,22 @@ export default function PortalEstimatesTab() {
   }, [fetchEstimates, toast]);
 
   const updateStatus = async (estimate: EstimateRow, nextStatus: "approved" | "rejected") => {
-    if (!clientId || estimate.status !== "sent") return;
+    if (!clientId) return;
+    if (!canRoleTransitionEstimateStatus("portal", estimate.status, nextStatus)) {
+      toast({
+        title: "Update blocked",
+        description: `Estimate cannot move from ${estimate.status} to ${nextStatus}.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     setUpdatingId(estimate.id);
 
     const timestampField = nextStatus === "approved" ? "approved_at" : "rejected_at";
     const nowIso = new Date().toISOString();
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabaseExtended
       .from("estimates")
       .update({ status: nextStatus, [timestampField]: nowIso })
       .eq("id", estimate.id)
@@ -118,7 +129,7 @@ export default function PortalEstimatesTab() {
     }
 
     const eventType = nextStatus === "approved" ? "estimate_approved_by_client" : "estimate_rejected_by_client";
-    await (supabase as any).from("communication_events").insert({
+    await supabaseExtended.from("communication_events").insert({
       client_id: clientId,
       estimate_id: estimate.id,
       channel: "in_app_chat",

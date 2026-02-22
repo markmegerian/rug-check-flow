@@ -5,8 +5,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
+import {
+  canPortalEditPickup,
+  canRoleTransitionPickupStatus,
+  normalizePortalPickupStatus,
+} from "@/lib/workflow-guards";
+import type { Tables } from "@/integrations/supabase/types";
 
 const DEFAULT_ROUTE_DAY = "Thursday";
 const DEFAULT_REGION = "Westchester";
@@ -31,23 +37,26 @@ const getNextDateForRouteDay = (routeDay: string) => {
 };
 
 type PickupRequestRow = {
-  id: string;
-  client_id: string;
-  route_day: string;
-  scheduled_date: string;
-  status: "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
-  notes: string | null;
+  id: ExtendedTableRow<"pickup_requests">["id"];
+  route_day: ExtendedTableRow<"pickup_requests">["route_day"];
+  scheduled_date: ExtendedTableRow<"pickup_requests">["scheduled_date"];
+  status: ExtendedTableRow<"pickup_requests">["status"];
+  notes: ExtendedTableRow<"pickup_requests">["notes"];
 };
 
 type PickupRequestItemRow = {
-  id: string;
-  pickup_request_id: string;
-  rug_number: string;
-  rug_type: string | null;
-  length: number | null;
-  width: number | null;
-  is_new: boolean;
+  id: ExtendedTableRow<"pickup_request_items">["id"];
+  pickup_request_id: ExtendedTableRow<"pickup_request_items">["pickup_request_id"];
+  rug_number: ExtendedTableRow<"pickup_request_items">["rug_number"];
+  rug_type: ExtendedTableRow<"pickup_request_items">["rug_type"];
+  length: ExtendedTableRow<"pickup_request_items">["length"];
+  width: ExtendedTableRow<"pickup_request_items">["width"];
+  is_new: ExtendedTableRow<"pickup_request_items">["is_new"];
 };
+
+type PortalUserLookup = Pick<Tables<"portal_users">, "client_id">;
+type ClientLookup = Pick<Tables<"clients">, "id" | "route_day" | "address">;
+type ReadyRugLookup = Pick<Tables<"rugs">, "id" | "tag" | "description" | "services">;
 
 export default function PortalPickupsTab() {
   const { toast } = useToast();
@@ -61,8 +70,8 @@ export default function PortalPickupsTab() {
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
 
-  const fetchPickups = useCallback(async (activeClientId: string) => {
-    const { data: reqData, error: reqError } = await (supabase as any)
+  const fetchPickups = useCallback(async (activeClientId: string, regionLabel: string) => {
+    const { data: reqData, error: reqError } = await supabaseExtended
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes")
       .eq("client_id", activeClientId)
@@ -80,7 +89,7 @@ export default function PortalPickupsTab() {
     }
 
     const requestIds = requests.map((r) => r.id);
-    const { data: itemData, error: itemError } = await (supabase as any)
+    const { data: itemData, error: itemError } = await supabaseExtended
       .from("pickup_request_items")
       .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
       .in("pickup_request_id", requestIds);
@@ -98,8 +107,8 @@ export default function PortalPickupsTab() {
         id: req.id,
         date: req.scheduled_date,
         routeDay: req.route_day || DEFAULT_ROUTE_DAY,
-        region,
-        status: (req.status === "pending" || req.status === "confirmed") ? req.status : "confirmed",
+        region: regionLabel,
+        status: normalizePortalPickupStatus(req.status),
         notes: req.notes ?? "",
         rugNumbers: reqItems.filter((i) => !i.is_new).map((i) => i.rug_number),
         newRugs: reqItems
@@ -115,14 +124,14 @@ export default function PortalPickupsTab() {
     });
 
     setPickups(mapped);
-  }, [region, toast]);
+  }, [toast]);
 
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       setAccessError(null);
 
-      const { data: authData } = await supabase.auth.getUser();
+      const { data: authData } = await supabaseExtended.auth.getUser();
       const userEmail = authData.user?.email?.toLowerCase();
       if (!userEmail) {
         setAccessError("Portal account required. Please sign in again.");
@@ -130,51 +139,55 @@ export default function PortalPickupsTab() {
         return;
       }
 
-      const { data: portalUser } = await (supabase as any)
+      const { data: portalUser } = await supabaseExtended
         .from("portal_users")
         .select("client_id")
         .eq("email", userEmail)
         .eq("status", "active")
         .maybeSingle();
 
-      if (!portalUser?.client_id) {
+      const typedPortalUser = portalUser as PortalUserLookup | null;
+      if (!typedPortalUser?.client_id) {
         setAccessError("No active portal access was found for your account.");
         setLoading(false);
         return;
       }
 
-      const { data: selectedClient } = await supabase
+      const { data: selectedClient } = await supabaseExtended
         .from("clients")
         .select("id, route_day, address")
-        .eq("id", portalUser.client_id)
+        .eq("id", typedPortalUser.client_id)
         .maybeSingle();
 
-      if (!selectedClient?.id) {
+      const typedClient = selectedClient as ClientLookup | null;
+      if (!typedClient?.id) {
         setAccessError("No client profile was found for this portal account.");
         setLoading(false);
         return;
       }
 
-      const derivedRouteDay = selectedClient.route_day || DEFAULT_ROUTE_DAY;
+      const derivedRouteDay = typedClient.route_day || DEFAULT_ROUTE_DAY;
+      const derivedRegion = typedClient.address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
-      setRegion(selectedClient.address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION);
-      setClientId(selectedClient.id);
+      setRegion(derivedRegion);
+      setClientId(typedClient.id);
 
-      const { data: rugRows } = await (supabase as any)
+      const { data: rugRows } = await supabaseExtended
         .from("rugs")
         .select("id, tag, description, services")
-        .eq("client_id", selectedClient.id)
+        .eq("client_id", typedClient.id)
         .eq("status", "ready")
         .order("checked_in_at", { ascending: false });
 
-      setReadyRugs((rugRows ?? []).map((r: any) => ({
+      const typedRugs = (rugRows ?? []) as ReadyRugLookup[];
+      setReadyRugs(typedRugs.map((r) => ({
         id: r.id,
         rugNumber: r.tag,
         rugType: r.description || "Rug",
         services: r.services ?? [],
       })));
 
-      await fetchPickups(selectedClient.id);
+      await fetchPickups(typedClient.id, derivedRegion);
       setLoading(false);
     };
 
@@ -194,7 +207,7 @@ export default function PortalPickupsTab() {
 
     const scheduledDate = getNextDateForRouteDay(routeDay);
 
-    const { data: inserted, error } = await (supabase as any)
+    const { data: inserted, error } = await supabaseExtended
       .from("pickup_requests")
       .insert({
         client_id: clientId,
@@ -219,10 +232,15 @@ export default function PortalPickupsTab() {
     }));
 
     if (items.length > 0) {
-      await (supabase as any).from("pickup_request_items").insert(items);
+      const { error: itemError } = await supabaseExtended
+        .from("pickup_request_items")
+        .insert(items);
+      if (itemError) {
+        toast({ title: "Pickup requested with warnings", description: itemError.message, variant: "destructive" });
+      }
     }
 
-    await fetchPickups(clientId);
+    await fetchPickups(clientId, region);
     toast({
       title: "Pickup requested",
       description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
@@ -231,8 +249,13 @@ export default function PortalPickupsTab() {
 
   const handleSave = async (id: string, updates: Partial<PortalPickup>) => {
     if (!clientId) return;
+    const existing = pickups.find((pickup) => pickup.id === id);
+    if (!existing || !canPortalEditPickup(existing.status)) {
+      toast({ title: "Pickup is locked", description: "Only pending pickups can be edited.", variant: "destructive" });
+      return;
+    }
 
-    const { error: updateErr } = await (supabase as any)
+    const { error: updateErr } = await supabaseExtended
       .from("pickup_requests")
       .update({ notes: updates.notes ?? "" })
       .eq("id", id);
@@ -242,7 +265,14 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
+    const { error: deleteErr } = await supabaseExtended
+      .from("pickup_request_items")
+      .delete()
+      .eq("pickup_request_id", id);
+    if (deleteErr) {
+      toast({ title: "Save failed", description: deleteErr.message, variant: "destructive" });
+      return;
+    }
 
     const readyItems = (updates.rugNumbers ?? []).map((rugNumber) => ({
       pickup_request_id: id,
@@ -262,18 +292,46 @@ export default function PortalPickupsTab() {
 
     const insertItems = [...readyItems, ...newRugItems];
     if (insertItems.length > 0) {
-      await (supabase as any).from("pickup_request_items").insert(insertItems);
+      const { error: itemInsertErr } = await supabaseExtended
+        .from("pickup_request_items")
+        .insert(insertItems);
+      if (itemInsertErr) {
+        toast({ title: "Save failed", description: itemInsertErr.message, variant: "destructive" });
+        return;
+      }
     }
 
-    await fetchPickups(clientId);
+    await fetchPickups(clientId, region);
     toast({ title: "Pickup saved" });
   };
 
   const handleCancel = async (id: string) => {
     if (!clientId) return;
-    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
-    await (supabase as any).from("pickup_requests").delete().eq("id", id);
-    await fetchPickups(clientId);
+    const existing = pickups.find((pickup) => pickup.id === id);
+    if (!existing || !canRoleTransitionPickupStatus("portal", existing.status, "cancelled")) {
+      toast({ title: "Cancellation blocked", description: "Only pending pickups can be cancelled.", variant: "destructive" });
+      return;
+    }
+
+    const { error: deleteItemsError } = await supabaseExtended
+      .from("pickup_request_items")
+      .delete()
+      .eq("pickup_request_id", id);
+    if (deleteItemsError) {
+      toast({ title: "Cancellation failed", description: deleteItemsError.message, variant: "destructive" });
+      return;
+    }
+
+    const { error: deleteRequestError } = await supabaseExtended
+      .from("pickup_requests")
+      .delete()
+      .eq("id", id);
+    if (deleteRequestError) {
+      toast({ title: "Cancellation failed", description: deleteRequestError.message, variant: "destructive" });
+      return;
+    }
+
+    await fetchPickups(clientId, region);
     toast({ title: "Pickup cancelled" });
   };
 

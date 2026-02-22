@@ -1,0 +1,253 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type PickupRequestStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
+type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+type CommunicationChannel = "email" | "in_app_chat";
+type CommunicationDirection = "outbound" | "inbound";
+
+type ExtendedTables = Database["public"]["Tables"] & {
+  communication_events: {
+    Row: {
+      id: string;
+      client_id: string | null;
+      rug_id: string | null;
+      estimate_id: string | null;
+      invoice_id: string | null;
+      channel: CommunicationChannel;
+      direction: CommunicationDirection;
+      subject: string;
+      body: string;
+      sent_to: string | null;
+      event_type: string;
+      created_by: string | null;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      client_id?: string | null;
+      rug_id?: string | null;
+      estimate_id?: string | null;
+      invoice_id?: string | null;
+      channel?: CommunicationChannel;
+      direction?: CommunicationDirection;
+      subject?: string;
+      body?: string;
+      sent_to?: string | null;
+      event_type?: string;
+      created_by?: string | null;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      client_id?: string | null;
+      rug_id?: string | null;
+      estimate_id?: string | null;
+      invoice_id?: string | null;
+      channel?: CommunicationChannel;
+      direction?: CommunicationDirection;
+      subject?: string;
+      body?: string;
+      sent_to?: string | null;
+      event_type?: string;
+      created_by?: string | null;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
+  estimate_items: {
+    Row: {
+      id: string;
+      estimate_id: string;
+      rug_service_id: string | null;
+      description: string;
+      quantity: number;
+      unit_price: number;
+      total: number;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      estimate_id: string;
+      rug_service_id?: string | null;
+      description: string;
+      quantity?: number;
+      unit_price?: number;
+      total?: number;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      estimate_id?: string;
+      rug_service_id?: string | null;
+      description?: string;
+      quantity?: number;
+      unit_price?: number;
+      total?: number;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
+  estimates: {
+    Row: {
+      id: string;
+      rug_id: string;
+      client_id: string | null;
+      estimate_number: string;
+      status: EstimateStatus;
+      version: number;
+      total: number;
+      sent_at: string | null;
+      approved_at: string | null;
+      rejected_at: string | null;
+      expires_at: string | null;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: {
+      id?: string;
+      rug_id: string;
+      client_id?: string | null;
+      estimate_number: string;
+      status?: EstimateStatus;
+      version?: number;
+      total?: number;
+      sent_at?: string | null;
+      approved_at?: string | null;
+      rejected_at?: string | null;
+      expires_at?: string | null;
+      created_by?: string | null;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Update: {
+      id?: string;
+      rug_id?: string;
+      client_id?: string | null;
+      estimate_number?: string;
+      status?: EstimateStatus;
+      version?: number;
+      total?: number;
+      sent_at?: string | null;
+      approved_at?: string | null;
+      rejected_at?: string | null;
+      expires_at?: string | null;
+      created_by?: string | null;
+      created_at?: string;
+      updated_at?: string;
+    };
+    Relationships: [];
+  };
+  pickup_request_items: {
+    Row: {
+      id: string;
+      pickup_request_id: string;
+      rug_id: string | null;
+      rug_number: string;
+      rug_type: string;
+      length: number | null;
+      width: number | null;
+      is_new: boolean;
+      created_at: string;
+      verified: boolean;
+      driver_notes: string;
+    };
+    Insert: {
+      id?: string;
+      pickup_request_id: string;
+      rug_id?: string | null;
+      rug_number: string;
+      rug_type?: string;
+      length?: number | null;
+      width?: number | null;
+      is_new?: boolean;
+      created_at?: string;
+      verified?: boolean;
+      driver_notes?: string;
+    };
+    Update: {
+      id?: string;
+      pickup_request_id?: string;
+      rug_id?: string | null;
+      rug_number?: string;
+      rug_type?: string;
+      length?: number | null;
+      width?: number | null;
+      is_new?: boolean;
+      created_at?: string;
+      verified?: boolean;
+      driver_notes?: string;
+    };
+    Relationships: [];
+  };
+  pickup_requests: {
+    Row: {
+      id: string;
+      client_id: string;
+      route_day: string;
+      scheduled_date: string;
+      status: PickupRequestStatus;
+      notes: string;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+      assigned_driver_id: string | null;
+      assigned_at: string | null;
+      completed_at: string | null;
+      signature_data_url: string | null;
+    };
+    Insert: {
+      id?: string;
+      client_id: string;
+      route_day?: string;
+      scheduled_date: string;
+      status?: PickupRequestStatus;
+      notes?: string;
+      created_by?: string | null;
+      created_at?: string;
+      updated_at?: string;
+      assigned_driver_id?: string | null;
+      assigned_at?: string | null;
+      completed_at?: string | null;
+      signature_data_url?: string | null;
+    };
+    Update: {
+      id?: string;
+      client_id?: string;
+      route_day?: string;
+      scheduled_date?: string;
+      status?: PickupRequestStatus;
+      notes?: string;
+      created_by?: string | null;
+      created_at?: string;
+      updated_at?: string;
+      assigned_driver_id?: string | null;
+      assigned_at?: string | null;
+      completed_at?: string | null;
+      signature_data_url?: string | null;
+    };
+    Relationships: [];
+  };
+};
+
+export type ExtendedDatabase = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Tables" | "Enums"> & {
+    Tables: ExtendedTables;
+    Enums: Database["public"]["Enums"] & {
+      communication_channel: CommunicationChannel;
+      communication_direction: CommunicationDirection;
+      estimate_status: EstimateStatus;
+      pickup_request_status: PickupRequestStatus;
+    };
+  };
+};
+
+export type ExtendedTableRow<TableName extends keyof ExtendedDatabase["public"]["Tables"]> =
+  ExtendedDatabase["public"]["Tables"][TableName]["Row"];
+
+export type ExtendedTableInsert<TableName extends keyof ExtendedDatabase["public"]["Tables"]> =
+  ExtendedDatabase["public"]["Tables"][TableName]["Insert"];
+
+export const supabaseExtended = supabase as unknown as SupabaseClient<ExtendedDatabase>;

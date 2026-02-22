@@ -7,11 +7,25 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import SignatureCanvas from "@/components/driver/SignatureCanvas";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
+import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { canDriverCompletePickup, type PickupRequestStatus } from "@/lib/workflow-guards";
+import type { Tables } from "@/integrations/supabase/types";
 
-type PickupStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
+type PickupStatus = PickupRequestStatus;
+
+type DriverPickupRequestRow = Pick<
+  ExtendedTableRow<"pickup_requests">,
+  "id" | "scheduled_date" | "status" | "completed_at" | "signature_data_url"
+> & {
+  clients: Pick<Tables<"clients">, "name" | "address"> | null;
+};
+
+type DriverPickupItemRow = Pick<
+  ExtendedTableRow<"pickup_request_items">,
+  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "verified" | "driver_notes"
+>;
 
 type DriverPickup = {
   id: string;
@@ -39,10 +53,14 @@ const DriverPortal: React.FC = () => {
   const [activePickupId, setActivePickupId] = useState<string | null>(null);
 
   const fetchPickups = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setPickups([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
-    const { data: reqData, error: reqErr } = await (supabase as any)
+    const { data: reqData, error: reqErr } = await supabaseExtended
       .from("pickup_requests")
       .select("id, scheduled_date, status, completed_at, signature_data_url, clients(name,address)")
       .eq("assigned_driver_id", user.id)
@@ -55,17 +73,17 @@ const DriverPortal: React.FC = () => {
       return;
     }
 
-    const requests = (reqData ?? []) as any[];
+    const requests = (reqData ?? []) as DriverPickupRequestRow[];
     const requestIds = requests.map((r) => r.id);
 
     const { data: itemData } = requestIds.length === 0
       ? { data: [] }
-      : await (supabase as any)
+      : await supabaseExtended
           .from("pickup_request_items")
           .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes")
           .in("pickup_request_id", requestIds);
 
-    const items = (itemData ?? []) as any[];
+    const items = (itemData ?? []) as DriverPickupItemRow[];
 
     const mapped: DriverPickup[] = requests.map((r) => ({
       id: r.id,
@@ -110,7 +128,7 @@ const DriverPortal: React.FC = () => {
     if (!pickup || !rug || pickup.status === "completed") return;
 
     const next = !rug.verified;
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_request_items")
       .update({ verified: next })
       .eq("id", rugId);
@@ -127,7 +145,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setRugNotes = async (pickupId: string, rugId: string, notes: string) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_request_items")
       .update({ driver_notes: notes })
       .eq("id", rugId);
@@ -144,7 +162,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setSignature = async (pickupId: string, dataUrl: string | null) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_requests")
       .update({ signature_data_url: dataUrl })
       .eq("id", pickupId);
@@ -158,8 +176,21 @@ const DriverPortal: React.FC = () => {
   };
 
   const completePickup = async (pickupId: string) => {
+    const pickup = pickups.find((p) => p.id === pickupId);
+    if (!pickup) return;
+    const allVerified = pickup.rugs.every((rug) => rug.verified);
+    const hasSignature = Boolean(pickup.signatureDataUrl);
+    if (!canDriverCompletePickup({ status: pickup.status, allVerified, hasSignature })) {
+      toast({
+        title: "Pickup cannot be completed",
+        description: "Assigned pickups require verified rugs and a signature.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const completedAt = new Date().toISOString();
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_requests")
       .update({ status: "completed", completed_at: completedAt })
       .eq("id", pickupId);

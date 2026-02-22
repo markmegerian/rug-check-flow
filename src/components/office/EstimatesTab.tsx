@@ -9,41 +9,38 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+import {
+  supabaseExtended,
+  type ExtendedTableInsert,
+  type ExtendedTableRow,
+} from "@/integrations/supabase/extended";
+import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
+import type { Tables } from "@/integrations/supabase/types";
 
 type EstimateRow = {
-  id: string;
-  rug_id: string;
-  client_id: string | null;
-  estimate_number: string;
-  status: EstimateStatus;
-  version: number;
-  total: number;
-  created_at: string;
-  sent_at: string | null;
-  approved_at: string | null;
-  rejected_at: string | null;
-  clients?: { name: string; email?: string | null } | null;
-  rugs?: { tag: string } | null;
+  id: ExtendedTableRow<"estimates">["id"];
+  rug_id: ExtendedTableRow<"estimates">["rug_id"];
+  client_id: ExtendedTableRow<"estimates">["client_id"];
+  estimate_number: ExtendedTableRow<"estimates">["estimate_number"];
+  status: ExtendedTableRow<"estimates">["status"];
+  version: ExtendedTableRow<"estimates">["version"];
+  total: ExtendedTableRow<"estimates">["total"];
+  created_at: ExtendedTableRow<"estimates">["created_at"];
+  sent_at: ExtendedTableRow<"estimates">["sent_at"];
+  approved_at: ExtendedTableRow<"estimates">["approved_at"];
+  rejected_at: ExtendedTableRow<"estimates">["rejected_at"];
+  clients?: Pick<Tables<"clients">, "name" | "email"> | null;
+  rugs?: Pick<Tables<"rugs">, "tag"> | null;
 };
 
 type RugOption = {
-  id: string;
-  tag: string;
-  client_id: string | null;
-  clients?: { name: string; email?: string | null } | null;
+  id: Tables<"rugs">["id"];
+  tag: Tables<"rugs">["tag"];
+  client_id: Tables<"rugs">["client_id"];
+  clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
-
-const ALLOWED_STATUS_TRANSITIONS: Record<EstimateStatus, EstimateStatus[]> = {
-  draft: ["expired"],
-  sent: ["approved", "rejected", "expired"],
-  approved: [],
-  rejected: [],
-  expired: [],
-};
+type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_name" | "unit_price" | "line_total">;
 
 export function EstimatesTab() {
   const { toast } = useToast();
@@ -55,7 +52,7 @@ export function EstimatesTab() {
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const { data: estRows, error: estErr } = await (supabase as any)
+    const { data: estRows, error: estErr } = await supabaseExtended
       .from("estimates")
       .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email), rugs(tag)")
       .order("created_at", { ascending: false })
@@ -64,17 +61,17 @@ export function EstimatesTab() {
     if (estErr) {
       toast({ title: "Failed to load estimates", description: estErr.message, variant: "destructive" });
     } else {
-      setEstimates((estRows ?? []) as EstimateRow[]);
+      setEstimates((estRows ?? []) as unknown as EstimateRow[]);
     }
 
-    const { data: rugsData } = await (supabase as any)
+    const { data: rugsData } = await supabaseExtended
       .from("rugs")
       .select("id, tag, client_id, clients(name)")
       .in("status", ["checked_in", "in_production", "ready"])
       .order("checked_in_at", { ascending: false })
       .limit(200);
 
-    setRugOptions((rugsData ?? []) as RugOption[]);
+    setRugOptions((rugsData ?? []) as unknown as RugOption[]);
     setLoading(false);
   }, [toast]);
 
@@ -101,7 +98,7 @@ export function EstimatesTab() {
 
     setCreating(true);
 
-    const { data: serviceRows, error: svcErr } = await (supabase as any)
+    const { data: serviceRows, error: svcErr } = await supabaseExtended
       .from("rug_services")
       .select("id, service_name, unit_price, line_total")
       .eq("rug_id", selectedRugId);
@@ -112,17 +109,17 @@ export function EstimatesTab() {
       return;
     }
 
-    const services = serviceRows ?? [];
+    const services = (serviceRows ?? []) as RugServiceSnapshot[];
     if (services.length === 0) {
       toast({ title: "No service snapshots", description: "This rug has no captured service pricing yet.", variant: "destructive" });
       setCreating(false);
       return;
     }
 
-    const total = services.reduce((sum: number, s: any) => sum + Number(s.line_total ?? 0), 0);
+    const total = services.reduce((sum, service) => sum + Number(service.line_total ?? 0), 0);
     const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
 
-    const { data: insertedEstimate, error: estErr } = await (supabase as any)
+    const { data: insertedEstimate, error: estErr } = await supabaseExtended
       .from("estimates")
       .insert({
         rug_id: selectedRugId,
@@ -141,18 +138,18 @@ export function EstimatesTab() {
       return;
     }
 
-    const items = services.map((s: any) => ({
+    const items: ExtendedTableInsert<"estimate_items">[] = services.map((service) => ({
       estimate_id: insertedEstimate.id,
-      rug_service_id: s.id,
-      description: `${selectedRug.tag} — ${s.service_name}`,
+      rug_service_id: service.id,
+      description: `${selectedRug.tag} — ${service.service_name}`,
       quantity: 1,
-      unit_price: Number(s.unit_price ?? 0),
-      total: Number(s.line_total ?? 0),
+      unit_price: Number(service.unit_price ?? 0),
+      total: Number(service.line_total ?? 0),
     }));
 
-    const { error: itemErr } = await (supabase as any).from("estimate_items").insert(items);
+    const { error: itemErr } = await supabaseExtended.from("estimate_items").insert(items);
     if (itemErr) {
-      await (supabase as any).from("estimates").delete().eq("id", insertedEstimate.id);
+      await supabaseExtended.from("estimates").delete().eq("id", insertedEstimate.id);
       toast({ title: "Estimate items failed", description: itemErr.message, variant: "destructive" });
       setCreating(false);
       return;
@@ -182,7 +179,7 @@ export function EstimatesTab() {
 
 
   const logCommunicationEvent = async (estimate: EstimateRow, eventType: string, subject: string, body: string) => {
-    const { error } = await (supabase as any).from("communication_events").insert({
+    const { error } = await supabaseExtended.from("communication_events").insert({
       client_id: estimate.client_id,
       rug_id: estimate.rug_id,
       estimate_id: estimate.id,
@@ -218,7 +215,7 @@ export function EstimatesTab() {
       details?: unknown;
     };
 
-    const { data, error } = await supabase.functions.invoke<SendEstimateResponse>("send-estimate-email", {
+    const { data, error } = await supabaseExtended.functions.invoke<SendEstimateResponse>("send-estimate-email", {
       body: { estimate_id: estimate.id },
     });
 
@@ -244,7 +241,7 @@ export function EstimatesTab() {
   };
 
   const setEstimateStatus = async (estimate: EstimateRow, status: EstimateStatus) => {
-    if (!ALLOWED_STATUS_TRANSITIONS[estimate.status].includes(status)) {
+    if (!canRoleTransitionEstimateStatus("office", estimate.status, status)) {
       toast({
         title: "Invalid status transition",
         description: `Cannot move estimate from ${estimate.status} to ${status}.`,
@@ -253,11 +250,11 @@ export function EstimatesTab() {
       return;
     }
 
-    const updates: Record<string, unknown> = { status };
+    const updates: Partial<ExtendedTableRow<"estimates">> = { status };
     if (status === "approved") updates.approved_at = new Date().toISOString();
     if (status === "rejected") updates.rejected_at = new Date().toISOString();
 
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("estimates")
       .update(updates)
       .eq("id", estimate.id);
