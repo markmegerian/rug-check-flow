@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +25,7 @@ type PickupRequestRow = {
   status: ExtendedTableRow<"pickup_requests">["status"];
   notes: ExtendedTableRow<"pickup_requests">["notes"];
   assigned_driver_id: ExtendedTableRow<"pickup_requests">["assigned_driver_id"];
+  updated_at: ExtendedTableRow<"pickup_requests">["updated_at"];
   clients?: { name: string } | null;
 };
 
@@ -43,14 +45,25 @@ type DriverRoleRow = Pick<Tables<"user_roles">, "user_id">;
 type DriverProfileRow = Pick<Tables<"profiles">, "user_id" | "full_name" | "email">;
 
 const STATUS_ORDER: PickupStatus[] = ["pending", "confirmed", "assigned", "completed", "cancelled"];
+const STATUS_SET = new Set<PickupStatus>(STATUS_ORDER);
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function PickupRequestsTab() {
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [requests, setRequests] = useState<PickupRequestRow[]>([]);
   const [items, setItems] = useState<PickupItemRow[]>([]);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [driverSelection, setDriverSelection] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+
+  const statusFilterParam = searchParams.get("status");
+  const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
+  const statusFilters = (statusFilterParam ?? "")
+    .split(",")
+    .map((status) => status.trim())
+    .filter((status): status is PickupStatus => STATUS_SET.has(status as PickupStatus));
+  const hasReminderFilter = statusFilters.length > 0 || minAgeDays > 0;
 
   const fetchDrivers = useCallback(async () => {
     const { data: roleRows } = await supabaseExtended
@@ -82,7 +95,7 @@ export function PickupRequestsTab() {
   const fetchAll = useCallback(async () => {
     const { data: reqData, error: reqErr } = await supabaseExtended
       .from("pickup_requests")
-      .select("id, client_id, route_day, scheduled_date, status, notes, assigned_driver_id, clients(name)")
+      .select("id, client_id, route_day, scheduled_date, status, notes, assigned_driver_id, updated_at, clients(name)")
       .order("scheduled_date", { ascending: true });
 
     if (reqErr) {
@@ -121,15 +134,30 @@ export function PickupRequestsTab() {
     fetchAll();
   }, [fetchAll, fetchDrivers]);
 
+  const filteredRequests = useMemo(() => {
+    let filtered = [...requests];
+    if (statusFilters.length > 0) {
+      filtered = filtered.filter((request) => statusFilters.includes(request.status));
+    }
+    if (minAgeDays > 0) {
+      filtered = filtered.filter((request) => {
+        const ageMs = Date.now() - Date.parse(request.updated_at);
+        if (!Number.isFinite(ageMs)) return false;
+        return ageMs >= minAgeDays * MS_PER_DAY;
+      });
+    }
+    return filtered;
+  }, [minAgeDays, requests, statusFilters]);
+
   const requestsByRoute = useMemo(() => {
     const map: Record<string, PickupRequestRow[]> = {};
-    for (const req of requests) {
+    for (const req of filteredRequests) {
       const key = req.route_day || "Unassigned";
       if (!map[key]) map[key] = [];
       map[key].push(req);
     }
     return map;
-  }, [requests]);
+  }, [filteredRequests]);
 
   const itemCounts = useMemo(() => {
     const counts: Record<string, { ready: number; newRugs: number }> = {};
@@ -215,12 +243,23 @@ export function PickupRequestsTab() {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading pickup requests…</div>;
   }
 
-  if (requests.length === 0) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">No pickup requests yet.</div>;
+  if (filteredRequests.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        {hasReminderFilter ? "No pickup requests match the active reminder filter." : "No pickup requests yet."}
+      </div>
+    );
   }
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full space-y-5 animate-fade-in-up">
+      {hasReminderFilter ? (
+        <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Reminder filter active:
+          {statusFilters.length > 0 ? ` status=${statusFilters.join(",")}` : ""}
+          {minAgeDays > 0 ? ` · min age ${minAgeDays} days` : ""}
+        </div>
+      ) : null}
       <h2 className="text-lg font-semibold text-foreground">Pickup Requests</h2>
 
       {Object.entries(requestsByRoute).map(([routeDay, list]) => (

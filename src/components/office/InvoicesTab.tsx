@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Eye, Download, Send, Trash2, DollarSign, AlertTriangle, Loader2, Plus, CalendarIcon, X, Search } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,10 @@ const STATUSES: Array<{ value: string; label: string }> = [
   { value: "paid", label: "Paid" },
   { value: "overdue", label: "Overdue" },
 ];
+const STATUS_VALUES = new Set(STATUSES.map((status) => status.value));
 
 const PAGE_SIZE = 100;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 interface ClientOption {
   id: string;
@@ -69,6 +72,7 @@ type ClientRugRow = Pick<Tables<"rugs">, "id" | "tag" | "size_length" | "size_wi
 };
 
 export function InvoicesTab() {
+  const [searchParams] = useSearchParams();
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -88,6 +92,10 @@ export function InvoicesTab() {
   const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
+
+  const queryStatus = searchParams.get("status");
+  const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
+  const hasReminderFilter = STATUS_VALUES.has(queryStatus ?? "") || minAgeDays > 0;
 
   const fetchInvoicesPage = useCallback(async (targetPageIndex: number, append: boolean) => {
     if (append) {
@@ -141,6 +149,12 @@ export function InvoicesTab() {
   useEffect(() => {
     refreshInvoices();
   }, [refreshInvoices]);
+
+  useEffect(() => {
+    if (queryStatus && STATUS_VALUES.has(queryStatus)) {
+      setActiveTab(queryStatus);
+    }
+  }, [queryStatus]);
 
   // Fetch clients for create flow
   const openCreate = async () => {
@@ -248,6 +262,14 @@ export function InvoicesTab() {
 
   const filtered = useMemo(() => {
     let list = activeTab === "all" ? invoices : invoices.filter((inv) => inv.status === activeTab);
+    if (minAgeDays > 0) {
+      list = list.filter((inv) => {
+        const ageSource = inv.due_at ?? inv.created_at;
+        const ageMs = Date.now() - Date.parse(ageSource);
+        if (!Number.isFinite(ageMs)) return false;
+        return ageMs >= minAgeDays * MS_PER_DAY;
+      });
+    }
     if (dateFrom) {
       const fromStr = format(dateFrom, "yyyy-MM-dd");
       list = list.filter((inv) => inv.created_at.slice(0, 10) >= fromStr);
@@ -261,7 +283,7 @@ export function InvoicesTab() {
       list = list.filter((inv) => (inv.clients?.name ?? "").toLowerCase().includes(q));
     }
     return [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [invoices, activeTab, dateFrom, dateTo, clientSearch]);
+  }, [invoices, activeTab, dateFrom, dateTo, clientSearch, minAgeDays]);
 
   const openInvoice = (inv: InvoiceRow) => {
     setSelected(inv);
@@ -375,6 +397,13 @@ export function InvoicesTab() {
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full space-y-6 animate-fade-in-up">
+      {hasReminderFilter ? (
+        <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Reminder filter active:
+          {queryStatus ? ` status=${queryStatus}` : ""}
+          {minAgeDays > 0 ? ` · min age ${minAgeDays} days` : ""}
+        </div>
+      ) : null}
       <div className="flex items-center justify-between">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
