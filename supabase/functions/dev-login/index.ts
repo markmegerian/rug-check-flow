@@ -20,7 +20,24 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { role } = await req.json();
+    // Require a dev secret to prevent unauthorized access
+    const devSecret = Deno.env.get("DEV_LOGIN_SECRET");
+    if (!devSecret) {
+      return new Response(JSON.stringify({ error: "Dev login is disabled" }), {
+        status: 403,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json();
+    const { role, secret } = body;
+
+    if (secret !== devSecret) {
+      return new Response(JSON.stringify({ error: "Invalid dev secret" }), {
+        status: 403,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
 
     if (!role || !ROLE_EMAILS[role]) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
@@ -40,12 +57,11 @@ Deno.serve(async (req) => {
     // Check if user exists
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
     let userId: string | undefined;
-    const existing = existingUsers?.users?.find((u) => u.email === email);
+    const existing = existingUsers?.users?.find((u: { email?: string }) => u.email === email);
 
     if (existing) {
       userId = existing.id;
     } else {
-      // Create user with auto-confirm
       const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
         email,
         password: TEST_PASSWORD,
@@ -68,12 +84,11 @@ Deno.serve(async (req) => {
       await supabase.from("user_roles").insert({ user_id: userId, role });
     }
 
-    // Return credentials for client-side sign-in
     return new Response(
       JSON.stringify({ email, password: TEST_PASSWORD }),
       { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );
-  } catch (err) {
+  } catch (err: unknown) {
     return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },

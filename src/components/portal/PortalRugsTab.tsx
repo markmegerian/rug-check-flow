@@ -4,13 +4,22 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import type { Enums, Tables } from "@/integrations/supabase/types";
+import type { Enums } from "@/integrations/supabase/types";
 
 type PortalStatus = "in_progress" | "ready" | "delivered";
 type Filter = "all" | PortalStatus;
 type RugStatus = Enums<"rug_status">;
 
-type RugRow = Pick<Tables<"rugs">, "id" | "tag" | "description" | "services" | "size_length" | "size_width" | "checked_in_at" | "status">;
+type RugRow = {
+  id: string;
+  tag: string;
+  description: string;
+  services: string[];
+  size_length: number | null;
+  size_width: number | null;
+  checked_in_at: string;
+  status: RugStatus;
+};
 
 type PortalRug = {
   id: string;
@@ -41,18 +50,6 @@ const mapRugStatus = (status: RugStatus): PortalStatus => {
   return "in_progress";
 };
 
-const mapStatus = (status: RugLookup["status"]): PortalStatus => {
-  if (status === "ready") return "ready";
-  if (status === "picked_up") return "delivered";
-  return "in_progress";
-};
-
-const mapStatus = (status: RugLookup["status"]): PortalStatus => {
-  if (status === "ready") return "ready";
-  if (status === "picked_up") return "delivered";
-  return "in_progress";
-};
-
 export default function PortalRugsTab() {
   const { toast } = useToast();
   const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
@@ -62,22 +59,12 @@ export default function PortalRugsTab() {
   const [rugs, setRugs] = useState<PortalRug[]>([]);
 
   useEffect(() => {
-    if (portalClientLoading) {
-      setLoading(true);
-      return;
-    }
-
+    if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
-      setLoading(false);
-      setRugs([]);
-      return;
+      setLoading(false); setRugs([]); return;
     }
-
-    if (!clientId) {
-      setLoading(false);
-      return;
-    }
+    if (!clientId) { setLoading(false); return; }
 
     const loadRugs = async () => {
       setLoading(true);
@@ -91,12 +78,10 @@ export default function PortalRugsTab() {
 
       if (error) {
         toast({ title: "Failed to load rugs", description: error.message, variant: "destructive" });
-        setRugs([]);
-        setLoading(false);
-        return;
+        setRugs([]); setLoading(false); return;
       }
 
-      const mapped: PortalRug[] = (data ?? []).map((rug) => ({
+      setRugs((data ?? []).map((rug) => ({
         id: rug.id,
         rugNumber: rug.tag,
         rugType: rug.description || "Rug",
@@ -105,9 +90,7 @@ export default function PortalRugsTab() {
         length: Number(rug.size_length ?? 0),
         width: Number(rug.size_width ?? 0),
         checkedInDate: rug.checked_in_at,
-      }));
-
-      setRugs(mapped);
+      })));
       setLoading(false);
     };
 
@@ -130,7 +113,7 @@ export default function PortalRugsTab() {
     { key: "delivered", label: "Delivered", count: counts.delivered },
   ];
 
-  if (loading) {
+  if (portalClientLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading rugs…</div>;
   }
 
@@ -156,44 +139,6 @@ export default function PortalRugsTab() {
         ))}
       </div>
 
-      {emptyState ? (
-        <div className="text-sm text-muted-foreground">No rugs available yet.</div>
-      ) : (
-        <div className="rounded-lg border bg-background divide-y">
-          {filtered.map((rug) => {
-            const isExpanded = expandedRow === rug.id;
-            return (
-              <div key={rug.id}>
-                <button
-                  onClick={() => setExpandedRow(isExpanded ? null : rug.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-                >
-                  <span className="text-muted-foreground">
-                    {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                  </span>
-                  <span className="text-sm font-medium w-20 shrink-0">{rug.rugNumber}</span>
-                  <span className="text-sm text-muted-foreground w-20 shrink-0">{rug.rugType}</span>
-                  <span className="text-sm text-muted-foreground flex-1 truncate hidden sm:block">
-                    {rug.services.join(", ")}
-                  </span>
-                  <Badge variant={STATUS_VARIANTS[rug.status]} className="text-[11px] shrink-0">
-                    {STATUS_LABELS[rug.status]}
-                  </Badge>
-                </button>
-                {isExpanded && (
-                  <div className="px-4 pb-3 pl-12 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm">
-                    <div>
-                      <span className="text-muted-foreground text-xs">Size</span>
-                      <p>{rug.length}' × {rug.width}'</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground text-xs">Checked in</span>
-                      <p>{new Date(rug.checkedInDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
-                    </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <span className="text-muted-foreground text-xs">Services</span>
-                      <p>{rug.services.join(", ")}</p>
-                    </div>
       <div className="rounded-lg border bg-background divide-y">
         {filtered.map((rug) => {
           const isExpanded = expandedRow === rug.id;
@@ -225,12 +170,16 @@ export default function PortalRugsTab() {
                     <span className="text-muted-foreground text-xs">Checked in</span>
                     <p>{new Date(rug.checkedInDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="text-muted-foreground text-xs">Services</span>
+                    <p>{rug.services.join(", ")}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -92,7 +92,6 @@ export default function PortalEstimatesTab() {
       .eq("client_id", clientId)
       .eq("status", "sent")
       .select("id")
-      .maybeSingle<EstimateUpdateResult>();
       .maybeSingle<Pick<Tables<"estimates">, "id">>();
 
     if (error) {
@@ -128,7 +127,7 @@ export default function PortalEstimatesTab() {
   const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
-  if (portalLoading || loading) {
+  if (portalClientLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
   }
 
