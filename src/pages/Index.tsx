@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
+import { OperationalRemindersPanel } from "@/components/dashboard/OperationalRemindersPanel";
 
 type AppRole = "admin" | "office" | "checkin_staff" | "driver";
 
@@ -125,6 +126,8 @@ export default function Index() {
             ) : null}
           </div>
         </section>
+
+        <OperationalRemindersPanel />
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
