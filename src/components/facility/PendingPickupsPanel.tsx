@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Package, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface ReadyRug {
   id: string;
@@ -16,17 +17,25 @@ interface ReadyRug {
   client_name: string | null;
 }
 
+type ReadyRugRow = Pick<
+  Tables<"rugs">,
+  "id" | "tag" | "description" | "services" | "size_length" | "size_width" | "completed_at"
+> & {
+  clients: Pick<Tables<"clients">, "name"> | null;
+};
+
 export function PendingPickupsPanel() {
   const [rugs, setRugs] = useState<ReadyRug[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
 
-  const fetchReady = async () => {
+  const fetchReady = useCallback(async () => {
     const { data, error } = await supabase
       .from("rugs")
       .select("id, tag, description, services, size_length, size_width, completed_at, clients(name)")
       .eq("status", "ready")
-      .order("completed_at", { ascending: true });
+      .order("completed_at", { ascending: true })
+      .returns<ReadyRugRow[]>();
 
     if (error) {
       toast({ title: "Error loading pickups", description: error.message, variant: "destructive" });
@@ -35,7 +44,7 @@ export function PendingPickupsPanel() {
     }
 
     setRugs(
-      (data ?? []).map((r: any) => ({
+      (data ?? []).map((r) => ({
         id: r.id,
         tag: r.tag,
         description: r.description,
@@ -47,11 +56,11 @@ export function PendingPickupsPanel() {
       }))
     );
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     fetchReady();
-  }, []);
+  }, [fetchReady]);
 
   const markPickedUp = async (rugId: string) => {
     setUpdating(rugId);

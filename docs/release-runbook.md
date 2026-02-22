@@ -18,6 +18,7 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `VITE_ENABLE_DEV_SWITCHER` must remain `"false"` outside local development
+- Frontend should not be promoted without both Supabase vars present (client is fail-fast with no fallback credentials)
 
 ### Supabase Edge Function secrets
 

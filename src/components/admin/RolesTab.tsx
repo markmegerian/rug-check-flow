@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ROLE_DEFINITIONS } from "@/data/mock-admin";
+import { ROLE_DEFINITIONS, type AppRole } from "@/lib/role-definitions";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
-
-type AppRole = Tables<"user_roles">["role"];
 
 export function RolesTab() {
   const { toast } = useToast();
