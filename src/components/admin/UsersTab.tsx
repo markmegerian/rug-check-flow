@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ROLE_DEFINITIONS } from "@/data/mock-admin";
+import { ROLE_DEFINITIONS, type AppRole } from "@/lib/role-definitions";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import { Plus } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
-
-type AppRole = Tables<"user_roles">["role"];
 type RoleFilter = AppRole | "all";
 
 type AdminUserRow = {
