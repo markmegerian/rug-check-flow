@@ -13,13 +13,7 @@ const DEFAULT_ROUTE_DAY = "Thursday";
 const DEFAULT_REGION = "Westchester";
 
 const DAY_INDEX: Record<string, number> = {
-  Sunday: 0,
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
 };
 
 const getNextDateForRouteDay = (routeDay: string) => {
@@ -31,9 +25,24 @@ const getNextDateForRouteDay = (routeDay: string) => {
   return nextDate.toISOString().split("T")[0];
 };
 
-type PickupRequestRow = Pick<Tables<"pickup_requests">, "id" | "client_id" | "route_day" | "scheduled_date" | "status" | "notes">;
-type PickupRequestItemRow = Pick<Tables<"pickup_request_items">, "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "is_new">;
-type ReadyRugRow = Pick<Tables<"rugs">, "id" | "tag" | "description" | "services">;
+type PickupRequestRow = {
+  id: string;
+  client_id: string;
+  route_day: string;
+  scheduled_date: string;
+  status: string;
+  notes: string | null;
+};
+
+type PickupRequestItemRow = {
+  id: string;
+  pickup_request_id: string;
+  rug_number: string;
+  rug_type: string | null;
+  length: number | null;
+  width: number | null;
+  is_new: boolean;
+};
 
 type ClientLookupRow = {
   id: string;
@@ -47,8 +56,6 @@ type ReadyRugRow = {
   description: string;
   services: string[];
 };
-
-type PickupInsertResult = { id: string };
 
 export default function PortalPickupsTab() {
   const { toast } = useToast();
@@ -75,10 +82,7 @@ export default function PortalPickupsTab() {
     }
 
     const requests = reqData ?? [];
-    if (requests.length === 0) {
-      setPickups([]);
-      return;
-    }
+    if (requests.length === 0) { setPickups([]); return; }
 
     const requestIds = requests.map((r) => r.id);
     const { data: itemData, error: itemError } = await supabase
@@ -93,7 +97,6 @@ export default function PortalPickupsTab() {
     }
 
     const items = itemData ?? [];
-
     const mapped: PortalPickup[] = requests.map((req) => {
       const reqItems = items.filter((i) => i.pickup_request_id === req.id);
       return {
@@ -115,40 +118,23 @@ export default function PortalPickupsTab() {
           })),
       };
     });
-
     setPickups(mapped);
   }, [toast]);
 
   useEffect(() => {
-    if (portalClientLoading) {
-      setLoading(true);
-      return;
-    }
-
+    if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
-      setLoading(false);
-      setReadyRugs([]);
-      setPickups([]);
-      return;
+      setLoading(false); setReadyRugs([]); setPickups([]); return;
     }
-
-    if (!clientId) {
-      setLoading(false);
-      return;
-    }
+    if (!clientId) { setLoading(false); return; }
 
     const init = async () => {
       setLoading(true);
-
       const { data: selectedClient, error: clientError } = await supabase
         .from("clients")
         .select("id, route_day, address")
         .eq("id", clientId)
-        .maybeSingle<ClientLookupRow>();
-
-      if (clientError || !selectedClient?.id) {
-        toast({ title: "No client found", description: "Please create at least one client record first.", variant: "destructive" });
         .maybeSingle();
 
       if (clientError || !selectedClient?.id) {
@@ -157,8 +143,8 @@ export default function PortalPickupsTab() {
         return;
       }
 
-      const derivedRouteDay = selectedClient.route_day || DEFAULT_ROUTE_DAY;
-      const derivedRegion = selectedClient.address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
+      const derivedRouteDay = (selectedClient as ClientLookupRow).route_day || DEFAULT_ROUTE_DAY;
+      const derivedRegion = (selectedClient as ClientLookupRow).address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
       setRegion(derivedRegion);
 
@@ -192,9 +178,7 @@ export default function PortalPickupsTab() {
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
-
     const scheduledDate = getNextDateForRouteDay(routeDay);
-
     const insertPayload: TablesInsert<"pickup_requests"> = {
       client_id: clientId,
       route_day: routeDay,
@@ -202,12 +186,11 @@ export default function PortalPickupsTab() {
       status: "pending",
       notes: "",
     };
-
     const { data: inserted, error } = await supabase
       .from("pickup_requests")
       .insert(insertPayload)
       .select("id")
-      .single<Pick<Tables<"pickup_requests">, "id">>();
+      .single();
 
     if (error || !inserted) {
       toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
@@ -220,10 +203,7 @@ export default function PortalPickupsTab() {
       rug_type: "",
       is_new: false,
     }));
-
-    if (items.length > 0) {
-      await supabase.from("pickup_request_items").insert(items);
-    }
+    if (items.length > 0) await supabase.from("pickup_request_items").insert(items);
 
     await fetchPickups(clientId, region);
     toast({
@@ -234,40 +214,23 @@ export default function PortalPickupsTab() {
 
   const handleSave = async (id: string, updates: Partial<PortalPickup>) => {
     if (!clientId) return;
-
     const { error: updateErr } = await supabase
       .from("pickup_requests")
       .update({ notes: updates.notes ?? "" })
       .eq("id", id);
-
     if (updateErr) {
       toast({ title: "Save failed", description: updateErr.message, variant: "destructive" });
       return;
     }
-
     await supabase.from("pickup_request_items").delete().eq("pickup_request_id", id);
-
     const readyItems: TablesInsert<"pickup_request_items">[] = (updates.rugNumbers ?? []).map((rugNumber) => ({
-      pickup_request_id: id,
-      rug_number: rugNumber,
-      rug_type: "",
-      is_new: false,
+      pickup_request_id: id, rug_number: rugNumber, rug_type: "", is_new: false,
     }));
-
     const newRugItems: TablesInsert<"pickup_request_items">[] = (updates.newRugs ?? []).map((rug) => ({
-      pickup_request_id: id,
-      rug_number: rug.label,
-      rug_type: rug.rugType,
-      length: rug.length,
-      width: rug.width,
-      is_new: true,
+      pickup_request_id: id, rug_number: rug.label, rug_type: rug.rugType, length: rug.length, width: rug.width, is_new: true,
     }));
-
     const insertItems = [...readyItems, ...newRugItems];
-    if (insertItems.length > 0) {
-      await supabase.from("pickup_request_items").insert(insertItems);
-    }
-
+    if (insertItems.length > 0) await supabase.from("pickup_request_items").insert(insertItems);
     await fetchPickups(clientId, region);
     toast({ title: "Pickup saved" });
   };
@@ -280,7 +243,7 @@ export default function PortalPickupsTab() {
     toast({ title: "Pickup cancelled" });
   };
 
-  if (portalLoading || loading) {
+  if (portalClientLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading pickups…</div>;
   }
 
@@ -321,18 +284,10 @@ export default function PortalPickupsTab() {
 
       {pickups.length > 0 && (
         <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-            Requests
-          </h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Requests</h3>
           <div className="space-y-3">
             {pickups.map((pickup) => (
-              <PickupCard
-                key={pickup.id}
-                pickup={pickup}
-                readyRugNumbers={readyRugNumbers}
-                onSave={handleSave}
-                onCancel={handleCancel}
-              />
+              <PickupCard key={pickup.id} pickup={pickup} readyRugNumbers={readyRugNumbers} onSave={handleSave} onCancel={handleCancel} />
             ))}
           </div>
         </section>
@@ -340,14 +295,9 @@ export default function PortalPickupsTab() {
     </div>
   );
 }
-function PickupCard({
-  pickup,
-  readyRugNumbers,
-  onSave,
-  onCancel,
-}: {
-  pickup: PortalPickup;
-  readyRugNumbers: string[];
+
+function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
+  pickup: PortalPickup; readyRugNumbers: string[];
   onSave: (id: string, updates: Partial<PortalPickup>) => void;
   onCancel: (id: string) => void;
 }) {
@@ -358,27 +308,21 @@ function PickupCard({
 
   const fmtDate = (d: string) =>
     new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
   const toggleRug = (rn: string) =>
     setSelectedRugs((prev) => (prev.includes(rn) ? prev.filter((r) => r !== rn) : [...prev, rn]));
-
   const addNewRug = () =>
     setNewRugs((prev) => [...prev, { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0 }]);
-
   const updateNewRug = (id: string, field: keyof PickupRugEntry, value: string | number) =>
     setNewRugs((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
-
   const removeNewRug = (id: string) => setNewRugs((prev) => prev.filter((r) => r.id !== id));
 
   return (
     <div className="rounded-lg border bg-background overflow-hidden">
       {locked && (
         <div className="flex items-center gap-2 px-4 py-2 bg-muted text-xs text-muted-foreground border-b">
-          <Lock className="h-3 w-3" />
-          Confirmed — no longer editable
+          <Lock className="h-3 w-3" /> Confirmed — no longer editable
         </div>
       )}
-
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between text-sm">
           <span className="font-semibold">{fmtDate(pickup.date)}</span>
@@ -419,46 +363,19 @@ function PickupCard({
             <div className="space-y-2 w-full">
               {newRugs.map((rug) => (
                 <div key={rug.id} className="flex items-center gap-2">
-                  <Input
-                    placeholder="Name"
-                    value={rug.label}
-                    onChange={(e) => updateNewRug(rug.id, "label", e.target.value)}
-                    className="h-8 flex-[2] min-w-0"
-                  />
-                  <Input
-                    placeholder="Type"
-                    value={rug.rugType}
-                    onChange={(e) => updateNewRug(rug.id, "rugType", e.target.value)}
-                    className="h-8 flex-1 min-w-0"
-                  />
+                  <Input placeholder="Name" value={rug.label} onChange={(e) => updateNewRug(rug.id, "label", e.target.value)} className="h-8 flex-[2] min-w-0" />
+                  <Input placeholder="Type" value={rug.rugType} onChange={(e) => updateNewRug(rug.id, "rugType", e.target.value)} className="h-8 flex-1 min-w-0" />
                   <div className="flex items-center gap-1 shrink-0">
-                    <Input
-                      type="number"
-                      placeholder="L"
-                      min={0}
-                      value={rug.length || ""}
-                      onChange={(e) => updateNewRug(rug.id, "length", Number(e.target.value))}
-                      className="h-8 w-14 text-center"
-                    />
+                    <Input type="number" placeholder="L" min={0} value={rug.length || ""} onChange={(e) => updateNewRug(rug.id, "length", Number(e.target.value))} className="h-8 w-14 text-center" />
                     <span className="text-muted-foreground text-xs">×</span>
-                    <Input
-                      type="number"
-                      placeholder="W"
-                      min={0}
-                      value={rug.width || ""}
-                      onChange={(e) => updateNewRug(rug.id, "width", Number(e.target.value))}
-                      className="h-8 w-14 text-center"
-                    />
+                    <Input type="number" placeholder="W" min={0} value={rug.width || ""} onChange={(e) => updateNewRug(rug.id, "width", Number(e.target.value))} className="h-8 w-14 text-center" />
                   </div>
                   <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeNewRug(rug.id)}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               ))}
-              <button
-                onClick={addNewRug}
-                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
+              <button onClick={addNewRug} className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <Plus className="h-3 w-3" /> Add rug
               </button>
             </div>
@@ -469,23 +386,14 @@ function PickupCard({
           {locked ? (
             <span className="text-sm">{pickup.notes || "—"}</span>
           ) : (
-            <Input
-              placeholder="Optional notes…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="h-8"
-            />
+            <Input placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8" />
           )}
         </FieldRow>
 
         {!locked && (
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => onCancel(pickup.id)}>
-              Cancel
-            </Button>
-            <Button size="sm" className="text-xs" onClick={() => onSave(pickup.id, { rugNumbers: selectedRugs, newRugs, notes })}>
-              Save
-            </Button>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => onCancel(pickup.id)}>Cancel</Button>
+            <Button size="sm" className="text-xs" onClick={() => onSave(pickup.id, { rugNumbers: selectedRugs, newRugs, notes })}>Save</Button>
           </div>
         )}
       </div>
