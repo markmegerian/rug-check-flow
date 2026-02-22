@@ -15,6 +15,17 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      PORTAL_USER_EMAIL: ${{ secrets.PORTAL_USER_EMAIL }}
+      PORTAL_USER_PASSWORD: ${{ secrets.PORTAL_USER_PASSWORD }}
+      OFFICE_USER_EMAIL: ${{ secrets.OFFICE_USER_EMAIL }}
+      OFFICE_USER_PASSWORD: ${{ secrets.OFFICE_USER_PASSWORD }}
+      DRIVER_USER_EMAIL: ${{ secrets.DRIVER_USER_EMAIL }}
+      DRIVER_USER_PASSWORD: ${{ secrets.DRIVER_USER_PASSWORD }}
+      EXPECTED_PORTAL_CLIENT_ID: ${{ secrets.EXPECTED_PORTAL_CLIENT_ID }}
+      EXPECTED_DRIVER_USER_ID: ${{ secrets.EXPECTED_DRIVER_USER_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,31 +49,9 @@ jobs:
         run: npm run build
 
       - name: Role-scoped integration tests (optional)
-        if: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_ANON_KEY != '' && secrets.PORTAL_USER_EMAIL != '' && secrets.PORTAL_USER_PASSWORD != '' && secrets.OFFICE_USER_EMAIL != '' && secrets.OFFICE_USER_PASSWORD != '' && secrets.DRIVER_USER_EMAIL != '' && secrets.DRIVER_USER_PASSWORD != '' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PORTAL_USER_EMAIL: ${{ secrets.PORTAL_USER_EMAIL }}
-          PORTAL_USER_PASSWORD: ${{ secrets.PORTAL_USER_PASSWORD }}
-          OFFICE_USER_EMAIL: ${{ secrets.OFFICE_USER_EMAIL }}
-          OFFICE_USER_PASSWORD: ${{ secrets.OFFICE_USER_PASSWORD }}
-          DRIVER_USER_EMAIL: ${{ secrets.DRIVER_USER_EMAIL }}
-          DRIVER_USER_PASSWORD: ${{ secrets.DRIVER_USER_PASSWORD }}
-          EXPECTED_PORTAL_CLIENT_ID: ${{ secrets.EXPECTED_PORTAL_CLIENT_ID }}
-          EXPECTED_DRIVER_USER_ID: ${{ secrets.EXPECTED_DRIVER_USER_ID }}
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.PORTAL_USER_EMAIL != '' && env.PORTAL_USER_PASSWORD != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' && env.DRIVER_USER_EMAIL != '' && env.DRIVER_USER_PASSWORD != '' }}
         run: npm run test -- src/test/role-scope.integration.test.ts
 
       - name: RLS scope smoke script (optional)
-        if: ${{ secrets.SUPABASE_URL != '' && secrets.SUPABASE_ANON_KEY != '' && secrets.PORTAL_USER_EMAIL != '' && secrets.PORTAL_USER_PASSWORD != '' && secrets.OFFICE_USER_EMAIL != '' && secrets.OFFICE_USER_PASSWORD != '' && secrets.DRIVER_USER_EMAIL != '' && secrets.DRIVER_USER_PASSWORD != '' }}
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          PORTAL_USER_EMAIL: ${{ secrets.PORTAL_USER_EMAIL }}
-          PORTAL_USER_PASSWORD: ${{ secrets.PORTAL_USER_PASSWORD }}
-          OFFICE_USER_EMAIL: ${{ secrets.OFFICE_USER_EMAIL }}
-          OFFICE_USER_PASSWORD: ${{ secrets.OFFICE_USER_PASSWORD }}
-          DRIVER_USER_EMAIL: ${{ secrets.DRIVER_USER_EMAIL }}
-          DRIVER_USER_PASSWORD: ${{ secrets.DRIVER_USER_PASSWORD }}
-          EXPECTED_PORTAL_CLIENT_ID: ${{ secrets.EXPECTED_PORTAL_CLIENT_ID }}
-          EXPECTED_DRIVER_USER_ID: ${{ secrets.EXPECTED_DRIVER_USER_ID }}
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.PORTAL_USER_EMAIL != '' && env.PORTAL_USER_PASSWORD != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' && env.DRIVER_USER_EMAIL != '' && env.DRIVER_USER_PASSWORD != '' }}
         run: ./scripts/rls-scope-smoke-test.sh
