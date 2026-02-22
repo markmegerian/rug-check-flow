@@ -3,22 +3,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { usePortalClient } from "@/hooks/usePortalClient";
-
-type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
+import type { Tables } from "@/integrations/supabase/types";
 
 type EstimateRow = {
-  id: string;
-  estimate_number: string;
-  status: EstimateStatus;
-  total: number;
-  created_at: string;
-  sent_at: string | null;
-  approved_at: string | null;
-  rejected_at: string | null;
-  rugs?: { tag: string } | null;
+  id: ExtendedTableRow<"estimates">["id"];
+  estimate_number: ExtendedTableRow<"estimates">["estimate_number"];
+  status: ExtendedTableRow<"estimates">["status"];
+  total: ExtendedTableRow<"estimates">["total"];
+  created_at: ExtendedTableRow<"estimates">["created_at"];
+  sent_at: ExtendedTableRow<"estimates">["sent_at"];
+  approved_at: ExtendedTableRow<"estimates">["approved_at"];
+  rejected_at: ExtendedTableRow<"estimates">["rejected_at"];
+  rugs?: Pick<Tables<"rugs">, "tag"> | null;
 };
 
 const statusBadge = (status: EstimateStatus) => {
@@ -37,18 +37,18 @@ export default function PortalEstimatesTab() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabaseExtended
       .from("estimates")
       .select("id, estimate_number, status, total, created_at, sent_at, approved_at, rejected_at, rugs(tag)")
       .eq("client_id", activeClientId)
       .order("created_at", { ascending: false })
-      .limit(200) as { data: EstimateRow[] | null; error: any };
+      .limit(200);
 
     if (error) {
       toast({ title: "Failed to load estimates", description: error.message, variant: "destructive" });
       return;
     }
-    setEstimates(data ?? []);
+    setEstimates((data ?? []) as unknown as EstimateRow[]);
   }, [toast]);
 
   useEffect(() => {
@@ -74,14 +74,24 @@ export default function PortalEstimatesTab() {
     const timestampField = nextStatus === "approved" ? "approved_at" : "rejected_at";
     const nowIso = new Date().toISOString();
 
-    const { data, error } = await (supabase as any)
+    if (!canRoleTransitionEstimateStatus("portal", estimate.status, nextStatus)) {
+      toast({
+        title: "Update blocked",
+        description: `Estimate cannot move from ${estimate.status} to ${nextStatus}.`,
+        variant: "destructive",
+      });
+      setUpdatingId(null);
+      return;
+    }
+
+    const { data, error } = await supabaseExtended
       .from("estimates")
       .update({ status: nextStatus, [timestampField]: nowIso })
       .eq("id", estimate.id)
       .eq("client_id", clientId)
       .eq("status", "sent")
       .select("id")
-      .maybeSingle() as { data: { id: string } | null; error: any };
+      .maybeSingle();
 
     if (error) {
       toast({ title: "Failed to update estimate", description: error.message, variant: "destructive" });
@@ -104,7 +114,7 @@ export default function PortalEstimatesTab() {
       subject: `${estimate.estimate_number} ${nextStatus}`,
       body: `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
     };
-    await (supabase as any).from("communication_events").insert(eventPayload);
+    await supabaseExtended.from("communication_events").insert(eventPayload);
 
     setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));
     toast({ title: `Estimate ${nextStatus}` });

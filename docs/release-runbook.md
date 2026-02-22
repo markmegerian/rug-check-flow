@@ -36,7 +36,13 @@ This runbook is the operational checklist for promoting the RugBoost app.
    ./scripts/staging-smoke-test.sh
    ```
 
-5. Verify smoke output is all green before production promote.
+5. Run role-scope RLS smoke script:
+
+   ```sh
+   ./scripts/rls-scope-smoke-test.sh
+   ```
+
+6. Verify smoke output is all green before production promote.
 
 ## 4) Staging smoke validation
 
@@ -48,6 +54,15 @@ The smoke script validates:
   - `estimates`
   - `invoices`
 - Optional frontend route reachability checks when `APP_BASE_URL` is provided
+
+The role-scope RLS script validates:
+
+- Portal user scoped reads on invoices and pickup requests
+- Office user broad operational reads on invoices and pickup requests
+- Driver user reads for assigned pickup workflow tables
+- Optional strict client/driver assertions when these are provided:
+  - `EXPECTED_PORTAL_CLIENT_ID`
+  - `EXPECTED_DRIVER_USER_ID`
 
 ## 5) Production promote
 

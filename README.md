@@ -81,6 +81,7 @@ If you set it to `true`, also enable the Supabase edge function switch (`ENABLE_
 
 - Runbook: `docs/release-runbook.md`
 - Smoke script: `scripts/staging-smoke-test.sh`
+- RLS scope script: `scripts/rls-scope-smoke-test.sh`
 
 Example usage:
 
@@ -92,6 +93,23 @@ export SMOKE_USER_PASSWORD="<password>"
 export APP_BASE_URL="https://staging.example.com" # optional
 
 ./scripts/staging-smoke-test.sh
+```
+
+Role-scope smoke example:
+
+```sh
+export SUPABASE_URL="https://<project>.supabase.co"
+export SUPABASE_ANON_KEY="<anon-key>"
+export PORTAL_USER_EMAIL="portal-user@example.com"
+export PORTAL_USER_PASSWORD="<password>"
+export OFFICE_USER_EMAIL="office-user@example.com"
+export OFFICE_USER_PASSWORD="<password>"
+export DRIVER_USER_EMAIL="driver-user@example.com"
+export DRIVER_USER_PASSWORD="<password>"
+export EXPECTED_PORTAL_CLIENT_ID="<optional-client-id>"
+export EXPECTED_DRIVER_USER_ID="<optional-driver-user-id>"
+
+./scripts/rls-scope-smoke-test.sh
 ```
 
 ## What technologies are used for this project?
