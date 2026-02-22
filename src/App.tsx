@@ -9,8 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
-const devSwitcherEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
+const devSwitcherEnabled = import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const FacilityOps = lazy(() => import("./pages/FacilityOps"));

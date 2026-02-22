@@ -12,8 +12,7 @@ const ROLE_LABELS: Record<string, string> = {
   checkin_staff: "Check-in Staff",
   driver: "Driver",
 };
-const devSwitcherEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
+const devSwitcherEnabled = import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
 
 export function DevAccountSwitcher() {
   const { toast } = useToast();

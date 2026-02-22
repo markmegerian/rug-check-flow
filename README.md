@@ -75,6 +75,7 @@ cp .env.example .env
 ```
 
 `VITE_ENABLE_DEV_SWITCHER` defaults to `false` and should stay `false` outside local development.
+If you set it to `true`, also enable the Supabase edge function switch (`ENABLE_DEV_LOGIN=true`) and configure `DEV_LOGIN_TEST_PASSWORD` in edge-function secrets.
 
 ## What technologies are used for this project?
 
