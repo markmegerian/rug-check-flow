@@ -223,11 +223,13 @@ export type Database = {
         Row: {
           client_id: string | null
           created_at: string
+          delivery_list_id: string | null
           due_at: string | null
           id: string
           invoice_number: string
           issued_at: string | null
           paid_at: string | null
+          pdf_storage_path: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           total: number
           updated_at: string
@@ -235,11 +237,13 @@ export type Database = {
         Insert: {
           client_id?: string | null
           created_at?: string
+          delivery_list_id?: string | null
           due_at?: string | null
           id?: string
           invoice_number: string
           issued_at?: string | null
           paid_at?: string | null
+          pdf_storage_path?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           total?: number
           updated_at?: string
@@ -247,11 +251,13 @@ export type Database = {
         Update: {
           client_id?: string | null
           created_at?: string
+          delivery_list_id?: string | null
           due_at?: string | null
           id?: string
           invoice_number?: string
           issued_at?: string | null
           paid_at?: string | null
+          pdf_storage_path?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           total?: number
           updated_at?: string
@@ -262,6 +268,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_delivery_list_id_fkey"
+            columns: ["delivery_list_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_lists"
             referencedColumns: ["id"]
           },
         ]

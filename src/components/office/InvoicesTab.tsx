@@ -215,7 +215,7 @@ export function InvoicesTab() {
         client_id: selectedClientId,
         status: "draft" as const,
         total,
-        pdf_storage_path: `invoices/${invNum}.pdf`,
+        pdf_storage_path: `clients/${selectedClientId}/${invNum}.pdf`,
       })
       .select()
       .single();
@@ -289,19 +289,13 @@ export function InvoicesTab() {
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
       const artifact = await downloadInvoicePdf({
+        invoiceId: invoice.id,
         invoiceNumber: invoice.invoice_number,
-        pdfStoragePath: invoice.pdf_storage_path,
       });
       toast({
         title: "Invoice download started",
         description: `${invoice.invoice_number}.pdf (${artifact.bucket}/${artifact.path})`,
       });
-      await logInvoiceEvent(
-        invoice,
-        "invoice_pdf_downloaded_by_office",
-        `${invoice.invoice_number} downloaded`,
-        `Office downloaded ${invoice.invoice_number}.pdf from ${artifact.path}.`,
-      );
     } catch (error) {
       const description = error instanceof Error ? error.message : "Unknown error";
       toast({ title: "Download failed", description, variant: "destructive" });
@@ -319,6 +313,20 @@ export function InvoicesTab() {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
       return;
     }
+
+    if (newStatus === "sent") {
+      const { data: pdfData, error: pdfError } = await supabase.functions.invoke("invoice-pdf", {
+        body: { invoice_id: selected.id, force_regenerate: true },
+      });
+      if (pdfError || pdfData?.error) {
+        toast({
+          title: "Invoice marked sent with warning",
+          description: pdfData?.error ?? pdfError?.message ?? "Failed to prepare PDF artifact.",
+          variant: "destructive",
+        });
+      }
+    }
+
     await logInvoiceEvent(
       selected,
       `invoice_marked_${newStatus}`,

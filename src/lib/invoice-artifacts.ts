@@ -1,31 +1,28 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const DEFAULT_INVOICE_PDF_BUCKET = "invoice-pdfs";
-const INVOICE_PDF_BUCKET =
-  (import.meta.env.VITE_INVOICE_PDF_BUCKET as string | undefined)?.trim() || DEFAULT_INVOICE_PDF_BUCKET;
-
 export type InvoicePdfArtifact = {
+  invoiceId: string;
   invoiceNumber: string;
-  pdfStoragePath?: string | null;
+  forceRegenerate?: boolean;
 };
 
-export function resolveInvoicePdfStoragePath(artifact: InvoicePdfArtifact) {
-  if (artifact.pdfStoragePath && artifact.pdfStoragePath.trim().length > 0) {
-    return artifact.pdfStoragePath.trim();
-  }
-  return `invoices/${artifact.invoiceNumber}.pdf`;
-}
-
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
-  const path = resolveInvoicePdfStoragePath(artifact);
-  const { data, error } = await supabase.storage.from(INVOICE_PDF_BUCKET).download(path);
+  const { data: functionData, error: functionError } = await supabase.functions.invoke("invoice-pdf", {
+    body: {
+      invoice_id: artifact.invoiceId,
+      force_regenerate: Boolean(artifact.forceRegenerate),
+    },
+  });
 
-  if (error || !data) {
-    throw new Error(
-      error?.message ??
-        `Invoice PDF is unavailable at ${INVOICE_PDF_BUCKET}/${path}. Confirm the artifact was uploaded.`,
-    );
+  if (functionError || functionData?.error || !functionData?.signed_url) {
+    throw new Error(functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF");
   }
+
+  const response = await fetch(functionData.signed_url);
+  if (!response.ok) {
+    throw new Error(`Signed invoice download failed with status ${response.status}`);
+  }
+  const data = await response.blob();
 
   const downloadUrl = URL.createObjectURL(data);
   const link = document.createElement("a");
@@ -37,5 +34,9 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
   link.remove();
   URL.revokeObjectURL(downloadUrl);
 
-  return { bucket: INVOICE_PDF_BUCKET, path };
+  return {
+    bucket: functionData.bucket as string,
+    path: functionData.path as string,
+    generated: Boolean(functionData.generated),
+  };
 }

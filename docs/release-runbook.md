@@ -25,11 +25,13 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `ENABLE_DEV_LOGIN` (recommended `"false"` in staging/prod unless explicitly needed)
 - `DEV_LOGIN_TEST_PASSWORD` (only required when dev login is enabled)
 - `SUPABASE_SERVICE_ROLE_KEY` (required by edge functions that perform admin actions)
+- `INVOICE_PDF_BUCKET` (optional override; defaults to `invoice-pdfs`)
 
 ## 3) Migration and deploy order
 
 1. Deploy database migrations to staging.
 2. Deploy Supabase edge functions.
+   - Ensure `invoice-pdf` is deployed alongside existing functions.
 3. Deploy frontend build.
 4. Run staging smoke test script:
 
@@ -50,6 +52,11 @@ This runbook is the operational checklist for promoting the RugBoost app.
    ```
 
 7. Verify smoke output is all green before production promote.
+8. Run private beta readiness gate when preparing invite wave:
+
+   ```sh
+   ./scripts/private-beta-readiness.sh
+   ```
 
 ## 4) Staging smoke validation
 
@@ -60,7 +67,10 @@ The smoke script validates:
   - `pickup_requests`
   - `estimates`
   - `invoices`
+  - `invoice_items`
+  - `payment_attempts`
 - Optional frontend route reachability checks when `APP_BASE_URL` is provided
+- Optional invoice PDF artifact + signed URL validation when `SAMPLE_INVOICE_ID` is provided
 
 The role-scope RLS script validates:
 
