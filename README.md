@@ -82,6 +82,9 @@ Invoice records support `invoices.pdf_storage_path` as the source-of-truth objec
 Edge function environment:
 
 - `INVOICE_PDF_BUCKET` (optional, defaults to `invoice-pdfs`) for invoice artifact upload + signed URL generation.
+- `SLACK_WEBHOOK_URL` (optional) for critical operational alert notifications.
+- `OPS_ALERT_EMAILS` (optional CSV list) for email alert recipients.
+- `OPS_ALERT_FROM_EMAIL` (optional) sender used by operational alerts when email is configured.
 
 ## Release runbook and smoke testing
 
@@ -130,6 +133,16 @@ All-in-one private beta gate:
 ```sh
 export SAMPLE_INVOICE_ID="<optional-invoice-id-for-pdf-smoke>"
 ./scripts/private-beta-readiness.sh
+```
+
+Optional operational alert dry-run (office/admin token required):
+
+```sh
+curl -X POST "${SUPABASE_URL}/functions/v1/operational-alerts" \
+  -H "apikey: ${SUPABASE_ANON_KEY}" \
+  -H "Authorization: Bearer <office-or-admin-access-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"dry_run": true}'
 ```
 
 ## What technologies are used for this project?

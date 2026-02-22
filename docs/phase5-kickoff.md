@@ -22,3 +22,10 @@ Give office/admin teams a live operational pulse without reintroducing noisy sho
 2. Add escalation thresholds and SLA tags (3-day/5-day/7-day aging bands).
 3. Add notification delivery layer (email/Slack) for critical reminder counts.
 4. Add trend snapshots (day-over-day reminder deltas) for leadership reporting.
+
+## Progress update
+
+- ✅ Reminder cards now deep-link into Office tabs with pre-applied reminder filters (`tab`, `status`, `minAgeDays`).
+- ✅ SLA aging bands are shown on each reminder card (3-4d, 5-6d, 7+d) with severity styling.
+- ✅ Notification delivery layer added via `operational-alerts` edge function (Slack + email providers when configured).
+- ✅ Day-over-day trend snapshots are displayed in Mission Control for leadership visibility.

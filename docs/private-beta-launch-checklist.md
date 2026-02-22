@@ -15,10 +15,13 @@ This checklist is the final gate before sending private beta invitations.
   - `checkout-delivery`
   - `send-estimate-email`
   - `invoice-pdf`
+  - `operational-alerts`
 - [ ] Ensure edge function secrets are configured:
   - `SUPABASE_SERVICE_ROLE_KEY`
   - `SUPABASE_ANON_KEY`
   - `INVOICE_PDF_BUCKET` (optional; default `invoice-pdfs`)
+  - `SLACK_WEBHOOK_URL` (optional for critical Slack notifications)
+  - `OPS_ALERT_EMAILS` and `OPS_ALERT_FROM_EMAIL` (optional for email notifications)
 
 ## 3) Auth and role setup
 
@@ -37,6 +40,7 @@ This checklist is the final gate before sending private beta invitations.
   - download PDF successfully,
   - verify payment attempt timeline renders.
 - [ ] Mark a sent invoice as paid and verify a `payment_attempts` row is auto-created.
+- [ ] Trigger a dry-run of `operational-alerts` and confirm critical reminder summary returns.
 
 ## 5) Automated readiness checks
 

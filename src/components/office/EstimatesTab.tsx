@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,8 +42,11 @@ type RugOption = {
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
 type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_name" | "unit_price" | "line_total">;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "sent", "approved", "rejected", "expired"]);
 
 export function EstimatesTab() {
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [rugOptions, setRugOptions] = useState<RugOption[]>([]);
@@ -50,6 +54,14 @@ export function EstimatesTab() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
+
+  const statusParam = searchParams.get("status");
+  const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
+  const statusFilter: EstimateStatus | "all" =
+    statusParam && ESTIMATE_STATUS_SET.has(statusParam as EstimateStatus)
+      ? (statusParam as EstimateStatus)
+      : "all";
+  const hasReminderFilter = statusFilter !== "all" || minAgeDays > 0;
 
   const fetchData = useCallback(async () => {
     const { data: estRows, error: estErr } = await supabaseExtended
@@ -274,14 +286,29 @@ export function EstimatesTab() {
     toast({ title: `Estimate ${status}` });
   };
 
+  const filteredEstimates = useMemo(() => {
+    let next = [...estimates];
+    if (statusFilter !== "all") {
+      next = next.filter((estimate) => estimate.status === statusFilter);
+    }
+    if (minAgeDays > 0) {
+      next = next.filter((estimate) => {
+        const ageMs = Date.now() - Date.parse(estimate.created_at);
+        if (!Number.isFinite(ageMs)) return false;
+        return ageMs >= minAgeDays * MS_PER_DAY;
+      });
+    }
+    return next;
+  }, [estimates, minAgeDays, statusFilter]);
+
   const grouped = useMemo(() => {
     const map: Record<string, EstimateRow[]> = {};
-    estimates.forEach((e) => {
+    filteredEstimates.forEach((e) => {
       if (!map[e.status]) map[e.status] = [];
       map[e.status].push(e);
     });
     return map;
-  }, [estimates]);
+  }, [filteredEstimates]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading estimates…</div>;
@@ -289,6 +316,13 @@ export function EstimatesTab() {
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full space-y-5 animate-fade-in-up">
+      {hasReminderFilter ? (
+        <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Reminder filter active:
+          {statusFilter !== "all" ? ` status=${statusFilter}` : ""}
+          {minAgeDays > 0 ? ` · min age ${minAgeDays} days` : ""}
+        </div>
+      ) : null}
       <h2 className="text-lg font-semibold text-foreground">Estimates</h2>
 
       <section className="rounded-lg border bg-card p-4 space-y-3">

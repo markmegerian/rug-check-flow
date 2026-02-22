@@ -25,12 +25,15 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `DEV_LOGIN_TEST_PASSWORD` (only required when dev login is enabled)
 - `SUPABASE_SERVICE_ROLE_KEY` (required by edge functions that perform admin actions)
 - `INVOICE_PDF_BUCKET` (optional override; defaults to `invoice-pdfs`)
+- `SLACK_WEBHOOK_URL` (optional; enables Slack dispatch for critical operational alerts)
+- `OPS_ALERT_EMAILS` (optional CSV list for critical operational alert emails)
+- `OPS_ALERT_FROM_EMAIL` (optional sender identity for operational alert emails)
 
 ## 3) Migration and deploy order
 
 1. Deploy database migrations to staging.
 2. Deploy Supabase edge functions.
-   - Ensure `invoice-pdf` is deployed alongside existing functions.
+   - Ensure `invoice-pdf` and `operational-alerts` are deployed alongside existing functions.
 3. Deploy frontend build.
 4. Run staging smoke test script:
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck } from "lucide-react";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
@@ -20,8 +21,31 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const TAB_IDS = new Set<string>(TABS.map((tab) => tab.id));
+
+function isTabId(value: string | null): value is TabId {
+  return value !== null && TAB_IDS.has(value);
+}
+
 export default function FacilityOffice() {
-  const [activeTab, setActiveTab] = useState<TabId>("pricing");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab: TabId = isTabId(requestedTab) ? requestedTab : "pricing";
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+
+  const handleTabChange = (nextTab: TabId) => {
+    setActiveTab(nextTab);
+    const nextSearch = new URLSearchParams(searchParams);
+    nextSearch.set("tab", nextTab);
+    setSearchParams(nextSearch, { replace: true });
+  };
+
+  useEffect(() => {
+    if (isTabId(requestedTab)) {
+      setActiveTab((currentTab) => (currentTab === requestedTab ? currentTab : requestedTab));
+    }
+  }, [requestedTab]);
+
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   return (
@@ -35,7 +59,7 @@ export default function FacilityOffice() {
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={(tabId) => handleTabChange(tabId as TabId)}
             desktopWidthClassName="md:w-52"
             mobileLabelMode="desktop-only"
             className="bg-muted/30"
