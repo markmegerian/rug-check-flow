@@ -77,6 +77,9 @@ cp .env.example .env
 `VITE_ENABLE_DEV_SWITCHER` defaults to `false` and should stay `false` outside local development.
 If you set it to `true`, also enable the Supabase edge function switch (`ENABLE_DEV_LOGIN=true`) and configure `DEV_LOGIN_TEST_PASSWORD` in edge-function secrets.
 
+`VITE_INVOICE_PDF_BUCKET` controls where invoice PDFs are downloaded from in portal/office flows.  
+Invoice records now support `invoices.pdf_storage_path` as the source-of-truth object path; if empty, the app falls back to `invoices/<invoice_number>.pdf`.
+
 ## Release runbook and smoke testing
 
 - Runbook: `docs/release-runbook.md`
@@ -110,6 +113,12 @@ export EXPECTED_PORTAL_CLIENT_ID="<optional-client-id>"
 export EXPECTED_DRIVER_USER_ID="<optional-driver-user-id>"
 
 ./scripts/rls-scope-smoke-test.sh
+```
+
+Optional role-scoped integration test (same environment variables as above):
+
+```sh
+npm run test -- src/test/role-scope.integration.test.ts
 ```
 
 ## What technologies are used for this project?

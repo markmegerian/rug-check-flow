@@ -17,13 +17,16 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Tables } from "@/integrations/supabase/types";
+import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 
 type InvoiceRow = Tables<"invoices"> & {
+  pdf_storage_path: string | null;
   clients: { name: string } | null;
   invoice_items: Tables<"invoice_items">[];
 };
@@ -44,6 +47,8 @@ const STATUSES: Array<{ value: string; label: string }> = [
   { value: "paid", label: "Paid" },
   { value: "overdue", label: "Overdue" },
 ];
+
+const PAGE_SIZE = 100;
 
 interface ClientOption {
   id: string;
@@ -66,6 +71,9 @@ type ClientRugRow = Pick<Tables<"rugs">, "id" | "tag" | "size_length" | "size_wi
 export function InvoicesTab() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -81,23 +89,58 @@ export function InvoicesTab() {
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
 
-  const fetchInvoices = useCallback(async () => {
+  const fetchInvoicesPage = useCallback(async (targetPageIndex: number, append: boolean) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+
+    const from = targetPageIndex * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     const { data, error } = await supabase
       .from("invoices")
-      .select("*, clients(name), invoice_items(*)")
-      .order("created_at", { ascending: false });
+      .select("*, pdf_storage_path, clients(name), invoice_items(*)")
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (error) {
       toast({ title: "Error loading invoices", description: error.message, variant: "destructive" });
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
       return;
     }
-    setInvoices((data as InvoiceRow[]) ?? []);
-    setLoading(false);
+
+    const nextRows = (data as InvoiceRow[]) ?? [];
+    setHasMore(nextRows.length === PAGE_SIZE);
+    setPageIndex(targetPageIndex);
+    setInvoices((prev) => {
+      if (!append) return nextRows;
+      const byId = new Map(prev.map((invoice) => [invoice.id, invoice]));
+      for (const invoice of nextRows) {
+        byId.set(invoice.id, invoice);
+      }
+      return Array.from(byId.values());
+    });
+
+    if (append) {
+      setLoadingMore(false);
+    } else {
+      setLoading(false);
+    }
   }, []);
 
+  const refreshInvoices = useCallback(async () => {
+    await fetchInvoicesPage(0, false);
+  }, [fetchInvoicesPage]);
+
   useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+    refreshInvoices();
+  }, [refreshInvoices]);
 
   // Fetch clients for create flow
   const openCreate = async () => {
@@ -167,7 +210,13 @@ export function InvoicesTab() {
 
     const { data: inv, error: invErr } = await supabase
       .from("invoices")
-      .insert({ invoice_number: invNum, client_id: selectedClientId, status: "draft" as const, total })
+      .insert({
+        invoice_number: invNum,
+        client_id: selectedClientId,
+        status: "draft" as const,
+        total,
+        pdf_storage_path: `invoices/${invNum}.pdf`,
+      })
       .select()
       .single();
 
@@ -186,7 +235,7 @@ export function InvoicesTab() {
     toast({ title: `Draft ${invNum} created` });
     setCreateOpen(false);
     setCreating(false);
-    fetchInvoices();
+    await refreshInvoices();
   };
 
   const statusCounts = useMemo(() => {
@@ -219,6 +268,46 @@ export function InvoicesTab() {
     setSheetOpen(true);
   };
 
+  const logInvoiceEvent = useCallback(async (
+    invoice: InvoiceRow,
+    eventType: string,
+    subject: string,
+    body: string,
+    direction: "outbound" | "inbound" = "outbound",
+  ) => {
+    await supabaseExtended.from("communication_events").insert({
+      client_id: invoice.client_id,
+      invoice_id: invoice.id,
+      channel: "in_app_chat",
+      direction,
+      event_type: eventType,
+      subject,
+      body,
+    });
+  }, []);
+
+  const handleDownloadInvoice = async (invoice: InvoiceRow) => {
+    try {
+      const artifact = await downloadInvoicePdf({
+        invoiceNumber: invoice.invoice_number,
+        pdfStoragePath: invoice.pdf_storage_path,
+      });
+      toast({
+        title: "Invoice download started",
+        description: `${invoice.invoice_number}.pdf (${artifact.bucket}/${artifact.path})`,
+      });
+      await logInvoiceEvent(
+        invoice,
+        "invoice_pdf_downloaded_by_office",
+        `${invoice.invoice_number} downloaded`,
+        `Office downloaded ${invoice.invoice_number}.pdf from ${artifact.path}.`,
+      );
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Download failed", description, variant: "destructive" });
+    }
+  };
+
   const updateStatus = async (newStatus: InvoiceStatus) => {
     if (!selected) return;
     const updates: Record<string, unknown> = { status: newStatus };
@@ -230,8 +319,14 @@ export function InvoicesTab() {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
       return;
     }
+    await logInvoiceEvent(
+      selected,
+      `invoice_marked_${newStatus}`,
+      `${selected.invoice_number} marked ${newStatus}`,
+      `Office marked invoice ${selected.invoice_number} as ${newStatus}.`,
+    );
     toast({ title: `Marked as ${newStatus}` });
-    await fetchInvoices();
+    await refreshInvoices();
   };
 
   const deleteDraft = async () => {
@@ -245,7 +340,7 @@ export function InvoicesTab() {
     setSheetOpen(false);
     setSelected(null);
     toast({ title: "Draft deleted" });
-    fetchInvoices();
+    await refreshInvoices();
   };
 
   useEffect(() => {
@@ -253,6 +348,11 @@ export function InvoicesTab() {
     const updated = invoices.find((i) => i.id === selected.id);
     if (updated) setSelected(updated);
   }, [invoices, selected?.id]);
+
+  const loadOlderInvoices = async () => {
+    if (!hasMore || loadingMore) return;
+    await fetchInvoicesPage(pageIndex + 1, true);
+  };
 
   const rugCount = (inv: InvoiceRow) => inv.invoice_items.length;
   const clientName = (inv: InvoiceRow) => inv.clients?.name ?? "Unknown";
@@ -376,6 +476,15 @@ export function InvoicesTab() {
         </TableBody>
       </Table>
 
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>Showing {invoices.length} most recent invoices.</span>
+        {hasMore ? (
+          <Button variant="outline" size="sm" onClick={loadOlderInvoices} disabled={loadingMore}>
+            {loadingMore ? "Loading…" : "Load older invoices"}
+          </Button>
+        ) : null}
+      </div>
+
       {/* Invoice Detail Sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
@@ -452,7 +561,7 @@ export function InvoicesTab() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => toast({ title: "PDF downloaded" })}
+                      onClick={() => handleDownloadInvoice(selected)}
                       className="gap-1.5"
                     >
                       <Download className="h-3.5 w-3.5" /> Download PDF

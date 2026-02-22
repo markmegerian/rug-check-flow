@@ -18,6 +18,7 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `VITE_ENABLE_DEV_SWITCHER` must remain `"false"` outside local development
+- `VITE_INVOICE_PDF_BUCKET` (defaults to `invoice-pdfs`; should match your storage bucket for invoice artifacts)
 
 ### Supabase Edge Function secrets
 
@@ -42,7 +43,13 @@ This runbook is the operational checklist for promoting the RugBoost app.
    ./scripts/rls-scope-smoke-test.sh
    ```
 
-6. Verify smoke output is all green before production promote.
+6. Run optional role-scoped integration test (when test credentials are available):
+
+   ```sh
+   npm run test -- src/test/role-scope.integration.test.ts
+   ```
+
+7. Verify smoke output is all green before production promote.
 
 ## 4) Staging smoke validation
 
@@ -58,7 +65,13 @@ The smoke script validates:
 The role-scope RLS script validates:
 
 - Portal user scoped reads on invoices and pickup requests
-- Office user broad operational reads on invoices and pickup requests
+- Portal user scoped reads on:
+  - `portal_users`
+  - `invoices`
+  - `invoice_items`
+  - `payment_attempts`
+  - `pickup_requests`
+- Office user broad operational reads across the same core tables
 - Driver user reads for assigned pickup workflow tables
 - Optional strict client/driver assertions when these are provided:
   - `EXPECTED_PORTAL_CLIENT_ID`
