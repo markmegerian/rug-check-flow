@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files (keep template tracked)
+.env
+.env.*
+!.env.example
+
+# Supabase CLI local cache/temp artifacts
+supabase/.temp/

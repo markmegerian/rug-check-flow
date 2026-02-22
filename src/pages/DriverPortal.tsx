@@ -7,10 +7,25 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import SignatureCanvas from "@/components/driver/SignatureCanvas";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { EmptyState, LoadingState } from "@/components/states/PageState";
+import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { canDriverCompletePickup, type PickupRequestStatus } from "@/lib/workflow-guards";
+import type { Tables } from "@/integrations/supabase/types";
 
-type PickupStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
+type PickupStatus = PickupRequestStatus;
+
+type DriverPickupRequestRow = Pick<
+  ExtendedTableRow<"pickup_requests">,
+  "id" | "scheduled_date" | "status" | "completed_at" | "signature_data_url"
+> & {
+  clients: Pick<Tables<"clients">, "name" | "address"> | null;
+};
+
+type DriverPickupItemRow = Pick<
+  ExtendedTableRow<"pickup_request_items">,
+  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "verified" | "driver_notes"
+>;
 
 type DriverPickup = {
   id: string;
@@ -31,29 +46,6 @@ type DriverPickup = {
   }[];
 };
 
-type PickupRequestRow = {
-  id: string;
-  scheduled_date: string;
-  status: PickupStatus;
-  completed_at: string | null;
-  signature_data_url: string | null;
-  clients: {
-    name: string | null;
-    address: string | null;
-  } | null;
-};
-
-type PickupRequestItemRow = {
-  id: string;
-  pickup_request_id: string;
-  rug_number: string;
-  rug_type: string | null;
-  length: number | null;
-  width: number | null;
-  verified: boolean | null;
-  driver_notes: string | null;
-};
-
 const DriverPortal: React.FC = () => {
   const { user } = useAuth();
   const [pickups, setPickups] = useState<DriverPickup[]>([]);
@@ -61,10 +53,14 @@ const DriverPortal: React.FC = () => {
   const [activePickupId, setActivePickupId] = useState<string | null>(null);
 
   const fetchPickups = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setPickups([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
 
-    const { data: reqData, error: reqErr } = await (supabase as any)
+    const { data: reqData, error: reqErr } = await supabaseExtended
       .from("pickup_requests")
       .select("id, scheduled_date, status, completed_at, signature_data_url, clients(name,address)")
       .eq("assigned_driver_id", user.id)
@@ -77,17 +73,17 @@ const DriverPortal: React.FC = () => {
       return;
     }
 
-    const requests = (reqData ?? []) as unknown as PickupRequestRow[];
+    const requests = (reqData ?? []) as DriverPickupRequestRow[];
     const requestIds = requests.map((r) => r.id);
 
     const { data: itemData } = requestIds.length === 0
       ? { data: [] }
-      : await (supabase as any)
+      : await supabaseExtended
           .from("pickup_request_items")
           .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes")
           .in("pickup_request_id", requestIds);
 
-    const items = (itemData ?? []) as unknown as PickupRequestItemRow[];
+    const items = (itemData ?? []) as DriverPickupItemRow[];
 
     const mapped: DriverPickup[] = requests.map((r) => ({
       id: r.id,
@@ -132,7 +128,7 @@ const DriverPortal: React.FC = () => {
     if (!pickup || !rug || pickup.status === "completed") return;
 
     const next = !rug.verified;
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_request_items")
       .update({ verified: next })
       .eq("id", rugId);
@@ -149,7 +145,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setRugNotes = async (pickupId: string, rugId: string, notes: string) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_request_items")
       .update({ driver_notes: notes })
       .eq("id", rugId);
@@ -166,7 +162,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setSignature = async (pickupId: string, dataUrl: string | null) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_requests")
       .update({ signature_data_url: dataUrl })
       .eq("id", pickupId);
@@ -180,8 +176,21 @@ const DriverPortal: React.FC = () => {
   };
 
   const completePickup = async (pickupId: string) => {
+    const pickup = pickups.find((p) => p.id === pickupId);
+    if (!pickup) return;
+    const allVerified = pickup.rugs.every((rug) => rug.verified);
+    const hasSignature = Boolean(pickup.signatureDataUrl);
+    if (!canDriverCompletePickup({ status: pickup.status, allVerified, hasSignature })) {
+      toast({
+        title: "Pickup cannot be completed",
+        description: "Assigned pickups require verified rugs and a signature.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const completedAt = new Date().toISOString();
-    const { error } = await (supabase as any)
+    const { error } = await supabaseExtended
       .from("pickup_requests")
       .update({ status: "completed", completed_at: completedAt })
       .eq("id", pickupId);
@@ -196,7 +205,11 @@ const DriverPortal: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading pickups…</div>;
+    return (
+      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+        <LoadingState title="Loading pickups" description="Preparing your assigned route..." className="w-full max-w-lg" />
+      </div>
+    );
   }
 
   if (!activePickup) {
@@ -211,7 +224,13 @@ const DriverPortal: React.FC = () => {
         <main className="p-4 space-y-6 max-w-lg mx-auto">
           <section>
             <h2 className="text-base font-semibold mb-3">Assigned Pickups ({assigned.length})</h2>
-            {assigned.length === 0 && <p className="text-sm text-muted-foreground">No assigned pickups.</p>}
+            {assigned.length === 0 && (
+              <EmptyState
+                className="border-dashed"
+                title="No assigned pickups"
+                description="New assignments will appear here when dispatch routes work to you."
+              />
+            )}
             <div className="space-y-3">
               {assigned.map((pickup, i) => (
                 <div key={pickup.id} className="rounded-lg border bg-card p-4 space-y-2 shadow-card animate-fade-in-up" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>

@@ -3,10 +3,20 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { PRODUCTION_STAGES, ProductionStage } from "@/data/production";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+type RugRow = Pick<
+  Tables<"rugs">,
+  "id" | "tag" | "description" | "status" | "size_length" | "size_width" | "checked_in_at" | "notes"
+> & {
+  clients: Pick<Tables<"clients">, "name"> | null;
+};
+
+type RugServiceRow = Pick<Tables<"rug_services">, "rug_id" | "line_total" | "service_name" | "edges">;
 
 export interface DbRug {
   id: string;
@@ -38,37 +48,39 @@ export function ProductionBoard() {
       return;
     }
 
-    const rugIds = (data ?? []).map((r: any) => r.id);
+    const rugRows = (data ?? []) as unknown as RugRow[];
+    const rugIds = rugRows.map((rug) => rug.id);
 
-    let rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
+    const rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
         .from("rug_services")
         .select("rug_id, line_total, service_name, edges")
         .in("rug_id", rugIds);
-      for (const row of rs ?? []) {
+      const serviceRows = (rs ?? []) as RugServiceRow[];
+      for (const row of serviceRows) {
         const list = rugServiceMap.get(row.rug_id) ?? [];
         list.push({
-          name: (row as any).service_name || "Unknown",
+          name: row.service_name || "Unknown",
           line_total: Number(row.line_total),
-          edges: (row as any).edges ?? [],
+          edges: row.edges ?? [],
         });
         rugServiceMap.set(row.rug_id, list);
       }
     }
 
     setRugs(
-      (data ?? []).map((r: any) => ({
-        id: r.id,
-        tag: r.tag,
-        description: r.description,
-        services: rugServiceMap.get(r.id) ?? [],
-        status: r.status as ProductionStage,
-        size_length: r.size_length,
-        size_width: r.size_width,
-        checked_in_at: r.checked_in_at,
-        notes: r.notes,
-        client_name: r.clients?.name ?? null,
+      rugRows.map((rug) => ({
+        id: rug.id,
+        tag: rug.tag,
+        description: rug.description,
+        services: rugServiceMap.get(rug.id) ?? [],
+        status: rug.status as ProductionStage,
+        size_length: rug.size_length,
+        size_width: rug.size_width,
+        checked_in_at: rug.checked_in_at,
+        notes: rug.notes,
+        client_name: rug.clients?.name ?? null,
       }))
     );
     setLoading(false);
@@ -85,7 +97,7 @@ export function ProductionBoard() {
     if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) return;
 
     const nextStage = PRODUCTION_STAGES[idx + 1].id;
-    const updates: Record<string, any> = { status: nextStage };
+    const updates: Record<string, string> = { status: nextStage };
     if (nextStage === "ready") updates.completed_at = new Date().toISOString();
     if (nextStage === "picked_up") updates.picked_up_at = new Date().toISOString();
 

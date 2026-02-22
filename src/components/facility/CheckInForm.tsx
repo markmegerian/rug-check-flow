@@ -3,7 +3,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, ChevronDown, Search, X } from "lucide-react";
-import RugEdgeDiagram, { calcSelectedLinearFt, type RugEdge } from "./RugEdgeDiagram";
+import RugEdgeDiagram from "./RugEdgeDiagram";
+import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

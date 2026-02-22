@@ -6,6 +6,7 @@ import { CheckInLogPanel } from "./CheckInLogPanel";
 import { type PendingRug } from "@/data/mock-pending-rugs";
 import { type CheckInEntry, type UserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 let walkInCounter = 100;
 
 type MobilePanel = "form" | "pending" | "log";
+
+type RugRow = Tables<"rugs">;
+type RugServiceRow = Pick<
+  Tables<"rug_services">,
+  "rug_id" | "service_id" | "unit_price" | "line_total" | "service_name"
+>;
+type ClientNameRow = Pick<Tables<"clients">, "id" | "name">;
 
 export function CheckInLayout() {
   const { user } = useAuth();
@@ -42,20 +50,22 @@ export function CheckInLayout() {
       return;
     }
 
-    const rugIds = (data ?? []).map((r: any) => r.id);
+    const rugRows = (data ?? []) as RugRow[];
+    const rugIds = rugRows.map((rug) => rug.id);
 
-    let rugServiceMap = new Map<string, { id: string; name: string; price: number }[]>();
-    let rugTotalMap = new Map<string, number>();
+    const rugServiceMap = new Map<string, { id: string; name: string; price: number }[]>();
+    const rugTotalMap = new Map<string, number>();
     if (rugIds.length > 0) {
       const { data: rs } = await supabase
         .from("rug_services")
         .select("rug_id, service_id, unit_price, line_total, service_name")
         .in("rug_id", rugIds);
-      for (const row of rs ?? []) {
+      const serviceRows = (rs ?? []) as RugServiceRow[];
+      for (const row of serviceRows) {
         const list = rugServiceMap.get(row.rug_id) ?? [];
         list.push({
           id: row.service_id,
-          name: (row as any).service_name || "Unknown",
+          name: row.service_name || "Unknown",
           price: Number(row.line_total),
         });
         rugServiceMap.set(row.rug_id, list);
@@ -63,28 +73,29 @@ export function CheckInLayout() {
       }
     }
 
-    const entries: CheckInEntry[] = (data ?? []).map((r: any) => ({
-      id: r.id,
-      rugNumber: r.tag,
+    const entries: CheckInEntry[] = rugRows.map((rug) => ({
+      id: rug.id,
+      rugNumber: rug.tag,
       clientName: "",
-      rugType: r.description,
-      length: Number(r.size_length) || 0,
-      width: Number(r.size_width) || 0,
-      services: rugServiceMap.get(r.id) ?? (r.services ?? []).map((s: string) => ({ id: s, name: s, price: 0 })),
-      totalPrice: rugTotalMap.get(r.id) ?? 0,
-      checkedInAt: new Date(r.checked_in_at),
+      rugType: rug.description,
+      length: Number(rug.size_length) || 0,
+      width: Number(rug.size_width) || 0,
+      services: rugServiceMap.get(rug.id) ?? (rug.services ?? []).map((serviceName) => ({ id: serviceName, name: serviceName, price: 0 })),
+      totalPrice: rugTotalMap.get(rug.id) ?? 0,
+      checkedInAt: new Date(rug.checked_in_at),
       checkedInBy: "Staff",
     }));
 
-    const clientIds = [...new Set((data ?? []).map((r: any) => r.client_id).filter(Boolean))] as string[];
+    const clientIds = [...new Set(rugRows.map((rug) => rug.client_id).filter(Boolean))] as string[];
     if (clientIds.length > 0) {
       const { data: clients } = await supabase
         .from("clients")
         .select("id, name")
         .in("id", clientIds);
-      const clientMap = new Map((clients ?? []).map((c: any) => [c.id, c.name]));
+      const typedClients = (clients ?? []) as ClientNameRow[];
+      const clientMap = new Map(typedClients.map((client) => [client.id, client.name]));
       entries.forEach((e, i) => {
-        const cid = (data as any)![i].client_id;
+        const cid = rugRows[i]?.client_id;
         if (cid) e.clientName = clientMap.get(cid) ?? "";
       });
     }

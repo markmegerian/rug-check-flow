@@ -66,6 +66,34 @@ This interactive script can:
 
 It writes credentials to your home directory and does not commit secrets to this repository.
 
+## Frontend environment variables
+
+Copy `.env.example` to `.env` and set values for your Supabase project:
+
+```sh
+cp .env.example .env
+```
+
+`VITE_ENABLE_DEV_SWITCHER` defaults to `false` and should stay `false` outside local development.
+If you set it to `true`, also enable the Supabase edge function switch (`ENABLE_DEV_LOGIN=true`) and configure `DEV_LOGIN_TEST_PASSWORD` in edge-function secrets.
+
+## Release runbook and smoke testing
+
+- Runbook: `docs/release-runbook.md`
+- Smoke script: `scripts/staging-smoke-test.sh`
+
+Example usage:
+
+```sh
+export SUPABASE_URL="https://<project>.supabase.co"
+export SUPABASE_ANON_KEY="<anon-key>"
+export SMOKE_USER_EMAIL="staging-office@example.com"
+export SMOKE_USER_PASSWORD="<password>"
+export APP_BASE_URL="https://staging.example.com" # optional
+
+./scripts/staging-smoke-test.sh
+```
+
 ## What technologies are used for this project?
 
 This project is built with:
