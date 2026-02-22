@@ -8,7 +8,6 @@ import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
-import { WorkspaceQuickActions } from "@/components/layout/WorkspaceQuickActions";
 
 const TABS = [
   { id: "pricing", label: "Pricing", icon: DollarSign, subtitle: "Services and rate tables" },
@@ -21,30 +20,6 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-const QUICK_ACTIONS = [
-  {
-    id: "quick-estimates",
-    title: "Send estimates",
-    description: "Finalize draft estimates and share with clients.",
-    icon: ClipboardCheck,
-    tab: "estimates",
-  },
-  {
-    id: "quick-invoices",
-    title: "Collect invoices",
-    description: "Review draft/sent invoices and move payments forward.",
-    icon: FileText,
-    tab: "invoices",
-  },
-  {
-    id: "quick-pickups",
-    title: "Schedule pickups",
-    description: "Prioritize upcoming pickup and delivery requests.",
-    icon: CalendarCheck,
-    tab: "pickups",
-  },
-] as const;
-
 export default function FacilityOffice() {
   const [activeTab, setActiveTab] = useState<TabId>("pricing");
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
@@ -56,14 +31,7 @@ export default function FacilityOffice() {
       contentClassName="overflow-hidden"
     >
       <div className="h-full flex flex-col bg-muted/20">
-        <WorkspaceQuickActions
-          className="mx-3 mt-3 rounded-xl border border-border bg-card shadow-sm"
-          actions={QUICK_ACTIONS}
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-        />
-
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-2 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}

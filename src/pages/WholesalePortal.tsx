@@ -4,8 +4,6 @@ import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
 import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
 import { AppShell } from "@/components/layout/AppShell";
-import { WorkspaceQuickActions } from "@/components/layout/WorkspaceQuickActions";
-import { ClipboardCheck, FileText, PackageSearch, Truck } from "lucide-react";
 
 type Tab = "rugs" | "pickups" | "estimates" | "invoices";
 
@@ -15,37 +13,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
 ];
-
-const QUICK_ACTIONS = [
-  {
-    id: "portal-track-rugs",
-    title: "Track rugs",
-    description: "Review status, services, and check-in dates for all rugs.",
-    icon: PackageSearch,
-    tab: "rugs",
-  },
-  {
-    id: "portal-request-pickup",
-    title: "Request pickup",
-    description: "Schedule ready rugs and add any additional pickup items.",
-    icon: Truck,
-    tab: "pickups",
-  },
-  {
-    id: "portal-estimates",
-    title: "Approve estimates",
-    description: "Review pending estimates and approve or reject quickly.",
-    icon: ClipboardCheck,
-    tab: "estimates",
-  },
-  {
-    id: "portal-invoices",
-    title: "Review invoices",
-    description: "Check billing status and view detailed line items.",
-    icon: FileText,
-    tab: "invoices",
-  },
-] as const;
 
 export default function WholesalePortal() {
   const [activeTab, setActiveTab] = useState<Tab>("rugs");
@@ -58,14 +25,7 @@ export default function WholesalePortal() {
       contentClassName="bg-gradient-to-b from-muted/40 to-background overflow-auto"
     >
       <div className="max-w-6xl mx-auto py-5">
-        <WorkspaceQuickActions
-          className="rounded-2xl border border-border bg-card shadow-sm"
-          actions={QUICK_ACTIONS}
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-        />
-
-        <div className="px-4 sm:px-6 mt-4">
+        <div className="px-4 sm:px-6">
           <nav className="flex gap-1 mb-4 p-1 rounded-xl bg-card border shadow-sm w-full sm:w-fit">
             {TABS.map((tab) => (
               <button

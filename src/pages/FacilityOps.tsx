@@ -5,7 +5,6 @@ import { ProductionBoard } from "@/components/facility/ProductionBoard";
 import { PendingPickupsPanel } from "@/components/facility/PendingPickupsPanel";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
-import { WorkspaceQuickActions } from "@/components/layout/WorkspaceQuickActions";
 
 const TABS = [
   { id: "checkin", label: "Check-In", icon: ClipboardCheck, subtitle: "Intake and service capture" },
@@ -14,30 +13,6 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
-
-const QUICK_ACTIONS = [
-  {
-    id: "quick-checkin",
-    title: "Start check-in",
-    description: "Capture rug details and assign first-pass services.",
-    icon: ClipboardCheck,
-    tab: "checkin",
-  },
-  {
-    id: "quick-production",
-    title: "Review production queue",
-    description: "See rugs in process and track stage movement.",
-    icon: Factory,
-    tab: "production",
-  },
-  {
-    id: "quick-pickups",
-    title: "Confirm pickups",
-    description: "Prepare completed rugs and pending pickup requests.",
-    icon: Truck,
-    tab: "pickups",
-  },
-] as const;
 
 export default function FacilityOps() {
   const [activeTab, setActiveTab] = useState<TabId>("checkin");
@@ -50,14 +25,7 @@ export default function FacilityOps() {
       contentClassName="overflow-hidden"
     >
       <div className="h-full flex flex-col bg-muted/20">
-        <WorkspaceQuickActions
-          className="mx-3 mt-3 rounded-xl border border-border bg-card shadow-sm"
-          actions={QUICK_ACTIONS}
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-        />
-
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-2 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
