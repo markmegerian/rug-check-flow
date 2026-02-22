@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
@@ -8,6 +7,8 @@ import { DeliveriesTab } from "@/components/office/DeliveriesTab";
 import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
 import { AppShell } from "@/components/layout/AppShell";
+import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
+import { WorkspaceQuickActions } from "@/components/layout/WorkspaceQuickActions";
 
 const TABS = [
   { id: "pricing", label: "Pricing", icon: DollarSign, subtitle: "Services and rate tables" },
@@ -20,6 +21,30 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const QUICK_ACTIONS = [
+  {
+    id: "quick-estimates",
+    title: "Send estimates",
+    description: "Finalize draft estimates and share with clients.",
+    icon: ClipboardCheck,
+    tab: "estimates",
+  },
+  {
+    id: "quick-invoices",
+    title: "Collect invoices",
+    description: "Review draft/sent invoices and move payments forward.",
+    icon: FileText,
+    tab: "invoices",
+  },
+  {
+    id: "quick-pickups",
+    title: "Schedule pickups",
+    description: "Prioritize upcoming pickup and delivery requests.",
+    icon: CalendarCheck,
+    tab: "pickups",
+  },
+] as const;
+
 export default function FacilityOffice() {
   const [activeTab, setActiveTab] = useState<TabId>("pricing");
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
@@ -30,37 +55,31 @@ export default function FacilityOffice() {
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
     >
-      <div className="h-full flex bg-background">
-        <nav className="w-16 md:w-48 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col py-2 shrink-0">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-3 md:px-4 text-sm font-medium transition-colors text-left",
-                  active
-                    ? "bg-background text-foreground shadow-sm border-r-2 border-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="hidden md:inline">{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+      <div className="h-full flex flex-col bg-background">
+        <WorkspaceQuickActions
+          actions={QUICK_ACTIONS}
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+        />
 
-        <main className="flex-1 min-w-0 overflow-hidden">
-          {activeTab === "pricing" && <PricingTab />}
-          {activeTab === "invoices" && <InvoicesTab />}
-          {activeTab === "estimates" && <EstimatesTab />}
-          {activeTab === "clients" && <ClientsTab />}
-          {activeTab === "pickups" && <PickupRequestsTab />}
-          {activeTab === "deliveries" && <DeliveriesTab />}
-        </main>
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+          <WorkspaceTabs
+            tabs={TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            desktopWidthClassName="md:w-52"
+            mobileLabelMode="desktop-only"
+          />
+
+          <main className="flex-1 min-w-0 overflow-hidden">
+            {activeTab === "pricing" && <PricingTab />}
+            {activeTab === "invoices" && <InvoicesTab />}
+            {activeTab === "estimates" && <EstimatesTab />}
+            {activeTab === "clients" && <ClientsTab />}
+            {activeTab === "pickups" && <PickupRequestsTab />}
+            {activeTab === "deliveries" && <DeliveriesTab />}
+          </main>
+        </div>
       </div>
     </AppShell>
   );

@@ -15,6 +15,7 @@ import { Plus } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
 
 type AppRole = Tables<"user_roles">["role"];
+type RoleFilter = AppRole | "all";
 
 type AdminUserRow = {
   userId: string;
@@ -49,6 +50,8 @@ export function UsersTab() {
   const [editingUser, setEditingUser] = useState<AdminUserRow | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [formState, setFormState] = useState<FormState>(EMPTY_FORM);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
 
   const fetchUsers = useCallback(async () => {
     const { data: roleRows, error: rolesError } = await supabase
@@ -137,6 +140,18 @@ export function UsersTab() {
   };
 
   const roleOptions = useMemo(() => ROLE_DEFINITIONS.map((role) => role.id as AppRole), []);
+  const filteredUsers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return users.filter((user) => {
+      const matchesSearch =
+        query.length === 0 ||
+        user.name.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query);
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+  }, [roleFilter, searchTerm, users]);
 
   const save = async () => {
     setSaving(true);
@@ -228,6 +243,31 @@ export function UsersTab() {
         </Button>
       </div>
 
+      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+        <Input
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Search by name or email"
+          className="md:max-w-sm"
+        />
+        <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as RoleFilter)}>
+          <SelectTrigger className="md:w-[180px]">
+            <SelectValue placeholder="Filter role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All roles</SelectItem>
+            {roleOptions.map((role) => (
+              <SelectItem key={`filter-${role}`} value={role}>
+                {role}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground md:ml-auto">
+          {filteredUsers.length} of {users.length} shown
+        </p>
+      </div>
+
       {loading ? (
         <LoadingState title="Loading users" description="Fetching role assignments and profile details..." />
       ) : users.length === 0 ? (
@@ -237,6 +277,23 @@ export function UsersTab() {
           action={
             <Button size="sm" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-1" /> Assign Role
+            </Button>
+          }
+        />
+      ) : filteredUsers.length === 0 ? (
+        <EmptyState
+          title="No users match these filters"
+          description="Try adjusting search text or role filter."
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setRoleFilter("all");
+              }}
+            >
+              Clear filters
             </Button>
           }
         />
@@ -252,7 +309,7 @@ export function UsersTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => (
+            {filteredUsers.map((user) => (
               <TableRow key={user.userId} className="cursor-pointer" onClick={() => openEdit(user)}>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell className="text-muted-foreground">{user.email || "—"}</TableCell>

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { LoadingState } from "@/components/states/PageState";
 
 const queryClient = new QueryClient();
 const devSwitcherEnabled = import.meta.env.VITE_ENABLE_DEV_SWITCHER === "true";
@@ -21,7 +22,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const RouteLoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
-    <p className="text-muted-foreground">Loading...</p>
+    <LoadingState className="w-full max-w-sm" title="Loading workspace" description="Preparing your dashboard..." />
   </div>
 );
 

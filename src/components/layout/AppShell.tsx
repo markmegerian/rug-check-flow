@@ -11,6 +11,7 @@ interface AppShellProps {
   children: ReactNode;
   actions?: ReactNode;
   contentClassName?: string;
+  showHomeLink?: boolean;
 }
 
 export function AppShell({
@@ -19,6 +20,7 @@ export function AppShell({
   children,
   actions,
   contentClassName,
+  showHomeLink = true,
 }: AppShellProps) {
   const { user, signOut } = useAuth();
 
@@ -26,13 +28,15 @@ export function AppShell({
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card/80 backdrop-blur-md px-4 md:px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link
-            to="/"
-            className="h-8 w-8 rounded-md border border-border inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
-            aria-label="Back to home"
-          >
-            <Home className="h-4 w-4" />
-          </Link>
+          {showHomeLink ? (
+            <Link
+              to="/"
+              className="h-8 w-8 rounded-md border border-border inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors shrink-0"
+              aria-label="Back to home"
+            >
+              <Home className="h-4 w-4" />
+            </Link>
+          ) : null}
           <div className="min-w-0">
             <h1 className="text-base md:text-lg font-semibold text-foreground truncate">
               {title}

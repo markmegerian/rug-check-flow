@@ -4,6 +4,8 @@ import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
 import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
 import { AppShell } from "@/components/layout/AppShell";
+import { WorkspaceQuickActions } from "@/components/layout/WorkspaceQuickActions";
+import { ClipboardCheck, FileText, PackageSearch, Truck } from "lucide-react";
 
 type Tab = "rugs" | "pickups" | "estimates" | "invoices";
 
@@ -13,6 +15,37 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
 ];
+
+const QUICK_ACTIONS = [
+  {
+    id: "portal-track-rugs",
+    title: "Track rugs",
+    description: "Review status, services, and check-in dates for all rugs.",
+    icon: PackageSearch,
+    tab: "rugs",
+  },
+  {
+    id: "portal-request-pickup",
+    title: "Request pickup",
+    description: "Schedule ready rugs and add any additional pickup items.",
+    icon: Truck,
+    tab: "pickups",
+  },
+  {
+    id: "portal-estimates",
+    title: "Approve estimates",
+    description: "Review pending estimates and approve or reject quickly.",
+    icon: ClipboardCheck,
+    tab: "estimates",
+  },
+  {
+    id: "portal-invoices",
+    title: "Review invoices",
+    description: "Check billing status and view detailed line items.",
+    icon: FileText,
+    tab: "invoices",
+  },
+] as const;
 
 export default function WholesalePortal() {
   const [activeTab, setActiveTab] = useState<Tab>("rugs");
@@ -24,28 +57,37 @@ export default function WholesalePortal() {
       subtitle={`Pacific Rug Gallery · ${activeTabLabel}`}
       contentClassName="bg-muted/30 overflow-auto"
     >
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5">
-        <nav className="flex gap-0 -mb-px mb-4">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.key
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-        <main>
-          {activeTab === "rugs" && <PortalRugsTab />}
-          {activeTab === "pickups" && <PortalPickupsTab />}
-          {activeTab === "estimates" && <PortalEstimatesTab />}
-          {activeTab === "invoices" && <PortalInvoicesTab />}
-        </main>
+      <div className="max-w-5xl mx-auto py-5">
+        <WorkspaceQuickActions
+          className="rounded-lg border border-border bg-background/60"
+          actions={QUICK_ACTIONS}
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+        />
+
+        <div className="px-4 sm:px-6 mt-4">
+          <nav className="flex gap-1 mb-4 p-1 rounded-lg bg-background border w-full sm:w-fit">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === tab.key
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+          <main>
+            {activeTab === "rugs" && <PortalRugsTab />}
+            {activeTab === "pickups" && <PortalPickupsTab />}
+            {activeTab === "estimates" && <PortalEstimatesTab />}
+            {activeTab === "invoices" && <PortalInvoicesTab />}
+          </main>
+        </div>
       </div>
     </AppShell>
   );

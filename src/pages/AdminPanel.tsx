@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Users, Shield, ScrollText } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { RolesTab } from "@/components/admin/RolesTab";
 import { AuditLogTab } from "@/components/admin/AuditLogTab";
 import { AppShell } from "@/components/layout/AppShell";
+import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
+import { WorkspaceQuickActions } from "@/components/layout/WorkspaceQuickActions";
 
 const TABS = [
   { id: "users", label: "Users", icon: Users, subtitle: "Directory and access management" },
@@ -13,6 +14,30 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+const QUICK_ACTIONS = [
+  {
+    id: "quick-users",
+    title: "Manage users",
+    description: "Assign and update workspace access by role.",
+    icon: Users,
+    tab: "users",
+  },
+  {
+    id: "quick-roles",
+    title: "Review role coverage",
+    description: "Verify distribution across admin, office, and driver roles.",
+    icon: Shield,
+    tab: "roles",
+  },
+  {
+    id: "quick-audit",
+    title: "Inspect activity",
+    description: "Audit recent operational and access changes.",
+    icon: ScrollText,
+    tab: "audit",
+  },
+] as const;
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("users");
@@ -24,34 +49,28 @@ export default function AdminPanel() {
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
     >
-      <div className="h-full flex bg-background">
-        <nav className="w-16 md:w-48 border-r border-border bg-card/60 backdrop-blur-sm flex flex-col py-2 shrink-0">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-3 md:px-4 text-sm font-medium transition-colors text-left",
-                  active
-                    ? "bg-background text-foreground shadow-sm border-r-2 border-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="hidden md:inline">{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+      <div className="h-full flex flex-col bg-background">
+        <WorkspaceQuickActions
+          actions={QUICK_ACTIONS}
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+        />
 
-        <main className="flex-1 min-w-0 overflow-auto">
-          {activeTab === "users" && <UsersTab />}
-          {activeTab === "roles" && <RolesTab />}
-          {activeTab === "audit" && <AuditLogTab />}
-        </main>
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+          <WorkspaceTabs
+            tabs={TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            desktopWidthClassName="md:w-52"
+            mobileLabelMode="desktop-only"
+          />
+
+          <main className="flex-1 min-w-0 overflow-auto">
+            {activeTab === "users" && <UsersTab />}
+            {activeTab === "roles" && <RolesTab />}
+            {activeTab === "audit" && <AuditLogTab />}
+          </main>
+        </div>
       </div>
     </AppShell>
   );
