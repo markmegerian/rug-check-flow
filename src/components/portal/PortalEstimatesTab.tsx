@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 
 type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
 
@@ -33,6 +34,7 @@ export default function PortalEstimatesTab() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
@@ -54,11 +56,12 @@ export default function PortalEstimatesTab() {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
+      setAccessError(null);
 
       const { data: authData } = await supabase.auth.getUser();
       const email = authData.user?.email?.toLowerCase();
       if (!email) {
-        toast({ title: "Portal account required", description: "Please sign in again.", variant: "destructive" });
+        setAccessError("Portal account required. Please sign in again.");
         setLoading(false);
         return;
       }
@@ -71,7 +74,7 @@ export default function PortalEstimatesTab() {
         .maybeSingle();
 
       if (!portalUser?.client_id) {
-        toast({ title: "No portal access", description: "Your email is not linked to an active client portal account.", variant: "destructive" });
+        setAccessError("No active portal access was found for your account.");
         setLoading(false);
         return;
       }
@@ -134,7 +137,11 @@ export default function PortalEstimatesTab() {
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
+    return <LoadingState title="Loading estimates" description="Checking pending estimate approvals..." />;
+  }
+
+  if (accessError) {
+    return <ErrorState title="Portal access unavailable" description={accessError} />;
   }
 
   return (
@@ -145,7 +152,11 @@ export default function PortalEstimatesTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No estimates awaiting your approval.</p>
+            <EmptyState
+              className="border-dashed"
+              title="No approvals pending"
+              description="Any sent estimate waiting for your approval will show up here."
+            />
           ) : (
             pending.map((estimate) => (
               <div key={estimate.id} className="rounded-md border p-3 space-y-2">
@@ -189,7 +200,11 @@ export default function PortalEstimatesTab() {
         </CardHeader>
         <CardContent className="space-y-2">
           {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No estimate history yet.</p>
+            <EmptyState
+              className="border-dashed"
+              title="No estimate history yet"
+              description="Past approved, rejected, draft, and expired estimates will appear here."
+            />
           ) : (
             history.map((estimate, index) => (
               <div key={estimate.id}>

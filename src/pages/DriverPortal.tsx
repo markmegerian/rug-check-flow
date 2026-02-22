@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import SignatureCanvas from "@/components/driver/SignatureCanvas";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { EmptyState, LoadingState } from "@/components/states/PageState";
 
 type PickupStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
 
@@ -173,7 +174,11 @@ const DriverPortal: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading pickups…</div>;
+    return (
+      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+        <LoadingState title="Loading pickups" description="Preparing your assigned route..." className="w-full max-w-lg" />
+      </div>
+    );
   }
 
   if (!activePickup) {
@@ -188,7 +193,13 @@ const DriverPortal: React.FC = () => {
         <main className="p-4 space-y-6 max-w-lg mx-auto">
           <section>
             <h2 className="text-base font-semibold mb-3">Assigned Pickups ({assigned.length})</h2>
-            {assigned.length === 0 && <p className="text-sm text-muted-foreground">No assigned pickups.</p>}
+            {assigned.length === 0 && (
+              <EmptyState
+                className="border-dashed"
+                title="No assigned pickups"
+                description="New assignments will appear here when dispatch routes work to you."
+              />
+            )}
             <div className="space-y-3">
               {assigned.map((pickup, i) => (
                 <div key={pickup.id} className="rounded-lg border bg-card p-4 space-y-2 shadow-card animate-fade-in-up" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>

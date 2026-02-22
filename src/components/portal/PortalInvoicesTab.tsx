@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 
 type InvoiceStatus = Tables<"invoices">["status"];
 
@@ -100,11 +101,11 @@ export default function PortalInvoicesTab() {
   }, [fetchInvoices]);
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading invoices...</p>;
+    return <LoadingState title="Loading invoices" description="Fetching billing history..." />;
   }
 
   if (accessError) {
-    return <p className="text-sm text-muted-foreground">{accessError}</p>;
+    return <ErrorState title="Portal access unavailable" description={accessError} />;
   }
 
   return (
@@ -119,9 +120,13 @@ export default function PortalInvoicesTab() {
         <span />
       </div>
 
-      {invoices.length === 0 && (
-        <div className="px-4 py-6 text-sm text-muted-foreground">No invoices found.</div>
-      )}
+      {invoices.length === 0 ? (
+        <EmptyState
+          className="m-3 border-dashed"
+          title="No invoices found"
+          description="Invoices will appear here once delivery checkout is completed."
+        />
+      ) : null}
 
       {invoices.map((inv) => {
         const isExpanded = expandedRow === inv.id;

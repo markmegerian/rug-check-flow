@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 
 type PortalStatus = "in_progress" | "ready" | "delivered";
 type Filter = "all" | PortalStatus;
@@ -127,11 +128,11 @@ export default function PortalRugsTab() {
   ];
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading rugs...</p>;
+    return <LoadingState title="Loading rugs" description="Fetching current rug status..." />;
   }
 
   if (accessError) {
-    return <p className="text-sm text-muted-foreground">{accessError}</p>;
+    return <ErrorState title="Portal access unavailable" description={accessError} />;
   }
 
   return (
@@ -155,9 +156,17 @@ export default function PortalRugsTab() {
 
       {/* Rug list */}
       <div className="rounded-lg border bg-background divide-y">
-        {filtered.length === 0 && (
-          <div className="px-4 py-6 text-sm text-muted-foreground">No rugs found.</div>
-        )}
+        {filtered.length === 0 ? (
+          <EmptyState
+            className="m-3 border-dashed"
+            title={filter === "all" ? "No rugs found" : `No ${filter.replace("_", " ")} rugs`}
+            description={
+              filter === "all"
+                ? "Your rugs will appear here after check-in."
+                : "Try a different filter to view other rugs."
+            }
+          />
+        ) : null}
         {filtered.map((rug) => {
           const isExpanded = expandedRow === rug.id;
           return (

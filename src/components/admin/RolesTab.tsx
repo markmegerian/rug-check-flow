@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+import { EmptyState, LoadingState } from "@/components/states/PageState";
 
 type AppRole = Tables<"user_roles">["role"];
 
@@ -50,6 +51,15 @@ export function RolesTab() {
     [counts]
   );
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
+        <h2 className="text-lg font-semibold">Roles</h2>
+        <LoadingState title="Loading roles" description="Calculating role distribution..." />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
       <h2 className="text-lg font-semibold">Roles</h2>
@@ -73,9 +83,17 @@ export function RolesTab() {
           ))}
         </TableBody>
       </Table>
-      <p className="text-sm text-muted-foreground">
-        {loading ? "Loading role distribution..." : `Read-only role definitions. ${totalUsers} total assignments.`}
-      </p>
+      {totalUsers === 0 ? (
+        <EmptyState
+          className="border-dashed"
+          title="No role assignments yet"
+          description="Role definitions are ready. Assign users to activate workspace access."
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Read-only role definitions. {totalUsers} total assignments.
+        </p>
+      )}
     </div>
   );
 }

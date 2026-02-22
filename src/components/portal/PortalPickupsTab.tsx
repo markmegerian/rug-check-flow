@@ -6,6 +6,7 @@ import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 
 const DEFAULT_ROUTE_DAY = "Thursday";
 const DEFAULT_REGION = "Westchester";
@@ -53,6 +54,7 @@ export default function PortalPickupsTab() {
   const [readyRugs, setReadyRugs] = useState<Array<{ id: string; rugNumber: string; rugType: string; services: string[] }>>([]);
   const [pickups, setPickups] = useState<PortalPickup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
@@ -118,11 +120,12 @@ export default function PortalPickupsTab() {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
+      setAccessError(null);
 
       const { data: authData } = await supabase.auth.getUser();
       const userEmail = authData.user?.email?.toLowerCase();
       if (!userEmail) {
-        toast({ title: "Portal account required", description: "Please sign in again.", variant: "destructive" });
+        setAccessError("Portal account required. Please sign in again.");
         setLoading(false);
         return;
       }
@@ -135,7 +138,7 @@ export default function PortalPickupsTab() {
         .maybeSingle();
 
       if (!portalUser?.client_id) {
-        toast({ title: "No portal access", description: "Your email is not linked to an active client portal account.", variant: "destructive" });
+        setAccessError("No active portal access was found for your account.");
         setLoading(false);
         return;
       }
@@ -147,7 +150,7 @@ export default function PortalPickupsTab() {
         .maybeSingle();
 
       if (!selectedClient?.id) {
-        toast({ title: "No client found", description: "Please create at least one client record first.", variant: "destructive" });
+        setAccessError("No client profile was found for this portal account.");
         setLoading(false);
         return;
       }
@@ -177,6 +180,14 @@ export default function PortalPickupsTab() {
 
     init();
   }, [fetchPickups, toast]);
+
+  if (loading) {
+    return <LoadingState title="Loading pickups" description="Fetching ready rugs and pickup requests..." />;
+  }
+
+  if (accessError) {
+    return <ErrorState title="Portal access unavailable" description={accessError} />;
+  }
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
@@ -278,7 +289,11 @@ export default function PortalPickupsTab() {
           Ready for Pickup · {readyRugs.length}
         </h3>
         {readyRugs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No rugs ready right now.</p>
+          <EmptyState
+            className="border-dashed"
+            title="No rugs ready right now"
+            description="Rugs that complete production will show here for pickup requests."
+          />
         ) : (
           <>
             <div className="rounded-lg border bg-background divide-y">

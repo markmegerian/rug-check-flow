@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Plus } from "lucide-react";
+import { EmptyState, LoadingState } from "@/components/states/PageState";
 
 type AppRole = Tables<"user_roles">["role"];
 
@@ -227,46 +228,46 @@ export function UsersTab() {
         </Button>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead className="hidden sm:table-cell">Assignments</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading && (
+      {loading ? (
+        <LoadingState title="Loading users" description="Fetching role assignments and profile details..." />
+      ) : users.length === 0 ? (
+        <EmptyState
+          title="No role assignments found"
+          description="Assign a role to start granting workspace access."
+          action={
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-1" /> Assign Role
+            </Button>
+          }
+        />
+      ) : (
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                Loading users...
-              </TableCell>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead className="hidden sm:table-cell">Assignments</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
-          )}
-          {!loading && users.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                No role assignments found.
-              </TableCell>
-            </TableRow>
-          )}
-          {users.map((user) => (
-            <TableRow key={user.userId} className="cursor-pointer" onClick={() => openEdit(user)}>
-              <TableCell className="font-medium">{user.name}</TableCell>
-              <TableCell className="text-muted-foreground">{user.email || "—"}</TableCell>
-              <TableCell>
-                <Badge variant="secondary">{user.role}</Badge>
-              </TableCell>
-              <TableCell className="hidden sm:table-cell">{user.roleCount}</TableCell>
-              <TableCell>
-                <Badge variant="default">Active</Badge>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.userId} className="cursor-pointer" onClick={() => openEdit(user)}>
+                <TableCell className="font-medium">{user.name}</TableCell>
+                <TableCell className="text-muted-foreground">{user.email || "—"}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{user.role}</Badge>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">{user.roleCount}</TableCell>
+                <TableCell>
+                  <Badge variant="default">Active</Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       <Sheet open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>
         <SheetContent>

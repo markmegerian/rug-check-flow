@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+import { EmptyState, LoadingState } from "@/components/states/PageState";
 
 type AuditEntry = Tables<"audit_log">;
 
@@ -33,6 +34,27 @@ export function AuditLogTab() {
     fetchAuditLog();
   }, [fetchAuditLog]);
 
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
+        <h2 className="text-lg font-semibold">Audit Log</h2>
+        <LoadingState title="Loading audit log" description="Retrieving latest system events..." />
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
+        <h2 className="text-lg font-semibold">Audit Log</h2>
+        <EmptyState
+          title="No audit entries found"
+          description="Activity events will appear here after users perform actions."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 animate-fade-in-up">
       <h2 className="text-lg font-semibold">Audit Log</h2>
@@ -45,13 +67,6 @@ export function AuditLogTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {!loading && entries.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
-                No audit entries found.
-              </TableCell>
-            </TableRow>
-          )}
           {entries.map((entry) => (
             <TableRow key={entry.id}>
               <TableCell className="text-muted-foreground whitespace-nowrap">
@@ -63,9 +78,7 @@ export function AuditLogTab() {
           ))}
         </TableBody>
       </Table>
-      <p className="text-sm text-muted-foreground">
-        {loading ? "Loading audit log..." : "Read-only log. No actions."}
-      </p>
+      <p className="text-sm text-muted-foreground">Read-only log. No actions.</p>
     </div>
   );
 }
