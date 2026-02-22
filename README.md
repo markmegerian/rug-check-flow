@@ -78,6 +78,8 @@ cp .env.example .env
 If you set it to `true`, also enable the Supabase edge function switch (`ENABLE_DEV_LOGIN=true`) and configure `DEV_LOGIN_TEST_PASSWORD` in edge-function secrets.
 By default, if Supabase env vars are missing the app falls back to the project's default Supabase credentials.
 Set `VITE_REQUIRE_SUPABASE_ENV="true"` to enforce strict fail-fast behavior in controlled environments.
+Set `VITE_ENABLE_OPERATIONAL_REMINDERS="false"` to disable Mission Control reminder queries in environments where workflow tables are not provisioned.
+Set `VITE_ENABLE_OPERATIONAL_ALERTS="true"` only when the `operational-alerts` edge function is deployed and configured.
 
 Invoice records support `invoices.pdf_storage_path` as the source-of-truth object path; if empty, the system defaults to `clients/<client_id>/<invoice_number>.pdf`.
 

@@ -19,6 +19,8 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `VITE_ENABLE_DEV_SWITCHER` must remain `"false"` outside local development
 - `VITE_REQUIRE_SUPABASE_ENV` (optional; set `"true"` to enforce strict fail-fast when Supabase vars are missing)
+- `VITE_ENABLE_OPERATIONAL_REMINDERS` (optional; set `"false"` if reminder tables are not present in the current environment)
+- `VITE_ENABLE_OPERATIONAL_ALERTS` (optional; set `"true"` only when `operational-alerts` is deployed and ready)
 
 ### Supabase Edge Function secrets
 

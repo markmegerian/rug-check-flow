@@ -50,6 +50,13 @@ const REMINDER_EVENT_TYPES = [
   "invoice_pdf_downloaded_by_client",
 ];
 
+function isMissingRelationError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const maybe = error as { code?: string; message?: string };
+  if (maybe.code === "PGRST205" || maybe.code === "42P01") return true;
+  return (maybe.message ?? "").toLowerCase().includes("could not find the table");
+}
+
 function buildEventTitle(eventType: string, subject: string) {
   if (eventType === "estimate_approved_by_client") return `Estimate approved: ${subject}`;
   if (eventType === "estimate_rejected_by_client") return `Estimate rejected: ${subject}`;
@@ -93,7 +100,45 @@ export function useOperationalReminders() {
   });
 
   const refresh = useCallback(async () => {
+    const remindersEnabled = import.meta.env.VITE_ENABLE_OPERATIONAL_REMINDERS !== "false";
+    if (!remindersEnabled) {
+      setState({
+        loading: false,
+        errorMessage: null,
+        reminders: [],
+        updates: [],
+        trends: [],
+      });
+      return;
+    }
+
     setState((prev) => ({ ...prev, loading: true, errorMessage: null }));
+
+    const [estimateProbe, pickupProbe, invoiceProbe, communicationProbe] = await Promise.all([
+      supabaseExtended.from("estimates").select("id", { count: "exact", head: true }).limit(1),
+      supabaseExtended.from("pickup_requests").select("id", { count: "exact", head: true }).limit(1),
+      supabaseExtended.from("invoices").select("id", { count: "exact", head: true }).limit(1),
+      supabaseExtended.from("communication_events").select("id", { count: "exact", head: true }).limit(1),
+    ]);
+
+    const probeErrors = [
+      estimateProbe.error,
+      pickupProbe.error,
+      invoiceProbe.error,
+      communicationProbe.error,
+    ].filter(Boolean);
+
+    if (probeErrors.some((error) => isMissingRelationError(error))) {
+      setState({
+        loading: false,
+        errorMessage:
+          "Operational reminders are unavailable in this environment because required workflow tables are missing.",
+        reminders: [],
+        updates: [],
+        trends: [],
+      });
+      return;
+    }
 
     const nowMs = Date.now();
     const threshold3Iso = new Date(nowMs - 3 * MS_PER_DAY).toISOString();
