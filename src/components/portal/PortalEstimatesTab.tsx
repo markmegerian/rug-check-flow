@@ -114,7 +114,14 @@ export default function PortalEstimatesTab() {
       subject: `${estimate.estimate_number} ${nextStatus}`,
       body: `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
     };
-    await supabaseExtended.from("communication_events").insert(eventPayload);
+    const { error: eventError } = await supabaseExtended.from("communication_events").insert(eventPayload);
+    if (eventError) {
+      toast({
+        title: "Estimate updated with warning",
+        description: `Activity log update failed: ${eventError.message}`,
+        variant: "destructive",
+      });
+    }
 
     setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));
     toast({ title: `Estimate ${nextStatus}` });

@@ -78,7 +78,8 @@ export default function PortalPickupsTab() {
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes")
       .eq("client_id", activeClientId)
-      .order("scheduled_date", { ascending: true });
+      .order("scheduled_date", { ascending: true })
+      .limit(150);
 
     if (reqError) {
       toast({ title: "Failed to load pickup requests", description: reqError.message, variant: "destructive" });
@@ -156,7 +157,8 @@ export default function PortalPickupsTab() {
         .select("id, tag, description, services")
         .eq("client_id", selectedClient.id)
         .eq("status", "ready")
-        .order("checked_in_at", { ascending: false });
+        .order("checked_in_at", { ascending: false })
+        .limit(300);
 
       if (rugError) {
         toast({ title: "Failed to load ready rugs", description: rugError.message, variant: "destructive" });

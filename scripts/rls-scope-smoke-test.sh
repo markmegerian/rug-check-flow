@@ -119,6 +119,43 @@ if bad:
 PY
 }
 
+assert_portal_users_match_client() {
+  local json_file="$1"
+  local expected_client_id="$2"
+  python - "$json_file" "$expected_client_id" <<'PY'
+import json, sys
+path = sys.argv[1]
+expected = sys.argv[2]
+with open(path, "r", encoding="utf-8") as fh:
+    rows = json.load(fh)
+if not isinstance(rows, list):
+    raise SystemExit("Expected list JSON payload")
+bad = [row for row in rows if row.get("client_id") != expected]
+if bad:
+    raise SystemExit(f"Found portal_users rows outside expected client_id scope: {bad[:3]}")
+PY
+}
+
+assert_invoice_items_match_visible_invoices() {
+  local invoice_items_file="$1"
+  local invoices_file="$2"
+  python - "$invoice_items_file" "$invoices_file" <<'PY'
+import json, sys
+items_path = sys.argv[1]
+invoices_path = sys.argv[2]
+with open(items_path, "r", encoding="utf-8") as fh:
+    items = json.load(fh)
+with open(invoices_path, "r", encoding="utf-8") as fh:
+    invoices = json.load(fh)
+if not isinstance(items, list) or not isinstance(invoices, list):
+    raise SystemExit("Expected list JSON payloads")
+invoice_ids = {row.get("id") for row in invoices if row.get("id")}
+bad = [row for row in items if row.get("invoice_id") not in invoice_ids]
+if bad:
+    raise SystemExit(f"Found invoice_items rows not linked to visible invoices: {bad[:3]}")
+PY
+}
+
 echo "==> Authenticating portal/office/driver smoke users"
 portal_token="$(login_and_get_token "$PORTAL_USER_EMAIL" "$PORTAL_USER_PASSWORD")"
 office_token="$(login_and_get_token "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD")"
@@ -126,19 +163,31 @@ driver_token="$(login_and_get_token "$DRIVER_USER_EMAIL" "$DRIVER_USER_PASSWORD"
 
 echo "==> Portal scope checks"
 portal_invoices_file="$(query_rest "$portal_token" "invoices?select=id,client_id,status&limit=25")"
+portal_invoice_items_file="$(query_rest "$portal_token" "invoice_items?select=id,invoice_id&limit=50")"
+portal_payment_attempts_file="$(query_rest "$portal_token" "payment_attempts?select=id,client_id,status&limit=25")"
 portal_pickups_file="$(query_rest "$portal_token" "pickup_requests?select=id,client_id,status&limit=25")"
-echo "OK: portal invoices and pickup_requests are readable"
+portal_users_file="$(query_rest "$portal_token" "portal_users?select=id,client_id,email,status&limit=10")"
+assert_invoice_items_match_visible_invoices "$portal_invoice_items_file" "$portal_invoices_file"
+echo "OK: portal invoices, invoice_items, payment_attempts, pickup_requests, and portal_users are readable"
+echo "OK: portal invoice_items are scoped to visible invoices"
 
 if [[ -n "${EXPECTED_PORTAL_CLIENT_ID:-}" ]]; then
   assert_all_client_ids_match "$portal_invoices_file" "$EXPECTED_PORTAL_CLIENT_ID"
+  assert_all_client_ids_match "$portal_payment_attempts_file" "$EXPECTED_PORTAL_CLIENT_ID"
   assert_all_client_ids_match "$portal_pickups_file" "$EXPECTED_PORTAL_CLIENT_ID"
+  assert_portal_users_match_client "$portal_users_file" "$EXPECTED_PORTAL_CLIENT_ID"
   echo "OK: portal rows matched EXPECTED_PORTAL_CLIENT_ID=${EXPECTED_PORTAL_CLIENT_ID}"
 fi
 
 echo "==> Office scope checks"
 office_invoices_file="$(query_rest "$office_token" "invoices?select=id,client_id,status&limit=25")"
+office_invoice_items_file="$(query_rest "$office_token" "invoice_items?select=id,invoice_id&limit=50")"
+office_payment_attempts_file="$(query_rest "$office_token" "payment_attempts?select=id,client_id,status&limit=25")"
 office_pickups_file="$(query_rest "$office_token" "pickup_requests?select=id,client_id,status&limit=25")"
-echo "OK: office invoices and pickup_requests are readable"
+office_portal_users_file="$(query_rest "$office_token" "portal_users?select=id,client_id,email,status&limit=10")"
+assert_invoice_items_match_visible_invoices "$office_invoice_items_file" "$office_invoices_file"
+echo "OK: office invoices, invoice_items, payment_attempts, pickup_requests, and portal_users are readable"
+echo "OK: office invoice_items are linked to visible invoices"
 
 echo "==> Driver scope checks"
 driver_pickups_file="$(query_rest "$driver_token" "pickup_requests?select=id,assigned_driver_id,status&limit=25")"
@@ -150,5 +199,17 @@ if [[ -n "${EXPECTED_DRIVER_USER_ID:-}" ]]; then
   echo "OK: driver pickup rows matched EXPECTED_DRIVER_USER_ID=${EXPECTED_DRIVER_USER_ID}"
 fi
 
-rm -f "$portal_invoices_file" "$portal_pickups_file" "$office_invoices_file" "$office_pickups_file" "$driver_pickups_file" "$driver_items_file"
+rm -f \
+  "$portal_invoices_file" \
+  "$portal_invoice_items_file" \
+  "$portal_payment_attempts_file" \
+  "$portal_pickups_file" \
+  "$portal_users_file" \
+  "$office_invoices_file" \
+  "$office_invoice_items_file" \
+  "$office_payment_attempts_file" \
+  "$office_pickups_file" \
+  "$office_portal_users_file" \
+  "$driver_pickups_file" \
+  "$driver_items_file"
 echo "RLS scope smoke test completed successfully."
