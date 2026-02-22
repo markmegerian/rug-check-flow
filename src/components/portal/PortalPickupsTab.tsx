@@ -6,7 +6,6 @@ import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { usePortalClient } from "@/hooks/usePortalClient";
 
 const DEFAULT_ROUTE_DAY = "Thursday";
@@ -69,12 +68,11 @@ export default function PortalPickupsTab() {
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
 
   const fetchPickups = useCallback(async (activeClientId: string, activeRegion: string) => {
-    const { data: reqData, error: reqError } = await supabase
+    const { data: reqData, error: reqError } = await (supabase as any)
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes")
       .eq("client_id", activeClientId)
-      .order("scheduled_date", { ascending: true })
-      .returns<PickupRequestRow[]>();
+      .order("scheduled_date", { ascending: true }) as { data: PickupRequestRow[] | null; error: any };
 
     if (reqError) {
       toast({ title: "Failed to load pickup requests", description: reqError.message, variant: "destructive" });
@@ -85,11 +83,10 @@ export default function PortalPickupsTab() {
     if (requests.length === 0) { setPickups([]); return; }
 
     const requestIds = requests.map((r) => r.id);
-    const { data: itemData, error: itemError } = await supabase
+    const { data: itemData, error: itemError } = await (supabase as any)
       .from("pickup_request_items")
       .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
-      .in("pickup_request_id", requestIds)
-      .returns<PickupRequestItemRow[]>();
+      .in("pickup_request_id", requestIds) as { data: PickupRequestItemRow[] | null; error: any };
 
     if (itemError) {
       toast({ title: "Failed to load pickup items", description: itemError.message, variant: "destructive" });
@@ -179,31 +176,31 @@ export default function PortalPickupsTab() {
   const handleRequestPickup = async () => {
     if (!clientId) return;
     const scheduledDate = getNextDateForRouteDay(routeDay);
-    const insertPayload: TablesInsert<"pickup_requests"> = {
+    const insertPayload = {
       client_id: clientId,
       route_day: routeDay,
       scheduled_date: scheduledDate,
       status: "pending",
       notes: "",
     };
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error } = await (supabase as any)
       .from("pickup_requests")
       .insert(insertPayload)
       .select("id")
-      .single();
+      .single() as { data: { id: string } | null; error: any };
 
     if (error || !inserted) {
       toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
       return;
     }
 
-    const items: TablesInsert<"pickup_request_items">[] = readyRugNumbers.map((rugNumber) => ({
+    const items = readyRugNumbers.map((rugNumber) => ({
       pickup_request_id: inserted.id,
       rug_number: rugNumber,
       rug_type: "",
       is_new: false,
     }));
-    if (items.length > 0) await supabase.from("pickup_request_items").insert(items);
+    if (items.length > 0) await (supabase as any).from("pickup_request_items").insert(items);
 
     await fetchPickups(clientId, region);
     toast({
@@ -214,7 +211,7 @@ export default function PortalPickupsTab() {
 
   const handleSave = async (id: string, updates: Partial<PortalPickup>) => {
     if (!clientId) return;
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await (supabase as any)
       .from("pickup_requests")
       .update({ notes: updates.notes ?? "" })
       .eq("id", id);
@@ -222,23 +219,23 @@ export default function PortalPickupsTab() {
       toast({ title: "Save failed", description: updateErr.message, variant: "destructive" });
       return;
     }
-    await supabase.from("pickup_request_items").delete().eq("pickup_request_id", id);
-    const readyItems: TablesInsert<"pickup_request_items">[] = (updates.rugNumbers ?? []).map((rugNumber) => ({
+    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
+    const readyItems = (updates.rugNumbers ?? []).map((rugNumber) => ({
       pickup_request_id: id, rug_number: rugNumber, rug_type: "", is_new: false,
     }));
-    const newRugItems: TablesInsert<"pickup_request_items">[] = (updates.newRugs ?? []).map((rug) => ({
+    const newRugItems = (updates.newRugs ?? []).map((rug) => ({
       pickup_request_id: id, rug_number: rug.label, rug_type: rug.rugType, length: rug.length, width: rug.width, is_new: true,
     }));
     const insertItems = [...readyItems, ...newRugItems];
-    if (insertItems.length > 0) await supabase.from("pickup_request_items").insert(insertItems);
+    if (insertItems.length > 0) await (supabase as any).from("pickup_request_items").insert(insertItems);
     await fetchPickups(clientId, region);
     toast({ title: "Pickup saved" });
   };
 
   const handleCancel = async (id: string) => {
     if (!clientId) return;
-    await supabase.from("pickup_request_items").delete().eq("pickup_request_id", id);
-    await supabase.from("pickup_requests").delete().eq("id", id);
+    await (supabase as any).from("pickup_request_items").delete().eq("pickup_request_id", id);
+    await (supabase as any).from("pickup_requests").delete().eq("id", id);
     await fetchPickups(clientId, region);
     toast({ title: "Pickup cancelled" });
   };

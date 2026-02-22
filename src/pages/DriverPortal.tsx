@@ -64,7 +64,7 @@ const DriverPortal: React.FC = () => {
     if (!user?.id) return;
     setLoading(true);
 
-    const { data: reqData, error: reqErr } = await supabase
+    const { data: reqData, error: reqErr } = await (supabase as any)
       .from("pickup_requests")
       .select("id, scheduled_date, status, completed_at, signature_data_url, clients(name,address)")
       .eq("assigned_driver_id", user.id)
@@ -82,7 +82,7 @@ const DriverPortal: React.FC = () => {
 
     const { data: itemData } = requestIds.length === 0
       ? { data: [] }
-      : await supabase
+      : await (supabase as any)
           .from("pickup_request_items")
           .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes")
           .in("pickup_request_id", requestIds);
@@ -132,7 +132,7 @@ const DriverPortal: React.FC = () => {
     if (!pickup || !rug || pickup.status === "completed") return;
 
     const next = !rug.verified;
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("pickup_request_items")
       .update({ verified: next })
       .eq("id", rugId);
@@ -149,7 +149,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setRugNotes = async (pickupId: string, rugId: string, notes: string) => {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("pickup_request_items")
       .update({ driver_notes: notes })
       .eq("id", rugId);
@@ -166,7 +166,7 @@ const DriverPortal: React.FC = () => {
   };
 
   const setSignature = async (pickupId: string, dataUrl: string | null) => {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("pickup_requests")
       .update({ signature_data_url: dataUrl })
       .eq("id", pickupId);
@@ -181,7 +181,7 @@ const DriverPortal: React.FC = () => {
 
   const completePickup = async (pickupId: string) => {
     const completedAt = new Date().toISOString();
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("pickup_requests")
       .update({ status: "completed", completed_at: completedAt })
       .eq("id", pickupId);
