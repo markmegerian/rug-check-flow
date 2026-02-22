@@ -23,7 +23,7 @@ export function DevAccountSwitcher() {
     try {
       // Call edge function to ensure test user exists and get credentials
       const { data, error: fnErr } = await supabase.functions.invoke("dev-login", {
-        body: { role },
+        body: { role, secret: import.meta.env.VITE_DEV_LOGIN_SECRET || "" },
       });
 
       if (fnErr || data?.error) {

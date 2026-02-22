@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Enums, Tables, TablesUpdate } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
 
-type PickupStatus = Enums<"pickup_request_status">;
+type PickupStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
 
 type PickupRequestRow = {
   id: string;
@@ -33,11 +33,7 @@ type PickupItemRow = {
   is_new: boolean;
 };
 
-type DriverOption = {
-  id: string;
-  name: string;
-};
-
+type DriverOption = { id: string; name: string };
 type UserRoleRow = Pick<Tables<"user_roles">, "user_id">;
 type ProfileRow = Pick<Tables<"profiles">, "user_id" | "full_name" | "email">;
 
@@ -59,10 +55,7 @@ export function PickupRequestsTab() {
       .returns<UserRoleRow[]>();
 
     const driverIds = [...new Set((roleRows ?? []).map((r) => r.user_id))].filter(Boolean);
-    if (driverIds.length === 0) {
-      setDrivers([]);
-      return;
-    }
+    if (driverIds.length === 0) { setDrivers([]); return; }
 
     const { data: profiles } = await supabase
       .from("profiles")
@@ -70,57 +63,43 @@ export function PickupRequestsTab() {
       .in("user_id", driverIds)
       .returns<ProfileRow[]>();
 
-    const mapped = (profiles ?? []).map((p) => ({
+    setDrivers((profiles ?? []).map((p) => ({
       id: p.user_id,
       name: p.full_name?.trim() || p.email || p.user_id,
-    }));
-
-    setDrivers(mapped);
+    })));
   }, []);
 
   const fetchAll = useCallback(async () => {
-    const { data: reqData, error: reqErr } = await supabase
+    const { data: reqData, error: reqErr } = await (supabase as any)
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes, assigned_driver_id, clients(name)")
-      .order("scheduled_date", { ascending: true })
-      .returns<PickupRequestRow[]>();
+      .order("scheduled_date", { ascending: true }) as { data: PickupRequestRow[] | null; error: any };
 
     if (reqErr) {
       toast({ title: "Failed to load pickup requests", description: reqErr.message, variant: "destructive" });
-      setLoading(false);
-      return;
+      setLoading(false); return;
     }
 
     const typedRequests = reqData ?? [];
     setRequests(typedRequests);
 
     const defaultSelections: Record<string, string> = {};
-    typedRequests.forEach((r) => {
-      defaultSelections[r.id] = r.assigned_driver_id ?? "none";
-    });
+    typedRequests.forEach((r) => { defaultSelections[r.id] = r.assigned_driver_id ?? "none"; });
     setDriverSelection(defaultSelections);
 
     const reqIds = typedRequests.map((r) => r.id);
-    if (reqIds.length === 0) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
+    if (reqIds.length === 0) { setItems([]); setLoading(false); return; }
 
-    const { data: itemData } = await supabase
+    const { data: itemData } = await (supabase as any)
       .from("pickup_request_items")
       .select("id, pickup_request_id, rug_number, is_new")
-      .in("pickup_request_id", reqIds)
-      .returns<PickupItemRow[]>();
+      .in("pickup_request_id", reqIds) as { data: PickupItemRow[] | null; error: any };
 
     setItems(itemData ?? []);
     setLoading(false);
   }, [toast]);
 
-  useEffect(() => {
-    fetchDrivers();
-    fetchAll();
-  }, [fetchAll, fetchDrivers]);
+  useEffect(() => { fetchDrivers(); fetchAll(); }, [fetchAll, fetchDrivers]);
 
   const requestsByRoute = useMemo(() => {
     const map: Record<string, PickupRequestRow[]> = {};
@@ -143,17 +122,15 @@ export function PickupRequestsTab() {
   }, [items]);
 
   const updateStatus = async (id: string, status: PickupStatus) => {
-    const updates: TablesUpdate<"pickup_requests"> = { status };
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("pickup_requests")
-      .update(updates)
+      .update({ status })
       .eq("id", id);
 
     if (error) {
       toast({ title: "Status update failed", description: error.message, variant: "destructive" });
       return;
     }
-
     setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
     toast({ title: "Pickup updated", description: `Status set to ${status}.` });
   };
@@ -161,27 +138,18 @@ export function PickupRequestsTab() {
   const assignDriver = async (requestId: string) => {
     const selected = driverSelection[requestId];
     if (!selected || selected === "none") {
-      toast({ title: "Select a driver first", variant: "destructive" });
-      return;
+      toast({ title: "Select a driver first", variant: "destructive" }); return;
     }
-
     const now = new Date().toISOString();
-    const updates: TablesUpdate<"pickup_requests"> = {
-      assigned_driver_id: selected,
-      assigned_at: now,
-      status: "assigned",
-    };
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("pickup_requests")
-      .update(updates)
+      .update({ assigned_driver_id: selected, assigned_at: now, status: "assigned" })
       .eq("id", requestId);
 
     if (error) {
-      toast({ title: "Driver assignment failed", description: error.message, variant: "destructive" });
-      return;
+      toast({ title: "Driver assignment failed", description: error.message, variant: "destructive" }); return;
     }
-
-    setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, assigned_driver_id: selected, status: "assigned" } : r)));
+    setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, assigned_driver_id: selected, status: "assigned" as PickupStatus } : r)));
     toast({ title: "Driver assigned" });
   };
 
@@ -193,13 +161,8 @@ export function PickupRequestsTab() {
     return <Badge variant="secondary">Cancelled</Badge>;
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">Loading pickup requests…</div>;
-  }
-
-  if (requests.length === 0) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">No pickup requests yet.</div>;
-  }
+  if (loading) return <div className="flex items-center justify-center h-full text-muted-foreground">Loading pickup requests…</div>;
+  if (requests.length === 0) return <div className="flex items-center justify-center h-full text-muted-foreground">No pickup requests yet.</div>;
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full space-y-5 animate-fade-in-up">
@@ -226,37 +189,20 @@ export function PickupRequestsTab() {
                     </div>
                     {statusBadge(req.status)}
                   </div>
-
                   {req.notes && <p className="text-xs text-muted-foreground">Notes: {req.notes}</p>}
-
                   <div className="flex items-center gap-2 flex-wrap">
                     <Select value={driverSelection[req.id] ?? "none"} onValueChange={(v) => setDriverSelection((prev) => ({ ...prev, [req.id]: v }))}>
-                      <SelectTrigger className="w-[200px] h-8">
-                        <SelectValue placeholder="Assign driver" />
-                      </SelectTrigger>
+                      <SelectTrigger className="w-[200px] h-8"><SelectValue placeholder="Assign driver" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Select driver</SelectItem>
-                        {drivers.map((d) => (
-                          <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                        ))}
+                        {drivers.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => assignDriver(req.id)}>
-                      Assign Driver
-                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => assignDriver(req.id)}>Assign Driver</Button>
                   </div>
-
                   <div className="flex flex-wrap gap-2">
                     {STATUS_ORDER.filter((s) => s !== req.status).map((status) => (
-                      <Button
-                        key={status}
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => updateStatus(req.id, status)}
-                      >
-                        Mark {status}
-                      </Button>
+                      <Button key={status} size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateStatus(req.id, status)}>Mark {status}</Button>
                     ))}
                   </div>
                 </div>

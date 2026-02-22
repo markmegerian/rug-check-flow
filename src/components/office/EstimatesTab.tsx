@@ -11,9 +11,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Enums, Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
 
-type EstimateStatus = Enums<"estimate_status">;
+type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
 
 type EstimateRow = {
   id: string;
@@ -57,12 +57,11 @@ export function EstimatesTab() {
   const [creating, setCreating] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const { data: estRows, error: estErr } = await supabase
+    const { data: estRows, error: estErr } = await (supabase as any)
       .from("estimates")
       .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email), rugs(tag)")
       .order("created_at", { ascending: false })
-      .limit(200)
-      .returns<EstimateRow[]>();
+      .limit(200) as { data: EstimateRow[] | null; error: any };
 
     if (estErr) {
       toast({ title: "Failed to load estimates", description: estErr.message, variant: "destructive" });
@@ -127,7 +126,7 @@ export function EstimatesTab() {
     const total = services.reduce((sum: number, s) => sum + Number(s.line_total ?? 0), 0);
     const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
 
-    const estimatePayload: TablesInsert<"estimates"> = {
+    const estimatePayload = {
       rug_id: selectedRugId,
       client_id: selectedRug.client_id,
       estimate_number: estimateNumber,
@@ -136,11 +135,11 @@ export function EstimatesTab() {
       total,
     };
 
-    const { data: insertedEstimate, error: estErr } = await supabase
+    const { data: insertedEstimate, error: estErr } = await (supabase as any)
       .from("estimates")
       .insert(estimatePayload)
       .select("id")
-      .single<Pick<Tables<"estimates">, "id">>();
+      .single();
 
     if (estErr || !insertedEstimate) {
       toast({ title: "Estimate creation failed", description: estErr?.message ?? "Unknown error", variant: "destructive" });
@@ -148,7 +147,7 @@ export function EstimatesTab() {
       return;
     }
 
-    const items: TablesInsert<"estimate_items">[] = services.map((s) => ({
+    const items = services.map((s) => ({
       estimate_id: insertedEstimate.id,
       rug_service_id: s.id,
       description: `${selectedRug.tag} — ${s.service_name}`,
@@ -157,9 +156,9 @@ export function EstimatesTab() {
       total: Number(s.line_total ?? 0),
     }));
 
-    const { error: itemErr } = await supabase.from("estimate_items").insert(items);
+    const { error: itemErr } = await (supabase as any).from("estimate_items").insert(items);
     if (itemErr) {
-      await supabase.from("estimates").delete().eq("id", insertedEstimate.id);
+      await (supabase as any).from("estimates").delete().eq("id", insertedEstimate.id);
       toast({ title: "Estimate items failed", description: itemErr.message, variant: "destructive" });
       setCreating(false);
       return;
@@ -189,7 +188,7 @@ export function EstimatesTab() {
 
 
   const logCommunicationEvent = async (estimate: EstimateRow, eventType: string, subject: string, body: string) => {
-    const commsPayload: TablesInsert<"communication_events"> = {
+    const commsPayload = {
       client_id: estimate.client_id,
       rug_id: estimate.rug_id,
       estimate_id: estimate.id,
@@ -201,7 +200,7 @@ export function EstimatesTab() {
       sent_to: estimate.clients?.email ?? null,
     };
 
-    const { error } = await supabase.from("communication_events").insert(commsPayload);
+    const { error } = await (supabase as any).from("communication_events").insert(commsPayload);
 
     if (error) {
       toast({
@@ -215,7 +214,7 @@ export function EstimatesTab() {
   };
 
   const setEstimateStatus = async (estimate: EstimateRow, status: EstimateStatus) => {
-    if (!ALLOWED_STATUS_TRANSITIONS[estimate.status].includes(status)) {
+    if (!(ALLOWED_STATUS_TRANSITIONS[estimate.status] as EstimateStatus[]).includes(status)) {
       toast({
         title: "Invalid status transition",
         description: `Cannot move estimate from ${estimate.status} to ${status}.`,
@@ -224,12 +223,12 @@ export function EstimatesTab() {
       return;
     }
 
-    const updates: TablesUpdate<"estimates"> = { status };
+    const updates: Record<string, any> = { status };
     if (status === "sent") updates.sent_at = new Date().toISOString();
     if (status === "approved") updates.approved_at = new Date().toISOString();
     if (status === "rejected") updates.rejected_at = new Date().toISOString();
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("estimates")
       .update(updates)
       .eq("id", estimate.id);
