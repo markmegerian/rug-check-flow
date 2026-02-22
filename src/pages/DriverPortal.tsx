@@ -73,7 +73,7 @@ const DriverPortal: React.FC = () => {
       return;
     }
 
-    const requests = (reqData ?? []) as DriverPickupRequestRow[];
+    const requests = (reqData ?? []) as unknown as DriverPickupRequestRow[];
     const requestIds = requests.map((r) => r.id);
 
     const { data: itemData } = requestIds.length === 0

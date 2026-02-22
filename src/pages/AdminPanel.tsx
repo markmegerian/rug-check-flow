@@ -29,7 +29,7 @@ export default function AdminPanel() {
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
             desktopWidthClassName="md:w-52"
             mobileLabelMode="desktop-only"
             className="bg-muted/30"

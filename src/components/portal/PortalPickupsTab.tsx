@@ -5,7 +5,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
-import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import {
+  supabaseExtended,
+  type ExtendedTableInsert,
+  type ExtendedTableRow,
+} from "@/integrations/supabase/extended";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import {
   canPortalEditPickup,
@@ -183,7 +187,7 @@ export default function PortalPickupsTab() {
   const handleRequestPickup = async () => {
     if (!clientId) return;
     const scheduledDate = getNextDateForRouteDay(routeDay);
-    const insertPayload = {
+    const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
       client_id: clientId,
       route_day: routeDay,
       scheduled_date: scheduledDate,

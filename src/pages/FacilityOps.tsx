@@ -29,7 +29,7 @@ export default function FacilityOps() {
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
             desktopWidthClassName="md:w-48"
             mobileLabelMode="always"
             className="bg-muted/30"
