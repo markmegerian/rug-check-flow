@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
     }
 
     const subject = `Estimate ${estimate.estimate_number} from RugBoost`;
+    const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
     const body = [
       `Hello ${estimate.clients?.name ?? "client"},`,
       "",
@@ -71,7 +72,7 @@ Deno.serve(async (req) => {
       `Rug: ${estimate.rugs?.tag ?? "N/A"}`,
       `Total: $${Number(estimate.total ?? 0).toFixed(2)}`,
       "",
-      "Please sign in to the portal to approve or reject this estimate.",
+      `Please sign in to the portal to approve or reject this estimate: ${portalUrl}`,
     ].join("\n");
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -110,8 +111,12 @@ Deno.serve(async (req) => {
           body,
           sent_to: estimate.clients.email,
         });
-
-        return json({ error: "Email provider failed", details: providerResponse }, 502);
+        return json({
+          success: true,
+          provider_status: providerStatus,
+          provider_response: providerResponse,
+          action_hint: `Share estimate manually in portal: ${portalUrl}`,
+        });
       }
     }
 
@@ -127,7 +132,12 @@ Deno.serve(async (req) => {
       sent_to: estimate.clients.email,
     });
 
-    return json({ success: true, provider_status: providerStatus, provider_response: providerResponse });
+    return json({
+      success: true,
+      provider_status: providerStatus,
+      provider_response: providerResponse,
+      action_hint: `Estimate visible in portal: ${portalUrl}`,
+    });
   } catch (error) {
     console.error(error);
     return json({ error: "Internal server error" }, 500);

@@ -223,6 +223,7 @@ export function EstimatesTab() {
       success?: boolean;
       provider_status?: string;
       provider_response?: unknown;
+      action_hint?: string;
       error?: string;
       details?: unknown;
     };
@@ -256,12 +257,21 @@ export function EstimatesTab() {
 
     await fetchData();
     setSendingEstimateId(null);
+    const providerMessage = (() => {
+      if (!data?.provider_response || typeof data.provider_response !== "object") return null;
+      const candidate = data.provider_response as Record<string, unknown>;
+      if (typeof candidate.message === "string") return candidate.message;
+      if (typeof candidate.error === "string") return candidate.error;
+      return null;
+    })();
     toast({
       title: "Estimate sent",
       description:
         data?.provider_status === "sent"
           ? `${estimate.estimate_number} email delivered to client.`
-          : `${estimate.estimate_number} marked sent (email provider not configured).`,
+          : data?.provider_status === "failed"
+            ? `${estimate.estimate_number} marked sent, but email delivery failed${providerMessage ? `: ${providerMessage}` : "."}${data?.action_hint ? ` ${data.action_hint}` : ""}`
+            : `${estimate.estimate_number} marked sent (email provider not configured).`,
     });
   };
 
