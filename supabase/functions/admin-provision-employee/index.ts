@@ -26,6 +26,42 @@ function isSuperAdminEmail(email: string | null | undefined) {
   return SUPER_ADMIN_EMAILS.has(email.trim().toLowerCase());
 }
 
+const buildStaffSignInUrl = (req: Request) => {
+  const normalize = (rawValue: string | null | undefined) => {
+    if (!rawValue) return null;
+    try {
+      const parsed = new URL(rawValue);
+      const pathname = parsed.pathname.replace(/\/+$/, "");
+      if (pathname.endsWith("/auth")) return `${parsed.origin}${pathname}`;
+      return `${parsed.origin}/auth`;
+    } catch {
+      return null;
+    }
+  };
+
+  const envStaffUrl = normalize(Deno.env.get("STAFF_APP_URL"));
+  if (envStaffUrl) return envStaffUrl;
+
+  const envAppUrl = normalize(Deno.env.get("APP_URL"));
+  if (envAppUrl) return envAppUrl;
+
+  const originUrl = normalize(req.headers.get("origin"));
+  if (originUrl) return originUrl;
+
+  const refererUrl = normalize(req.headers.get("referer"));
+  if (refererUrl) return refererUrl;
+
+  return "https://mr.rugboost.com/auth";
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -139,10 +175,89 @@ Deno.serve(async (req) => {
       .insert({ user_id: targetUserId, role });
     if (roleInsertError) return json({ error: roleInsertError.message }, 500);
 
+    const signInUrl = buildStaffSignInUrl(req);
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const fromEmail =
+      Deno.env.get("EMPLOYEE_ONBOARDING_EMAIL_FROM") ??
+      Deno.env.get("PORTAL_ONBOARDING_EMAIL_FROM") ??
+      "RugBoost <onboarding@resend.dev>";
+    const subject = "Your RugBoost staff account is ready";
+    const emailText = [
+      `Hi ${fullName},`,
+      "",
+      "Your RugBoost staff account has been provisioned.",
+      "",
+      "Sign-in steps:",
+      `1) Open: ${signInUrl}`,
+      `2) Email: ${email}`,
+      `3) Temporary password: ${password}`,
+      "4) Sign in and update your password if prompted.",
+      "",
+      `Role assigned: ${role}`,
+      "",
+      "If anything looks wrong, reply to this email and we will fix it quickly.",
+    ].join("\n");
+    const emailHtml = [
+      `<p>Hi ${escapeHtml(fullName)},</p>`,
+      "<p>Your RugBoost staff account has been provisioned.</p>",
+      "<p><strong>Sign-in steps</strong></p>",
+      "<ol>",
+      `<li>Open: <a href="${escapeHtml(signInUrl)}">${escapeHtml(signInUrl)}</a></li>`,
+      `<li>Email: <strong>${escapeHtml(email)}</strong></li>`,
+      `<li>Temporary password: <strong>${escapeHtml(password)}</strong></li>`,
+      "<li>Sign in and update your password if prompted.</li>",
+      "</ol>",
+      `<p>Role assigned: <strong>${escapeHtml(role)}</strong></p>`,
+      "<p>If anything looks wrong, reply to this email and we will fix it quickly.</p>",
+    ].join("");
+
+    let providerStatus = "not_configured";
+    let providerResponse: unknown = null;
+
+    if (resendApiKey) {
+      const resendResp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [email],
+          subject,
+          text: emailText,
+          html: emailHtml,
+        }),
+      });
+
+      providerResponse = await resendResp.json().catch(() => null);
+      providerStatus = resendResp.ok ? "sent" : "failed";
+    }
+
+    if (providerStatus === "failed") {
+      await adminClient.from("communication_events").insert({
+        channel: "email",
+        direction: "outbound",
+        event_type: "employee_onboarding_email_failed",
+        subject,
+        body: emailText,
+        sent_to: email,
+      });
+    } else if (providerStatus === "sent") {
+      await adminClient.from("communication_events").insert({
+        channel: "email",
+        direction: "outbound",
+        event_type: "employee_onboarding_email_sent",
+        subject,
+        body: emailText,
+        sent_to: email,
+      });
+    }
+
     await adminClient.from("audit_log").insert({
       user_id: actor.id,
       user_name: actor.email ?? "Admin",
-      action: `Provisioned employee ${email} with role ${role}`,
+      action: `Provisioned employee ${email} with role ${role} (email: ${providerStatus})`,
     });
 
     return json({
@@ -151,6 +266,8 @@ Deno.serve(async (req) => {
       email,
       role,
       reused_existing_user: reusedExistingUser,
+      provider_status: providerStatus,
+      provider_response: providerResponse,
     });
   } catch (error) {
     console.error(error);

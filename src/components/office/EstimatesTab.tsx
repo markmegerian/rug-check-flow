@@ -223,6 +223,7 @@ export function EstimatesTab() {
       success?: boolean;
       provider_status?: string;
       provider_response?: unknown;
+      action_hint?: string;
       error?: string;
       details?: unknown;
     };
@@ -231,10 +232,23 @@ export function EstimatesTab() {
       body: { estimate_id: estimate.id },
     });
 
+    const providerDetail = (() => {
+      if (!data?.details) return null;
+      if (typeof data.details === "string") return data.details;
+      if (typeof data.details === "object") {
+        const candidate = data.details as Record<string, unknown>;
+        if (typeof candidate.message === "string") return candidate.message;
+        if (typeof candidate.error === "string") return candidate.error;
+      }
+      return null;
+    })();
+
     if (error || data?.error) {
       toast({
         title: "Estimate send failed",
-        description: data?.error || error?.message || "Unknown error",
+        description: providerDetail
+          ? `${data?.error || error?.message || "Unknown error"} (${providerDetail})`
+          : data?.error || error?.message || "Unknown error",
         variant: "destructive",
       });
       setSendingEstimateId(null);
@@ -243,12 +257,21 @@ export function EstimatesTab() {
 
     await fetchData();
     setSendingEstimateId(null);
+    const providerMessage = (() => {
+      if (!data?.provider_response || typeof data.provider_response !== "object") return null;
+      const candidate = data.provider_response as Record<string, unknown>;
+      if (typeof candidate.message === "string") return candidate.message;
+      if (typeof candidate.error === "string") return candidate.error;
+      return null;
+    })();
     toast({
       title: "Estimate sent",
       description:
         data?.provider_status === "sent"
           ? `${estimate.estimate_number} email delivered to client.`
-          : `${estimate.estimate_number} marked sent (email provider not configured).`,
+          : data?.provider_status === "failed"
+            ? `${estimate.estimate_number} marked sent, but email delivery failed${providerMessage ? `: ${providerMessage}` : "."}${data?.action_hint ? ` ${data.action_hint}` : ""}`
+            : `${estimate.estimate_number} marked sent (email provider not configured).`,
     });
   };
 

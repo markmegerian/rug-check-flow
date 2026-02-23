@@ -68,6 +68,13 @@ type OnboardingEmailResponse = {
   success?: boolean;
   provider_status?: string;
   provider_response?: unknown;
+  delivery_instructions?: {
+    portal_url: string;
+    email: string;
+    password: string | null;
+    password_hint: string | null;
+    note: string | null;
+  };
   error?: string;
   details?: unknown;
 };
@@ -163,6 +170,45 @@ const mapOnboardingEmailErrorMessage = (message: string | undefined) => {
     return `Edge function send-portal-onboarding-email is not reachable from project ${activeProject}. Verify this frontend is pointed at the same project where the function is deployed.`;
   }
   return message;
+};
+
+const extractOnboardingErrorDetail = (details: unknown) => {
+  if (!details) return null;
+  if (typeof details === "string") return details;
+  if (typeof details === "object") {
+    const candidate = details as Record<string, unknown>;
+    if (typeof candidate.message === "string") return candidate.message;
+    if (typeof candidate.error === "string") return candidate.error;
+    return JSON.stringify(details);
+  }
+  return String(details);
+};
+
+const extractProviderMessage = (response: unknown) => {
+  if (!response || typeof response !== "object") return null;
+  const candidate = response as Record<string, unknown>;
+  if (typeof candidate.message === "string") return candidate.message;
+  if (typeof candidate.error === "string") return candidate.error;
+  if (typeof candidate.name === "string") return candidate.name;
+  return null;
+};
+
+const buildManualOnboardingInstructions = (
+  instructions: NonNullable<OnboardingEmailResponse["delivery_instructions"]>
+) => {
+  const lines = [
+    "RugBoost portal sign-in instructions",
+    `Portal URL: ${instructions.portal_url}`,
+    `Email: ${instructions.email}`,
+    instructions.password
+      ? `Temporary password: ${instructions.password}`
+      : "Password: Use existing portal password.",
+  ];
+
+  if (instructions.password_hint) lines.push(instructions.password_hint);
+  if (instructions.note) lines.push(instructions.note);
+
+  return lines.join("\n");
 };
 
 export function ClientsTab() {
@@ -446,9 +492,12 @@ export function ClientsTab() {
     );
 
     if (error || data?.error) {
+      const detail = extractOnboardingErrorDetail(data?.details);
       toast({
         title: "Onboarding email failed",
-        description: mapOnboardingEmailErrorMessage(data?.error || error?.message),
+        description: detail
+          ? `${mapOnboardingEmailErrorMessage(data?.error || error?.message)} (${detail})`
+          : mapOnboardingEmailErrorMessage(data?.error || error?.message),
         variant: "destructive",
       });
       return false;
@@ -456,11 +505,53 @@ export function ClientsTab() {
 
     if (data?.provider_status === "sent") {
       toast({ title: "Onboarding email sent" });
+    } else if (data?.provider_status === "failed") {
+      const providerMessage = extractProviderMessage(data.provider_response) ?? "Email provider rejected delivery.";
+      const instructions = data.delivery_instructions;
+      if (instructions) {
+        const manualInstructions = buildManualOnboardingInstructions(instructions);
+        try {
+          await navigator.clipboard.writeText(manualInstructions);
+          toast({
+            title: "Email delivery failed; instructions copied",
+            description: providerMessage,
+            variant: "destructive",
+          });
+        } catch {
+          toast({
+            title: "Email delivery failed",
+            description: `${providerMessage} Copy details manually from the portal user record.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Email delivery failed",
+          description: providerMessage,
+          variant: "destructive",
+        });
+      }
     } else {
-      toast({
-        title: "Account activated",
-        description: "Email provider is not configured, so no outbound email was sent.",
-      });
+      const instructions = data?.delivery_instructions;
+      if (instructions) {
+        try {
+          await navigator.clipboard.writeText(buildManualOnboardingInstructions(instructions));
+          toast({
+            title: "No email provider configured",
+            description: "Manual sign-in instructions were copied to your clipboard.",
+          });
+        } catch {
+          toast({
+            title: "No email provider configured",
+            description: "Copy sign-in instructions manually from the portal user details.",
+          });
+        }
+      } else {
+        toast({
+          title: "Account activated",
+          description: "Email provider is not configured, so no outbound email was sent.",
+        });
+      }
     }
     return true;
   };
@@ -682,7 +773,8 @@ export function ClientsTab() {
                   <h3 className="text-sm font-semibold text-foreground">Portal Users</h3>
                   <p className="text-xs text-muted-foreground">
                     New logins stay invited until you activate them. Onboarding emails are only sent when you choose
-                    “Activate + Send” or “Send onboarding email”.
+                    “Activate + Send” or “Send onboarding email”, and now include step-by-step sign-in instructions
+                    plus temporary password details for first login.
                   </p>
                   {portalUsers.length === 0 && (
                     <p className="text-sm text-muted-foreground">No portal users yet.</p>
