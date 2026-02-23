@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Users, Shield, ScrollText } from "lucide-react";
+import { Users, Shield, ScrollText, Store } from "lucide-react";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { RolesTab } from "@/components/admin/RolesTab";
 import { AuditLogTab } from "@/components/admin/AuditLogTab";
+import { ClientsTab } from "@/components/office/ClientsTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 
 const TABS = [
   { id: "users", label: "Users", icon: Users, subtitle: "Directory and access management" },
+  { id: "clients", label: "Wholesale Accounts", icon: Store, subtitle: "Client + portal account management" },
   { id: "roles", label: "Roles", icon: Shield, subtitle: "Permission distribution overview" },
   { id: "audit", label: "Audit Log", icon: ScrollText, subtitle: "System activity timeline" },
 ] as const;
@@ -29,7 +31,7 @@ export default function AdminPanel() {
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
             desktopWidthClassName="md:w-52"
             mobileLabelMode="desktop-only"
             className="bg-muted/30"
@@ -37,6 +39,7 @@ export default function AdminPanel() {
 
           <main className="flex-1 min-w-0 overflow-auto bg-background">
             {activeTab === "users" && <UsersTab />}
+            {activeTab === "clients" && <ClientsTab />}
             {activeTab === "roles" && <RolesTab />}
             {activeTab === "audit" && <AuditLogTab />}
           </main>

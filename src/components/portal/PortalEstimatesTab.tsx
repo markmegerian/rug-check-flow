@@ -5,7 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { usePortalClient } from "@/hooks/usePortalClient";
-import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import {
+  supabaseExtended,
+  type ExtendedTableInsert,
+  type ExtendedTableRow,
+} from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -105,7 +109,7 @@ export default function PortalEstimatesTab() {
     }
 
     const eventType = nextStatus === "approved" ? "estimate_approved_by_client" : "estimate_rejected_by_client";
-    const eventPayload = {
+    const eventPayload: ExtendedTableInsert<"communication_events"> = {
       client_id: clientId,
       estimate_id: estimate.id,
       channel: "in_app_chat",

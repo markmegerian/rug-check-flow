@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 type PickupRequestStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
 type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
 type CommunicationChannel = "email" | "in_app_chat";
 type CommunicationDirection = "outbound" | "inbound";
+type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
 
 type ExtendedTables = Database["public"]["Tables"] & {
   communication_events: {
@@ -140,6 +141,60 @@ type ExtendedTables = Database["public"]["Tables"] & {
     };
     Relationships: [];
   };
+  payment_attempts: {
+    Row: {
+      id: string;
+      invoice_id: string;
+      client_id: string | null;
+      provider: string;
+      provider_payment_ref: string | null;
+      amount: number;
+      status: PaymentAttemptStatus;
+      attempted_at: string;
+      error_message: string | null;
+      metadata: Json;
+    };
+    Insert: {
+      id?: string;
+      invoice_id: string;
+      client_id?: string | null;
+      provider?: string;
+      provider_payment_ref?: string | null;
+      amount?: number;
+      status?: PaymentAttemptStatus;
+      attempted_at?: string;
+      error_message?: string | null;
+      metadata?: Json;
+    };
+    Update: {
+      id?: string;
+      invoice_id?: string;
+      client_id?: string | null;
+      provider?: string;
+      provider_payment_ref?: string | null;
+      amount?: number;
+      status?: PaymentAttemptStatus;
+      attempted_at?: string;
+      error_message?: string | null;
+      metadata?: Json;
+    };
+    Relationships: [
+      {
+        foreignKeyName: "payment_attempts_client_id_fkey";
+        columns: ["client_id"];
+        isOneToOne: false;
+        referencedRelation: "clients";
+        referencedColumns: ["id"];
+      },
+      {
+        foreignKeyName: "payment_attempts_invoice_id_fkey";
+        columns: ["invoice_id"];
+        isOneToOne: false;
+        referencedRelation: "invoices";
+        referencedColumns: ["id"];
+      },
+    ];
+  };
   pickup_request_items: {
     Row: {
       id: string;
@@ -239,6 +294,7 @@ export type ExtendedDatabase = Omit<Database, "public"> & {
       communication_channel: CommunicationChannel;
       communication_direction: CommunicationDirection;
       estimate_status: EstimateStatus;
+      payment_attempt_status: PaymentAttemptStatus;
       pickup_request_status: PickupRequestStatus;
     };
   };

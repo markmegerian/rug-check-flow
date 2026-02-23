@@ -89,6 +89,13 @@ Edge function environment:
 - `SLACK_WEBHOOK_URL` (optional) for critical operational alert notifications.
 - `OPS_ALERT_EMAILS` (optional CSV list) for email alert recipients.
 - `OPS_ALERT_FROM_EMAIL` (optional) sender used by operational alerts when email is configured.
+- `PORTAL_ONBOARDING_EMAIL_FROM` (optional) sender used for wholesale onboarding email.
+- `PORTAL_APP_URL` (optional) sign-in URL used in wholesale onboarding email body.
+- `EMPLOYEE_ONBOARDING_EMAIL_FROM` (optional) sender used for employee onboarding email.
+- `STAFF_APP_URL` (optional) sign-in URL used in employee onboarding email body.
+
+Important: if sender addresses use `@resend.dev`, Resend stays in testing mode and only delivers to your account email.
+To send emails to clients/employees, verify your domain in Resend and set all `*_FROM` secrets to that verified domain.
 
 ## Release runbook and smoke testing
 

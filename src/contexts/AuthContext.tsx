@@ -1,13 +1,22 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
+import { isSuperAdminEmail } from "@/lib/super-admin";
 
 type AppRole = "admin" | "office" | "checkin_staff" | "driver";
+type PortalUserLink = {
+  client_id: string;
+  onboarding_completed_at: string | null;
+};
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   roles: AppRole[];
+  portalClientId: string | null;
+  portalOnboardingCompletedAt: string | null;
+  isPortalUser: boolean;
+  isSuperAdmin: boolean;
   loading: boolean;
   hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
@@ -19,52 +28,127 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [portalClientId, setPortalClientId] = useState<string | null>(null);
+  const [portalOnboardingCompletedAt, setPortalOnboardingCompletedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const syncTokenRef = useRef(0);
+  const userIdRef = useRef<string | null>(null);
 
-  const fetchRoles = async (userId: string) => {
+  const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    setRoles((data ?? []).map((r) => r.role));
-  };
+    return (data ?? []).map((r) => r.role as AppRole);
+  }, []);
+
+  const fetchPortalLink = useCallback(async (email: string | null | undefined): Promise<PortalUserLink | null> => {
+    if (!email) return null;
+    const normalizedEmail = email.toLowerCase();
+    const { data, error } = await supabase
+      .from("portal_users")
+      .select("client_id, onboarding_completed_at")
+      .ilike("email", normalizedEmail)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<PortalUserLink>();
+    if (error) return null;
+    return data?.client_id ? data : null;
+  }, []);
+
+  const syncAuthState = useCallback(async (
+    nextSession: Session | null,
+    options?: { silent?: boolean; skipLookup?: boolean }
+  ) => {
+    const syncToken = ++syncTokenRef.current;
+    const nextUser = nextSession?.user ?? null;
+    const nextUserId = nextUser?.id ?? null;
+    const userChanged = userIdRef.current !== nextUserId;
+    userIdRef.current = nextUserId;
+
+    if (!options?.silent || userChanged) {
+      setLoading(true);
+    }
+    setSession(nextSession);
+    setUser(nextUser);
+
+    if (!nextUser) {
+      setRoles([]);
+      setPortalClientId(null);
+      setPortalOnboardingCompletedAt(null);
+      setLoading(false);
+      return;
+    }
+
+    if (options?.skipLookup && !userChanged) {
+      // Token refreshes can happen when returning to a tab. Keep the UX stable
+      // and avoid full-screen loading or unnecessary role/link round-trips.
+      return;
+    }
+
+    const [nextRoles, portalLink] = await Promise.all([
+      fetchRoles(nextUser.id),
+      fetchPortalLink(nextUser.email),
+    ]);
+
+    if (syncTokenRef.current !== syncToken) return;
+
+    // Portal-linked logins are client-only accounts and should not land in internal workspaces
+    // even if legacy role rows exist.
+    const nextIsSuperAdmin = isSuperAdminEmail(nextUser.email);
+    const effectiveRoles = portalLink?.client_id && !nextIsSuperAdmin ? [] : nextRoles;
+
+    setRoles(effectiveRoles);
+    setPortalClientId(portalLink?.client_id ?? null);
+    setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
+    setLoading(false);
+  }, [fetchPortalLink, fetchRoles]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        if (newSession?.user) {
-          // Defer role fetch to avoid deadlocks
-          setTimeout(() => fetchRoles(newSession.user.id), 0);
-        } else {
-          setRoles([]);
+      (event: AuthChangeEvent, newSession) => {
+        if (event === "TOKEN_REFRESHED") {
+          void syncAuthState(newSession, { silent: true, skipLookup: true });
+          return;
         }
-        setLoading(false);
+        void syncAuthState(newSession);
       }
     );
 
     supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchRoles(s.user.id);
-      }
-      setLoading(false);
+      void syncAuthState(s);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [syncAuthState]);
 
   const hasRole = (role: AppRole) => roles.includes(role);
+  const isPortalUser = Boolean(portalClientId);
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
+    setPortalClientId(null);
+    setPortalOnboardingCompletedAt(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, roles, loading, hasRole, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        roles,
+        portalClientId,
+        portalOnboardingCompletedAt,
+        isPortalUser,
+        isSuperAdmin,
+        loading,
+        hasRole,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PortalRoute } from "@/components/PortalRoute";
 import { LoadingState } from "@/components/states/PageState";
 
 const queryClient = new QueryClient();
@@ -62,9 +63,9 @@ const App = () => (
               <Route
                 path="/portal"
                 element={
-                  <ProtectedRoute>
+                  <PortalRoute>
                     <WholesalePortal />
-                  </ProtectedRoute>
+                  </PortalRoute>
                 }
               />
               <Route

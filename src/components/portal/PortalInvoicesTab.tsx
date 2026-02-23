@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
@@ -87,7 +87,7 @@ export default function PortalInvoicesTab() {
   const fetchInvoicesPage = useCallback(async (activeClientId: string, targetPageIndex: number, append: boolean) => {
       const from = targetPageIndex * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      const { data: invoiceRows, error: invoiceError } = await supabase
+      const { data: invoiceRows, error: invoiceError } = await supabaseExtended
         .from("invoices")
         .select("id, invoice_number, status, total, issued_at, due_at, created_at")
         .eq("client_id", activeClientId)
@@ -107,7 +107,7 @@ export default function PortalInvoicesTab() {
       const invoiceIds = (invoiceRows ?? []).map((row) => row.id);
 
       const { data: itemRows, error: itemError } = invoiceIds.length
-        ? await supabase
+        ? await supabaseExtended
             .from("invoice_items")
             .select("id, invoice_id, description, total, rugs(tag)")
             .in("invoice_id", invoiceIds)
@@ -121,7 +121,7 @@ export default function PortalInvoicesTab() {
       }
 
       const { data: paymentRows, error: paymentError } = invoiceIds.length
-        ? await supabase
+        ? await supabaseExtended
             .from("payment_attempts")
             .select("id, invoice_id, status, amount, attempted_at, provider, error_message")
             .in("invoice_id", invoiceIds)

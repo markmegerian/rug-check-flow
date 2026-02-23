@@ -5,7 +5,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
-import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import {
+  supabaseExtended,
+  type ExtendedTableInsert,
+  type ExtendedTableRow,
+} from "@/integrations/supabase/extended";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import {
   canPortalEditPickup,
@@ -70,8 +74,30 @@ export default function PortalPickupsTab() {
   const [loading, setLoading] = useState(true);
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
+  const [requesting, setRequesting] = useState(false);
+  const [requestDate, setRequestDate] = useState(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
+  const [requestDateTouched, setRequestDateTouched] = useState(false);
+  const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
+  const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
+  const [draftNotes, setDraftNotes] = useState("");
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
+
+  const toggleDraftRug = useCallback((rn: string) => {
+    setDraftSelectedRugs((prev) => (prev.includes(rn) ? prev.filter((r) => r !== rn) : [...prev, rn]));
+  }, []);
+
+  const addDraftRug = useCallback(() => {
+    setDraftNewRugs((prev) => [...prev, { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0 }]);
+  }, []);
+
+  const updateDraftRug = useCallback((id: string, field: keyof PickupRugEntry, value: string | number) => {
+    setDraftNewRugs((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  }, []);
+
+  const removeDraftRug = useCallback((id: string) => {
+    setDraftNewRugs((prev) => prev.filter((r) => r.id !== id));
+  }, []);
 
   const fetchPickups = useCallback(async (activeClientId: string, activeRegion: string) => {
     const { data: reqData, error: reqError } = await supabaseExtended
@@ -151,17 +177,21 @@ export default function PortalPickupsTab() {
       const derivedRegion = (selectedClient as ClientLookupRow).address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
       setRegion(derivedRegion);
+      if (!requestDateTouched) {
+        setRequestDate(getNextDateForRouteDay(derivedRouteDay));
+      }
 
       const { data: rugRows, error: rugError } = await supabaseExtended
         .from("rugs")
         .select("id, tag, description, services")
         .eq("client_id", selectedClient.id)
-        .eq("status", "ready")
+        // "picked_up" represents rugs delivered back to the client (on file) and can be re-serviced.
+        .eq("status", "picked_up")
         .order("checked_in_at", { ascending: false })
         .limit(300);
 
       if (rugError) {
-        toast({ title: "Failed to load ready rugs", description: rugError.message, variant: "destructive" });
+        toast({ title: "Failed to load rugs", description: rugError.message, variant: "destructive" });
         setLoading(false);
         return;
       }
@@ -178,47 +208,85 @@ export default function PortalPickupsTab() {
     };
 
     init();
-  }, [clientId, errorMessage, fetchPickups, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchPickups, portalClientLoading, requestDateTouched, toast]);
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
-    const scheduledDate = getNextDateForRouteDay(routeDay);
-    const insertPayload = {
+    const cleanedNewRugs = draftNewRugs
+      .map((rug) => ({
+        label: rug.label.trim(),
+        rugType: rug.rugType.trim(),
+        length: Number(rug.length ?? 0),
+        width: Number(rug.width ?? 0),
+      }))
+      .filter((rug) => rug.label.length > 0);
+
+    if (draftSelectedRugs.length === 0 && cleanedNewRugs.length === 0) {
+      toast({
+        title: "Add at least one rug",
+        description: "Select an existing rug or add an additional rug before requesting a pickup.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const scheduledDate = requestDate || getNextDateForRouteDay(routeDay);
+    const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
       client_id: clientId,
       route_day: routeDay,
       scheduled_date: scheduledDate,
       status: "pending",
-      notes: "",
+      notes: draftNotes,
     };
-    const { data: inserted, error } = await supabaseExtended
-      .from("pickup_requests")
-      .insert(insertPayload)
-      .select("id")
-      .single();
 
-    if (error || !inserted) {
-      toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
-      return;
-    }
+    setRequesting(true);
+    try {
+      const { data: inserted, error } = await supabaseExtended
+        .from("pickup_requests")
+        .insert(insertPayload)
+        .select("id")
+        .single();
 
-    const items = readyRugNumbers.map((rugNumber) => ({
-      pickup_request_id: inserted.id,
-      rug_number: rugNumber,
-      rug_type: "",
-      is_new: false,
-    }));
-    if (items.length > 0) {
-      const { error: itemError } = await supabaseExtended.from("pickup_request_items").insert(items);
-      if (itemError) {
-        toast({ title: "Pickup requested with warnings", description: itemError.message, variant: "destructive" });
+      if (error || !inserted) {
+        toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
+        return;
       }
-    }
 
-    await fetchPickups(clientId, region);
-    toast({
-      title: "Pickup requested",
-      description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
-    });
+      const selectedKnownItems = draftSelectedRugs.map((rugNumber) => ({
+        pickup_request_id: inserted.id,
+        rug_number: rugNumber,
+        rug_type: "",
+        is_new: false,
+      }));
+
+      const newRugItems = cleanedNewRugs.map((rug) => ({
+        pickup_request_id: inserted.id,
+        rug_number: rug.label,
+        rug_type: rug.rugType,
+        length: rug.length > 0 ? rug.length : null,
+        width: rug.width > 0 ? rug.width : null,
+        is_new: true,
+      }));
+
+      const items = [...selectedKnownItems, ...newRugItems];
+      if (items.length > 0) {
+        const { error: itemError } = await supabaseExtended.from("pickup_request_items").insert(items);
+        if (itemError) {
+          toast({ title: "Pickup requested with warnings", description: itemError.message, variant: "destructive" });
+        }
+      }
+
+      await fetchPickups(clientId, region);
+      setDraftSelectedRugs([]);
+      setDraftNewRugs([]);
+      setDraftNotes("");
+      toast({
+        title: "Pickup requested",
+        description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
+      });
+    } finally {
+      setRequesting(false);
+    }
   };
 
   const handleSave = async (id: string, updates: Partial<PortalPickup>) => {
@@ -226,6 +294,35 @@ export default function PortalPickupsTab() {
     const pickup = pickups.find((entry) => entry.id === id);
     if (!pickup || !canPortalEditPickup(pickup.status)) {
       toast({ title: "Pickup is locked", description: "Only pending pickups can be edited.", variant: "destructive" });
+      return;
+    }
+
+    const nextReady = updates.rugNumbers ?? [];
+    const nextNewRugsRaw = updates.newRugs ?? [];
+    const hasBlankNewRug = nextNewRugsRaw.some((rug) => !rug.label?.trim());
+    if (hasBlankNewRug) {
+      toast({
+        title: "Missing rug name",
+        description: "Additional rugs must have a name before you can save this pickup request.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const nextNewRugs = nextNewRugsRaw.map((rug) => ({
+      ...rug,
+      label: rug.label.trim(),
+      rugType: (rug.rugType ?? "").trim(),
+      length: Number(rug.length ?? 0),
+      width: Number(rug.width ?? 0),
+    }));
+
+    if (nextReady.length === 0 && nextNewRugs.length === 0) {
+      toast({
+        title: "Add at least one rug",
+        description: "Select an existing rug or add an additional rug before saving.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -242,11 +339,16 @@ export default function PortalPickupsTab() {
       toast({ title: "Save failed", description: deleteErr.message, variant: "destructive" });
       return;
     }
-    const readyItems = (updates.rugNumbers ?? []).map((rugNumber) => ({
+    const readyItems = nextReady.map((rugNumber) => ({
       pickup_request_id: id, rug_number: rugNumber, rug_type: "", is_new: false,
     }));
-    const newRugItems = (updates.newRugs ?? []).map((rug) => ({
-      pickup_request_id: id, rug_number: rug.label, rug_type: rug.rugType, length: rug.length, width: rug.width, is_new: true,
+    const newRugItems = nextNewRugs.map((rug) => ({
+      pickup_request_id: id,
+      rug_number: rug.label,
+      rug_type: rug.rugType,
+      length: rug.length > 0 ? rug.length : null,
+      width: rug.width > 0 ? rug.width : null,
+      is_new: true,
     }));
     const insertItems = [...readyItems, ...newRugItems];
     if (insertItems.length > 0) {
@@ -286,6 +388,14 @@ export default function PortalPickupsTab() {
     return <div className="text-sm text-muted-foreground">Loading pickups…</div>;
   }
 
+  if (!clientId) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        {errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2 text-muted-foreground">
@@ -295,30 +405,103 @@ export default function PortalPickupsTab() {
 
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Ready for Pickup · {readyRugs.length}
+          Schedule a Pickup
         </h3>
-        {readyRugs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No rugs ready right now.</p>
-        ) : (
-          <>
-            <div className="rounded-lg border bg-background divide-y">
-              {readyRugs.map((rug) => (
-                <div key={rug.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium">{rug.rugNumber}</span>
-                    <span className="text-muted-foreground">{rug.rugType}</span>
-                    <span className="text-muted-foreground hidden sm:inline">·</span>
-                    <span className="text-muted-foreground text-xs hidden sm:inline">{rug.services.join(", ")}</span>
+        <div className="rounded-lg border bg-background p-4 space-y-4">
+          <FieldRow label="Pickup date">
+            <Input
+              type="date"
+              className="h-8 w-fit"
+              value={requestDate}
+              onChange={(e) => {
+                setRequestDateTouched(true);
+                setRequestDate(e.target.value);
+              }}
+            />
+          </FieldRow>
+
+          <FieldRow label="Rugs on file">
+            {readyRugNumbers.length === 0 ? (
+              <span className="text-sm text-muted-foreground">
+                No rugs on file yet. Add rugs below to request a pickup.
+              </span>
+            ) : (
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {readyRugNumbers.map((rn) => (
+                  <label key={rn} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                    <Checkbox checked={draftSelectedRugs.includes(rn)} onCheckedChange={() => toggleDraftRug(rn)} />
+                    {rn}
+                  </label>
+                ))}
+              </div>
+            )}
+          </FieldRow>
+
+          <FieldRow label="Additional rugs">
+            <div className="space-y-2 w-full">
+              {draftNewRugs.map((rug) => (
+                <div key={rug.id} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Name"
+                    value={rug.label}
+                    onChange={(e) => updateDraftRug(rug.id, "label", e.target.value)}
+                    className="h-8 flex-[2] min-w-0"
+                  />
+                  <Input
+                    placeholder="Type"
+                    value={rug.rugType}
+                    onChange={(e) => updateDraftRug(rug.id, "rugType", e.target.value)}
+                    className="h-8 flex-1 min-w-0"
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Input
+                      type="number"
+                      placeholder="L"
+                      min={0}
+                      value={rug.length || ""}
+                      onChange={(e) => updateDraftRug(rug.id, "length", Number(e.target.value))}
+                      className="h-8 w-14 text-center"
+                    />
+                    <span className="text-muted-foreground text-xs">×</span>
+                    <Input
+                      type="number"
+                      placeholder="W"
+                      min={0}
+                      value={rug.width || ""}
+                      onChange={(e) => updateDraftRug(rug.id, "width", Number(e.target.value))}
+                      className="h-8 w-14 text-center"
+                    />
                   </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeDraftRug(rug.id)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               ))}
+              <button
+                onClick={addDraftRug}
+                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add rug
+              </button>
             </div>
-            <Button size="sm" className="mt-3" onClick={handleRequestPickup} disabled={loading || !clientId}>
+          </FieldRow>
+
+          <FieldRow label="Notes">
+            <Input
+              placeholder="Optional notes…"
+              value={draftNotes}
+              onChange={(e) => setDraftNotes(e.target.value)}
+              className="h-8"
+            />
+          </FieldRow>
+
+          <div className="flex justify-end">
+            <Button size="sm" onClick={handleRequestPickup} disabled={requesting}>
               <Truck className="mr-1.5 h-3.5 w-3.5" />
-              Request Pickup
+              {requesting ? "Requesting…" : "Request Pickup"}
             </Button>
-          </>
-        )}
+          </div>
+        </div>
       </section>
 
       {pickups.length > 0 && (
@@ -369,7 +552,7 @@ function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
         </div>
 
         {readyRugNumbers.length > 0 && (
-          <FieldRow label="Ready rugs">
+          <FieldRow label="Rugs on file">
             {locked ? (
               <span className="text-sm">{pickup.rugNumbers.join(", ") || "—"}</span>
             ) : (

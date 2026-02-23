@@ -104,7 +104,7 @@ export function PickupRequestsTab() {
       return;
     }
 
-    const typedRequests = (reqData ?? []) as PickupRequestRow[];
+    const typedRequests = (reqData ?? []) as unknown as PickupRequestRow[];
     setRequests(typedRequests);
 
     const defaultSelections: Record<string, string> = {};
