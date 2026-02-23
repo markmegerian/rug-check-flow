@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase
       .from("portal_users")
       .select("client_id, onboarding_completed_at")
-      .eq("email", normalizedEmail)
+      .ilike("email", normalizedEmail)
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1)
