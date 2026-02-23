@@ -139,6 +139,14 @@ const normalizeTier = (value: string): PricingTier => {
 const resolveColumn = (headers: string[], key: keyof ImportedClientRow): number =>
   headers.findIndex((header) => CSV_HEADER_SYNONYMS[key].includes(header));
 
+const mapOnboardingEmailErrorMessage = (message: string | undefined) => {
+  if (!message) return "Unknown error";
+  if (message.toLowerCase().includes("failed to send request to edge function")) {
+    return "Edge function send-portal-onboarding-email is not reachable. Deploy it in Supabase Functions and verify project URL/keys for this environment.";
+  }
+  return message;
+};
+
 export function ClientsTab() {
   const { toast } = useToast();
   const csvInputRef = useRef<HTMLInputElement | null>(null);
@@ -403,7 +411,7 @@ export function ClientsTab() {
     if (error || data?.error) {
       toast({
         title: "Onboarding email failed",
-        description: data?.error || error?.message || "Unknown error",
+        description: mapOnboardingEmailErrorMessage(data?.error || error?.message),
         variant: "destructive",
       });
       return false;

@@ -41,6 +41,14 @@ type ProvisionEmployeeResponse = {
   details?: unknown;
 };
 
+const mapProvisioningErrorMessage = (message: string | undefined) => {
+  if (!message) return "Unknown error";
+  if (message.toLowerCase().includes("failed to send request to edge function")) {
+    return "Edge function admin-provision-employee is not reachable. Deploy it in Supabase Functions and verify project URL/keys for this environment.";
+  }
+  return message;
+};
+
 const ROLE_PRIORITY: AppRole[] = ["admin", "office", "checkin_staff", "driver"];
 const EMPTY_FORM: FormState = {
   userId: "",
@@ -209,7 +217,7 @@ export function UsersTab() {
         if (error || data?.error) {
           toast({
             title: "Employee provisioning failed",
-            description: data?.error || error?.message || "Unknown error",
+            description: mapProvisioningErrorMessage(data?.error || error?.message),
             variant: "destructive",
           });
           setSaving(false);
@@ -448,6 +456,10 @@ export function UsersTab() {
                         onChange={(e) => setTemporaryPassword(e.target.value)}
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Requires the <code className="font-mono">admin-provision-employee</code> edge function to be
+                      deployed in this Supabase project.
+                    </p>
                   </>
                 ) : (
                   <p className="text-xs text-muted-foreground">
