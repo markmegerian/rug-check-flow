@@ -297,6 +297,35 @@ export default function PortalPickupsTab() {
       return;
     }
 
+    const nextReady = updates.rugNumbers ?? [];
+    const nextNewRugsRaw = updates.newRugs ?? [];
+    const hasBlankNewRug = nextNewRugsRaw.some((rug) => !rug.label?.trim());
+    if (hasBlankNewRug) {
+      toast({
+        title: "Missing rug name",
+        description: "Additional rugs must have a name before you can save this pickup request.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const nextNewRugs = nextNewRugsRaw.map((rug) => ({
+      ...rug,
+      label: rug.label.trim(),
+      rugType: (rug.rugType ?? "").trim(),
+      length: Number(rug.length ?? 0),
+      width: Number(rug.width ?? 0),
+    }));
+
+    if (nextReady.length === 0 && nextNewRugs.length === 0) {
+      toast({
+        title: "Add at least one rug",
+        description: "Select an existing rug or add an additional rug before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { error: updateErr } = await supabaseExtended
       .from("pickup_requests")
       .update({ notes: updates.notes ?? "" })
@@ -310,11 +339,16 @@ export default function PortalPickupsTab() {
       toast({ title: "Save failed", description: deleteErr.message, variant: "destructive" });
       return;
     }
-    const readyItems = (updates.rugNumbers ?? []).map((rugNumber) => ({
+    const readyItems = nextReady.map((rugNumber) => ({
       pickup_request_id: id, rug_number: rugNumber, rug_type: "", is_new: false,
     }));
-    const newRugItems = (updates.newRugs ?? []).map((rug) => ({
-      pickup_request_id: id, rug_number: rug.label, rug_type: rug.rugType, length: rug.length, width: rug.width, is_new: true,
+    const newRugItems = nextNewRugs.map((rug) => ({
+      pickup_request_id: id,
+      rug_number: rug.label,
+      rug_type: rug.rugType,
+      length: rug.length > 0 ? rug.length : null,
+      width: rug.width > 0 ? rug.width : null,
+      is_new: true,
     }));
     const insertItems = [...readyItems, ...newRugItems];
     if (insertItems.length > 0) {
