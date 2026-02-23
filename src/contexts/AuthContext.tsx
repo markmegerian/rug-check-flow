@@ -33,13 +33,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const syncTokenRef = useRef(0);
   const userIdRef = useRef<string | null>(null);
+  const accessResolvedForUserRef = useRef<string | null>(null);
 
   const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    return (data ?? []).map((r) => r.role as AppRole);
+
+    const normalized: AppRole[] = [];
+    for (const row of data ?? []) {
+      const rawRole = (row as { role?: unknown }).role;
+      if (rawRole === "admin" || rawRole === "office" || rawRole === "checkin_staff" || rawRole === "driver") {
+        normalized.push(rawRole);
+        continue;
+      }
+      // Legacy enum value still present in some environments.
+      if (rawRole === "staff") {
+        normalized.push("checkin_staff");
+      }
+    }
+
+    return [...new Set(normalized)];
   }, []);
 
   const fetchPortalLink = useCallback(async (email: string | null | undefined): Promise<PortalUserLink | null> => {
@@ -57,19 +72,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data?.client_id ? data : null;
   }, []);
 
-  const syncAuthState = useCallback(async (
-    nextSession: Session | null,
-    options?: { silent?: boolean; skipLookup?: boolean }
-  ) => {
+  const syncAuthState = useCallback(async (nextSession: Session | null) => {
     const syncToken = ++syncTokenRef.current;
     const nextUser = nextSession?.user ?? null;
     const nextUserId = nextUser?.id ?? null;
     const userChanged = userIdRef.current !== nextUserId;
     userIdRef.current = nextUserId;
 
-    if (!options?.silent || userChanged) {
-      setLoading(true);
-    }
+    // Avoid UI "refresh" flicker when the auth library emits repeated events
+    // (e.g. frequent token refreshes in some environments). We only show the
+    // auth loading state when the user identity changes or access hasn't been
+    // resolved for the current user yet.
+    const shouldResolveAccess = Boolean(nextUserId) && accessResolvedForUserRef.current !== nextUserId;
+    if (userChanged || shouldResolveAccess) setLoading(true);
+
     setSession(nextSession);
     setUser(nextUser);
 
@@ -77,13 +93,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles([]);
       setPortalClientId(null);
       setPortalOnboardingCompletedAt(null);
+      accessResolvedForUserRef.current = null;
       setLoading(false);
       return;
     }
 
-    if (options?.skipLookup && !userChanged) {
-      // Token refreshes can happen when returning to a tab. Keep the UX stable
-      // and avoid full-screen loading or unnecessary role/link round-trips.
+    if (!userChanged && !shouldResolveAccess) {
+      // Keep the UI stable for background auth events.
       return;
     }
 
@@ -102,16 +118,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles(effectiveRoles);
     setPortalClientId(portalLink?.client_id ?? null);
     setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
+    accessResolvedForUserRef.current = nextUser.id;
     setLoading(false);
   }, [fetchPortalLink, fetchRoles]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, newSession) => {
-        if (event === "TOKEN_REFRESHED") {
-          void syncAuthState(newSession, { silent: true, skipLookup: true });
-          return;
-        }
+        // Supabase's auth client can refresh tokens on a background tick.
+        // Treat this as a no-op for UI state to prevent the app from feeling
+        // like it "refreshes" every ~30s in some environments.
+        if (event === "TOKEN_REFRESHED") return;
         void syncAuthState(newSession);
       }
     );
