@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Plus } from "lucide-react";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { Plus, Trash2 } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/states/PageState";

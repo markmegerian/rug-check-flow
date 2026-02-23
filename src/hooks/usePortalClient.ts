@@ -40,10 +40,8 @@ export function usePortalClient() {
     const { data: portalUser, error: portalError } = await supabase
       .from("portal_users")
       .select("client_id, onboarding_completed_at")
-      .ilike("email", email)
+      .eq("email", email)
       .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(1)
       .maybeSingle<PortalUserLookup>();
 
     if (portalError || !portalUser?.client_id) {
