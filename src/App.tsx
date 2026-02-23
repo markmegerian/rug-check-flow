@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
 import { LoadingState } from "@/components/states/PageState";
+import { AppErrorBoundary } from "@/components/states/AppErrorBoundary";
 
 const queryClient = new QueryClient();
 const Index = lazy(() => import("./pages/Index"));
@@ -29,67 +30,69 @@ const RouteLoadingFallback = () => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/facility/ops"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
-                    <FacilityOps />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/facility/office"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "office"]}>
-                    <FacilityOffice />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/portal"
-                element={
-                  <PortalRoute>
-                    <WholesalePortal />
-                  </PortalRoute>
-                }
-              />
-              <Route
-                path="/driver"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "driver"]}>
-                    <DriverPortal />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
-                    <AdminPanel />
-                  </ProtectedRoute>
-                }
-              />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </Suspense>
-      </TooltipProvider>
+      <AppErrorBoundary>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/facility/ops"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
+                      <FacilityOps />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/facility/office"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "office"]}>
+                      <FacilityOffice />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/portal"
+                  element={
+                    <PortalRoute>
+                      <WholesalePortal />
+                    </PortalRoute>
+                  }
+                />
+                <Route
+                  path="/driver"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "driver"]}>
+                      <DriverPortal />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <AdminPanel />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </Suspense>
+        </TooltipProvider>
+      </AppErrorBoundary>
     </AuthProvider>
   </QueryClientProvider>
 );

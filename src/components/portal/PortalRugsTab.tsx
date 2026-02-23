@@ -4,6 +4,8 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { ErrorState } from "@/components/states/PageState";
+import { Button } from "@/components/ui/button";
 import type { Enums } from "@/integrations/supabase/types";
 
 type PortalStatus = "in_progress" | "ready" | "delivered";
@@ -57,17 +59,21 @@ export default function PortalRugsTab() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [rugs, setRugs] = useState<PortalRug[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
+      setLoadError(errorMessage);
       setLoading(false); setRugs([]); return;
     }
     if (!clientId) { setLoading(false); return; }
 
     const loadRugs = async () => {
       setLoading(true);
+      setLoadError(null);
       const { data, error } = await supabase
         .from("rugs")
         .select("id, tag, description, services, size_length, size_width, checked_in_at, status")
@@ -78,6 +84,7 @@ export default function PortalRugsTab() {
 
       if (error) {
         toast({ title: "Failed to load rugs", description: error.message, variant: "destructive" });
+        setLoadError(error.message);
         setRugs([]); setLoading(false); return;
       }
 
@@ -95,7 +102,7 @@ export default function PortalRugsTab() {
     };
 
     loadRugs();
-  }, [clientId, errorMessage, portalClientLoading, toast]);
+  }, [clientId, errorMessage, portalClientLoading, reloadKey, toast]);
 
   const counts = useMemo(() => ({
     total: rugs.length,
@@ -122,6 +129,16 @@ export default function PortalRugsTab() {
       <div className="text-sm text-muted-foreground">
         {errorMessage ?? "This login is not linked to an active wholesale portal account."}
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        title="Unable to load rugs"
+        description={loadError}
+        action={<Button variant="outline" onClick={() => setReloadKey((prev) => prev + 1)}>Retry</Button>}
+      />
     );
   }
 

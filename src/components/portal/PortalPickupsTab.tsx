@@ -82,6 +82,8 @@ export default function PortalPickupsTab() {
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
   const [draftNotes, setDraftNotes] = useState("");
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const seededDraftRef = useRef(false);
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
@@ -113,6 +115,7 @@ export default function PortalPickupsTab() {
   }, [clientId, draftNewRugs.length, loading, portalClientLoading, readyRugNumbers.length]);
 
   const fetchPickups = useCallback(async (activeClientId: string, activeRegion: string) => {
+    setLoadError(null);
     const { data: reqData, error: reqError } = await supabaseExtended
       .from("pickup_requests")
       .select("id, client_id, route_day, scheduled_date, status, notes")
@@ -121,6 +124,7 @@ export default function PortalPickupsTab() {
       .limit(150);
 
     if (reqError) {
+      setLoadError(reqError.message);
       toast({ title: "Failed to load pickup requests", description: reqError.message, variant: "destructive" });
       return;
     }
@@ -135,6 +139,7 @@ export default function PortalPickupsTab() {
       .in("pickup_request_id", requestIds);
 
     if (itemError) {
+      setLoadError(itemError.message);
       toast({ title: "Failed to load pickup items", description: itemError.message, variant: "destructive" });
       return;
     }
@@ -168,12 +173,14 @@ export default function PortalPickupsTab() {
     if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
+      setLoadError(errorMessage);
       setLoading(false); setReadyRugs([]); setPickups([]); return;
     }
     if (!clientId) { setLoading(false); return; }
 
     const init = async () => {
       setLoading(true);
+      setLoadError(null);
       const { data: selectedClient, error: clientError } = await supabaseExtended
         .from("clients")
         .select("id, route_day, address")
@@ -181,6 +188,7 @@ export default function PortalPickupsTab() {
         .maybeSingle();
 
       if (clientError || !selectedClient?.id) {
+        setLoadError(clientError?.message ?? "Client record not found for this portal account.");
         toast({ title: "No client found", description: clientError?.message ?? "Please create at least one client record first.", variant: "destructive" });
         setLoading(false);
         return;
@@ -204,6 +212,7 @@ export default function PortalPickupsTab() {
         .limit(300);
 
       if (rugError) {
+        setLoadError(rugError.message);
         toast({ title: "Failed to load rugs", description: rugError.message, variant: "destructive" });
         setLoading(false);
         return;
@@ -221,7 +230,7 @@ export default function PortalPickupsTab() {
     };
 
     init();
-  }, [clientId, errorMessage, fetchPickups, portalClientLoading, requestDateTouched, toast]);
+  }, [clientId, errorMessage, fetchPickups, portalClientLoading, reloadKey, requestDateTouched, toast]);
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
@@ -425,6 +434,25 @@ export default function PortalPickupsTab() {
           Schedule a Pickup
         </h3>
         <div className="rounded-lg border bg-background p-4 space-y-4">
+          {loadError ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Unable to refresh portal data</AlertTitle>
+              <AlertDescription>
+                <div className="space-y-3">
+                  <p>{loadError}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-background"
+                    onClick={() => setReloadKey((prev) => prev + 1)}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {requestError ? (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
