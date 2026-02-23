@@ -77,6 +77,13 @@ export function UsersTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
 
+  const getFunctionAuthHeaders = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) return null;
+    return { Authorization: `Bearer ${accessToken}` };
+  }, []);
+
   const fetchUsers = useCallback(async () => {
     const { data: roleRows, error: rolesError } = await supabase
       .from("user_roles")
@@ -208,6 +215,17 @@ export function UsersTab() {
           return;
         }
 
+        const authHeaders = await getFunctionAuthHeaders();
+        if (!authHeaders) {
+          toast({
+            title: "Session expired",
+            description: "Please sign out and sign in again before provisioning employees.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+
         const { data, error } = await supabase.functions.invoke<ProvisionEmployeeResponse>(
           "admin-provision-employee",
           {
@@ -217,6 +235,7 @@ export function UsersTab() {
               password: temporaryPassword.trim(),
               role: formState.role,
             },
+            headers: authHeaders,
           }
         );
 

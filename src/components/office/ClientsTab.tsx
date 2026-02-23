@@ -168,6 +168,13 @@ export function ClientsTab() {
   const [importing, setImporting] = useState(false);
   const [portalActionId, setPortalActionId] = useState<string | null>(null);
 
+  const getFunctionAuthHeaders = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (!accessToken) return null;
+    return { Authorization: `Bearer ${accessToken}` };
+  }, []);
+
   const fetchClients = useCallback(async () => {
     const { data, error } = await supabase
       .from("clients")
@@ -409,9 +416,19 @@ export function ClientsTab() {
   };
 
   const sendOnboardingEmail = async (portalUserId: string) => {
+    const authHeaders = await getFunctionAuthHeaders();
+    if (!authHeaders) {
+      toast({
+        title: "Session expired",
+        description: "Please sign out and sign in again before sending onboarding email.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     const { data, error } = await supabase.functions.invoke<OnboardingEmailResponse>(
       "send-portal-onboarding-email",
-      { body: { portal_user_id: portalUserId } }
+      { body: { portal_user_id: portalUserId }, headers: authHeaders }
     );
 
     if (error || data?.error) {
