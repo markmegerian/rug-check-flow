@@ -682,7 +682,8 @@ export function ClientsTab() {
                   <h3 className="text-sm font-semibold text-foreground">Portal Users</h3>
                   <p className="text-xs text-muted-foreground">
                     New logins stay invited until you activate them. Onboarding emails are only sent when you choose
-                    “Activate + Send” or “Send onboarding email”.
+                    “Activate + Send” or “Send onboarding email”, and now include step-by-step sign-in instructions
+                    plus temporary password details for first login.
                   </p>
                   {portalUsers.length === 0 && (
                     <p className="text-sm text-muted-foreground">No portal users yet.</p>
