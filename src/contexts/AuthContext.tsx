@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { isSuperAdminEmail } from "@/lib/super-admin";
 
 type AppRole = "admin" | "office" | "checkin_staff" | "driver";
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [portalOnboardingCompletedAt, setPortalOnboardingCompletedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const syncTokenRef = useRef(0);
+  const userIdRef = useRef<string | null>(null);
 
   const fetchRoles = async (userId: string): Promise<AppRole[]> => {
     const { data } = await supabase
@@ -53,11 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data?.client_id ? data : null;
   };
 
-  const syncAuthState = async (nextSession: Session | null) => {
+  const syncAuthState = async (
+    nextSession: Session | null,
+    options?: { silent?: boolean; skipLookup?: boolean }
+  ) => {
     const syncToken = ++syncTokenRef.current;
-    setLoading(true);
-    setSession(nextSession);
     const nextUser = nextSession?.user ?? null;
+    const nextUserId = nextUser?.id ?? null;
+    const userChanged = userIdRef.current !== nextUserId;
+    userIdRef.current = nextUserId;
+
+    if (!options?.silent || userChanged) {
+      setLoading(true);
+    }
+    setSession(nextSession);
     setUser(nextUser);
 
     if (!nextUser) {
@@ -65,6 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPortalClientId(null);
       setPortalOnboardingCompletedAt(null);
       setLoading(false);
+      return;
+    }
+
+    if (options?.skipLookup && !userChanged) {
+      // Token refreshes can happen when returning to a tab. Keep the UX stable
+      // and avoid full-screen loading or unnecessary role/link round-trips.
       return;
     }
 
@@ -83,7 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
+      (event: AuthChangeEvent, newSession) => {
+        if (event === "TOKEN_REFRESHED") {
+          void syncAuthState(newSession, { silent: true, skipLookup: true });
+          return;
+        }
         void syncAuthState(newSession);
       }
     );
