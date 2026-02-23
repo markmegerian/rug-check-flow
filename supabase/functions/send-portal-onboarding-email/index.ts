@@ -20,6 +20,32 @@ type PortalUserWithClient = {
   clients?: { name: string } | null;
 };
 
+const buildPortalUrl = (req: Request) => {
+  const normalize = (rawValue: string | null | undefined) => {
+    if (!rawValue) return null;
+    try {
+      const parsed = new URL(rawValue);
+      const pathname = parsed.pathname.replace(/\/+$/, "");
+      if (pathname.endsWith("/portal")) return `${parsed.origin}${pathname}`;
+      return `${parsed.origin}/portal`;
+    } catch {
+      return null;
+    }
+  };
+
+  const envPortalUrl = normalize(Deno.env.get("PORTAL_APP_URL"));
+  if (envPortalUrl) return envPortalUrl;
+
+  const originPortalUrl = normalize(req.headers.get("origin"));
+  if (originPortalUrl) return originPortalUrl;
+
+  const refererPortalUrl = normalize(req.headers.get("referer"));
+  if (refererPortalUrl) return refererPortalUrl;
+
+  // Last resort fallback if no origin/referer/env is available.
+  return "https://toitgmaeuscrdwbpntda.supabase.co";
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -67,7 +93,7 @@ Deno.serve(async (req) => {
       return json({ error: "Portal user must be active before sending onboarding email" }, 400);
     }
 
-    const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://app.rugboost.local/portal";
+    const portalUrl = buildPortalUrl(req);
     const subject = `Your RugBoost wholesale portal is ready`;
     const bodyText = [
       `Hello ${typedPortalUser.clients?.name ?? "client"},`,
