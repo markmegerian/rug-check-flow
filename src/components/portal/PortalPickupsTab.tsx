@@ -3,6 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ErrorState, LoadingState } from "@/components/states/PageState";
 import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
@@ -411,14 +412,15 @@ export default function PortalPickupsTab() {
   };
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading pickups…</div>;
+    return <LoadingState title="Loading pickups" description="Fetching your pickup requests..." />;
   }
 
   if (!clientId) {
     return (
-      <div className="text-sm text-muted-foreground">
-        {errorMessage ?? "This login is not linked to an active wholesale portal account."}
-      </div>
+      <ErrorState
+        title="Portal access unavailable"
+        description={errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      />
     );
   }
 

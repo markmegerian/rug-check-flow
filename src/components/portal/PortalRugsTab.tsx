@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ErrorState } from "@/components/states/PageState";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
 import type { Enums } from "@/integrations/supabase/types";
 
@@ -121,14 +121,15 @@ export default function PortalRugsTab() {
   ];
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading rugs…</div>;
+    return <LoadingState title="Loading rugs" description="Fetching your rugs and statuses..." />;
   }
 
   if (!clientId) {
     return (
-      <div className="text-sm text-muted-foreground">
-        {errorMessage ?? "This login is not linked to an active wholesale portal account."}
-      </div>
+      <ErrorState
+        title="Portal access unavailable"
+        description={errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      />
     );
   }
 
@@ -144,10 +145,10 @@ export default function PortalRugsTab() {
 
   if (rugs.length === 0) {
     return (
-      <div className="text-sm text-muted-foreground space-y-1">
-        <p>No rugs available yet.</p>
-        <p>To schedule a pickup for new rugs, use the Pickups tab.</p>
-      </div>
+      <EmptyState
+        title="No rugs on file yet"
+        description="To schedule a pickup for new rugs, use the Pickups tab."
+      />
     );
   }
 
