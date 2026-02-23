@@ -12,8 +12,8 @@ import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDial
 type Tab = "rugs" | "pickups" | "estimates" | "invoices";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "rugs", label: "Rugs" },
   { key: "pickups", label: "Pickups" },
+  { key: "rugs", label: "Rugs" },
   { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
 ];
@@ -26,25 +26,25 @@ export default function WholesalePortal() {
     onboardingCompletedAt,
     markOnboardingComplete,
   } = usePortalClient();
-  const [activeTab, setActiveTab] = useState<Tab>("rugs");
+  const [activeTab, setActiveTab] = useState<Tab>("pickups");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [autoShownOnboarding, setAutoShownOnboarding] = useState(false);
-  const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
+  const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Pickups";
 
   useEffect(() => {
     if (portalClientLoading || autoShownOnboarding) return;
     if (!clientId || onboardingCompletedAt) return;
     setOnboardingOpen(true);
     setOnboardingStep(0);
-    setActiveTab("rugs");
+    setActiveTab("pickups");
     setAutoShownOnboarding(true);
   }, [autoShownOnboarding, clientId, onboardingCompletedAt, portalClientLoading]);
 
   const openOnboarding = () => {
     setOnboardingStep(0);
-    setActiveTab("rugs");
+    setActiveTab("pickups");
     setOnboardingOpen(true);
   };
 
@@ -73,6 +73,7 @@ export default function WholesalePortal() {
       title="Wholesale Portal"
       subtitle={`Pacific Rug Gallery · ${activeTabLabel}`}
       contentClassName="bg-gradient-to-b from-muted/40 to-background overflow-auto"
+      showHomeLink={false}
     >
       <div className="max-w-6xl mx-auto py-5">
         <div className="px-4 sm:px-6">

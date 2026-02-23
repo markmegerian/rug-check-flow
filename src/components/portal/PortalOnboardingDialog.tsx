@@ -20,21 +20,22 @@ type OnboardingStep = {
 
 const STEPS: OnboardingStep[] = [
   {
+    tab: "pickups",
+    title: "Schedule pickups quickly",
+    description: "Request a pickup by selecting rugs on file or adding new rugs for pickup.",
+    bullets: [
+      "Pick a date (defaults to your next route day).",
+      "Add rugs (name/type/size) and submit your pickup request.",
+      "Edit or cancel pending requests before they are confirmed.",
+    ],
+  },
+  {
     tab: "rugs",
     title: "Track your rugs in one place",
     description: "See every active rug with current status and service details.",
     bullets: [
       "Use Rugs to confirm which pieces are checked in, in production, or ready.",
       "Open each row for service and condition context when needed.",
-    ],
-  },
-  {
-    tab: "pickups",
-    title: "Manage pickup requests quickly",
-    description: "Request pickups for ready rugs and monitor request status.",
-    bullets: [
-      "Use Request Pickup to schedule your next route-day pickup.",
-      "Edit or cancel pending requests before they are confirmed.",
     ],
   },
   {

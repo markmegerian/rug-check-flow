@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
 import {
   supabaseExtended,
   type ExtendedTableInsert,
@@ -80,6 +81,8 @@ export default function PortalPickupsTab() {
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
   const [draftNotes, setDraftNotes] = useState("");
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const seededDraftRef = useRef(false);
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
 
@@ -98,6 +101,16 @@ export default function PortalPickupsTab() {
   const removeDraftRug = useCallback((id: string) => {
     setDraftNewRugs((prev) => prev.filter((r) => r.id !== id));
   }, []);
+
+  useEffect(() => {
+    if (portalClientLoading || loading) return;
+    if (!clientId) return;
+    if (seededDraftRef.current) return;
+    if (readyRugNumbers.length === 0 && draftNewRugs.length === 0) {
+      setDraftNewRugs([{ id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0 }]);
+    }
+    seededDraftRef.current = true;
+  }, [clientId, draftNewRugs.length, loading, portalClientLoading, readyRugNumbers.length]);
 
   const fetchPickups = useCallback(async (activeClientId: string, activeRegion: string) => {
     const { data: reqData, error: reqError } = await supabaseExtended
@@ -212,6 +225,7 @@ export default function PortalPickupsTab() {
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
+    setRequestError(null);
     const cleanedNewRugs = draftNewRugs
       .map((rug) => ({
         label: rug.label.trim(),
@@ -222,6 +236,7 @@ export default function PortalPickupsTab() {
       .filter((rug) => rug.label.length > 0);
 
     if (draftSelectedRugs.length === 0 && cleanedNewRugs.length === 0) {
+      setRequestError("Add at least one rug (select one on file or add an additional rug) before requesting a pickup.");
       toast({
         title: "Add at least one rug",
         description: "Select an existing rug or add an additional rug before requesting a pickup.",
@@ -248,6 +263,7 @@ export default function PortalPickupsTab() {
         .single();
 
       if (error || !inserted) {
+        setRequestError(error?.message ?? "Unknown error while creating the pickup request.");
         toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
         return;
       }
@@ -272,6 +288,7 @@ export default function PortalPickupsTab() {
       if (items.length > 0) {
         const { error: itemError } = await supabaseExtended.from("pickup_request_items").insert(items);
         if (itemError) {
+          setRequestError(itemError.message);
           toast({ title: "Pickup requested with warnings", description: itemError.message, variant: "destructive" });
         }
       }
@@ -408,6 +425,13 @@ export default function PortalPickupsTab() {
           Schedule a Pickup
         </h3>
         <div className="rounded-lg border bg-background p-4 space-y-4">
+          {requestError ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Pickup request not submitted</AlertTitle>
+              <AlertDescription>{requestError}</AlertDescription>
+            </Alert>
+          ) : null}
           <FieldRow label="Pickup date">
             <Input
               type="date"
@@ -423,7 +447,7 @@ export default function PortalPickupsTab() {
           <FieldRow label="Rugs on file">
             {readyRugNumbers.length === 0 ? (
               <span className="text-sm text-muted-foreground">
-                No rugs on file yet. Add rugs below to request a pickup.
+                No rugs on file yet. Start by entering at least one rug below.
               </span>
             ) : (
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
@@ -478,6 +502,7 @@ export default function PortalPickupsTab() {
                 </div>
               ))}
               <button
+                type="button"
                 onClick={addDraftRug}
                 className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
@@ -597,7 +622,7 @@ function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
                   </Button>
                 </div>
               ))}
-              <button onClick={addNewRug} className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <button type="button" onClick={addNewRug} className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <Plus className="h-3 w-3" /> Add rug
               </button>
             </div>
