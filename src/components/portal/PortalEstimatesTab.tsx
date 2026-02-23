@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 import { useToast } from "@/hooks/use-toast";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import {
@@ -39,8 +40,11 @@ export default function PortalEstimatesTab() {
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
+    setLoadError(null);
     const { data, error } = await supabaseExtended
       .from("estimates")
       .select("id, estimate_number, status, total, created_at, sent_at, approved_at, rejected_at, rugs(tag)")
@@ -49,6 +53,7 @@ export default function PortalEstimatesTab() {
       .limit(200);
 
     if (error) {
+      setLoadError(error.message);
       toast({ title: "Failed to load estimates", description: error.message, variant: "destructive" });
       return;
     }
@@ -59,6 +64,7 @@ export default function PortalEstimatesTab() {
     if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
+      setLoadError(errorMessage);
       setLoading(false); setEstimates([]); return;
     }
     if (!clientId) { setLoading(false); return; }
@@ -69,7 +75,7 @@ export default function PortalEstimatesTab() {
       setLoading(false);
     };
     init();
-  }, [clientId, errorMessage, fetchEstimates, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchEstimates, portalClientLoading, reloadKey, toast]);
 
   const updateStatus = async (estimate: EstimateRow, nextStatus: "approved" | "rejected") => {
     if (!clientId || estimate.status !== "sent") return;
@@ -136,7 +142,39 @@ export default function PortalEstimatesTab() {
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
+    return <LoadingState title="Loading estimates" description="Fetching the latest approvals and history..." />;
+  }
+
+  if (!clientId) {
+    return (
+      <ErrorState
+        title="Portal access unavailable"
+        description={errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      />
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        title="Unable to load estimates"
+        description={loadError}
+        action={
+          <Button variant="outline" onClick={() => setReloadKey((prev) => prev + 1)}>
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (estimates.length === 0) {
+    return (
+      <EmptyState
+        title="No estimates yet"
+        description="When a rug estimate is sent for approval, it will appear here."
+      />
+    );
   }
 
   return (
@@ -159,8 +197,23 @@ export default function PortalEstimatesTab() {
                   {statusBadge(estimate.status)}
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" className="h-7 text-xs" onClick={() => updateStatus(estimate, "approved")} disabled={updatingId === estimate.id}>Approve</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateStatus(estimate, "rejected")} disabled={updatingId === estimate.id}>Reject</Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => updateStatus(estimate, "approved")}
+                    disabled={updatingId === estimate.id}
+                  >
+                    Approve estimate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => updateStatus(estimate, "rejected")}
+                    disabled={updatingId === estimate.id}
+                  >
+                    Reject estimate
+                  </Button>
                 </div>
               </div>
             ))

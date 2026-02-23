@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states/PageState";
 import { useToast } from "@/hooks/use-toast";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
@@ -82,9 +83,12 @@ export default function PortalInvoicesTab() {
   const [pageIndex, setPageIndex] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [paymentHistoryError, setPaymentHistoryError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
 
   const fetchInvoicesPage = useCallback(async (activeClientId: string, targetPageIndex: number, append: boolean) => {
+      setLoadError(null);
       const from = targetPageIndex * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       const { data: invoiceRows, error: invoiceError } = await supabaseExtended
@@ -97,6 +101,7 @@ export default function PortalInvoicesTab() {
         .returns<InvoiceLookup[]>();
 
       if (invoiceError) {
+        setLoadError(invoiceError.message);
         toast({ title: "Failed to load invoices", description: invoiceError.message, variant: "destructive" });
         if (!append) {
           setInvoices([]);
@@ -115,6 +120,7 @@ export default function PortalInvoicesTab() {
         : { data: [], error: null };
 
       if (itemError) {
+        setLoadError(itemError.message);
         toast({ title: "Failed to load invoice items", description: itemError.message, variant: "destructive" });
         setInvoices([]);
         return;
@@ -191,6 +197,7 @@ export default function PortalInvoicesTab() {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
       setInvoices([]);
       setHasMore(false);
+      setLoadError(errorMessage);
       setLoading(false);
       return;
     }
@@ -198,6 +205,7 @@ export default function PortalInvoicesTab() {
     if (!clientId) {
       setInvoices([]);
       setHasMore(false);
+      setLoadError(null);
       setLoading(false);
       return;
     }
@@ -210,7 +218,7 @@ export default function PortalInvoicesTab() {
     };
 
     loadInitial();
-  }, [clientId, errorMessage, fetchInvoicesPage, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchInvoicesPage, portalClientLoading, reloadKey, toast]);
 
   const loadOlderInvoices = async () => {
     if (!clientId || loadingMore || !hasMore) {
@@ -246,11 +254,39 @@ export default function PortalInvoicesTab() {
   const emptyState = useMemo(() => !loading && invoices.length === 0, [loading, invoices.length]);
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading invoices…</div>;
+    return <LoadingState title="Loading invoices" description="Fetching your billing history..." />;
+  }
+
+  if (!clientId) {
+    return (
+      <ErrorState
+        title="Portal access unavailable"
+        description={errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      />
+    );
+  }
+
+  if (loadError) {
+    return (
+      <ErrorState
+        title="Unable to load invoices"
+        description={loadError}
+        action={
+          <Button variant="outline" onClick={() => setReloadKey((prev) => prev + 1)}>
+            Retry
+          </Button>
+        }
+      />
+    );
   }
 
   if (emptyState) {
-    return <div className="text-sm text-muted-foreground">No invoices available yet.</div>;
+    return (
+      <EmptyState
+        title="No invoices yet"
+        description="When an invoice is issued, you’ll be able to view and download it here."
+      />
+    );
   }
 
   return (
