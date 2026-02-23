@@ -296,7 +296,7 @@ Deno.serve(async (req) => {
       "<p>Your RugBoost wholesale portal account is active.</p>",
       "<p><strong>Sign-in steps</strong></p>",
       "<ol>",
-      `<li>Open: <a href=\"${escapeHtml(portalUrl)}\">${escapeHtml(portalUrl)}</a></li>`,
+      `<li>Open: <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a></li>`,
       `<li>Email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
       `<li>${escapeHtml(passwordInstruction)}</li>`,
       "<li>Sign in and complete the onboarding guide on first entry.</li>",

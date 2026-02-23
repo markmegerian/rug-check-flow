@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
       "<p>Your RugBoost staff account has been provisioned.</p>",
       "<p><strong>Sign-in steps</strong></p>",
       "<ol>",
-      `<li>Open: <a href=\"${escapeHtml(signInUrl)}\">${escapeHtml(signInUrl)}</a></li>`,
+      `<li>Open: <a href="${escapeHtml(signInUrl)}">${escapeHtml(signInUrl)}</a></li>`,
       `<li>Email: <strong>${escapeHtml(email)}</strong></li>`,
       `<li>Temporary password: <strong>${escapeHtml(password)}</strong></li>`,
       "<li>Sign in and update your password if prompted.</li>",

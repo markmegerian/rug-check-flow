@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { isSuperAdminEmail } from "@/lib/super-admin";
@@ -34,15 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const syncTokenRef = useRef(0);
   const userIdRef = useRef<string | null>(null);
 
-  const fetchRoles = async (userId: string): Promise<AppRole[]> => {
+  const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
     return (data ?? []).map((r) => r.role as AppRole);
-  };
+  }, []);
 
-  const fetchPortalLink = async (email: string | null | undefined): Promise<PortalUserLink | null> => {
+  const fetchPortalLink = useCallback(async (email: string | null | undefined): Promise<PortalUserLink | null> => {
     if (!email) return null;
     const normalizedEmail = email.toLowerCase();
     const { data } = await supabase
@@ -54,9 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .limit(1)
       .maybeSingle<PortalUserLink>();
     return data?.client_id ? data : null;
-  };
+  }, []);
 
-  const syncAuthState = async (
+  const syncAuthState = useCallback(async (
     nextSession: Session | null,
     options?: { silent?: boolean; skipLookup?: boolean }
   ) => {
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPortalClientId(portalLink?.client_id ?? null);
     setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
     setLoading(false);
-  };
+  }, [fetchPortalLink, fetchRoles]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [syncAuthState]);
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isPortalUser = Boolean(portalClientId);
