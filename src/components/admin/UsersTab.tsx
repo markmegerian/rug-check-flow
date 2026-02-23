@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { Plus } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
 type RoleFilter = AppRole | "all";
@@ -43,8 +43,14 @@ type ProvisionEmployeeResponse = {
 
 const mapProvisioningErrorMessage = (message: string | undefined) => {
   if (!message) return "Unknown error";
+  let activeProject = "unknown";
+  try {
+    activeProject = new URL(SUPABASE_URL).hostname.split(".")[0] ?? "unknown";
+  } catch {
+    activeProject = "unknown";
+  }
   if (message.toLowerCase().includes("failed to send request to edge function")) {
-    return "Edge function admin-provision-employee is not reachable. Deploy it in Supabase Functions and verify project URL/keys for this environment.";
+    return `Edge function admin-provision-employee is not reachable from project ${activeProject}. Verify this frontend is pointed at the same project where the function is deployed.`;
   }
   return message;
 };

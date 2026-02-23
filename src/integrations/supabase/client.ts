@@ -22,7 +22,7 @@ if (!envSupabaseUrl || !envSupabasePublishableKey) {
   );
 }
 
-const SUPABASE_URL = envSupabaseUrl ?? DEFAULT_SUPABASE_URL;
+export const SUPABASE_URL = envSupabaseUrl ?? DEFAULT_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = envSupabasePublishableKey ?? DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:

@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 
 type Client = Tables<"clients">;
@@ -141,8 +141,14 @@ const resolveColumn = (headers: string[], key: keyof ImportedClientRow): number 
 
 const mapOnboardingEmailErrorMessage = (message: string | undefined) => {
   if (!message) return "Unknown error";
+  let activeProject = "unknown";
+  try {
+    activeProject = new URL(SUPABASE_URL).hostname.split(".")[0] ?? "unknown";
+  } catch {
+    activeProject = "unknown";
+  }
   if (message.toLowerCase().includes("failed to send request to edge function")) {
-    return "Edge function send-portal-onboarding-email is not reachable. Deploy it in Supabase Functions and verify project URL/keys for this environment.";
+    return `Edge function send-portal-onboarding-email is not reachable from project ${activeProject}. Verify this frontend is pointed at the same project where the function is deployed.`;
   }
   return message;
 };
