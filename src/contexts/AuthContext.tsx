@@ -50,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select("client_id, onboarding_completed_at")
       .eq("email", normalizedEmail)
       .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle<PortalUserLink>();
     return data?.client_id ? data : null;
   };

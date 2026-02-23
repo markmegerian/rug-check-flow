@@ -78,20 +78,49 @@ const buildTemporaryPassword = (
   };
 };
 
+const findAuthUserIdByEmail = async (
+  adminClient: ReturnType<typeof createClient>,
+  email: string
+) => {
+  const normalizedEmail = email.toLowerCase();
+  let page = 1;
+  const perPage = 200;
+
+  while (page <= 10) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+    if (error) throw new Error(error.message);
+
+    const users = data?.users ?? [];
+    const match = users.find((user) => user.email?.toLowerCase() === normalizedEmail);
+    if (match?.id) return match.id;
+
+    if (users.length < perPage) break;
+    page += 1;
+  }
+
+  return null;
+};
+
 const ensurePortalUserCredentials = async (
   adminClient: ReturnType<typeof createClient>,
   email: string,
   fullName: string,
   temporaryPassword: string
 ): Promise<CredentialProvisioningResult> => {
-  const { data: existingProfile, error: existingProfileError } = await adminClient
+  const { data: profileRows, error: existingProfileError } = await adminClient
     .from("profiles")
     .select("user_id")
     .ilike("email", email)
-    .maybeSingle();
+    .order("created_at", { ascending: false })
+    .limit(1);
   if (existingProfileError) throw new Error(existingProfileError.message);
 
-  const existingUserId = existingProfile?.user_id ?? null;
+  let existingUserId = profileRows?.[0]?.user_id ?? null;
+  if (!existingUserId) {
+    // Some legacy records can exist in auth.users without a profiles row.
+    existingUserId = await findAuthUserIdByEmail(adminClient, email);
+  }
+
   if (existingUserId) {
     const { data: userRoleRows, error: userRoleError } = await adminClient
       .from("user_roles")
@@ -339,6 +368,12 @@ Deno.serve(async (req) => {
     return json({ success: true, provider_status: providerStatus, provider_response: providerResponse });
   } catch (error) {
     console.error(error);
-    return json({ error: "Internal server error" }, 500);
+    return json(
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown failure",
+      },
+      500
+    );
   }
 });

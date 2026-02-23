@@ -165,6 +165,18 @@ const mapOnboardingEmailErrorMessage = (message: string | undefined) => {
   return message;
 };
 
+const extractOnboardingErrorDetail = (details: unknown) => {
+  if (!details) return null;
+  if (typeof details === "string") return details;
+  if (typeof details === "object") {
+    const candidate = details as Record<string, unknown>;
+    if (typeof candidate.message === "string") return candidate.message;
+    if (typeof candidate.error === "string") return candidate.error;
+    return JSON.stringify(details);
+  }
+  return String(details);
+};
+
 export function ClientsTab() {
   const { toast } = useToast();
   const { hasRole, isSuperAdmin } = useAuth();
@@ -446,9 +458,12 @@ export function ClientsTab() {
     );
 
     if (error || data?.error) {
+      const detail = extractOnboardingErrorDetail(data?.details);
       toast({
         title: "Onboarding email failed",
-        description: mapOnboardingEmailErrorMessage(data?.error || error?.message),
+        description: detail
+          ? `${mapOnboardingEmailErrorMessage(data?.error || error?.message)} (${detail})`
+          : mapOnboardingEmailErrorMessage(data?.error || error?.message),
         variant: "destructive",
       });
       return false;

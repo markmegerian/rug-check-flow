@@ -42,6 +42,8 @@ export function usePortalClient() {
       .select("client_id, onboarding_completed_at")
       .eq("email", email)
       .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle<PortalUserLookup>();
 
     if (portalError || !portalUser?.client_id) {
