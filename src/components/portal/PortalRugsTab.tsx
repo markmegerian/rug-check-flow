@@ -118,7 +118,12 @@ export default function PortalRugsTab() {
   }
 
   if (rugs.length === 0) {
-    return <div className="text-sm text-muted-foreground">No rugs available yet.</div>;
+    return (
+      <div className="text-sm text-muted-foreground space-y-1">
+        <p>No rugs available yet.</p>
+        <p>To schedule a pickup for new rugs, use the Pickups tab.</p>
+      </div>
+    );
   }
 
   return (

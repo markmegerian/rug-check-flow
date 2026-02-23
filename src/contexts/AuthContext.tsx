@@ -38,18 +38,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    return (data ?? []).map((r) => r.role as AppRole);
+
+    const normalized: AppRole[] = [];
+    for (const row of data ?? []) {
+      const rawRole = (row as { role?: unknown }).role;
+      if (rawRole === "admin" || rawRole === "office" || rawRole === "checkin_staff" || rawRole === "driver") {
+        normalized.push(rawRole);
+        continue;
+      }
+
+      // Legacy role value in the DB - treat it as check-in staff for internal access.
+      if (rawRole === "staff") {
+        normalized.push("checkin_staff");
+      }
+    }
+
+    return [...new Set(normalized)];
   };
 
   const fetchPortalLink = async (email: string | null | undefined): Promise<PortalUserLink | null> => {
     if (!email) return null;
     const normalizedEmail = email.toLowerCase();
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("portal_users")
       .select("client_id, onboarding_completed_at")
       .eq("email", normalizedEmail)
       .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle<PortalUserLink>();
+    if (error) return null;
     return data?.client_id ? data : null;
   };
 
@@ -75,7 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (syncTokenRef.current !== syncToken) return;
 
-    setRoles(nextRoles);
+    // Portal-linked logins are client-only accounts and should not land in internal workspaces
+    // even if legacy role rows exist.
+    const nextIsSuperAdmin = isSuperAdminEmail(nextUser.email);
+    const effectiveRoles = portalLink?.client_id && !nextIsSuperAdmin ? [] : nextRoles;
+
+    setRoles(effectiveRoles);
     setPortalClientId(portalLink?.client_id ?? null);
     setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
     setLoading(false);
