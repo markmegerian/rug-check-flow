@@ -48,6 +48,8 @@ type ProvisionEmployeeResponse = {
   email?: string;
   role?: AppRole;
   reused_existing_user?: boolean;
+  provider_status?: "sent" | "failed" | "not_configured";
+  provider_response?: unknown;
   error?: string;
   details?: unknown;
 };
@@ -73,6 +75,16 @@ const mapProvisioningErrorMessage = (message: string | undefined) => {
     return `Edge function admin-provision-employee is not reachable from project ${activeProject}. Verify this frontend is pointed at the same project where the function is deployed.`;
   }
   return message;
+};
+
+const mapEmailProviderDetail = (providerResponse: unknown) => {
+  if (!providerResponse || typeof providerResponse !== "object") return null;
+  const candidate = providerResponse as Record<string, unknown>;
+  const message =
+    (typeof candidate.message === "string" && candidate.message) ||
+    (typeof candidate.error === "string" && candidate.error) ||
+    (typeof candidate.name === "string" && candidate.name);
+  return message ?? null;
 };
 
 const mapDeleteUserErrorMessage = (message: string | undefined) => {
@@ -288,10 +300,27 @@ export function UsersTab() {
           return;
         }
 
-        toast({
-          title: data?.reused_existing_user ? "Employee access updated" : "Employee account created",
-          description: `${normalizedEmail} can now sign in as ${formState.role}.`,
-        });
+        const providerMessage = mapEmailProviderDetail(data?.provider_response);
+        if (data?.provider_status === "failed") {
+          toast({
+            title: data?.reused_existing_user ? "Employee access updated" : "Employee account created",
+            description: providerMessage
+              ? `Email delivery failed: ${providerMessage}`
+              : "Onboarding email failed to send. Check sender domain and Resend configuration.",
+            variant: "destructive",
+          });
+        } else if (data?.provider_status === "not_configured") {
+          toast({
+            title: data?.reused_existing_user ? "Employee access updated" : "Employee account created",
+            description:
+              "Email provider is not configured, so no onboarding email was sent. User can still sign in with the temporary password.",
+          });
+        } else {
+          toast({
+            title: data?.reused_existing_user ? "Employee access updated" : "Employee account created",
+            description: `${normalizedEmail} can now sign in as ${formState.role}. Onboarding email sent.`,
+          });
+        }
       } else {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")

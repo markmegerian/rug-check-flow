@@ -91,6 +91,8 @@ Edge function environment:
 - `OPS_ALERT_FROM_EMAIL` (optional) sender used by operational alerts when email is configured.
 - `PORTAL_ONBOARDING_EMAIL_FROM` (optional) sender used for wholesale onboarding email.
 - `PORTAL_APP_URL` (optional) sign-in URL used in wholesale onboarding email body.
+- `EMPLOYEE_ONBOARDING_EMAIL_FROM` (optional) sender used for employee onboarding email.
+- `STAFF_APP_URL` (optional) sign-in URL used in employee onboarding email body.
 
 ## Release runbook and smoke testing
 

@@ -26,6 +26,7 @@ This checklist is the final gate before sending private beta invitations.
   - `SLACK_WEBHOOK_URL` (optional for critical Slack notifications)
   - `OPS_ALERT_EMAILS` and `OPS_ALERT_FROM_EMAIL` (optional for email notifications)
   - `PORTAL_ONBOARDING_EMAIL_FROM` and `PORTAL_APP_URL` (optional for wholesale onboarding emails)
+  - `EMPLOYEE_ONBOARDING_EMAIL_FROM` and `STAFF_APP_URL` (optional for employee onboarding emails)
 
 ## 3) Auth and role setup
 
