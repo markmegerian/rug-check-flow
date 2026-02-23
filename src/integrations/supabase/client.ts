@@ -2,9 +2,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const DEFAULT_SUPABASE_URL = 'https://dxvbmvbzobcjhzozuqkb.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://toitgmaeuscrdwbpntda.supabase.co';
 const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4dmJtdmJ6b2Jjamh6b3p1cWtiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1OTE1NDcsImV4cCI6MjA4NzE2NzU0N30.wG2DcAC0Cdrp2K1vyzS2Fl5waPsv47g3qmVbA118qQo';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvaXRnbWFldXNjcmR3YnBudGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjMzOTksImV4cCI6MjA4Njc5OTM5OX0.HmWokm-8GjME-2tBoE9JXyvaIoJwiOJlsdiDkp6Qa6M';
 
 const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const envSupabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
