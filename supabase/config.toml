@@ -5,3 +5,15 @@ verify_jwt = false
 
 [functions.send-portal-onboarding-email]
 verify_jwt = false
+
+[functions.send-estimate-email]
+verify_jwt = false
+
+[functions.operational-alerts]
+verify_jwt = false
+
+[functions.checkout-delivery]
+verify_jwt = false
+
+[functions.invoice-pdf]
+verify_jwt = false
