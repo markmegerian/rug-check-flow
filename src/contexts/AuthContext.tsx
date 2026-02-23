@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { isSuperAdminEmail } from "@/lib/super-admin";
 
 type AppRole = "admin" | "office" | "checkin_staff" | "driver";
 type PortalUserLink = {
@@ -15,6 +16,7 @@ interface AuthContextType {
   portalClientId: string | null;
   portalOnboardingCompletedAt: string | null;
   isPortalUser: boolean;
+  isSuperAdmin: boolean;
   loading: boolean;
   hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
@@ -95,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isPortalUser = Boolean(portalClientId);
+  const isSuperAdmin = isSuperAdminEmail(user?.email);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -112,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         portalClientId,
         portalOnboardingCompletedAt,
         isPortalUser,
+        isSuperAdmin,
         loading,
         hasRole,
         signOut,

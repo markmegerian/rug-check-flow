@@ -14,6 +14,7 @@ This checklist is the final gate before sending private beta invitations.
 - [ ] Deploy edge functions:
   - `checkout-delivery`
   - `admin-provision-employee`
+  - `admin-delete-user`
   - `send-estimate-email`
   - `send-portal-onboarding-email`
   - `invoice-pdf`

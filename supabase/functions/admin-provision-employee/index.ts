@@ -15,9 +15,15 @@ const json = (body: unknown, status = 200) =>
 type AppRole = "admin" | "office" | "checkin_staff" | "driver";
 
 const VALID_ROLES = new Set<AppRole>(["admin", "office", "checkin_staff", "driver"]);
+const SUPER_ADMIN_EMAILS = new Set(["markmegerian@gmail.com"]);
 
 function isValidRole(value: unknown): value is AppRole {
   return typeof value === "string" && VALID_ROLES.has(value as AppRole);
+}
+
+function isSuperAdminEmail(email: string | null | undefined) {
+  if (!email) return false;
+  return SUPER_ADMIN_EMAILS.has(email.trim().toLowerCase());
 }
 
 Deno.serve(async (req) => {
@@ -41,6 +47,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await anonClient.auth.getUser(token);
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401);
     const actor = userData.user;
+    const actorIsSuperAdmin = isSuperAdminEmail(actor.email);
 
     const { data: roleRows, error: roleError } = await adminClient
       .from("user_roles")
@@ -49,7 +56,8 @@ Deno.serve(async (req) => {
       .eq("role", "admin")
       .limit(1);
     if (roleError) return json({ error: roleError.message }, 500);
-    if (!roleRows || roleRows.length === 0) return json({ error: "Forbidden" }, 403);
+    const actorIsAdmin = Boolean(roleRows && roleRows.length > 0);
+    if (!actorIsAdmin && !actorIsSuperAdmin) return json({ error: "Forbidden" }, 403);
 
     const body = await req.json().catch(() => null);
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -61,6 +69,9 @@ Deno.serve(async (req) => {
     if (!fullName) return json({ error: "full_name is required" }, 400);
     if (password.length < 8) return json({ error: "password must be at least 8 characters" }, 400);
     if (!isValidRole(role)) return json({ error: "role is invalid" }, 400);
+    if (role === "admin" && !actorIsSuperAdmin) {
+      return json({ error: "Only superadmin can assign admin role." }, 403);
+    }
 
     const { data: existingProfile } = await adminClient
       .from("profiles")
@@ -70,6 +81,18 @@ Deno.serve(async (req) => {
 
     let targetUserId = existingProfile?.user_id ?? null;
     let reusedExistingUser = Boolean(targetUserId);
+
+    if (targetUserId) {
+      const { data: targetRoles, error: targetRolesError } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", targetUserId);
+      if (targetRolesError) return json({ error: targetRolesError.message }, 500);
+      const targetHasAdmin = (targetRoles ?? []).some((row) => row.role === "admin");
+      if (targetHasAdmin && !actorIsSuperAdmin) {
+        return json({ error: "Only superadmin can modify admin users." }, 403);
+      }
+    }
 
     if (!targetUserId) {
       const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({

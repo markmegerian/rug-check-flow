@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type ChangeEvent } from "react";
-import { Plus, Upload, X } from "lucide-react";
+import { Plus, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,21 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Client = Tables<"clients">;
 type PortalUser = Tables<"portal_users">;
@@ -155,6 +167,7 @@ const mapOnboardingEmailErrorMessage = (message: string | undefined) => {
 
 export function ClientsTab() {
   const { toast } = useToast();
+  const { hasRole, isSuperAdmin } = useAuth();
   const csvInputRef = useRef<HTMLInputElement | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [rugCounts, setRugCounts] = useState<Record<string, number>>({});
@@ -167,6 +180,7 @@ export function ClientsTab() {
   const [filterDay, setFilterDay] = useState("");
   const [importing, setImporting] = useState(false);
   const [portalActionId, setPortalActionId] = useState<string | null>(null);
+  const [deletingClient, setDeletingClient] = useState(false);
 
   const getFunctionAuthHeaders = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -486,6 +500,40 @@ export function ClientsTab() {
     if (editingId) fetchPortalUsers(editingId);
   };
 
+  const canDeleteClient = hasRole("admin") || isSuperAdmin;
+
+  const deleteClientAccount = async () => {
+    if (!editingId) return;
+    if (!canDeleteClient) {
+      toast({
+        title: "Action blocked",
+        description: "Only admin can delete wholesale client accounts.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDeletingClient(true);
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", editingId);
+
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      setDeletingClient(false);
+      return;
+    }
+
+    toast({ title: "Client account deleted" });
+    setDeletingClient(false);
+    setSheetOpen(false);
+    setEditingId(null);
+    setPortalUsers([]);
+    await fetchClients();
+    await fetchRugCounts();
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading clients…</div>;
   }
@@ -716,7 +764,35 @@ export function ClientsTab() {
             )}
           </div>
 
-          <SheetFooter>
+          <SheetFooter className="flex-col gap-2">
+            {editingId ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="w-full"
+                    disabled={deletingClient || !canDeleteClient}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    {deletingClient ? "Deleting..." : "Delete Client Account"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this wholesale account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This deletes the client record and linked portal logins. Related historical records may also be
+                      removed or detached based on database relationships.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={deleteClientAccount}>Delete account</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
             <Button onClick={save} className="w-full">Save</Button>
           </SheetFooter>
         </SheetContent>

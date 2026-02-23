@@ -7,10 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
 type RoleFilter = AppRole | "all";
 
@@ -40,6 +51,15 @@ type ProvisionEmployeeResponse = {
   error?: string;
   details?: unknown;
 };
+type DeleteUserResponse = {
+  success?: boolean;
+  user_id?: string;
+  email?: string | null;
+  deleted_roles?: number;
+  deleted_profiles?: number;
+  deleted_portal_links?: number;
+  error?: string;
+};
 
 const mapProvisioningErrorMessage = (message: string | undefined) => {
   if (!message) return "Unknown error";
@@ -55,6 +75,14 @@ const mapProvisioningErrorMessage = (message: string | undefined) => {
   return message;
 };
 
+const mapDeleteUserErrorMessage = (message: string | undefined) => {
+  if (!message) return "Unknown error";
+  if (message.toLowerCase().includes("failed to send request to edge function")) {
+    return "Edge function admin-delete-user is not reachable. Deploy it in Supabase Functions for this project.";
+  }
+  return message;
+};
+
 const ROLE_PRIORITY: AppRole[] = ["admin", "office", "checkin_staff", "driver"];
 const EMPTY_FORM: FormState = {
   userId: "",
@@ -64,7 +92,7 @@ const EMPTY_FORM: FormState = {
 };
 
 export function UsersTab() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isSuperAdmin } = useAuth();
   const { toast } = useToast();
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +101,7 @@ export function UsersTab() {
   const [isCreating, setIsCreating] = useState(false);
   const [createMode, setCreateMode] = useState<CreateMode>("existing");
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [formState, setFormState] = useState<FormState>(EMPTY_FORM);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
@@ -199,6 +228,16 @@ export function UsersTab() {
         return;
       }
 
+      if (!isSuperAdmin && formState.role === "admin") {
+        toast({
+          title: "Superadmin required",
+          description: "Only superadmin can grant admin role.",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
       if (createMode === "new") {
         if (!formState.name.trim()) {
           toast({ title: "Full name required", variant: "destructive" });
@@ -306,6 +345,26 @@ export function UsersTab() {
         return;
       }
 
+      if (!isSuperAdmin && editingUser?.role === "admin" && editingUser.userId !== currentUser?.id) {
+        toast({
+          title: "Superadmin required",
+          description: "Only superadmin can modify other admin users.",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
+      if (!isSuperAdmin && formState.role === "admin" && editingUser?.role !== "admin") {
+        toast({
+          title: "Superadmin required",
+          description: "Only superadmin can grant admin role.",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
+      }
+
       await supabase.from("user_roles").delete().eq("user_id", formState.userId);
       const { error: insertError } = await supabase
         .from("user_roles")
@@ -322,6 +381,56 @@ export function UsersTab() {
 
     await fetchUsers();
     setSaving(false);
+    closeSheet();
+  };
+
+  const deleteUser = async () => {
+    if (!editingUser) return;
+    if (editingUser.userId === currentUser?.id) {
+      toast({
+        title: "Action blocked",
+        description: "You cannot delete your own account from this screen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDeleting(true);
+    const authHeaders = await getFunctionAuthHeaders();
+    if (!authHeaders) {
+      toast({
+        title: "Session expired",
+        description: "Please sign out and sign in again before deleting users.",
+        variant: "destructive",
+      });
+      setDeleting(false);
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke<DeleteUserResponse>(
+      "admin-delete-user",
+      {
+        headers: authHeaders,
+        body: { user_id: editingUser.userId },
+      }
+    );
+
+    if (error || data?.error) {
+      toast({
+        title: "Delete failed",
+        description: mapDeleteUserErrorMessage(data?.error || error?.message),
+        variant: "destructive",
+      });
+      setDeleting(false);
+      return;
+    }
+
+    toast({
+      title: "User deleted",
+      description: `${editingUser.email || editingUser.userId} was removed.`,
+    });
+    await fetchUsers();
+    setDeleting(false);
     closeSheet();
   };
 
@@ -524,6 +633,39 @@ export function UsersTab() {
                 </SelectContent>
               </Select>
             </div>
+            {!isCreating && editingUser ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="w-full"
+                    disabled={
+                      deleting ||
+                      editingUser.userId === currentUser?.id ||
+                      (!isSuperAdmin && editingUser.role === "admin")
+                    }
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    {deleting ? "Deleting..." : "Delete User"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this user account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes authentication access, profile data, and role assignments for{" "}
+                      <span className="font-medium">{editingUser.email || editingUser.userId}</span>. This action
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={deleteUser}>Delete user</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
             <Button
               className="w-full mt-4"
               onClick={save}
