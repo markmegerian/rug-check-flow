@@ -94,6 +94,9 @@ Edge function environment:
 - `EMPLOYEE_ONBOARDING_EMAIL_FROM` (optional) sender used for employee onboarding email.
 - `STAFF_APP_URL` (optional) sign-in URL used in employee onboarding email body.
 
+Important: if sender addresses use `@resend.dev`, Resend stays in testing mode and only delivers to your account email.
+To send emails to clients/employees, verify your domain in Resend and set all `*_FROM` secrets to that verified domain.
+
 ## Release runbook and smoke testing
 
 - Runbook: `docs/release-runbook.md`

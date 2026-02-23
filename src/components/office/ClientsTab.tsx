@@ -68,6 +68,13 @@ type OnboardingEmailResponse = {
   success?: boolean;
   provider_status?: string;
   provider_response?: unknown;
+  delivery_instructions?: {
+    portal_url: string;
+    email: string;
+    password: string | null;
+    password_hint: string | null;
+    note: string | null;
+  };
   error?: string;
   details?: unknown;
 };
@@ -175,6 +182,33 @@ const extractOnboardingErrorDetail = (details: unknown) => {
     return JSON.stringify(details);
   }
   return String(details);
+};
+
+const extractProviderMessage = (response: unknown) => {
+  if (!response || typeof response !== "object") return null;
+  const candidate = response as Record<string, unknown>;
+  if (typeof candidate.message === "string") return candidate.message;
+  if (typeof candidate.error === "string") return candidate.error;
+  if (typeof candidate.name === "string") return candidate.name;
+  return null;
+};
+
+const buildManualOnboardingInstructions = (
+  instructions: NonNullable<OnboardingEmailResponse["delivery_instructions"]>
+) => {
+  const lines = [
+    "RugBoost portal sign-in instructions",
+    `Portal URL: ${instructions.portal_url}`,
+    `Email: ${instructions.email}`,
+    instructions.password
+      ? `Temporary password: ${instructions.password}`
+      : "Password: Use existing portal password.",
+  ];
+
+  if (instructions.password_hint) lines.push(instructions.password_hint);
+  if (instructions.note) lines.push(instructions.note);
+
+  return lines.join("\n");
 };
 
 export function ClientsTab() {
@@ -471,11 +505,53 @@ export function ClientsTab() {
 
     if (data?.provider_status === "sent") {
       toast({ title: "Onboarding email sent" });
+    } else if (data?.provider_status === "failed") {
+      const providerMessage = extractProviderMessage(data.provider_response) ?? "Email provider rejected delivery.";
+      const instructions = data.delivery_instructions;
+      if (instructions) {
+        const manualInstructions = buildManualOnboardingInstructions(instructions);
+        try {
+          await navigator.clipboard.writeText(manualInstructions);
+          toast({
+            title: "Email delivery failed; instructions copied",
+            description: providerMessage,
+            variant: "destructive",
+          });
+        } catch {
+          toast({
+            title: "Email delivery failed",
+            description: `${providerMessage} Copy details manually from the portal user record.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Email delivery failed",
+          description: providerMessage,
+          variant: "destructive",
+        });
+      }
     } else {
-      toast({
-        title: "Account activated",
-        description: "Email provider is not configured, so no outbound email was sent.",
-      });
+      const instructions = data?.delivery_instructions;
+      if (instructions) {
+        try {
+          await navigator.clipboard.writeText(buildManualOnboardingInstructions(instructions));
+          toast({
+            title: "No email provider configured",
+            description: "Manual sign-in instructions were copied to your clipboard.",
+          });
+        } catch {
+          toast({
+            title: "No email provider configured",
+            description: "Copy sign-in instructions manually from the portal user details.",
+          });
+        }
+      } else {
+        toast({
+          title: "Account activated",
+          description: "Email provider is not configured, so no outbound email was sent.",
+        });
+      }
     }
     return true;
   };

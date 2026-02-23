@@ -35,6 +35,13 @@ type CredentialProvisioningResult = {
   temporaryPassword: string | null;
   mode: "created" | "updated" | "existing_internal";
 };
+type DeliveryInstructions = {
+  portal_url: string;
+  email: string;
+  password: string | null;
+  password_hint: string | null;
+  note: string | null;
+};
 
 const escapeHtml = (value: string) =>
   value
@@ -309,6 +316,16 @@ Deno.serve(async (req) => {
         : []),
       "<p>Need help? Reply to this email and our team will help immediately.</p>",
     ].join("");
+    const deliveryInstructions: DeliveryInstructions = {
+      portal_url: portalUrl,
+      email: typedPortalUser.email,
+      password: shouldIncludePassword ? credentials.temporaryPassword : null,
+      password_hint: firstTimeHint ?? null,
+      note:
+        credentials.mode === "existing_internal"
+          ? "Email is linked to an internal account; password was not reset."
+          : null,
+    };
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const fromEmail = Deno.env.get("PORTAL_ONBOARDING_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
@@ -345,7 +362,12 @@ Deno.serve(async (req) => {
           body: bodyText,
           sent_to: typedPortalUser.email,
         });
-        return json({ error: "Email provider failed", details: providerResponse }, 502);
+        return json({
+          success: true,
+          provider_status: providerStatus,
+          provider_response: providerResponse,
+          delivery_instructions: deliveryInstructions,
+        });
       }
     }
 
@@ -362,10 +384,15 @@ Deno.serve(async (req) => {
     await adminClient.from("audit_log").insert({
       user_id: actor.id,
       user_name: actor.email ?? "System",
-      action: `Sent wholesale onboarding email to ${typedPortalUser.email}`,
+      action: `Processed wholesale onboarding email for ${typedPortalUser.email} (${providerStatus})`,
     });
 
-    return json({ success: true, provider_status: providerStatus, provider_response: providerResponse });
+    return json({
+      success: true,
+      provider_status: providerStatus,
+      provider_response: providerResponse,
+      delivery_instructions: deliveryInstructions,
+    });
   } catch (error) {
     console.error(error);
     return json(

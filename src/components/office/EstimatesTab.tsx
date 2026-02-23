@@ -231,10 +231,23 @@ export function EstimatesTab() {
       body: { estimate_id: estimate.id },
     });
 
+    const providerDetail = (() => {
+      if (!data?.details) return null;
+      if (typeof data.details === "string") return data.details;
+      if (typeof data.details === "object") {
+        const candidate = data.details as Record<string, unknown>;
+        if (typeof candidate.message === "string") return candidate.message;
+        if (typeof candidate.error === "string") return candidate.error;
+      }
+      return null;
+    })();
+
     if (error || data?.error) {
       toast({
         title: "Estimate send failed",
-        description: data?.error || error?.message || "Unknown error",
+        description: providerDetail
+          ? `${data?.error || error?.message || "Unknown error"} (${providerDetail})`
+          : data?.error || error?.message || "Unknown error",
         variant: "destructive",
       });
       setSendingEstimateId(null);
