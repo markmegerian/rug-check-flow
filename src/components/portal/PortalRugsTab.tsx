@@ -117,6 +117,14 @@ export default function PortalRugsTab() {
     return <div className="text-sm text-muted-foreground">Loading rugs…</div>;
   }
 
+  if (!clientId) {
+    return (
+      <div className="text-sm text-muted-foreground">
+        {errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      </div>
+    );
+  }
+
   if (rugs.length === 0) {
     return (
       <div className="text-sm text-muted-foreground space-y-1">
