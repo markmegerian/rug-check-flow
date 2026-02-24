@@ -75,8 +75,6 @@ export default function PortalPickupsTab() {
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [requesting, setRequesting] = useState(false);
-  const [requestDate, setRequestDate] = useState(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
-  const [requestDateTouched, setRequestDateTouched] = useState(false);
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
   const [draftNotes, setDraftNotes] = useState("");
@@ -177,9 +175,6 @@ export default function PortalPickupsTab() {
       const derivedRegion = (selectedClient as ClientLookupRow).address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
       setRegion(derivedRegion);
-      if (!requestDateTouched) {
-        setRequestDate(getNextDateForRouteDay(derivedRouteDay));
-      }
 
       const { data: rugRows, error: rugError } = await supabaseExtended
         .from("rugs")
@@ -208,7 +203,7 @@ export default function PortalPickupsTab() {
     };
 
     init();
-  }, [clientId, errorMessage, fetchPickups, portalClientLoading, requestDateTouched, toast]);
+  }, [clientId, errorMessage, fetchPickups, portalClientLoading, toast]);
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
@@ -230,7 +225,7 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    const scheduledDate = requestDate || getNextDateForRouteDay(routeDay);
+    const scheduledDate = getNextDateForRouteDay(routeDay);
     const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
       client_id: clientId,
       route_day: routeDay,
@@ -409,15 +404,17 @@ export default function PortalPickupsTab() {
         </h3>
         <div className="rounded-lg border bg-background p-4 space-y-4">
           <FieldRow label="Pickup date">
-            <Input
-              type="date"
-              className="h-8 w-fit"
-              value={requestDate}
-              onChange={(e) => {
-                setRequestDateTouched(true);
-                setRequestDate(e.target.value);
-              }}
-            />
+            <div className="h-8 inline-flex items-center px-2 rounded-md border bg-muted/40 text-sm text-foreground">
+              {new Date(`${getNextDateForRouteDay(routeDay)}T00:00:00`).toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Pickup dates are assigned by your service route day ({routeDay}) and automatically move to the next available date.
+            </p>
           </FieldRow>
 
           <FieldRow label="Rugs on file">
