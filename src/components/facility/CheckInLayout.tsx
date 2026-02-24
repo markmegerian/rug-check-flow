@@ -353,6 +353,7 @@ export function CheckInLayout() {
         const jobCode = generateJobCode();
         const intakeDate = new Date().toISOString();
 
+        let jobId: string | null = null;
         const { data: jobInsert, error: jobError } = await supabase
           .from("intake_jobs")
           .insert({
@@ -365,12 +366,22 @@ export function CheckInLayout() {
           .select("id")
           .single();
 
-        if (jobError || !jobInsert) {
-          toast({ title: "Job creation failed", description: jobError?.message ?? "Unknown error", variant: "destructive" });
-          return;
+        if (jobError) {
+          const missingIntakeJobs = /intake_jobs|schema cache|relation .*intake_jobs.* does not exist/i.test(jobError.message);
+          if (!missingIntakeJobs) {
+            toast({ title: "Job creation failed", description: jobError.message, variant: "destructive" });
+            return;
+          }
+          toast({
+            title: "Job tracking unavailable",
+            description: "Check-in will continue, but intake job tracking is not yet provisioned in this environment.",
+            variant: "destructive",
+          });
+        } else {
+          jobId = jobInsert?.id ?? null;
         }
 
-        const { data: inserted, error } = await supabase.from("rugs").insert({
+        const baseRugPayload = {
           tag: data.rugNumber,
           description: data.rugType,
           size_length: data.length,
@@ -379,10 +390,27 @@ export function CheckInLayout() {
           client_id: clientId,
           checked_in_by: user?.id ?? null,
           notes: data.conditionNotes,
-          job_id: jobInsert.id,
+        };
+
+        const extendedRugPayload = {
+          ...baseRugPayload,
+          job_id: jobId,
           intake_source: source,
           intake_date: intakeDate,
-        } as never).select("id").single();
+        };
+
+        let inserted: { id: string } | null = null;
+        let error: { message: string } | null = null;
+
+        const extendedInsert = await supabase.from("rugs").insert(extendedRugPayload as never).select("id").single();
+        inserted = extendedInsert.data as { id: string } | null;
+        error = extendedInsert.error as { message: string } | null;
+
+        if (error && /column .*job_id|column .*intake_source|column .*intake_date/i.test(error.message)) {
+          const fallbackInsert = await supabase.from("rugs").insert(baseRugPayload).select("id").single();
+          inserted = fallbackInsert.data as { id: string } | null;
+          error = fallbackInsert.error as { message: string } | null;
+        }
 
         if (error || !inserted) {
           toast({ title: "Check-in failed", description: error?.message, variant: "destructive" });

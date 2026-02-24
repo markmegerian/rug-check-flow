@@ -2,10 +2,14 @@ name: CI
 
 on:
   pull_request:
+    branches:
+      - main
+      - release/**
   push:
     branches:
       - main
       - cursoragentproject-launch-strategy-8382
+      - release/**
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -63,3 +67,74 @@ jobs:
       - name: RLS scope smoke script (optional)
         if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.PORTAL_USER_EMAIL != '' && env.PORTAL_USER_PASSWORD != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' && env.DRIVER_USER_EMAIL != '' && env.DRIVER_USER_PASSWORD != '' }}
         run: ./scripts/rls-scope-smoke-test.sh
+
+  release-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      PORTAL_USER_EMAIL: ${{ secrets.PORTAL_USER_EMAIL }}
+      PORTAL_USER_PASSWORD: ${{ secrets.PORTAL_USER_PASSWORD }}
+      OFFICE_USER_EMAIL: ${{ secrets.OFFICE_USER_EMAIL }}
+      OFFICE_USER_PASSWORD: ${{ secrets.OFFICE_USER_PASSWORD }}
+      DRIVER_USER_EMAIL: ${{ secrets.DRIVER_USER_EMAIL }}
+      DRIVER_USER_PASSWORD: ${{ secrets.DRIVER_USER_PASSWORD }}
+      SMOKE_USER_EMAIL: ${{ secrets.SMOKE_USER_EMAIL }}
+      SMOKE_USER_PASSWORD: ${{ secrets.SMOKE_USER_PASSWORD }}
+      SAMPLE_INVOICE_ID: ${{ secrets.SAMPLE_INVOICE_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate release readiness secrets
+        run: |
+          set -euo pipefail
+          required=(
+            SUPABASE_URL
+            SUPABASE_ANON_KEY
+            SMOKE_USER_EMAIL
+            SMOKE_USER_PASSWORD
+            PORTAL_USER_EMAIL
+            PORTAL_USER_PASSWORD
+            OFFICE_USER_EMAIL
+            OFFICE_USER_PASSWORD
+            DRIVER_USER_EMAIL
+            DRIVER_USER_PASSWORD
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required release readiness secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Run private beta readiness gate
+        run: |
+          mkdir -p artifacts
+          ./scripts/private-beta-readiness.sh | tee artifacts/private-beta-readiness.log
+
+      - name: Capture role-scope smoke output for release evidence
+        run: |
+          ./scripts/rls-scope-smoke-test.sh | tee artifacts/rls-scope-smoke.log
+
+      - name: Upload release readiness evidence artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness-evidence-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error
