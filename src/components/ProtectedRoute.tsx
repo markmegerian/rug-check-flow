@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: Props) {
-  const { user, roles, loading, isPortalUser } = useAuth();
+  const { user, roles, loading, isPortalUser, mustChangePassword } = useAuth();
 
   if (loading) {
     return (
@@ -20,6 +20,7 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   }
 
   if (!user) return <Navigate to="/auth" replace />;
+  if (mustChangePassword) return <Navigate to="/auth/reset-password" replace />;
 
   if (!allowedRoles || allowedRoles.length === 0) {
     if (roles.length > 0) return <>{children}</>;
