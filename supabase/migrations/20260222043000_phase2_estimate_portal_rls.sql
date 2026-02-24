@@ -32,6 +32,7 @@ USING (
       AND pu.client_id = estimates.client_id
       AND au.id = auth.uid()
   )
+  AND status = 'sent'
 )
 WITH CHECK (
   EXISTS (
@@ -43,6 +44,15 @@ WITH CHECK (
       AND au.id = auth.uid()
   )
   AND status IN ('approved', 'rejected')
+  AND rug_id = (SELECT e.rug_id FROM public.estimates e WHERE e.id = estimates.id)
+  AND client_id IS NOT DISTINCT FROM (SELECT e.client_id FROM public.estimates e WHERE e.id = estimates.id)
+  AND estimate_number = (SELECT e.estimate_number FROM public.estimates e WHERE e.id = estimates.id)
+  AND version = (SELECT e.version FROM public.estimates e WHERE e.id = estimates.id)
+  AND total = (SELECT e.total FROM public.estimates e WHERE e.id = estimates.id)
+  AND sent_at IS NOT DISTINCT FROM (SELECT e.sent_at FROM public.estimates e WHERE e.id = estimates.id)
+  AND expires_at IS NOT DISTINCT FROM (SELECT e.expires_at FROM public.estimates e WHERE e.id = estimates.id)
+  AND created_by IS NOT DISTINCT FROM (SELECT e.created_by FROM public.estimates e WHERE e.id = estimates.id)
+  AND created_at = (SELECT e.created_at FROM public.estimates e WHERE e.id = estimates.id)
 );
 
 CREATE POLICY "Office, admin, and linked portal users can view estimate items"
