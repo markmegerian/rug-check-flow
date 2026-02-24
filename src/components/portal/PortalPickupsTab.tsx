@@ -144,7 +144,7 @@ export default function PortalPickupsTab() {
       itemData = (result.data ?? []) as PickupRequestItemRow[];
       itemError = result.error ? { message: result.error.message } : null;
 
-      if (result.error && /estimate_requested|estimate_request_details|column/i.test(result.error.message)) {
+      if (result.error) {
         const fallback = await supabaseExtended
           .from("pickup_request_items")
           .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
