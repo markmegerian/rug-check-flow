@@ -273,6 +273,8 @@ export default function PortalPickupsTab() {
         rugType: rug.rugType.trim(),
         length: Number(rug.length ?? 0),
         width: Number(rug.width ?? 0),
+        estimateRequested: Boolean(rug.estimateRequested),
+        estimateDetails: (rug.estimateDetails ?? "").trim(),
       }))
       .filter((rug) => rug.label.length > 0);
 
@@ -331,8 +333,8 @@ export default function PortalPickupsTab() {
         is_new: true,
         ...(supportsEstimateFields
           ? {
-              estimate_requested: Boolean(rug.estimateRequested),
-              estimate_request_details: rug.estimateRequested ? (rug.estimateDetails?.trim() || null) : null,
+              estimate_requested: rug.estimateRequested,
+              estimate_request_details: rug.estimateRequested ? (rug.estimateDetails || null) : null,
             }
           : {}),
       }));
