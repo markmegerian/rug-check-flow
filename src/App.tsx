@@ -10,7 +10,16 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
 import { LoadingState } from "@/components/states/PageState";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Prevent aggressive focus-triggered refetches that feel like a full page refresh
+      // when users alt-tab back into the app.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const FacilityOps = lazy(() => import("./pages/FacilityOps"));

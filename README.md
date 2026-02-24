@@ -146,6 +146,8 @@ export SAMPLE_INVOICE_ID="<optional-invoice-id-for-pdf-smoke>"
 ./scripts/private-beta-readiness.sh
 ```
 
+`private-beta-readiness.sh` is strict: it now requires all smoke-test environment variables and fails fast if any are missing.
+
 Optional operational alert dry-run (office/admin token required):
 
 ```sh
