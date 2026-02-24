@@ -232,7 +232,7 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    const scheduledDate = toLocalIsoDate(getNextDateForRouteDay(routeDay));
+    const scheduledDate = getNextDateForRouteDay(routeDay);
     const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
       client_id: clientId,
       route_day: routeDay,
@@ -412,7 +412,7 @@ export default function PortalPickupsTab() {
         <div className="rounded-lg border bg-background p-4 space-y-4">
           <FieldRow label="Pickup date">
             <div className="h-8 inline-flex items-center px-2 rounded-md border bg-muted/40 text-sm text-foreground">
-              {getNextDateForRouteDay(routeDay).toLocaleDateString("en-US", {
+              {new Date(`${getNextDateForRouteDay(routeDay)}T00:00:00`).toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "short",
                 day: "numeric",
