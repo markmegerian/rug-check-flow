@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, CheckCircle2, Lock, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +24,7 @@ type DriverPickupRequestRow = Pick<
 
 type DriverPickupItemRow = Pick<
   ExtendedTableRow<"pickup_request_items">,
-  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "verified" | "driver_notes"
+  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "verified" | "driver_notes" | "driver_photo_urls"
 >;
 
 type DriverPickup = {
@@ -43,6 +43,7 @@ type DriverPickup = {
     width: number;
     verified: boolean;
     notes: string;
+    photos: string[];
   }[];
 };
 
@@ -80,7 +81,7 @@ const DriverPortal: React.FC = () => {
       ? { data: [] }
       : await supabaseExtended
           .from("pickup_request_items")
-          .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes")
+          .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, driver_notes, driver_photo_urls")
           .in("pickup_request_id", requestIds);
 
     const items = (itemData ?? []) as DriverPickupItemRow[];
@@ -103,6 +104,7 @@ const DriverPortal: React.FC = () => {
           width: Number(i.width ?? 0),
           verified: Boolean(i.verified),
           notes: i.driver_notes || "",
+          photos: i.driver_photo_urls ?? [],
         })),
     }));
 
@@ -157,6 +159,56 @@ const DriverPortal: React.FC = () => {
 
     updateLocalPickup(pickupId, (p) => {
       p.rugs = p.rugs.map((r) => (r.id === rugId ? { ...r, notes } : r));
+      return p;
+    });
+  };
+
+  const addPickupPhoto = async (pickupId: string, rugId: string, file: File) => {
+    const path = `${pickupId}/${rugId}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
+    const { error: uploadError } = await supabaseExtended.storage.from("pickup-photos").upload(path, file, { upsert: false });
+    if (uploadError) {
+      toast({ title: "Photo upload failed", description: uploadError.message, variant: "destructive" });
+      return;
+    }
+
+    const { data: publicUrl } = supabaseExtended.storage.from("pickup-photos").getPublicUrl(path);
+    const pickup = pickups.find((p) => p.id === pickupId);
+    const rug = pickup?.rugs.find((item) => item.id === rugId);
+    const nextPhotos = [...(rug?.photos ?? []), publicUrl.publicUrl];
+
+    const { error: updateError } = await supabaseExtended
+      .from("pickup_request_items")
+      .update({ driver_photo_urls: nextPhotos })
+      .eq("id", rugId);
+
+    if (updateError) {
+      toast({ title: "Photo save failed", description: updateError.message, variant: "destructive" });
+      return;
+    }
+
+    updateLocalPickup(pickupId, (p) => {
+      p.rugs = p.rugs.map((r) => (r.id === rugId ? { ...r, photos: nextPhotos } : r));
+      return p;
+    });
+  };
+
+  const removePickupPhoto = async (pickupId: string, rugId: string, photoUrl: string) => {
+    const pickup = pickups.find((p) => p.id === pickupId);
+    const rug = pickup?.rugs.find((item) => item.id === rugId);
+    const nextPhotos = (rug?.photos ?? []).filter((url) => url !== photoUrl);
+
+    const { error } = await supabaseExtended
+      .from("pickup_request_items")
+      .update({ driver_photo_urls: nextPhotos })
+      .eq("id", rugId);
+
+    if (error) {
+      toast({ title: "Photo removal failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    updateLocalPickup(pickupId, (p) => {
+      p.rugs = p.rugs.map((r) => (r.id === rugId ? { ...r, photos: nextPhotos } : r));
       return p;
     });
   };
@@ -325,6 +377,39 @@ const DriverPortal: React.FC = () => {
                     placeholder="Optional notes…"
                     className="mt-1 min-h-[44px]"
                   />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Pickup photos</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {rug.photos.map((photo) => (
+                      <div key={photo} className="relative h-14 w-14 rounded border overflow-hidden">
+                        <img src={photo} alt="Pickup evidence" className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                          onClick={() => removePickupPhoto(activePickup.id, rug.id, photo)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="h-14 w-14 rounded border border-dashed flex items-center justify-center text-muted-foreground cursor-pointer hover:text-foreground hover:border-primary">
+                      <Camera className="h-4 w-4" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) {
+                            void addPickupPhoto(activePickup.id, rug.id, file);
+                          }
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </>
             )}

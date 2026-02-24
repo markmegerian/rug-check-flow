@@ -7,7 +7,7 @@ interface PortalRouteProps {
 }
 
 export function PortalRoute({ children }: PortalRouteProps) {
-  const { user, roles, isPortalUser, loading } = useAuth();
+  const { user, roles, isPortalUser, loading, mustChangePassword } = useAuth();
 
   if (loading) {
     return (
@@ -18,6 +18,7 @@ export function PortalRoute({ children }: PortalRouteProps) {
   }
 
   if (!user) return <Navigate to="/auth" replace />;
+  if (mustChangePassword) return <Navigate to="/auth/reset-password" replace />;
   if (isPortalUser || roles.length > 0) return <>{children}</>;
 
   return (

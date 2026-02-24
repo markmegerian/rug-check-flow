@@ -6,7 +6,9 @@ import { CheckInLogPanel } from "./CheckInLogPanel";
 import { type PendingRug } from "@/data/mock-pending-rugs";
 import { type CheckInEntry, type UserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import type { Tables } from "@/integrations/supabase/types";
+import type { ExtendedTableRow } from "@/integrations/supabase/extended";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -22,6 +24,14 @@ type RugServiceRow = Pick<
   "rug_id" | "service_id" | "unit_price" | "line_total" | "service_name"
 >;
 type ClientNameRow = Pick<Tables<"clients">, "id" | "name">;
+type CompletedPickupRequestRow = Pick<
+  ExtendedTableRow<"pickup_requests">,
+  "id" | "client_id" | "scheduled_date" | "status"
+>;
+type CompletedPickupItemRow = Pick<
+  ExtendedTableRow<"pickup_request_items">,
+  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "checked_in_rug_id"
+>;
 
 export function CheckInLayout() {
   const { user } = useAuth();
@@ -33,6 +43,81 @@ export function CheckInLayout() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [userRole] = useState<UserRole>("checkin_staff");
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("form");
+
+  const fetchPendingPickupRugs = useCallback(async () => {
+    const { data: requestRows, error: requestError } = await supabaseExtended
+      .from("pickup_requests")
+      .select("id, client_id, scheduled_date, status")
+      .eq("status", "completed")
+      .order("scheduled_date", { ascending: true })
+      .limit(250);
+
+    if (requestError) {
+      console.error("Failed to fetch completed pickup requests", requestError);
+      return;
+    }
+
+    const completedRequests = (requestRows ?? []) as CompletedPickupRequestRow[];
+    if (completedRequests.length === 0) {
+      setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
+      return;
+    }
+
+    const requestIds = completedRequests.map((request) => request.id);
+    const { data: itemRows, error: itemError } = await supabaseExtended
+      .from("pickup_request_items")
+      .select("id, pickup_request_id, rug_number, rug_type, length, width, checked_in_rug_id")
+      .in("pickup_request_id", requestIds)
+      .is("checked_in_rug_id", null)
+      .limit(1000);
+
+    if (itemError) {
+      console.error("Failed to fetch completed pickup items", itemError);
+      return;
+    }
+
+    const pendingItems = (itemRows ?? []) as CompletedPickupItemRow[];
+    if (pendingItems.length === 0) {
+      setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
+      return;
+    }
+
+    const requestById = new Map(completedRequests.map((request) => [request.id, request]));
+    const clientIds = [...new Set(completedRequests.map((request) => request.client_id).filter(Boolean))] as string[];
+    let clientNameById = new Map<string, string>();
+
+    if (clientIds.length > 0) {
+      const { data: clientRows } = await supabase
+        .from("clients")
+        .select("id, name")
+        .in("id", clientIds);
+      const typedClientRows = (clientRows ?? []) as ClientNameRow[];
+      clientNameById = new Map(typedClientRows.map((row) => [row.id, row.name]));
+    }
+
+    const mappedPending = pendingItems.map((item) => {
+      const request = requestById.get(item.pickup_request_id);
+      const clientName = request?.client_id ? clientNameById.get(request.client_id) ?? "Unknown client" : "Unknown client";
+      return {
+        id: item.id,
+        rugNumber: item.rug_number,
+        clientName,
+        rugType: item.rug_type ?? "",
+        length: Number(item.length ?? 0) || undefined,
+        width: Number(item.width ?? 0) || undefined,
+        requestedServices: [],
+        source: "pickup" as const,
+        pickupRequestId: request?.id,
+        pickupRequestItemId: item.id,
+        pickupDate: request?.scheduled_date,
+      };
+    });
+
+    setPendingRugs((prev) => {
+      const walkIns = prev.filter((rug) => rug.source === "walkin");
+      return [...mappedPending, ...walkIns];
+    });
+  }, []);
 
   // Fetch today's check-ins from DB
   const fetchTodayLog = useCallback(async () => {
@@ -105,7 +190,8 @@ export function CheckInLayout() {
 
   useEffect(() => {
     fetchTodayLog();
-  }, [fetchTodayLog]);
+    fetchPendingPickupRugs();
+  }, [fetchTodayLog, fetchPendingPickupRugs]);
 
   const selectedRug = pendingRugs.find((r) => r.id === selectedRugId) ?? null;
   const editingEntry = checkInLog.find((e) => e.id === editingEntryId) ?? null;
@@ -127,7 +213,90 @@ export function CheckInLayout() {
       selectedServices: string[];
       serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
       totalPrice: number;
+      conditionNotes: string;
+      photos: File[];
     }) => {
+      const generateJobCode = () => `JOB-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+      const uploadCheckinPhoto = async (rugId: string, file: File) => {
+        const path = `rugs/${rugId}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
+        const { error: uploadError } = await supabase.storage
+          .from("checkin-photos")
+          .upload(path, file, { upsert: false });
+        if (uploadError) return null;
+        const { data: publicUrl } = supabase.storage.from("checkin-photos").getPublicUrl(path);
+        return publicUrl.publicUrl;
+      };
+
+      const maybeAutoCreateEstimateDraft = async (rugId: string, clientIdValue: string | null) => {
+        if (data.serviceSnapshots.length === 0) return;
+
+        const serviceIds = data.serviceSnapshots.map((service) => service.service_id);
+        const { data: serviceRows, error: serviceError } = await supabase
+          .from("services")
+          .select("id, name, requires_estimate")
+          .in("id", serviceIds);
+
+        if (serviceError) {
+          toast({ title: "Estimate rule lookup failed", description: serviceError.message, variant: "destructive" });
+          return;
+        }
+
+        const rows = (serviceRows ?? []) as Array<{ id: string; name: string; requires_estimate: boolean | null }>;
+        const requiresEstimate = rows.some((row) => Boolean(row.requires_estimate));
+        if (!requiresEstimate) return;
+
+        const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
+        const total = data.serviceSnapshots.reduce((sum, service) => sum + Number(service.line_total ?? 0), 0);
+
+        const { data: insertedEstimate, error: estimateError } = await supabaseExtended
+          .from("estimates")
+          .insert({
+            rug_id: rugId,
+            client_id: clientIdValue,
+            estimate_number: estimateNumber,
+            status: "draft",
+            version: 1,
+            total,
+          })
+          .select("id")
+          .single();
+
+        if (estimateError || !insertedEstimate) {
+          toast({ title: "Estimate draft auto-create failed", description: estimateError?.message ?? "Unknown error", variant: "destructive" });
+          return;
+        }
+
+        const estimateItems = data.serviceSnapshots.map((service) => ({
+          estimate_id: insertedEstimate.id,
+          rug_service_id: null,
+          description: `${data.rugNumber} — ${service.service_name}`,
+          quantity: 1,
+          unit_price: Number(service.unit_price ?? 0),
+          total: Number(service.line_total ?? 0),
+        }));
+
+        const { error: itemError } = await supabaseExtended.from("estimate_items").insert(estimateItems);
+        if (itemError) {
+          await supabaseExtended.from("estimates").delete().eq("id", insertedEstimate.id);
+          toast({ title: "Estimate draft item sync failed", description: itemError.message, variant: "destructive" });
+          return;
+        }
+
+        await supabaseExtended.from("communication_events").insert({
+          client_id: clientIdValue,
+          rug_id: rugId,
+          estimate_id: insertedEstimate.id,
+          channel: "in_app_chat",
+          direction: "outbound",
+          event_type: "estimate_auto_drafted_from_checkin",
+          subject: `${estimateNumber} auto-drafted`,
+          body: `Estimate ${estimateNumber} was auto-created from check-in service selections.`,
+        });
+
+        toast({ title: "Estimate draft auto-created", description: `${estimateNumber} is ready for office review.` });
+      };
+
       let clientId: string | null = null;
       if (data.clientName) {
         const { data: clients } = await supabase
@@ -148,6 +317,7 @@ export function CheckInLayout() {
             size_width: data.width,
             services: data.selectedServices,
             client_id: clientId,
+            notes: data.conditionNotes,
           })
           .eq("id", editingEntryId);
 
@@ -170,8 +340,36 @@ export function CheckInLayout() {
           );
         }
 
+        if (data.photos.length > 0) {
+          const firstPhotoUrl = await uploadCheckinPhoto(editingEntryId, data.photos[0]);
+          if (firstPhotoUrl) {
+            await supabase.from("rugs").update({ photo_url: firstPhotoUrl }).eq("id", editingEntryId);
+          }
+        }
+
         setEditingEntryId(null);
       } else {
+        const source = data.rugId ? (selectedRug?.source === "pickup" ? "pickup" : "dropoff") : "dropoff";
+        const jobCode = generateJobCode();
+        const intakeDate = new Date().toISOString();
+
+        const { data: jobInsert, error: jobError } = await supabase
+          .from("intake_jobs")
+          .insert({
+            job_code: jobCode,
+            client_id: clientId,
+            source,
+            intake_date: intakeDate,
+            checkin_date: intakeDate,
+          } as never)
+          .select("id")
+          .single();
+
+        if (jobError || !jobInsert) {
+          toast({ title: "Job creation failed", description: jobError?.message ?? "Unknown error", variant: "destructive" });
+          return;
+        }
+
         const { data: inserted, error } = await supabase.from("rugs").insert({
           tag: data.rugNumber,
           description: data.rugType,
@@ -180,8 +378,11 @@ export function CheckInLayout() {
           services: data.selectedServices,
           client_id: clientId,
           checked_in_by: user?.id ?? null,
-          notes: "",
-        }).select("id").single();
+          notes: data.conditionNotes,
+          job_id: jobInsert.id,
+          intake_source: source,
+          intake_date: intakeDate,
+        } as never).select("id").single();
 
         if (error || !inserted) {
           toast({ title: "Check-in failed", description: error?.message, variant: "destructive" });
@@ -201,6 +402,22 @@ export function CheckInLayout() {
           );
         }
 
+        if (data.photos.length > 0) {
+          const firstPhotoUrl = await uploadCheckinPhoto(inserted.id, data.photos[0]);
+          if (firstPhotoUrl) {
+            await supabase.from("rugs").update({ photo_url: firstPhotoUrl }).eq("id", inserted.id);
+          }
+        }
+
+        if (data.rugId) {
+          await supabaseExtended
+            .from("pickup_request_items")
+            .update({ checked_in_rug_id: inserted.id })
+            .eq("id", data.rugId);
+        }
+
+        await maybeAutoCreateEstimateDraft(inserted.id, clientId);
+
         if (data.rugId) {
           setPendingRugs((prev) => prev.filter((r) => r.id !== data.rugId));
         }
@@ -208,8 +425,9 @@ export function CheckInLayout() {
 
       setSelectedRugId(null);
       fetchTodayLog();
+      fetchPendingPickupRugs();
     },
-    [editingEntryId, user, toast, fetchTodayLog]
+    [editingEntryId, user, toast, fetchTodayLog, selectedRug?.source, fetchPendingPickupRugs]
   );
 
   const handleEditEntry = useCallback((entryId: string) => {

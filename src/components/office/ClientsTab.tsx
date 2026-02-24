@@ -71,8 +71,8 @@ type OnboardingEmailResponse = {
   delivery_instructions?: {
     portal_url: string;
     email: string;
-    password: string | null;
-    password_hint: string | null;
+    reset_link: string | null;
+    temporary_password: string;
     note: string | null;
   };
   error?: string;
@@ -200,12 +200,11 @@ const buildManualOnboardingInstructions = (
     "RugBoost portal sign-in instructions",
     `Portal URL: ${instructions.portal_url}`,
     `Email: ${instructions.email}`,
-    instructions.password
-      ? `Temporary password: ${instructions.password}`
-      : "Password: Use existing portal password.",
+    `Temporary password: ${instructions.temporary_password}`,
+    `Set-password link: ${instructions.reset_link ?? `${instructions.portal_url}/auth/forgot-password`}`,
+    "Action required: user must change password before continuing.",
   ];
 
-  if (instructions.password_hint) lines.push(instructions.password_hint);
   if (instructions.note) lines.push(instructions.note);
 
   return lines.join("\n");
