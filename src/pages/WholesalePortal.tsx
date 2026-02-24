@@ -3,19 +3,21 @@ import PortalRugsTab from "@/components/portal/PortalRugsTab";
 import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
 import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
+import PortalPricingTab from "@/components/portal/PortalPricingTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDialog";
 
-type Tab = "rugs" | "pickups" | "estimates" | "invoices";
+type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "prices";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "rugs", label: "Rugs" },
   { key: "pickups", label: "Pickups" },
   { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
+  { key: "prices", label: "Prices" },
 ];
 
 export default function WholesalePortal() {
@@ -103,6 +105,7 @@ export default function WholesalePortal() {
             {activeTab === "pickups" && <PortalPickupsTab />}
             {activeTab === "estimates" && <PortalEstimatesTab />}
             {activeTab === "invoices" && <PortalInvoicesTab />}
+            {activeTab === "prices" && <PortalPricingTab />}
           </main>
         </div>
       </div>

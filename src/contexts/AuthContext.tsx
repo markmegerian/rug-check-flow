@@ -17,6 +17,7 @@ interface AuthContextType {
   portalOnboardingCompletedAt: string | null;
   isPortalUser: boolean;
   isSuperAdmin: boolean;
+  mustChangePassword: boolean;
   loading: boolean;
   hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
@@ -129,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: AppRole) => roles.includes(role);
   const isPortalUser = Boolean(portalClientId);
   const isSuperAdmin = isSuperAdminEmail(user?.email);
+  const mustChangePassword = Boolean(user?.user_metadata?.must_change_password);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -147,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         portalOnboardingCompletedAt,
         isPortalUser,
         isSuperAdmin,
+        mustChangePassword,
         loading,
         hasRole,
         signOut,

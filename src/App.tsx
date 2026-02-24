@@ -22,6 +22,7 @@ const queryClient = new QueryClient({
 });
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const FacilityOps = lazy(() => import("./pages/FacilityOps"));
 const FacilityOffice = lazy(() => import("./pages/FacilityOffice"));
 const WholesalePortal = lazy(() => import("./pages/WholesalePortal"));
@@ -45,6 +46,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
               <Route
                 path="/"
                 element={

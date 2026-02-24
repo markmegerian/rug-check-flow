@@ -27,14 +27,17 @@ type PortalUserWithClient = {
 };
 
 type CredentialProvisioningResult = {
-  mode: "created" | "updated" | "existing_internal";
+  mode: "created" | "updated";
 };
 type DeliveryInstructions = {
   portal_url: string;
   email: string;
   reset_link: string | null;
+  temporary_password: string;
   note: string | null;
 };
+
+const WHOLESALE_BOOTSTRAP_PASSWORD = "Rugboost!";
 
 const escapeHtml = (value: string) =>
   value
@@ -88,22 +91,11 @@ const ensurePortalUserCredentials = async (
   }
 
   if (existingUserId) {
-    const { data: userRoleRows, error: userRoleError } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", existingUserId)
-      .limit(1);
-    if (userRoleError) throw new Error(userRoleError.message);
-    if ((userRoleRows ?? []).length > 0) {
-      // Avoid changing internal staff credentials if this email has app roles.
-      return { mode: "existing_internal" };
-    }
-
     const { error: updateUserError } = await adminClient.auth.admin.updateUserById(existingUserId, {
       email,
       password: bootstrapPassword,
       email_confirm: true,
-      user_metadata: { full_name: fullName },
+      user_metadata: { full_name: fullName, must_change_password: true },
     });
     if (updateUserError) throw new Error(updateUserError.message);
 
@@ -119,7 +111,7 @@ const ensurePortalUserCredentials = async (
     email,
     password: bootstrapPassword,
     email_confirm: true,
-    user_metadata: { full_name: fullName },
+    user_metadata: { full_name: fullName, must_change_password: true },
   });
   if (createUserError || !createdUser.user?.id) {
     throw new Error(createUserError?.message ?? "Failed to create portal login.");
@@ -161,8 +153,7 @@ const buildPortalUrl = (req: Request) => {
 
 const buildResetRedirectUrl = (portalUrl: string) => `${portalUrl}/auth/reset-password`;
 
-const generateBootstrapPassword = () =>
-  `Rugboost!${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`;
+const generateBootstrapPassword = () => WHOLESALE_BOOTSTRAP_PASSWORD;
 
 const generatePasswordResetLink = async (
   adminClient: ReturnType<typeof createClient>,
@@ -235,16 +226,13 @@ Deno.serve(async (req) => {
       typedPortalUser.clients?.name?.trim() ||
       "there";
     const bootstrapPassword = generateBootstrapPassword();
-    const credentials = await ensurePortalUserCredentials(
+    await ensurePortalUserCredentials(
       adminClient,
       typedPortalUser.email,
       typedPortalUser.clients?.contact_name?.trim() || typedPortalUser.clients?.name?.trim() || "Portal User",
       bootstrapPassword
     );
-    const resetLink =
-      credentials.mode === "existing_internal"
-        ? null
-        : await generatePasswordResetLink(adminClient, typedPortalUser.email, portalUrl);
+    const resetLink = await generatePasswordResetLink(adminClient, typedPortalUser.email, portalUrl);
     const setPasswordLink = resetLink || `${portalUrl}/auth/forgot-password`;
 
     const subject = `RugBoost portal login instructions`;
@@ -254,16 +242,11 @@ Deno.serve(async (req) => {
       "Your RugBoost wholesale portal account is active.",
       "",
       "Sign-in steps:",
-      `1) Open this secure set-password link: ${setPasswordLink}`,
-      `2) Enter your account email: ${typedPortalUser.email}`,
-      "3) Choose your own password to finish activation (required before first login).",
-      `4) Sign in at ${portalUrl} and complete the onboarding guide on first entry.`,
-      ...(credentials.mode === "existing_internal"
-        ? [
-            "",
-            "Note: This email address is linked to an existing internal RugBoost account, so password was not reset.",
-          ]
-        : []),
+      `1) Use this temporary password to sign in once: ${WHOLESALE_BOOTSTRAP_PASSWORD}`,
+      `2) Immediately set your own new password here: ${setPasswordLink}`,
+      `3) Enter your account email: ${typedPortalUser.email}`,
+      "4) Password change is required before continuing. There is no bypass.",
+      `5) After changing password, sign in at ${portalUrl} and complete onboarding.`,
       "",
       "Need help? Reply to this email and our team will help immediately.",
     ].join("\n");
@@ -272,26 +255,20 @@ Deno.serve(async (req) => {
       "<p>Your RugBoost wholesale portal account is active.</p>",
       "<p><strong>Sign-in steps</strong></p>",
       "<ol>",
-      `<li>Open this secure set-password link: <a href="${escapeHtml(setPasswordLink)}">${escapeHtml(setPasswordLink)}</a></li>`,
+      `<li>Use this temporary password to sign in once: <strong>${escapeHtml(WHOLESALE_BOOTSTRAP_PASSWORD)}</strong></li>`,
+      `<li>Immediately set your own new password here: <a href="${escapeHtml(setPasswordLink)}">${escapeHtml(setPasswordLink)}</a></li>`,
       `<li>Enter your account email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
-      "<li>Choose your own password to finish activation (required before first login).</li>",
-      `<li>Sign in at <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a> and complete the onboarding guide on first entry.</li>`,
+      "<li><strong>Password change is required before continuing.</strong> There is no bypass.</li>",
+      `<li>After changing password, sign in at <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a> and complete onboarding.</li>`,
       "</ol>",
-      ...(credentials.mode === "existing_internal"
-        ? [
-            "<p><em>Note:</em> This email address is linked to an existing internal RugBoost account, so password was not reset.</p>",
-          ]
-        : []),
       "<p>Need help? Reply to this email and our team will help immediately.</p>",
     ].join("");
     const deliveryInstructions: DeliveryInstructions = {
       portal_url: portalUrl,
       email: typedPortalUser.email,
       reset_link: resetLink,
-      note:
-        credentials.mode === "existing_internal"
-          ? "Email is linked to an internal account; credentials were not changed."
-          : "User cannot sign in until they set a password from the secure reset link.",
+      temporary_password: WHOLESALE_BOOTSTRAP_PASSWORD,
+      note: "Temporary password works once; user must set a new password before continuing.",
     };
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
