@@ -69,6 +69,8 @@ interface CheckInFormProps {
     selectedServices: string[];
     serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
     totalPrice: number;
+    conditionNotes: string;
+    photos: File[];
   }) => void;
 }
 
@@ -412,6 +414,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         selectedServices: data.selectedServices,
         serviceSnapshots,
         totalPrice,
+        conditionNotes: data.conditionNotes?.trim() ?? "",
+        photos: photos.map((photo) => photo.file),
       });
     }
 
