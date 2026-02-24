@@ -4,7 +4,7 @@ Date: 2026-02-23
 
 ## Executive summary
 
-The platform is in a **strong private-beta state** with core workflow breadth already implemented across facility operations, office operations, driver portal, wholesale portal, billing, onboarding, and role-based controls. The primary work to reach 1.0 is now less about adding net-new core workflows and more about **production hardening, operational excellence, and measurable release gates**.
+The platform is in a **strong private-beta state** with core workflow breadth already implemented across facility operations, office operations, driver portal, wholesale portal, billing, onboarding, and role-based controls. The best path to 1.0 is to execute in **small, verifiable increments**: finish one subphase, validate, fix any regressions, then move forward.
 
 **Current maturity estimate:** ~0.8–0.9 (feature-complete beta, not yet fully hardened 1.0).
 
@@ -33,138 +33,214 @@ The platform is in a **strong private-beta state** with core workflow breadth al
 ### What remains before 1.0
 
 1. **Staging/production evidence closure**
-   - Local checks are green, but several release checks are still env/credential-gated and need consistent execution evidence in staging and production.
+   - Local checks are green, but several release checks are env/credential-gated and need repeatable execution evidence.
 
 2. **Observability and SLO formalization**
-   - Alerts exist, but explicit SLOs/error budgets, dashboard baselines, and incident metrics are not yet captured as a release gate.
+   - Alerts exist, but SLO/error-budget ownership and dashboards are not yet formal release gates.
 
-3. **Reliability/operations rigor**
-   - Rollback guidance exists, but recovery testing, backup/restore drills, and incident playbooks should be institutionalized for 1.0.
+3. **Reliability and recovery rigor**
+   - Rollback guidance exists, but incident drills and restoration proof need to be practiced.
 
-4. **Security/compliance completion**
-   - RLS posture is strong, but 1.0 should include routine audit cadence, secrets governance, and data handling/retention policy sign-off.
+4. **Security and governance completion**
+   - RLS posture is strong, but 1.0 needs recurring audits, secret rotation cadence, and retention policy sign-off.
 
 ---
 
 ## 1.0 definition (recommended)
 
-Declare 1.0 only when all of the below are true:
+Declare 1.0 only when all are true:
 
-1. **All launch-critical workflows pass in production-like staging** with deterministic smoke and role-scope tests.
-2. **Operational SLOs are documented and monitored** (availability, error rate, latency, time-to-detect incidents).
-3. **Security controls are verified in practice** (RLS regression suite, least-privilege review, secret rotation policy).
-4. **Runbooks are executable by on-call staff** and validated via at least one incident simulation.
-5. **Release process is repeatable** with checklist evidence attached to every release candidate.
+1. Launch-critical workflows pass deterministic staging and production smoke checks.
+2. SLOs, alert thresholds, and ownership are documented and running.
+3. Security controls are validated continuously (RLS regression + least privilege + secret hygiene).
+4. Incident and rollback procedures are tested, not just documented.
+5. Release evidence is attached to every release candidate with explicit go/no-go sign-off.
 
 ---
 
-## Roadmap to 1.0
+## Execution model: one step at a time
 
-## Phase A — Release hardening (1–2 weeks)
+For **every subphase** below, use this same loop:
 
-**Goal:** Convert current beta readiness into enforceable release gates.
+1. Implement only that subphase scope.
+2. Run local checks (`npm run lint`, `npm run test`, `npm run build`).
+3. Run targeted smoke checks for impacted workflows.
+4. Fix all regressions found in that subphase.
+5. Capture evidence and sign off the subphase before continuing.
 
-- Make `private-beta-readiness.sh` and role-scope checks mandatory in CI for release branches.
-- Add a release evidence template (artifacts: smoke logs, test output, migration hash set, deployed edge-function versions).
-- Pin and document release candidate criteria in `docs/release-runbook.md`.
-- Add an explicit “go/no-go” sign-off section (engineering + operations owner).
+No parallel jumps; move sequentially.
 
-**Exit criteria:**
-- Every release candidate has complete evidence artifacts and pass/fail status.
-- No manual/implicit release decisions.
+---
 
-## Phase B — Reliability and observability (2–3 weeks)
+## Phase 1 — Release gate hardening
 
-**Goal:** Ensure the team can detect and recover from failures quickly.
+### 1.1 Define release evidence contract
+- Add a release evidence template (commit SHA, migrations, function versions, smoke logs, owner sign-off).
+- Require artifact links in every release candidate.
 
-- Define service SLOs (API/edge function success rate, key workflow completion success).
-- Create baseline dashboards for auth failures, function errors, invoice PDF failures, and alert volume.
-- Implement synthetic probes for critical routes and function endpoints.
-- Run a failure game day (e.g., webhook outage, function timeout, auth misconfiguration).
+**Validation gate:** template completed for one dry-run release.
 
-**Exit criteria:**
-- SLO dashboard live with alert thresholds.
-- Incident response runbook tested end-to-end once.
+### 1.2 CI enforce readiness scripts
+- Run `scripts/private-beta-readiness.sh` on release branches.
+- Add fail-fast behavior when required env vars are missing in release contexts.
 
-## Phase C — Security and data governance (1–2 weeks)
+**Validation gate:** CI blocks merge on failed readiness gate.
 
-**Goal:** Move from good controls to auditable controls.
+### 1.3 Gate role-scope protections
+- Run `scripts/rls-scope-smoke-test.sh` for release candidates.
+- Require role-scope pass output as release evidence.
 
-- Add scheduled RLS regression execution (daily in staging, pre-release in production).
-- Create secrets inventory + rotation cadence for all edge-function secrets.
-- Verify and document least-privilege access for admin paths and service-role usage.
-- Define retention policy for operational events, payment attempts, and generated artifacts.
+**Validation gate:** portal/office/driver scope checks green in staging.
 
-**Exit criteria:**
-- Security checklist signed by engineering owner.
-- No untracked secret dependencies or privileged blind spots.
+### 1.4 Add release sign-off workflow
+- Add explicit engineering + operations go/no-go checklist section to runbook.
 
-## Phase D — Product completion + UX polish (1–2 weeks)
+**Validation gate:** one staged release includes signed go/no-go record.
 
-**Goal:** Close user-facing quality gaps from beta feedback.
+---
 
-- Prioritize top beta friction points (navigation clarity, empty/loading states, actionable errors).
-- Add deterministic acceptance tests for the 5 highest-value journeys:
-  1) request pickup
+## Phase 2 — Reliability and observability
+
+### 2.1 Define SLOs and alert thresholds
+- Define minimum SLO set: auth success, edge-function success, critical workflow completion rate.
+- Set thresholds and escalation ownership.
+
+**Validation gate:** SLO doc approved by engineering + operations.
+
+### 2.2 Ship baseline dashboards
+- Create dashboards for auth failures, edge function errors, PDF generation issues, operational alerts.
+
+**Validation gate:** dashboards show live data for at least 3 consecutive days.
+
+### 2.3 Add synthetic checks
+- Add scheduled probes for critical user routes and core function endpoints.
+
+**Validation gate:** probe pass/fail history visible; alerting wired for failures.
+
+### 2.4 Run incident game day
+- Simulate outage/misconfig scenarios (e.g., webhook failure, expired secret, function timeout).
+
+**Validation gate:** postmortem complete with tracked remediation actions.
+
+---
+
+## Phase 3 — Security and data governance
+
+### 3.1 Automate RLS regression cadence
+- Run role-scope/RLS checks daily in staging and pre-release in production.
+
+**Validation gate:** one full week of clean scheduled runs.
+
+### 3.2 Secrets inventory and rotation schedule
+- Document all runtime secrets and their owners.
+- Set and track rotation windows.
+
+**Validation gate:** all secrets mapped to owner + next rotation date.
+
+### 3.3 Least-privilege review
+- Review service-role and admin-only paths.
+- Remove/lock any excessive permissions.
+
+**Validation gate:** privileged-surface checklist signed.
+
+### 3.4 Retention and compliance policy
+- Define retention windows for events, payment attempts, and generated artifacts.
+
+**Validation gate:** policy approved and reflected in ops docs.
+
+---
+
+## Phase 4 — Product quality and UX stabilization
+
+### 4.1 Beta feedback triage
+- Rank issues by severity and workflow impact.
+- Fix highest-severity friction first.
+
+**Validation gate:** all P0/P1 beta issues closed.
+
+### 4.2 Critical journey acceptance tests
+- Add deterministic acceptance coverage for:
+  1) pickup request
   2) check-in to production
   3) estimate lifecycle
   4) invoice send + PDF retrieval
   5) portal onboarding + payment tracking
-- Final pass on copy consistency and role-specific UX affordances.
 
-**Exit criteria:**
-- High-severity beta feedback resolved.
-- Acceptance pass rate at agreed threshold (target 100% for critical paths).
+**Validation gate:** 100% pass rate on critical journeys.
 
-## Phase E — 1.0 launch readiness (1 week)
+### 4.3 UX consistency pass
+- Standardize empty states, loading states, and actionable error copy by role.
 
-**Goal:** Execute a controlled production cutover.
+**Validation gate:** design/ops walkthrough approved.
 
-- Freeze schema and run migration dry-run against production snapshot.
-- Complete production smoke + role-scope checks with real credentials.
-- Conduct launch rehearsal with on-call and rollback owner.
-- Publish 1.0 operations handbook and incident contacts.
+### 4.4 Regression stabilization window
+- Freeze net-new features for a short hardening window.
+- Resolve all regressions introduced in Phase 4.
 
-**Exit criteria:**
-- Final go/no-go signed.
-- 1.0 announced with monitoring/ownership in place.
+**Validation gate:** no open release-blocking regressions.
 
 ---
 
-## Top risks and mitigations
+## Phase 5 — Production readiness and 1.0 launch
 
-1. **Risk:** Hidden staging/prod drift in env/secrets.
-   - **Mitigation:** Automated config diff + preflight validation in release pipeline.
+### 5.1 Schema and migration freeze
+- Freeze schema for launch candidate.
+- Dry-run migrations against production-like snapshot.
 
-2. **Risk:** RLS regressions under schema evolution.
-   - **Mitigation:** Mandatory role-scope regression run on every migration PR.
+**Validation gate:** zero migration blockers or rollback ambiguity.
 
-3. **Risk:** Edge function dependency failure (email/Slack/PDF paths).
-   - **Mitigation:** Circuit-breaker behavior + dead-letter style logging and retries where applicable.
+### 5.2 Full staging rehearsal
+- Execute full runbook in staging with real-like data and credentials.
 
-4. **Risk:** Operational load spikes after 1.0 announcement.
-   - **Mitigation:** Capacity observation week, queued rollout, and support staffing plan.
+**Validation gate:** complete green rehearsal evidence package.
+
+### 5.3 Controlled production rollout
+- Execute rollout with on-call and rollback owner active.
+- Run production smoke checks immediately post-deploy.
+
+**Validation gate:** production smoke and role-scope checks pass.
+
+### 5.4 1.0 cutover and monitoring watch
+- Announce 1.0.
+- Run heightened monitoring for launch window.
+
+**Validation gate:** no unresolved Sev1/Sev2 incidents in initial watch window.
 
 ---
 
-## Recommended KPI dashboard for 1.0 and beyond
+## Suggested pacing (little-by-little)
 
-- Workflow completion rate per role.
-- Time-to-resolution for operational reminders.
-- Invoice send-to-paid conversion time.
-- Portal onboarding completion within 24h/72h.
-- Error rate by edge function.
-- Auth failure rate and role mismatch incidents.
-- Mean time to detect (MTTD) and mean time to recovery (MTTR).
+- Week 1: Phase 1 (subphases 1.1 → 1.4)
+- Week 2: Phase 2 (subphases 2.1 → 2.4)
+- Week 3: Phase 3 (subphases 3.1 → 3.4)
+- Week 4: Phase 4 (subphases 4.1 → 4.4)
+- Week 5: Phase 5 (subphases 5.1 → 5.4)
+
+If any subphase fails validation, stop and fix before advancing.
 
 ---
 
-## Suggested timeline
+## Progress tracker template
 
-- Phase A: Week 1
-- Phase B: Weeks 2–3
-- Phase C: Week 4
-- Phase D: Week 5
-- Phase E: Week 6
+Use this checklist style while executing:
 
-**Target:** Reach operationally credible 1.0 in approximately **6 weeks**, assuming no major architectural rework and active ownership from engineering + operations.
+- [ ] Phase 1.1 complete
+- [ ] Phase 1.2 complete
+- [ ] Phase 1.3 complete
+- [ ] Phase 1.4 complete
+- [ ] Phase 2.1 complete
+- [ ] Phase 2.2 complete
+- [ ] Phase 2.3 complete
+- [ ] Phase 2.4 complete
+- [ ] Phase 3.1 complete
+- [ ] Phase 3.2 complete
+- [ ] Phase 3.3 complete
+- [ ] Phase 3.4 complete
+- [ ] Phase 4.1 complete
+- [ ] Phase 4.2 complete
+- [ ] Phase 4.3 complete
+- [ ] Phase 4.4 complete
+- [ ] Phase 5.1 complete
+- [ ] Phase 5.2 complete
+- [ ] Phase 5.3 complete
+- [ ] Phase 5.4 complete
