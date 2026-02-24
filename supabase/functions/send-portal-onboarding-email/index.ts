@@ -161,6 +161,9 @@ const buildPortalUrl = (req: Request) => {
 
 const buildResetRedirectUrl = (portalUrl: string) => `${portalUrl}/auth/reset-password`;
 
+const generateBootstrapPassword = () =>
+  `Rugboost!${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`;
+
 const generatePasswordResetLink = async (
   adminClient: ReturnType<typeof createClient>,
   email: string,
@@ -231,7 +234,7 @@ Deno.serve(async (req) => {
       typedPortalUser.clients?.contact_name?.trim() ||
       typedPortalUser.clients?.name?.trim() ||
       "there";
-    const bootstrapPassword = Deno.env.get("WHOLESALE_ONBOARDING_BOOTSTRAP_PASSWORD") || "Rugboost!";
+    const bootstrapPassword = generateBootstrapPassword();
     const credentials = await ensurePortalUserCredentials(
       adminClient,
       typedPortalUser.email,
@@ -253,7 +256,7 @@ Deno.serve(async (req) => {
       "Sign-in steps:",
       `1) Open this secure set-password link: ${setPasswordLink}`,
       `2) Enter your account email: ${typedPortalUser.email}`,
-      "3) Choose your own password to finish activation.",
+      "3) Choose your own password to finish activation (required before first login).",
       `4) Sign in at ${portalUrl} and complete the onboarding guide on first entry.`,
       ...(credentials.mode === "existing_internal"
         ? [
@@ -271,7 +274,7 @@ Deno.serve(async (req) => {
       "<ol>",
       `<li>Open this secure set-password link: <a href="${escapeHtml(setPasswordLink)}">${escapeHtml(setPasswordLink)}</a></li>`,
       `<li>Enter your account email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
-      "<li>Choose your own password to finish activation.</li>",
+      "<li>Choose your own password to finish activation (required before first login).</li>",
       `<li>Sign in at <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a> and complete the onboarding guide on first entry.</li>`,
       "</ol>",
       ...(credentials.mode === "existing_internal"
@@ -288,7 +291,7 @@ Deno.serve(async (req) => {
       note:
         credentials.mode === "existing_internal"
           ? "Email is linked to an internal account; credentials were not changed."
-          : "User must set a password from the secure reset link before signing in.",
+          : "User cannot sign in until they set a password from the secure reset link.",
     };
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
