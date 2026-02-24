@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userChanged = userIdRef.current !== nextUserId;
     userIdRef.current = nextUserId;
 
-    if (!options?.silent || userChanged) {
+    if (userChanged) {
       setLoading(true);
     }
     setSession(nextSession);
@@ -108,7 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, newSession) => {
-        if (event === "TOKEN_REFRESHED") {
+        const nextUserId = newSession?.user?.id ?? null;
+        const isSameUserSession = Boolean(nextUserId && nextUserId === userIdRef.current);
+
+        if (event === "TOKEN_REFRESHED" || (event === "SIGNED_IN" && isSameUserSession)) {
           void syncAuthState(newSession, { silent: true, skipLookup: true });
           return;
         }
