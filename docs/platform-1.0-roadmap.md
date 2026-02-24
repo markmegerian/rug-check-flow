@@ -72,6 +72,38 @@ No parallel jumps; move sequentially.
 
 ---
 
+## Phase 0 — Prephase: known blockers and stabilization
+
+This phase is the immediate pre-1.0 blocker pass. Do not proceed to Phase 1 until these are fixed and verified in staging.
+
+### 0.1 Rug check-in failure (`public.intake_jobs` not found)
+- Reproduce the check-in failure end-to-end in Facility flow.
+- Trace the exact failing query/function and confirm whether table/function reference is outdated (`public.intake_jobs`) or environment schema drift exists.
+- Patch the failing path and add regression coverage for successful check-in completion.
+
+**Validation gate:** facility check-in completes successfully for a representative rug in staging with no missing-relation errors.
+
+### 0.2 Wholesale estimate note text not persisting
+- Reproduce as wholesale client user and capture request/response payload path.
+- Confirm whether failure is UI state handling, API mutation path, RLS denial, or missing DB column mapping.
+- Implement fix and add deterministic test coverage for save + reload persistence of estimate note text.
+
+**Validation gate:** estimate text entered by wholesale user persists after refresh/re-login and is visible in expected role scopes.
+
+### 0.3 Pickup request behavior with existing pending request
+- Change pickup submission logic: if client already has an active `pending` pickup request, do not create/shift to a future request date.
+- Instead, merge/attribute new submission changes onto the existing pending request record.
+- Define and enforce merge semantics (fields updated, audit trail/event log entry, timestamp behavior).
+
+**Validation gate:** submitting while pending updates current pending request rather than creating/extending to a new upcoming date.
+
+### 0.4 Phase 0 sign-off checklist
+- Confirm fixes for 0.1–0.3 in staging with role-appropriate test users.
+- Run local checks (`npm run lint`, `npm run test`, `npm run build`) and targeted staging smoke for affected workflows.
+- Record evidence (before/after screenshots/logs, query traces, commit SHAs) in release artifacts.
+
+**Validation gate:** all three blocker workflows are green with evidence attached.
+
 ## Phase 1 — Release gate hardening
 
 ### 1.1 Define release evidence contract
@@ -196,25 +228,28 @@ No parallel jumps; move sequentially.
 
 ### 5.3 Controlled production rollout
 - Execute rollout with on-call and rollback owner active.
+- Run full page-by-page click/intent UAT before live cutover.
 - Run production smoke checks immediately post-deploy.
 
-**Validation gate:** production smoke and role-scope checks pass.
+**Validation gate:** page-by-page UAT completed, then production smoke and role-scope checks pass.
 
 ### 5.4 1.0 cutover and monitoring watch
 - Announce 1.0.
-- Run heightened monitoring for launch window.
+- Run structured launch-watch probes for the initial post-cutover window.
+- Record watch summary and incident outcomes in release evidence.
 
-**Validation gate:** no unresolved Sev1/Sev2 incidents in initial watch window.
+**Validation gate:** no unresolved Sev1/Sev2 incidents in initial watch window and launch-watch probe summary is attached.
 
 ---
 
 ## Suggested pacing (little-by-little)
 
-- Week 1: Phase 1 (subphases 1.1 → 1.4)
-- Week 2: Phase 2 (subphases 2.1 → 2.4)
-- Week 3: Phase 3 (subphases 3.1 → 3.4)
-- Week 4: Phase 4 (subphases 4.1 → 4.4)
-- Week 5: Phase 5 (subphases 5.1 → 5.4)
+- Week 1: Phase 0 (subphases 0.1 → 0.4)
+- Week 2: Phase 1 (subphases 1.1 → 1.4)
+- Week 3: Phase 2 (subphases 2.1 → 2.4)
+- Week 4: Phase 3 (subphases 3.1 → 3.4)
+- Week 5: Phase 4 (subphases 4.1 → 4.4)
+- Week 6: Phase 5 (subphases 5.1 → 5.4)
 
 If any subphase fails validation, stop and fix before advancing.
 
@@ -224,23 +259,27 @@ If any subphase fails validation, stop and fix before advancing.
 
 Use this checklist style while executing:
 
-- [ ] Phase 1.1 complete
-- [ ] Phase 1.2 complete
-- [ ] Phase 1.3 complete
-- [ ] Phase 1.4 complete
-- [ ] Phase 2.1 complete
+- [ ] Phase 0.1 complete
+- [ ] Phase 0.2 complete
+- [ ] Phase 0.3 complete
+- [ ] Phase 0.4 complete
+- [x] Phase 1.1 complete
+- [x] Phase 1.2 complete
+- [x] Phase 1.3 complete
+- [x] Phase 1.4 complete
+- [x] Phase 2.1 complete
 - [ ] Phase 2.2 complete
-- [ ] Phase 2.3 complete
-- [ ] Phase 2.4 complete
-- [ ] Phase 3.1 complete
-- [ ] Phase 3.2 complete
-- [ ] Phase 3.3 complete
-- [ ] Phase 3.4 complete
-- [ ] Phase 4.1 complete
-- [ ] Phase 4.2 complete
-- [ ] Phase 4.3 complete
-- [ ] Phase 4.4 complete
-- [ ] Phase 5.1 complete
-- [ ] Phase 5.2 complete
+- [x] Phase 2.3 complete
+- [x] Phase 2.4 complete
+- [ ] Phase 3.1 complete *(automation shipped: `.github/workflows/rls-regression-daily.yml`; waiting 7-day clean streak)*
+- [x] Phase 3.2 complete
+- [x] Phase 3.3 complete
+- [x] Phase 3.4 complete
+- [x] Phase 4.1 complete
+- [x] Phase 4.2 complete
+- [x] Phase 4.3 complete
+- [x] Phase 4.4 complete
+- [x] Phase 5.1 complete
+- [x] Phase 5.2 complete
 - [ ] Phase 5.3 complete
 - [ ] Phase 5.4 complete

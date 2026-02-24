@@ -104,6 +104,17 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
   return pdfDoc.save();
 }
 
+
+export async function ensureInvoicePdfBucket(adminClient: SupabaseClient, bucket: string) {
+  const { error } = await adminClient.storage.createBucket(bucket, { public: false });
+  if (!error) return;
+
+  const message = (error.message ?? '').toLowerCase();
+  if (message.includes('already exists') || message.includes('duplicate')) return;
+
+  throw new Error(`Failed to ensure storage bucket ${bucket}: ${error.message}`);
+}
+
 export async function storageObjectExists(
   adminClient: SupabaseClient,
   bucket: string,

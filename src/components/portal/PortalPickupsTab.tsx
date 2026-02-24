@@ -287,30 +287,77 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    const scheduledDate = toLocalIsoDate(getNextDateForRouteDay(routeDay));
-    const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
-      client_id: clientId,
-      route_day: routeDay,
-      scheduled_date: scheduledDate,
-      status: "pending",
-      notes: draftNotes,
-    };
+    const scheduledDate = requestDate || getNextDateForRouteDay(routeDay);
 
     setRequesting(true);
     try {
-      const { data: inserted, error } = await supabaseExtended
+      const { data: existingPending, error: pendingLookupError } = await supabaseExtended
         .from("pickup_requests")
-        .insert(insertPayload)
-        .select("id")
-        .single();
+        .select("id, notes")
+        .eq("client_id", clientId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      if (error || !inserted) {
-        toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
+      if (pendingLookupError) {
+        toast({ title: "Request failed", description: pendingLookupError.message, variant: "destructive" });
         return;
       }
 
+      let targetRequestId: string;
+      let wasMergedIntoPending = false;
+
+      if (existingPending?.id) {
+        wasMergedIntoPending = true;
+        targetRequestId = existingPending.id;
+
+        const mergedNotes = draftNotes.trim().length > 0 ? draftNotes : (existingPending.notes ?? "");
+        const { error: mergeUpdateError } = await supabaseExtended
+          .from("pickup_requests")
+          .update({ notes: mergedNotes })
+          .eq("id", targetRequestId)
+          .eq("status", "pending");
+
+        if (mergeUpdateError) {
+          toast({ title: "Request failed", description: mergeUpdateError.message, variant: "destructive" });
+          return;
+        }
+
+        const { error: clearItemsError } = await supabaseExtended
+          .from("pickup_request_items")
+          .delete()
+          .eq("pickup_request_id", targetRequestId);
+
+        if (clearItemsError) {
+          toast({ title: "Request failed", description: clearItemsError.message, variant: "destructive" });
+          return;
+        }
+      } else {
+        const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
+          client_id: clientId,
+          route_day: routeDay,
+          scheduled_date: scheduledDate,
+          status: "pending",
+          notes: draftNotes,
+        };
+
+        const { data: inserted, error } = await supabaseExtended
+          .from("pickup_requests")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+
+        if (error || !inserted) {
+          toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
+          return;
+        }
+
+        targetRequestId = inserted.id;
+      }
+
       const selectedKnownItems = draftSelectedRugs.map((rugNumber) => ({
-        pickup_request_id: inserted.id,
+        pickup_request_id: targetRequestId,
         rug_number: rugNumber,
         rug_type: "",
         is_new: false,
@@ -325,7 +372,7 @@ export default function PortalPickupsTab() {
       }));
 
       const newRugItems = cleanedNewRugs.map((rug) => ({
-        pickup_request_id: inserted.id,
+        pickup_request_id: targetRequestId,
         rug_number: rug.label,
         rug_type: rug.rugType,
         length: rug.length > 0 ? rug.length : null,
@@ -352,10 +399,17 @@ export default function PortalPickupsTab() {
       setDraftNewRugs([]);
       setDraftKnownEstimateRequests({});
       setDraftNotes("");
-      toast({
-        title: "Pickup requested",
-        description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
-      });
+      toast(
+        wasMergedIntoPending
+          ? {
+              title: "Pending pickup updated",
+              description: "Your existing pending pickup request was updated with the latest changes.",
+            }
+          : {
+              title: "Pickup requested",
+              description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
+            }
+      );
     } finally {
       setRequesting(false);
     }
