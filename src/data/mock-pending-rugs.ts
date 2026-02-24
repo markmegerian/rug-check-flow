@@ -7,6 +7,9 @@ export interface PendingRug {
   width?: number;
   requestedServices: string[];
   source: "pickup" | "walkin";
+  pickupRequestId?: string;
+  pickupRequestItemId?: string;
+  pickupDate?: string;
 }
 
 export const MOCK_CLIENTS = [

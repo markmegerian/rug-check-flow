@@ -26,20 +26,13 @@ type PortalUserWithClient = {
   } | null;
 };
 
-type PasswordStrategy = "zip_plus_last4" | "phone_last4_fallback" | "random_fallback";
-type GeneratedPassword = {
-  value: string;
-  strategy: PasswordStrategy;
-};
 type CredentialProvisioningResult = {
-  temporaryPassword: string | null;
   mode: "created" | "updated" | "existing_internal";
 };
 type DeliveryInstructions = {
   portal_url: string;
   email: string;
-  password: string | null;
-  password_hint: string | null;
+  reset_link: string | null;
   note: string | null;
 };
 
@@ -50,40 +43,6 @@ const escapeHtml = (value: string) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-
-const extractZipCode = (address: string | null | undefined) => {
-  if (!address) return null;
-  const match = address.match(/\b(\d{5})(?:-\d{4})?\b/);
-  return match?.[1] ?? null;
-};
-
-const extractPhoneLast4 = (phone: string | null | undefined) => {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 4) return null;
-  return digits.slice(-4);
-};
-
-const buildTemporaryPassword = (
-  address: string | null | undefined,
-  phone: string | null | undefined
-): GeneratedPassword => {
-  const zip = extractZipCode(address);
-  const last4 = extractPhoneLast4(phone);
-
-  if (zip && last4) {
-    return { value: `${zip}${last4}`, strategy: "zip_plus_last4" };
-  }
-
-  if (last4) {
-    return { value: `RugBoost!${last4}`, strategy: "phone_last4_fallback" };
-  }
-
-  return {
-    value: `RugBoost!${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}`,
-    strategy: "random_fallback",
-  };
-};
 
 const findAuthUserIdByEmail = async (
   adminClient: ReturnType<typeof createClient>,
@@ -112,7 +71,7 @@ const ensurePortalUserCredentials = async (
   adminClient: ReturnType<typeof createClient>,
   email: string,
   fullName: string,
-  temporaryPassword: string
+  bootstrapPassword: string
 ): Promise<CredentialProvisioningResult> => {
   const { data: profileRows, error: existingProfileError } = await adminClient
     .from("profiles")
@@ -137,12 +96,12 @@ const ensurePortalUserCredentials = async (
     if (userRoleError) throw new Error(userRoleError.message);
     if ((userRoleRows ?? []).length > 0) {
       // Avoid changing internal staff credentials if this email has app roles.
-      return { temporaryPassword: null, mode: "existing_internal" };
+      return { mode: "existing_internal" };
     }
 
     const { error: updateUserError } = await adminClient.auth.admin.updateUserById(existingUserId, {
       email,
-      password: temporaryPassword,
+      password: bootstrapPassword,
       email_confirm: true,
       user_metadata: { full_name: fullName },
     });
@@ -153,12 +112,12 @@ const ensurePortalUserCredentials = async (
       .upsert({ user_id: existingUserId, full_name: fullName, email }, { onConflict: "user_id" });
     if (profileUpsertError) throw new Error(profileUpsertError.message);
 
-    return { temporaryPassword, mode: "updated" };
+    return { mode: "updated" };
   }
 
   const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
     email,
-    password: temporaryPassword,
+    password: bootstrapPassword,
     email_confirm: true,
     user_metadata: { full_name: fullName },
   });
@@ -171,7 +130,7 @@ const ensurePortalUserCredentials = async (
     .upsert({ user_id: createdUser.user.id, full_name: fullName, email }, { onConflict: "user_id" });
   if (profileUpsertError) throw new Error(profileUpsertError.message);
 
-  return { temporaryPassword, mode: "created" };
+  return { mode: "created" };
 };
 
 const buildPortalUrl = (req: Request) => {
@@ -198,6 +157,26 @@ const buildPortalUrl = (req: Request) => {
 
   // Last resort fallback if no origin/referer/env is available.
   return "https://mr.rugboost.com/portal";
+};
+
+const buildResetRedirectUrl = (portalUrl: string) => `${portalUrl}/auth/reset-password`;
+
+const generatePasswordResetLink = async (
+  adminClient: ReturnType<typeof createClient>,
+  email: string,
+  portalUrl: string
+) => {
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: {
+      redirectTo: buildResetRedirectUrl(portalUrl),
+    },
+  });
+
+  if (error) throw new Error(error.message);
+
+  return data.properties?.action_link ?? null;
 };
 
 Deno.serve(async (req) => {
@@ -252,30 +231,18 @@ Deno.serve(async (req) => {
       typedPortalUser.clients?.contact_name?.trim() ||
       typedPortalUser.clients?.name?.trim() ||
       "there";
-    const generatedPassword = buildTemporaryPassword(
-      typedPortalUser.clients?.address,
-      typedPortalUser.clients?.phone
-    );
+    const bootstrapPassword = Deno.env.get("WHOLESALE_ONBOARDING_BOOTSTRAP_PASSWORD") || "Rugboost!";
     const credentials = await ensurePortalUserCredentials(
       adminClient,
       typedPortalUser.email,
       typedPortalUser.clients?.contact_name?.trim() || typedPortalUser.clients?.name?.trim() || "Portal User",
-      generatedPassword.value
+      bootstrapPassword
     );
-    const shouldIncludePassword = Boolean(
-      credentials.temporaryPassword && typedPortalUser.onboarding_completed_at === null
-    );
-    const passwordInstruction = shouldIncludePassword
-      ? `Password: ${credentials.temporaryPassword}`
-      : "Password: Use your existing RugBoost portal password.";
-    const firstTimeHint =
-      shouldIncludePassword && generatedPassword.strategy === "zip_plus_last4"
-        ? "This temporary password is based on ZIP code + last 4 phone digits on file."
-        : shouldIncludePassword && generatedPassword.strategy === "phone_last4_fallback"
-          ? "Temporary password used a phone-based fallback because ZIP was unavailable."
-          : shouldIncludePassword
-            ? "Temporary password was auto-generated for secure first sign-in."
-            : null;
+    const resetLink =
+      credentials.mode === "existing_internal"
+        ? null
+        : await generatePasswordResetLink(adminClient, typedPortalUser.email, portalUrl);
+    const setPasswordLink = resetLink || `${portalUrl}/auth/forgot-password`;
 
     const subject = `RugBoost portal login instructions`;
     const bodyText = [
@@ -284,11 +251,10 @@ Deno.serve(async (req) => {
       "Your RugBoost wholesale portal account is active.",
       "",
       "Sign-in steps:",
-      `1) Open: ${portalUrl}`,
-      `2) Email: ${typedPortalUser.email}`,
-      `3) ${passwordInstruction}`,
-      "4) Sign in and complete the onboarding guide on first entry.",
-      ...(firstTimeHint ? ["", firstTimeHint] : []),
+      `1) Open this secure set-password link: ${setPasswordLink}`,
+      `2) Enter your account email: ${typedPortalUser.email}`,
+      "3) Choose your own password to finish activation.",
+      `4) Sign in at ${portalUrl} and complete the onboarding guide on first entry.`,
       ...(credentials.mode === "existing_internal"
         ? [
             "",
@@ -303,12 +269,11 @@ Deno.serve(async (req) => {
       "<p>Your RugBoost wholesale portal account is active.</p>",
       "<p><strong>Sign-in steps</strong></p>",
       "<ol>",
-      `<li>Open: <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a></li>`,
-      `<li>Email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
-      `<li>${escapeHtml(passwordInstruction)}</li>`,
-      "<li>Sign in and complete the onboarding guide on first entry.</li>",
+      `<li>Open this secure set-password link: <a href="${escapeHtml(setPasswordLink)}">${escapeHtml(setPasswordLink)}</a></li>`,
+      `<li>Enter your account email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
+      "<li>Choose your own password to finish activation.</li>",
+      `<li>Sign in at <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a> and complete the onboarding guide on first entry.</li>`,
       "</ol>",
-      ...(firstTimeHint ? [`<p>${escapeHtml(firstTimeHint)}</p>`] : []),
       ...(credentials.mode === "existing_internal"
         ? [
             "<p><em>Note:</em> This email address is linked to an existing internal RugBoost account, so password was not reset.</p>",
@@ -319,12 +284,11 @@ Deno.serve(async (req) => {
     const deliveryInstructions: DeliveryInstructions = {
       portal_url: portalUrl,
       email: typedPortalUser.email,
-      password: shouldIncludePassword ? credentials.temporaryPassword : null,
-      password_hint: firstTimeHint ?? null,
+      reset_link: resetLink,
       note:
         credentials.mode === "existing_internal"
-          ? "Email is linked to an internal account; password was not reset."
-          : null,
+          ? "Email is linked to an internal account; credentials were not changed."
+          : "User must set a password from the secure reset link before signing in.",
     };
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
