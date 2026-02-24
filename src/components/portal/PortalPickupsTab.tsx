@@ -530,21 +530,23 @@ export default function PortalPickupsTab() {
                   const estimateRequest = draftKnownEstimateRequests[rugNumber] ?? { requested: false, details: "" };
                   return (
                     <div key={`${rugNumber}-estimate`} className="rounded-md border p-2">
-                      <label className="flex items-center gap-2 text-xs font-medium">
-                        <Checkbox
-                          checked={estimateRequest.requested}
-                          onCheckedChange={(checked) => updateDraftKnownEstimate(rugNumber, { requested: Boolean(checked) })}
-                        />
-                        Request estimate for {rugNumber}
-                      </label>
-                      {estimateRequest.requested ? (
-                        <Input
-                          className="mt-2 h-8"
-                          placeholder="Enter requested estimate details"
-                          value={estimateRequest.details}
-                          onChange={(e) => updateDraftKnownEstimate(rugNumber, { details: e.target.value })}
-                        />
-                      ) : null}
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-2 text-xs font-medium shrink-0 whitespace-nowrap">
+                          <Checkbox
+                            checked={estimateRequest.requested}
+                            onCheckedChange={(checked) => updateDraftKnownEstimate(rugNumber, { requested: Boolean(checked) })}
+                          />
+                          Request estimate for {rugNumber}
+                        </label>
+                        {estimateRequest.requested ? (
+                          <Input
+                            className="h-8 flex-1"
+                            placeholder="Enter requested estimate details"
+                            value={estimateRequest.details}
+                            onChange={(e) => updateDraftKnownEstimate(rugNumber, { details: e.target.value })}
+                          />
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}
@@ -561,7 +563,7 @@ export default function PortalPickupsTab() {
                       placeholder="Rug Number"
                       value={rug.label}
                       onChange={(e) => updateDraftRug(rug.id, "label", e.target.value)}
-                      className="h-8 w-36 min-w-0"
+                      className="h-8 w-28 min-w-0"
                     />
                     <Input
                       placeholder="Type"
@@ -704,8 +706,8 @@ function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
                       {rn}
                     </label>
                     {selectedRugs.includes(rn) ? (
-                      <div className="mt-2">
-                        <label className="flex items-center gap-2 text-xs font-medium">
+                      <div className="mt-2 flex items-center gap-2">
+                        <label className="flex items-center gap-2 text-xs font-medium shrink-0 whitespace-nowrap">
                           <Checkbox
                             checked={knownRugEstimateRequests[rn]?.requested ?? false}
                             onCheckedChange={(checked) => updateKnownEstimate(rn, { requested: Boolean(checked) })}
@@ -714,7 +716,7 @@ function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
                         </label>
                         {knownRugEstimateRequests[rn]?.requested ? (
                           <Input
-                            className="mt-2 h-8"
+                            className="h-8 flex-1"
                             placeholder="Enter requested estimate details"
                             value={knownRugEstimateRequests[rn]?.details ?? ""}
                             onChange={(e) => updateKnownEstimate(rn, { details: e.target.value })}
@@ -747,7 +749,7 @@ function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
               {newRugs.map((rug) => (
                 <div key={rug.id} className="rounded-md border p-2 space-y-2">
                   <div className="flex items-center gap-2">
-                  <Input placeholder="Rug Number" value={rug.label} onChange={(e) => updateNewRug(rug.id, "label", e.target.value)} className="h-8 w-36 min-w-0" />
+                  <Input placeholder="Rug Number" value={rug.label} onChange={(e) => updateNewRug(rug.id, "label", e.target.value)} className="h-8 w-28 min-w-0" />
                   <Input placeholder="Type" value={rug.rugType} onChange={(e) => updateNewRug(rug.id, "rugType", e.target.value)} className="h-8 flex-1 min-w-0" />
                   <div className="flex items-center gap-1 shrink-0">
                     <Input type="number" placeholder="L" min={0} value={rug.length || ""} onChange={(e) => updateNewRug(rug.id, "length", Number(e.target.value))} className="h-8 w-14 text-center" />
