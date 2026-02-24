@@ -31,7 +31,14 @@ const getNextDateForRouteDay = (routeDay: string) => {
   const diff = (targetDay - today.getDay() + 7) % 7 || 7;
   const nextDate = new Date(today);
   nextDate.setDate(today.getDate() + diff);
-  return nextDate.toISOString().split("T")[0];
+  return nextDate;
+};
+
+const toLocalIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 type PickupRequestRow = {
