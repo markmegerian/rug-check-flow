@@ -16,7 +16,7 @@ if (requireSupabaseEnv && (!envSupabaseUrl || !envSupabasePublishableKey)) {
   );
 }
 
-if (!envSupabaseUrl || !envSupabasePublishableKey) {
+if (import.meta.env.DEV && (!envSupabaseUrl || !envSupabasePublishableKey)) {
   console.warn(
     "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Falling back to default project credentials."
   );

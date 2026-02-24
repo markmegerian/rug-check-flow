@@ -208,6 +208,8 @@ type ExtendedTables = Database["public"]["Tables"] & {
       created_at: string;
       verified: boolean;
       driver_notes: string;
+      driver_photo_urls: string[];
+      checked_in_rug_id: string | null;
     };
     Insert: {
       id?: string;
@@ -221,6 +223,8 @@ type ExtendedTables = Database["public"]["Tables"] & {
       created_at?: string;
       verified?: boolean;
       driver_notes?: string;
+      driver_photo_urls?: string[];
+      checked_in_rug_id?: string | null;
     };
     Update: {
       id?: string;
@@ -234,6 +238,8 @@ type ExtendedTables = Database["public"]["Tables"] & {
       created_at?: string;
       verified?: boolean;
       driver_notes?: string;
+      driver_photo_urls?: string[];
+      checked_in_rug_id?: string | null;
     };
     Relationships: [];
   };
