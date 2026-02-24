@@ -32,7 +32,7 @@ export default function PortalPricingTab() {
         supabaseExtended
           .from("services")
           .select("id, name, unit, base_price, preferred_price, vip_price")
-          .eq("is_active", true)
+          .eq("active", true)
           .order("name", { ascending: true }),
       ]);
       setClientPricing((clientResult.data ?? null) as ClientPricing | null);

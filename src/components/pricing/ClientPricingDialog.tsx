@@ -21,7 +21,7 @@ type ServiceRow = {
   base_price: number;
   preferred_price: number;
   vip_price: number;
-  is_active?: boolean;
+  active?: boolean;
 };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -56,16 +56,18 @@ export function ClientPricingDialog({ triggerLabel = "Price Lookup", fixedClient
           .order("name", { ascending: true }),
         supabaseExtended
           .from("services")
-          .select("id, name, unit, base_price, preferred_price, vip_price, is_active")
-          .eq("is_active", true)
+          .select("id, name, unit, base_price, preferred_price, vip_price, active")
+          .eq("active", true)
           .order("name", { ascending: true }),
       ]);
 
-      if (!fixedClientId) {
-        setClients((clientsResult.data ?? []) as ClientRow[]);
-        if (!selectedClientId && clientsResult.data?.[0]?.id) {
-          setSelectedClientId(clientsResult.data[0].id);
-        }
+      const loadedClients = (clientsResult.data ?? []) as ClientRow[];
+      setClients(loadedClients);
+
+      if (fixedClientId) {
+        setSelectedClientId(fixedClientId);
+      } else if (!selectedClientId && loadedClients[0]?.id) {
+        setSelectedClientId(loadedClients[0].id);
       }
 
       setServices((servicesResult.data ?? []) as ServiceRow[]);
