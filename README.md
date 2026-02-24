@@ -103,6 +103,7 @@ To send emails to clients/employees, verify your domain in Resend and set all `*
 - Smoke script: `scripts/staging-smoke-test.sh`
 - RLS scope script: `scripts/rls-scope-smoke-test.sh`
 - Private beta readiness script: `scripts/private-beta-readiness.sh`
+- Platform 1.0 assessment + roadmap: `docs/platform-1.0-roadmap.md`
 
 Example usage:
 
