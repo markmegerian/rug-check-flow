@@ -4,6 +4,7 @@ import {
   getInvoicePdfBucket,
   renderInvoicePdfBytes,
   resolveInvoicePdfStoragePath,
+  ensureInvoicePdfBucket,
   storageObjectExists,
   uploadInvoicePdf,
 } from "../_shared/invoice-pdf.ts";
@@ -119,6 +120,7 @@ Deno.serve(async (req) => {
     if (itemError) return json({ error: itemError.message }, 500);
 
     const bucket = getInvoicePdfBucket();
+    await ensureInvoicePdfBucket(adminClient, bucket);
     const scopedClientId = invoice.client_id ?? "unlinked";
     const path = resolveInvoicePdfStoragePath(scopedClientId, invoice.invoice_number, invoice.pdf_storage_path);
 
@@ -145,7 +147,7 @@ Deno.serve(async (req) => {
         await adminClient.from("invoices").update({ pdf_storage_path: path }).eq("id", invoice.id);
       }
 
-      await adminClient.from("communication_events").insert({
+      const { error: generatedEventError } = await adminClient.from("communication_events").insert({
         client_id: invoice.client_id,
         invoice_id: invoice.id,
         channel: "in_app_chat",
@@ -154,10 +156,13 @@ Deno.serve(async (req) => {
         subject: `${invoice.invoice_number} PDF generated`,
         body: `Generated invoice PDF at ${bucket}/${path}.`,
       });
+      if (generatedEventError) {
+        console.warn("invoice-pdf: failed to insert generation communication event", generatedEventError);
+      }
     }
 
     const signedUrl = await createInvoicePdfSignedUrl(adminClient, bucket, path, 300);
-    await adminClient.from("communication_events").insert({
+    const { error: downloadEventError } = await adminClient.from("communication_events").insert({
       client_id: invoice.client_id,
       invoice_id: invoice.id,
       channel: "in_app_chat",
@@ -167,6 +172,9 @@ Deno.serve(async (req) => {
       body: `${actor === "portal" ? "Portal client" : "Office user"} requested invoice PDF (${bucket}/${path}).`,
       sent_to: user.email ?? null,
     });
+    if (downloadEventError) {
+      console.warn("invoice-pdf: failed to insert download communication event", downloadEventError);
+    }
 
     return json({
       success: true,
@@ -176,7 +184,8 @@ Deno.serve(async (req) => {
       signed_url: signedUrl,
     });
   } catch (error) {
-    console.error(error);
-    return json({ error: "Internal server error" }, 500);
+    const details = error instanceof Error ? error.message : String(error);
+    console.error("invoice-pdf unhandled error", error);
+    return json({ error: "Internal server error", details }, 500);
   }
 });
