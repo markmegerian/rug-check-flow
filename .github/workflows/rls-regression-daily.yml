@@ -1,0 +1,70 @@
+name: Daily RLS Regression
+
+on:
+  schedule:
+    - cron: '15 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  rls-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      PORTAL_USER_EMAIL: ${{ secrets.PORTAL_USER_EMAIL }}
+      PORTAL_USER_PASSWORD: ${{ secrets.PORTAL_USER_PASSWORD }}
+      OFFICE_USER_EMAIL: ${{ secrets.OFFICE_USER_EMAIL }}
+      OFFICE_USER_PASSWORD: ${{ secrets.OFFICE_USER_PASSWORD }}
+      DRIVER_USER_EMAIL: ${{ secrets.DRIVER_USER_EMAIL }}
+      DRIVER_USER_PASSWORD: ${{ secrets.DRIVER_USER_PASSWORD }}
+      EXPECTED_PORTAL_CLIENT_ID: ${{ secrets.EXPECTED_PORTAL_CLIENT_ID }}
+      EXPECTED_DRIVER_USER_ID: ${{ secrets.EXPECTED_DRIVER_USER_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate required RLS regression secrets
+        run: |
+          set -euo pipefail
+          required=(
+            SUPABASE_URL
+            SUPABASE_ANON_KEY
+            PORTAL_USER_EMAIL
+            PORTAL_USER_PASSWORD
+            OFFICE_USER_EMAIL
+            OFFICE_USER_PASSWORD
+            DRIVER_USER_EMAIL
+            DRIVER_USER_PASSWORD
+          )
+          missing=()
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required daily RLS regression secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Run RLS scope smoke regression
+        run: |
+          mkdir -p artifacts
+          ./scripts/rls-scope-smoke-test.sh | tee artifacts/rls-scope-smoke-daily.log
+
+      - name: Upload RLS regression artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rls-regression-${{ github.run_id }}
+          path: artifacts/rls-scope-smoke-daily.log
+          if-no-files-found: error

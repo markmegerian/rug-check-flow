@@ -103,6 +103,7 @@ To send emails to clients/employees, verify your domain in Resend and set all `*
 - Smoke script: `scripts/staging-smoke-test.sh`
 - RLS scope script: `scripts/rls-scope-smoke-test.sh`
 - Private beta readiness script: `scripts/private-beta-readiness.sh`
+- Platform 1.0 assessment + roadmap: `docs/platform-1.0-roadmap.md`
 
 Example usage:
 
@@ -142,11 +143,65 @@ npm run test -- src/test/role-scope.integration.test.ts
 All-in-one private beta gate:
 
 ```sh
-export SAMPLE_INVOICE_ID="<optional-invoice-id-for-pdf-smoke>"
+# optional: inspect/override the invoice used by invoice-pdf smoke
+./scripts/get-sample-invoice-id.sh
+
+# if SAMPLE_INVOICE_ID is unset, private-beta-readiness.sh now auto-derives it
 ./scripts/private-beta-readiness.sh
 ```
 
-`private-beta-readiness.sh` is strict: it now requires all smoke-test environment variables and fails fast if any are missing.
+`private-beta-readiness.sh` is strict about required smoke-test credentials; if `SAMPLE_INVOICE_ID` is unset it auto-selects the latest invoice visible to `OFFICE_USER_EMAIL`. It now emits timestamped progress checkpoints (including periodic "still running" heartbeats) during longer sub-steps.
+
+Phase 5.3 pre-live gate wrapper (runs lint/test/build and conditionally runs smoke/readiness checks when env vars are present):
+
+```sh
+./scripts/phase5-3-prelive-gate.sh
+# optional: run + capture timestamped evidence artifacts
+./scripts/phase5-3-run-and-capture.sh
+# optional: sync automated checkboxes into release evidence from latest pre-live log
+./scripts/phase5-3-apply-automated-results.sh
+# when checklist is fully complete and decision is GO:
+./scripts/phase5-3-validate-and-close.sh
+```
+
+Phase 5.4 post-cutover launch watch:
+
+```sh
+WATCH_MINUTES=60 PROBE_INTERVAL_SECONDS=300 ./scripts/phase5-4-launch-watch.sh
+```
+
+Quickly print the next pending roadmap subphase at any time:
+
+```sh
+./scripts/next-stage.sh
+# optional: force "what comes after X"
+./scripts/next-stage.sh --after 5.3
+```
+
+Quick role confirmation for the three staff accounts configured in environment variables:
+
+```sh
+export OFFICE_USER_EMAIL="<office-email>"
+export OFFICE_USER_PASSWORD="<office-password>"
+export CHECKIN_USER_EMAIL="<checkin-email>"
+export CHECKIN_USER_PASSWORD="<checkin-password>"
+export DRIVER_USER_EMAIL="<driver-email>"
+export DRIVER_USER_PASSWORD="<driver-password>"
+# optional role overrides (defaults: office/checkin_staff/driver)
+# export OFFICE_EXPECTED_ROLE="office"
+# export CHECKIN_EXPECTED_ROLE="checkin_staff"
+# export DRIVER_EXPECTED_ROLE="driver"
+
+./scripts/verify-staff-roles.sh
+```
+
+One-command deploy + verification for the `invoice-pdf` edge function (for maintainers with a Supabase personal access token):
+
+```sh
+export SUPABASE_ACCESS_TOKEN="<supabase-personal-access-token>"
+# optional: export SUPABASE_PROJECT_REF="<project-ref>"
+./scripts/deploy-invoice-pdf-and-verify.sh
+```
 
 Optional operational alert dry-run (office/admin token required):
 
