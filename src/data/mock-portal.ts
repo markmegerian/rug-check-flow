@@ -17,6 +17,8 @@ export interface PickupRugEntry {
   rugType: string;
   length: number;
   width: number;
+  estimateRequested?: boolean;
+  estimateDetails?: string;
 }
 
 export interface PortalPickup {
@@ -28,6 +30,7 @@ export interface PortalPickup {
   newRugs: PickupRugEntry[];
   status: "pending" | "confirmed";
   notes?: string;
+  knownRugEstimateRequests?: Record<string, { requested: boolean; details: string }>;
 }
 
 export const PORTAL_RUGS: PortalRug[] = [
