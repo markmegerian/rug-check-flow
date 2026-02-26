@@ -10,6 +10,7 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - [ ] `npm run build` passes
 - [ ] All required migrations are committed and reviewed
 - [ ] Staging environment variables and Supabase secrets are set
+- [ ] Release evidence document created from `docs/release-evidence/template.md`
 
 ## 2) Required environment configuration
 
@@ -62,6 +63,35 @@ This runbook is the operational checklist for promoting the RugBoost app.
    ```sh
    ./scripts/private-beta-readiness.sh
    ```
+9. Save outputs in a release evidence file (`docs/release-evidence/<release-name>.md`) and attach logs/artifacts.
+
+## Release evidence contract (Phase 1.1)
+
+Use `docs/release-evidence/template.md` for every release candidate. Minimum required fields:
+
+1. Release metadata (date, commit SHA, approvers, decision).
+2. Deployment scope (migrations + function versions).
+3. Quality gates (`lint`, `test`, `build`).
+4. Smoke/readiness outputs (`staging-smoke`, `rls-scope-smoke`, `private-beta-readiness`).
+5. Invoice PDF and operational alert verification summary.
+
+Dry-run example: `docs/release-evidence/phase1-1-dry-run.md`.
+
+
+## 3.1) Release sign-off workflow (Phase 1.4)
+
+A release cannot ship without both sign-offs recorded in the release evidence file.
+
+- Engineering go/no-go owner
+  - [ ] Confirms migration + edge-function versions match intended release scope
+  - [ ] Confirms lint/test/build and readiness checks are green
+  - [ ] Confirms rollback plan is valid for this release
+- Operations go/no-go owner
+  - [ ] Confirms environment secrets and alert channels are valid
+  - [ ] Confirms incident contact path and on-call owner are active
+  - [ ] Confirms smoke evidence artifacts are attached
+
+Store final decision in `docs/release-evidence/<release-name>.md` under **Go / No-Go decision**.
 
 ## 4) Staging smoke validation
 
@@ -92,6 +122,44 @@ The role-scope RLS script validates:
   - `EXPECTED_PORTAL_CLIENT_ID`
   - `EXPECTED_DRIVER_USER_ID`
 
+
+## 4.1) Observability baseline references (Phase 2)
+
+- SLO + alert thresholds: `docs/slo-alert-thresholds.md`
+- Dashboard baseline plan: `docs/phase2-2-dashboard-baseline.md`
+- Synthetic checks: `docs/phase2-3-synthetic-checks.md`
+- Game day runbook: `docs/phase2-4-game-day-runbook.md`
+
+Use these observability docs together when configuring dashboard panels, synthetic checks, and incident drills.
+
+## 4.2) Security baseline references (Phase 3)
+
+- Automated RLS cadence: `docs/phase3-1-rls-regression-cadence.md`
+- Secrets inventory + rotation plan: `docs/phase3-2-secrets-inventory-and-rotation.md`
+- Least-privilege checklist + audit pack: `docs/phase3-3-least-privilege-review.md`
+- Retention + compliance policy: `docs/phase3-4-retention-and-compliance-policy.md`
+
+Use these security docs to validate recurring RLS posture and secrets hygiene before each production promote.
+
+## 4.3) Product quality references (Phase 4)
+
+- Beta feedback triage register: `docs/phase4-1-beta-feedback-triage.md`
+- Critical journey acceptance coverage: `docs/phase4-2-critical-journey-acceptance.md`
+- UX consistency pass checklist: `docs/phase4-3-ux-consistency-pass.md`
+
+Use the triage register to ensure only P2/P3 items remain open before final launch-candidate stabilization.
+
+## 4.4) Launch readiness references (Phase 5)
+
+- Phase 5.1 schema/migration freeze: `docs/phase5-1-schema-and-migration-freeze.md`
+- Phase 5.2 full staging rehearsal: `docs/phase5-2-full-staging-rehearsal.md`
+- Phase 5.3 controlled rollout + page-by-page UAT: `docs/phase5-3-controlled-rollout-and-page-by-page-uat.md`
+- Phase 5.4 launch monitoring watch: `docs/phase5-4-launch-monitoring-watch.md`
+
+Use these docs to package final launch-candidate evidence before production cutover.
+
+If merges/PR creation are blocked during release prep, use `docs/git-merge-pr-recovery.md`.
+
 ## 5) Production promote
 
 1. Confirm staging smoke test has passed in the release commit.
@@ -111,4 +179,3 @@ If a release fails:
    - Prefer forward-fix migrations.
    - If absolutely necessary, apply reviewed rollback SQL scripts.
 5. Re-run smoke tests before reopening access.
-

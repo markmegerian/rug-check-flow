@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import {
@@ -39,6 +40,7 @@ export default function PortalEstimatesTab() {
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
 
   const fetchEstimates = useCallback(async (activeClientId: string) => {
     const { data, error } = await supabaseExtended
@@ -68,8 +70,13 @@ export default function PortalEstimatesTab() {
       await fetchEstimates(clientId);
       setLoading(false);
     };
+
     init();
   }, [clientId, errorMessage, fetchEstimates, portalClientLoading, toast]);
+
+  const updateDecisionNote = (estimateId: string, value: string) => {
+    setDecisionNotes((prev) => ({ ...prev, [estimateId]: value }));
+  };
 
   const updateStatus = async (estimate: EstimateRow, nextStatus: "approved" | "rejected") => {
     if (!clientId || estimate.status !== "sent") return;
@@ -109,6 +116,7 @@ export default function PortalEstimatesTab() {
     }
 
     const eventType = nextStatus === "approved" ? "estimate_approved_by_client" : "estimate_rejected_by_client";
+    const decisionNote = (decisionNotes[estimate.id] ?? "").trim();
     const eventPayload: ExtendedTableInsert<"communication_events"> = {
       client_id: clientId,
       estimate_id: estimate.id,
@@ -116,7 +124,9 @@ export default function PortalEstimatesTab() {
       direction: "inbound",
       event_type: eventType,
       subject: `${estimate.estimate_number} ${nextStatus}`,
-      body: `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
+      body: decisionNote
+        ? `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.\n\nClient note: ${decisionNote}`
+        : `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
     };
     const { error: eventError } = await supabaseExtended.from("communication_events").insert(eventPayload);
     if (eventError) {
@@ -128,6 +138,7 @@ export default function PortalEstimatesTab() {
     }
 
     setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));
+    setDecisionNotes((prev) => ({ ...prev, [estimate.id]: "" }));
     toast({ title: `Estimate ${nextStatus}` });
     setUpdatingId(null);
   };
@@ -158,6 +169,12 @@ export default function PortalEstimatesTab() {
                   </div>
                   {statusBadge(estimate.status)}
                 </div>
+                <Textarea
+                  value={decisionNotes[estimate.id] ?? ""}
+                  onChange={(event) => updateDecisionNote(estimate.id, event.target.value)}
+                  placeholder="Optional note for office team..."
+                  className="min-h-20 text-sm"
+                />
                 <div className="flex gap-2">
                   <Button size="sm" className="h-7 text-xs" onClick={() => updateStatus(estimate, "approved")} disabled={updatingId === estimate.id}>Approve</Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateStatus(estimate, "rejected")} disabled={updatingId === estimate.id}>Reject</Button>

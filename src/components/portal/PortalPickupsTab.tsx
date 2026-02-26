@@ -76,7 +76,6 @@ export default function PortalPickupsTab() {
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [requesting, setRequesting] = useState(false);
   const [requestDate, setRequestDate] = useState(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
-  const [requestDateTouched, setRequestDateTouched] = useState(false);
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
   const [draftNotes, setDraftNotes] = useState("");
@@ -177,9 +176,7 @@ export default function PortalPickupsTab() {
       const derivedRegion = (selectedClient as ClientLookupRow).address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
       setRegion(derivedRegion);
-      if (!requestDateTouched) {
-        setRequestDate(getNextDateForRouteDay(derivedRouteDay));
-      }
+      setRequestDate(getNextDateForRouteDay(derivedRouteDay));
 
       const { data: rugRows, error: rugError } = await supabaseExtended
         .from("rugs")
@@ -208,7 +205,7 @@ export default function PortalPickupsTab() {
     };
 
     init();
-  }, [clientId, errorMessage, fetchPickups, portalClientLoading, requestDateTouched, toast]);
+  }, [clientId, errorMessage, fetchPickups, portalClientLoading, toast]);
 
   const handleRequestPickup = async () => {
     if (!clientId) return;
@@ -231,36 +228,83 @@ export default function PortalPickupsTab() {
     }
 
     const scheduledDate = requestDate || getNextDateForRouteDay(routeDay);
-    const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
-      client_id: clientId,
-      route_day: routeDay,
-      scheduled_date: scheduledDate,
-      status: "pending",
-      notes: draftNotes,
-    };
 
     setRequesting(true);
     try {
-      const { data: inserted, error } = await supabaseExtended
+      const { data: existingPending, error: pendingLookupError } = await supabaseExtended
         .from("pickup_requests")
-        .insert(insertPayload)
-        .select("id")
-        .single();
+        .select("id, notes")
+        .eq("client_id", clientId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      if (error || !inserted) {
-        toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
+      if (pendingLookupError) {
+        toast({ title: "Request failed", description: pendingLookupError.message, variant: "destructive" });
         return;
       }
 
+      let targetRequestId: string;
+      let wasMergedIntoPending = false;
+
+      if (existingPending?.id) {
+        wasMergedIntoPending = true;
+        targetRequestId = existingPending.id;
+
+        const mergedNotes = draftNotes.trim().length > 0 ? draftNotes : (existingPending.notes ?? "");
+        const { error: mergeUpdateError } = await supabaseExtended
+          .from("pickup_requests")
+          .update({ notes: mergedNotes })
+          .eq("id", targetRequestId)
+          .eq("status", "pending");
+
+        if (mergeUpdateError) {
+          toast({ title: "Request failed", description: mergeUpdateError.message, variant: "destructive" });
+          return;
+        }
+
+        const { error: clearItemsError } = await supabaseExtended
+          .from("pickup_request_items")
+          .delete()
+          .eq("pickup_request_id", targetRequestId);
+
+        if (clearItemsError) {
+          toast({ title: "Request failed", description: clearItemsError.message, variant: "destructive" });
+          return;
+        }
+      } else {
+        const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
+          client_id: clientId,
+          route_day: routeDay,
+          scheduled_date: scheduledDate,
+          status: "pending",
+          notes: draftNotes,
+        };
+
+        const { data: inserted, error } = await supabaseExtended
+          .from("pickup_requests")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+
+        if (error || !inserted) {
+          toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
+          return;
+        }
+
+        targetRequestId = inserted.id;
+      }
+
       const selectedKnownItems = draftSelectedRugs.map((rugNumber) => ({
-        pickup_request_id: inserted.id,
+        pickup_request_id: targetRequestId,
         rug_number: rugNumber,
         rug_type: "",
         is_new: false,
       }));
 
       const newRugItems = cleanedNewRugs.map((rug) => ({
-        pickup_request_id: inserted.id,
+        pickup_request_id: targetRequestId,
         rug_number: rug.label,
         rug_type: rug.rugType,
         length: rug.length > 0 ? rug.length : null,
@@ -280,10 +324,17 @@ export default function PortalPickupsTab() {
       setDraftSelectedRugs([]);
       setDraftNewRugs([]);
       setDraftNotes("");
-      toast({
-        title: "Pickup requested",
-        description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
-      });
+      toast(
+        wasMergedIntoPending
+          ? {
+              title: "Pending pickup updated",
+              description: "Your existing pending pickup request was updated with the latest changes.",
+            }
+          : {
+              title: "Pickup requested",
+              description: `Scheduled for ${routeDay} (${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}) based on your service route.`,
+            }
+      );
     } finally {
       setRequesting(false);
     }
@@ -396,6 +447,9 @@ export default function PortalPickupsTab() {
     );
   }
 
+  const nextPendingPickup = pickups.find((pickup) => pickup.status === "pending");
+  const selectedRugCount = draftSelectedRugs.length + draftNewRugs.filter((rug) => rug.label.trim().length > 0).length;
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2 text-muted-foreground">
@@ -408,16 +462,21 @@ export default function PortalPickupsTab() {
           Schedule a Pickup
         </h3>
         <div className="rounded-lg border bg-background p-4 space-y-4">
+          {nextPendingPickup ? (
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
+              Pickup scheduled for <strong>{new Date(`${nextPendingPickup.date}T00:00:00`).toLocaleDateString()}</strong> ({nextPendingPickup.routeDay}).
+              Add or update rugs below to adjust this pending request.
+            </div>
+          ) : (
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              Next route pickup date will be <strong className="text-foreground">{new Date(`${requestDate}T00:00:00`).toLocaleDateString()}</strong> ({routeDay}).
+            </div>
+          )}
+
           <FieldRow label="Pickup date">
-            <Input
-              type="date"
-              className="h-8 w-fit"
-              value={requestDate}
-              onChange={(e) => {
-                setRequestDateTouched(true);
-                setRequestDate(e.target.value);
-              }}
-            />
+            <span className="text-sm font-medium">
+              {new Date(`${requestDate}T00:00:00`).toLocaleDateString()} ({routeDay})
+            </span>
           </FieldRow>
 
           <FieldRow label="Rugs on file">
@@ -498,7 +557,7 @@ export default function PortalPickupsTab() {
           <div className="flex justify-end">
             <Button size="sm" onClick={handleRequestPickup} disabled={requesting}>
               <Truck className="mr-1.5 h-3.5 w-3.5" />
-              {requesting ? "Requesting…" : "Request Pickup"}
+              {requesting ? "Scheduling…" : nextPendingPickup ? `Update Scheduled Pickup (${selectedRugCount})` : `Schedule Next Route Pickup (${selectedRugCount})`}
             </Button>
           </div>
         </div>

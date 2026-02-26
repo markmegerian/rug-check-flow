@@ -44,6 +44,15 @@ interface DbService {
 
 type PricingTier = "standard" | "preferred" | "vip";
 
+const ACCEPTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+
+const isSupportedImageFile = (file: File) => {
+  if (ACCEPTED_IMAGE_MIME_TYPES.has(file.type.toLowerCase())) return true;
+  const name = file.name.toLowerCase();
+  return ACCEPTED_IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
+};
+
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
   clientName: z.string().min(1, "Client name is required"),
@@ -355,12 +364,31 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
+    const invalidFiles = files.filter((file) => !isSupportedImageFile(file));
+    if (invalidFiles.length > 0) {
+      toast({
+        title: "Unsupported file type",
+        description: "Only JPG, PNG, and WEBP photos are supported. HEIC and video files are not allowed.",
+        variant: "destructive",
+      });
+    }
+
+    const validFiles = files.filter((file) => isSupportedImageFile(file));
     const remaining = 20 - photos.length;
-    const toAdd = files.slice(0, remaining);
+    const toAdd = validFiles.slice(0, remaining);
     const newPhotos = toAdd.map((file) => ({
       file,
       preview: URL.createObjectURL(file),
     }));
+
+    if (validFiles.length > remaining) {
+      toast({
+        title: "Photo limit reached",
+        description: "You can upload up to 20 photos per check-in.",
+        variant: "destructive",
+      });
+    }
+
     setPhotos((prev) => [...prev, ...newPhotos]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -619,7 +647,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               capture="environment"
               multiple
               className="hidden"

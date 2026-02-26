@@ -48,7 +48,7 @@ type DriverPickup = {
 };
 
 const DriverPortal: React.FC = () => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [pickups, setPickups] = useState<DriverPickup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activePickupId, setActivePickupId] = useState<string | null>(null);
@@ -268,9 +268,14 @@ const DriverPortal: React.FC = () => {
     return (
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4">
-          <div className="flex items-center gap-2">
-            <Truck className="h-5 w-5" />
-            <h1 className="text-lg font-semibold">RugBoost Driver</h1>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              <h1 className="text-lg font-semibold">RugBoost Driver</h1>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => void signOut()}>
+              Sign Out
+            </Button>
           </div>
         </header>
         <main className="p-4 space-y-6 max-w-lg mx-auto">
@@ -330,11 +335,16 @@ const DriverPortal: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4">
-        <div className="flex items-center gap-3">
-          <button className="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" onClick={() => setActivePickupId(null)}>
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-semibold truncate">{activePickup.clientName}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button className="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" onClick={() => setActivePickupId(null)}>
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-lg font-semibold truncate">{activePickup.clientName}</h1>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => void signOut()}>
+            Sign Out
+          </Button>
         </div>
       </header>
       <main className="p-4 space-y-4 max-w-lg mx-auto">
