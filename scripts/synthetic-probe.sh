@@ -31,6 +31,29 @@ elif expr == 'user_id':
 PY
 }
 
+json_payload_file() {
+  local output_file="$1"
+  local key1="$2"
+  local value1="$3"
+  local key2="$4"
+  local value2="$5"
+  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+import json,sys
+with open(sys.argv[1], 'w', encoding='utf-8') as fh:
+    json.dump({sys.argv[2]: sys.argv[3], sys.argv[4]: sys.argv[5]}, fh)
+PY
+}
+
+json_payload_single() {
+  local key="$1"
+  local value="$2"
+  python - "$key" "$value" <<'PY'
+import json,sys
+print(json.dumps({sys.argv[1]: sys.argv[2]}))
+PY
+}
+
+
 http_check() {
   local label="$1"
   local url="$2"
@@ -80,7 +103,10 @@ report_file="${report_dir}/synthetic-probe-report.json"
 
 # Authenticate office user
 login_file="$(mktemp)"
-login_status="$(curl -sS -o "$login_file" -w '%{http_code}' -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$(printf '{\"email\":\"%s\",\"password\":\"%s\"}' "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD")")"
+login_payload_file="$(mktemp)"
+json_payload_file "$login_payload_file" "email" "$OFFICE_USER_EMAIL" "password" "$OFFICE_USER_PASSWORD"
+login_status="$(curl -sS -o "$login_file" -w '%{http_code}' -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" --data-binary "@${login_payload_file}")"
+rm -f "$login_payload_file"
 if [[ "$login_status" != "200" ]]; then
   echo "Office authentication failed with status ${login_status}" >&2
   cat "$login_file" >&2
@@ -103,7 +129,7 @@ results_file="$(mktemp)"
   http_check "rest.pickup_requests" "${SUPABASE_URL}/rest/v1/pickup_requests?select=id&limit=1" "GET" "" "Authorization: Bearer ${office_token}"
   http_check "rest.estimates" "${SUPABASE_URL}/rest/v1/estimates?select=id&limit=1" "GET" "" "Authorization: Bearer ${office_token}"
   http_check "rest.invoices" "${SUPABASE_URL}/rest/v1/invoices?select=id&limit=1" "GET" "" "Authorization: Bearer ${office_token}"
-  http_check "fn.invoice-pdf" "${SUPABASE_URL}/functions/v1/invoice-pdf" "POST" "$(printf '{\"invoice_id\":\"%s\"}' "$SAMPLE_INVOICE_ID")" "Authorization: Bearer ${office_token}"
+  http_check "fn.invoice-pdf" "${SUPABASE_URL}/functions/v1/invoice-pdf" "POST" "$(json_payload_single "invoice_id" "$SAMPLE_INVOICE_ID")" "Authorization: Bearer ${office_token}"
   http_check "fn.operational-alerts" "${SUPABASE_URL}/functions/v1/operational-alerts" "POST" '{"dry_run":true}' "Authorization: Bearer ${office_token}"
 } > "$results_file"
 
