@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,15 @@ interface DbService {
 }
 
 type PricingTier = "standard" | "preferred" | "vip";
+
+const ACCEPTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+
+const isSupportedImageFile = (file: File) => {
+  if (ACCEPTED_IMAGE_MIME_TYPES.has(file.type.toLowerCase())) return true;
+  const name = file.name.toLowerCase();
+  return ACCEPTED_IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
+};
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -217,6 +227,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [serviceSearch, setServiceSearch] = useState("");
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(true);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   // Per-service edge selections for linear-ft services
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
 
@@ -353,15 +368,128 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }, 0);
   }, [watchedServices, dbServices, getLineTotal]);
 
-  const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+  const appendFilesAsPhotos = useCallback((files: File[]) => {
+    const invalidFiles = files.filter((file) => !isSupportedImageFile(file));
+    if (invalidFiles.length > 0) {
+      toast({
+        title: "Unsupported file type",
+        description: "Only JPG, PNG, and WEBP photos are supported. HEIC and video files are not allowed.",
+        variant: "destructive",
+      });
+    }
+
+    const validFiles = files.filter((file) => isSupportedImageFile(file));
     const remaining = 20 - photos.length;
-    const toAdd = files.slice(0, remaining);
+    const toAdd = validFiles.slice(0, remaining);
     const newPhotos = toAdd.map((file) => ({
       file,
       preview: URL.createObjectURL(file),
     }));
-    setPhotos((prev) => [...prev, ...newPhotos]);
+
+    if (validFiles.length > remaining) {
+      toast({
+        title: "Photo limit reached",
+        description: "You can upload up to 20 photos per check-in.",
+        variant: "destructive",
+      });
+    }
+
+    if (newPhotos.length > 0) {
+      setPhotos((prev) => [...prev, ...newPhotos]);
+    }
+  }, [photos.length]);
+
+  const stopCameraStream = useCallback(() => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const openCameraCapture = useCallback(async () => {
+    if (!window.isSecureContext) {
+      toast({
+        title: "Secure context required",
+        description: "Camera capture needs HTTPS (or localhost). Use Upload Photo if you are on an insecure URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraSupported(false);
+      toast({
+        title: "Camera not supported",
+        description: "This device/browser does not support direct camera capture. Use Upload instead.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCameraLoading(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      setCameraOpen(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play();
+        }
+      }, 0);
+    } catch (error) {
+      toast({
+        title: "Unable to open camera",
+        description: error instanceof Error ? error.message : "Camera permission was denied.",
+        variant: "destructive",
+      });
+    } finally {
+      setCameraLoading(false);
+    }
+  }, []);
+
+  const captureFromCamera = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      toast({ title: "Camera not ready", description: "Wait for camera preview, then try again.", variant: "destructive" });
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      toast({ title: "Capture failed", description: "Could not access camera frame.", variant: "destructive" });
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        toast({ title: "Capture failed", description: "Could not create captured image.", variant: "destructive" });
+        return;
+      }
+      const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: "image/jpeg" });
+      appendFilesAsPhotos([file]);
+      setCameraOpen(false);
+      stopCameraStream();
+    }, "image/jpeg", 0.92);
+  }, [appendFilesAsPhotos, stopCameraStream]);
+
+  useEffect(() => {
+    return () => stopCameraStream();
+  }, [stopCameraStream]);
+
+  const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    appendFilesAsPhotos(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -607,24 +735,45 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 </div>
               ))}
               {photos.length < 20 && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-16 h-16 md:w-20 md:h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                >
-                  <Camera className="h-5 w-5" />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-16 h-16 md:w-20 md:h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                    title="Upload photo"
+                  >
+                    <Camera className="h-5 w-5" />
+                  </button>
+                  <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => void openCameraCapture()} disabled={cameraLoading || !cameraSupported}>
+                    {cameraLoading ? "Opening camera…" : "Use Camera"}
+                  </Button>
+                </>
               )}
             </div>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               capture="environment"
               multiple
               className="hidden"
               onChange={handlePhotos}
             />
+            <Dialog open={cameraOpen} onOpenChange={(open) => { setCameraOpen(open); if (!open) stopCameraStream(); }}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Capture check-in photo</DialogTitle>
+                  <DialogDescription>Use attached webcam or mobile camera to capture a photo now.</DialogDescription>
+                </DialogHeader>
+                <div className="rounded-md border bg-black/80 overflow-hidden">
+                  <video ref={videoRef} className="w-full h-auto" playsInline muted />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setCameraOpen(false); stopCameraStream(); }}>Cancel</Button>
+                  <Button type="button" onClick={captureFromCamera}>Capture Photo</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Service selection */}

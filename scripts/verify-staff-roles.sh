@@ -18,28 +18,63 @@ for var_name in "${required_vars[@]}"; do
   fi
 done
 
+sanitize_env_var() {
+  local name="$1"
+  if [[ -z "${!name+x}" ]]; then
+    return
+  fi
+  local value
+  value="${!name}"
+  value="$(python - "$value" <<'PY'
+import sys
+print(sys.argv[1].strip("\r\n"))
+PY
+)"
+  printf -v "$name" '%s' "$value"
+}
+
+for var_name in SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD CHECKIN_USER_EMAIL CHECKIN_USER_PASSWORD DRIVER_USER_EMAIL DRIVER_USER_PASSWORD; do
+  sanitize_env_var "$var_name"
+done
+
+json_payload_file() {
+  local output_file="$1"
+  local key1="$2"
+  local value1="$3"
+  local key2="$4"
+  local value2="$5"
+  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+import json, sys
+with open(sys.argv[1], 'w', encoding='utf-8') as fh:
+    json.dump({sys.argv[2]: sys.argv[3], sys.argv[4]: sys.argv[5]}, fh)
+PY
+}
+
 office_expected_role="${OFFICE_EXPECTED_ROLE:-office}"
 checkin_expected_role="${CHECKIN_EXPECTED_ROLE:-checkin_staff}"
 driver_expected_role="${DRIVER_EXPECTED_ROLE:-driver}"
 
 users=(
-  "${OFFICE_USER_EMAIL}:${OFFICE_USER_PASSWORD}:${office_expected_role}"
-  "${CHECKIN_USER_EMAIL}:${CHECKIN_USER_PASSWORD}:${checkin_expected_role}"
-  "${DRIVER_USER_EMAIL}:${DRIVER_USER_PASSWORD}:${driver_expected_role}"
+  "${OFFICE_USER_EMAIL}"$'\x1f'"${OFFICE_USER_PASSWORD}"$'\x1f'"${office_expected_role}"
+  "${CHECKIN_USER_EMAIL}"$'\x1f'"${CHECKIN_USER_PASSWORD}"$'\x1f'"${checkin_expected_role}"
+  "${DRIVER_USER_EMAIL}"$'\x1f'"${DRIVER_USER_PASSWORD}"$'\x1f'"${driver_expected_role}"
 )
 
 for spec in "${users[@]}"; do
-  IFS=':' read -r email password expected_role <<<"$spec"
+  IFS=$'\x1f' read -r email password expected_role <<<"$spec"
 
   response_file="$(mktemp)"
+  login_payload_file="$(mktemp)"
+  json_payload_file "$login_payload_file" "email" "$email" "password" "$password"
   status="$(
     curl -sS -o "$response_file" -w "%{http_code}" \
       -X POST \
       "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
       -H "apikey: ${SUPABASE_ANON_KEY}" \
       -H "Content-Type: application/json" \
-      -d "$(printf '{\"email\":\"%s\",\"password\":\"%s\"}' "$email" "$password")"
+      --data-binary "@${login_payload_file}"
   )"
+  rm -f "$login_payload_file"
 
   if [[ "$status" != "200" ]]; then
     echo "Auth failed for ${email} with status ${status}" >&2

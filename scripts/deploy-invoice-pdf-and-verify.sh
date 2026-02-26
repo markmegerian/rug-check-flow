@@ -9,6 +9,41 @@ for var_name in "${required_vars[@]}"; do
   fi
 done
 
+sanitize_env_var() {
+  local name="$1"
+  if [[ -z "${!name+x}" ]]; then
+    return
+  fi
+  local value
+  value="${!name}"
+  value="$(python - "$value" <<'PY'
+import sys
+print(sys.argv[1].strip("\r\n"))
+PY
+)"
+  printf -v "$name" '%s' "$value"
+}
+
+for var_name in SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD SAMPLE_INVOICE_ID SUPABASE_PROJECT_REF; do
+  sanitize_env_var "$var_name"
+done
+
+json_payload_file() {
+  local output_file="$1"
+  local key1="$2"
+  local value1="$3"
+  local key2="${4:-}"
+  local value2="${5:-}"
+  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+import json, sys
+payload = {sys.argv[2]: sys.argv[3]}
+if len(sys.argv) >= 6 and sys.argv[4]:
+    payload[sys.argv[4]] = sys.argv[5]
+with open(sys.argv[1], 'w', encoding='utf-8') as fh:
+    json.dump(payload, fh)
+PY
+}
+
 project_ref="${SUPABASE_PROJECT_REF:-}"
 if [[ -z "$project_ref" ]]; then
   project_ref="$(python - <<'PY'
@@ -37,12 +72,15 @@ if [[ -z "$invoice_id" ]]; then
 fi
 
 auth_response="$(mktemp)"
+login_payload_file="$(mktemp)"
+json_payload_file "$login_payload_file" "email" "$OFFICE_USER_EMAIL" "password" "$OFFICE_USER_PASSWORD"
 status="$(curl -sS -o "$auth_response" -w '%{http_code}' \
   -X POST \
   "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
   -H "apikey: ${SUPABASE_ANON_KEY}" \
   -H "Content-Type: application/json" \
-  -d "$(printf '{\"email\":\"%s\",\"password\":\"%s\"}' "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD")")"
+  --data-binary "@${login_payload_file}")"
+rm -f "$login_payload_file"
 
 if [[ "$status" != "200" ]]; then
   echo "Office auth failed with status ${status}" >&2
@@ -66,13 +104,16 @@ if [[ -z "$office_access_token" ]]; then
 fi
 
 response_file="$(mktemp)"
+invoice_payload_file="$(mktemp)"
+json_payload_file "$invoice_payload_file" "invoice_id" "$invoice_id"
 invoke_status="$(curl -sS -o "$response_file" -w '%{http_code}' \
   -X POST \
   "${SUPABASE_URL}/functions/v1/invoice-pdf" \
   -H "apikey: ${SUPABASE_ANON_KEY}" \
   -H "Authorization: Bearer ${office_access_token}" \
   -H "Content-Type: application/json" \
-  -d "$(printf '{\"invoice_id\":\"%s\"}' "$invoice_id")")"
+  --data-binary "@${invoice_payload_file}")"
+rm -f "$invoice_payload_file"
 
 cat "$response_file"
 echo

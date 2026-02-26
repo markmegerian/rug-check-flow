@@ -6,9 +6,13 @@ import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
 import PortalPricingTab from "@/components/portal/PortalPricingTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDialog";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "prices";
 
@@ -21,6 +25,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 export default function WholesalePortal() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const {
     clientId,
@@ -33,7 +38,12 @@ export default function WholesalePortal() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [autoShownOnboarding, setAutoShownOnboarding] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordGatePassed, setPasswordGatePassed] = useState(false);
   const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
+  const requiresPasswordReset = Boolean(clientId) && !onboardingCompletedAt && !passwordGatePassed;
 
   useEffect(() => {
     if (portalClientLoading || autoShownOnboarding) return;
@@ -70,6 +80,31 @@ export default function WholesalePortal() {
     setOnboardingOpen(false);
   };
 
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) {
+      toast({ title: "Password too short", description: "Use at least 8 characters.", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+
+    setChangingPassword(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setChangingPassword(false);
+    if (error) {
+      toast({ title: "Password update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setPasswordGatePassed(true);
+    setNewPassword("");
+    setConfirmPassword("");
+    setOnboardingOpen(true);
+    toast({ title: "Password updated", description: "Continue onboarding." });
+  };
+
   return (
     <AppShell
       title="Wholesale Portal"
@@ -101,11 +136,46 @@ export default function WholesalePortal() {
             ) : null}
           </div>
           <main className="rounded-xl border border-border bg-card p-3 md:p-4 shadow-sm">
-            {activeTab === "rugs" && <PortalRugsTab />}
-            {activeTab === "pickups" && <PortalPickupsTab />}
-            {activeTab === "estimates" && <PortalEstimatesTab />}
-            {activeTab === "invoices" && <PortalInvoicesTab />}
-            {activeTab === "prices" && <PortalPricingTab />}
+            {requiresPasswordReset ? (
+              <div className="max-w-md mx-auto space-y-4 py-4">
+                <h2 className="text-lg font-semibold">Change your password to continue</h2>
+                <p className="text-sm text-muted-foreground">
+                  For security, first-time portal sign in requires a password change before onboarding or workflow actions.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    minLength={8}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm new password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    minLength={8}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <Button onClick={handleChangePassword} disabled={changingPassword || !user}>
+                  {changingPassword ? "Updating..." : "Update password"}
+                </Button>
+              </div>
+            ) : (
+              <>
+                {activeTab === "rugs" && <PortalRugsTab />}
+                {activeTab === "pickups" && <PortalPickupsTab />}
+                {activeTab === "estimates" && <PortalEstimatesTab />}
+                {activeTab === "invoices" && <PortalInvoicesTab />}
+              </>
+            )}
           </main>
         </div>
       </div>

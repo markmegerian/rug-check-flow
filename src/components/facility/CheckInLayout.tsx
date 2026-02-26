@@ -318,6 +318,7 @@ export function CheckInLayout() {
             services: data.selectedServices,
             client_id: clientId,
             notes: data.conditionNotes,
+            checked_in_at: new Date().toISOString(),
           })
           .eq("id", editingEntryId);
 
@@ -389,6 +390,7 @@ export function CheckInLayout() {
           services: data.selectedServices,
           client_id: clientId,
           checked_in_by: user?.id ?? null,
+          checked_in_at: intakeDate,
           notes: data.conditionNotes,
         };
 
@@ -438,10 +440,18 @@ export function CheckInLayout() {
         }
 
         if (data.rugId) {
-          await supabaseExtended
+          const { error: pickupItemUpdateError } = await supabaseExtended
             .from("pickup_request_items")
             .update({ checked_in_rug_id: inserted.id })
             .eq("id", data.rugId);
+
+          if (pickupItemUpdateError) {
+            toast({
+              title: "Pickup item linking failed",
+              description: pickupItemUpdateError.message,
+              variant: "destructive",
+            });
+          }
         }
 
         await maybeAutoCreateEstimateDraft(inserted.id, clientId);

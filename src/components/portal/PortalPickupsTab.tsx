@@ -84,6 +84,7 @@ export default function PortalPickupsTab() {
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [requesting, setRequesting] = useState(false);
+  const [requestDate, setRequestDate] = useState(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
   const [draftKnownEstimateRequests, setDraftKnownEstimateRequests] = useState<Record<string, { requested: boolean; details: string }>>({});
@@ -235,6 +236,7 @@ export default function PortalPickupsTab() {
       const derivedRegion = (selectedClient as ClientLookupRow).address?.includes("Westchester") ? "Westchester" : DEFAULT_REGION;
       setRouteDay(derivedRouteDay);
       setRegion(derivedRegion);
+      setRequestDate(getNextDateForRouteDay(derivedRouteDay));
 
       const { data: rugRows, error: rugError } = await supabaseExtended
         .from("rugs")
@@ -539,6 +541,9 @@ export default function PortalPickupsTab() {
     );
   }
 
+  const nextPendingPickup = pickups.find((pickup) => pickup.status === "pending");
+  const selectedRugCount = draftSelectedRugs.length + draftNewRugs.filter((rug) => rug.label.trim().length > 0).length;
+
   return (
     <div className="space-y-6">
       <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2 text-muted-foreground">
@@ -551,18 +556,21 @@ export default function PortalPickupsTab() {
           Schedule a Pickup
         </h3>
         <div className="rounded-lg border bg-background p-4 space-y-4">
-          <FieldRow label="Pickup date">
-            <div className="h-8 inline-flex items-center px-2 rounded-md border bg-muted/40 text-sm text-foreground">
-              {getNextDateForRouteDay(routeDay).toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
+          {nextPendingPickup ? (
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
+              Pickup scheduled for <strong>{new Date(`${nextPendingPickup.date}T00:00:00`).toLocaleDateString()}</strong> ({nextPendingPickup.routeDay}).
+              Add or update rugs below to adjust this pending request.
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Pickup dates are assigned by your service route day ({routeDay}) and automatically move to the next available date.
-            </p>
+          ) : (
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              Next route pickup date will be <strong className="text-foreground">{new Date(`${requestDate}T00:00:00`).toLocaleDateString()}</strong> ({routeDay}).
+            </div>
+          )}
+
+          <FieldRow label="Pickup date">
+            <span className="text-sm font-medium">
+              {new Date(`${requestDate}T00:00:00`).toLocaleDateString()} ({routeDay})
+            </span>
           </FieldRow>
 
           <FieldRow label="Rugs on file">
@@ -690,7 +698,7 @@ export default function PortalPickupsTab() {
           <div className="flex justify-end">
             <Button size="sm" onClick={handleRequestPickup} disabled={requesting}>
               <Truck className="mr-1.5 h-3.5 w-3.5" />
-              {requesting ? "Requesting…" : "Request Pickup"}
+              {requesting ? "Scheduling…" : nextPendingPickup ? `Update Scheduled Pickup (${selectedRugCount})` : `Schedule Next Route Pickup (${selectedRugCount})`}
             </Button>
           </div>
         </div>
