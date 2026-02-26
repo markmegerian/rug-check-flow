@@ -160,6 +160,8 @@ Use these docs to package final launch-candidate evidence before production cuto
 
 If merges/PR creation are blocked during release prep, use `docs/git-merge-pr-recovery.md`.
 
+Before Phase 5.3 sign-off, run `./scripts/phase5-3-verify-remediation.sh` to confirm code-level remediation checks are present for currently implemented Sev1/Sev2 fixes.
+
 ## 5) Production promote
 
 1. Confirm staging smoke test has passed in the release commit.
