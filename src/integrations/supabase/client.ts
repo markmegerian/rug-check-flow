@@ -9,24 +9,20 @@ const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
 const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const envSupabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const fallbackAllowed = import.meta.env.VITE_ALLOW_SUPABASE_FALLBACK === "true";
-const requireSupabaseEnv = import.meta.env.VITE_REQUIRE_SUPABASE_ENV !== "false";
+const requireSupabaseEnv = import.meta.env.VITE_REQUIRE_SUPABASE_ENV === "true";
 
-if (requireSupabaseEnv && (!envSupabaseUrl || !envSupabasePublishableKey)) {
-  throw new Error(
-    "Missing Supabase environment configuration while VITE_REQUIRE_SUPABASE_ENV=true. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY."
-  );
-}
+const hasEnvConfig = Boolean(envSupabaseUrl && envSupabasePublishableKey);
 
-if (!fallbackAllowed && (!envSupabaseUrl || !envSupabasePublishableKey)) {
-  throw new Error(
-    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Configure environment variables to avoid accidental default-project usage."
-  );
-}
-
-if (fallbackAllowed && (!envSupabaseUrl || !envSupabasePublishableKey)) {
-  console.warn(
-    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Falling back to default project credentials because VITE_ALLOW_SUPABASE_FALLBACK=true."
-  );
+if (!hasEnvConfig) {
+  if (requireSupabaseEnv && !fallbackAllowed) {
+    console.error(
+      "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY with strict env mode enabled. Falling back to default project credentials to keep app available."
+    );
+  } else {
+    console.warn(
+      "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Falling back to default project credentials."
+    );
+  }
 }
 
 export const SUPABASE_URL = envSupabaseUrl ?? DEFAULT_SUPABASE_URL;
