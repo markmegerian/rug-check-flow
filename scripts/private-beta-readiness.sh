@@ -56,11 +56,34 @@ require_envs() {
   fi
 }
 
+json_payload_file() {
+  local output_file="$1"
+  local email="$2"
+  local password="$3"
+  python - "$output_file" "$email" "$password" <<'PY'
+import json, sys
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
+PY
+}
+
+json_payload_single() {
+  local key="$1"
+  local value="$2"
+  python - "$key" "$value" <<'PY'
+import json, sys
+print(json.dumps({sys.argv[1]: sys.argv[2]}))
+PY
+}
+
 get_access_token() {
   local email="$1"
   local password="$2"
   local response_file
   response_file="$(mktemp)"
+  local payload_file
+  payload_file="$(mktemp)"
+  json_payload_file "$payload_file" "$email" "$password"
   local status
   status="$(
     curl -sS -o "$response_file" -w "%{http_code}" \
@@ -68,8 +91,9 @@ get_access_token() {
       "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
       -H "apikey: ${SUPABASE_ANON_KEY}" \
       -H "Content-Type: application/json" \
-      -d "$(printf '{"email":"%s","password":"%s"}' "$email" "$password")"
+      --data-binary "@${payload_file}"
   )"
+  rm -f "$payload_file"
 
   if [[ "$status" != "200" ]]; then
     echo "Auth failed for ${email} with status ${status}" >&2
@@ -141,7 +165,7 @@ invoice_pdf_status="$(
     -H "apikey: ${SUPABASE_ANON_KEY}" \
     -H "Authorization: Bearer ${office_access_token}" \
     -H "Content-Type: application/json" \
-    -d "$(printf '{"invoice_id":"%s"}' "$SAMPLE_INVOICE_ID")"
+    -d "$(json_payload_single "invoice_id" "$SAMPLE_INVOICE_ID")"
 )"
 
 if [[ "$invoice_pdf_status" != "200" ]]; then
