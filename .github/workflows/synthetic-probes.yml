@@ -44,6 +44,24 @@ jobs:
             exit 1
           fi
 
+          python - <<'PY'
+import os, re, sys
+values={
+  "SUPABASE_URL": os.environ["SUPABASE_URL"],
+  "SUPABASE_ANON_KEY": os.environ["SUPABASE_ANON_KEY"],
+  "OFFICE_USER_EMAIL": os.environ["OFFICE_USER_EMAIL"],
+  "OFFICE_USER_PASSWORD": os.environ["OFFICE_USER_PASSWORD"],
+}
+for key, value in values.items():
+  if "\n" in value or "\r" in value:
+    print(f"{key} contains newline characters. Re-save the GitHub secret without line breaks.", file=sys.stderr)
+    sys.exit(1)
+
+if not re.match(r"^https://[A-Za-z0-9-]+\.supabase\.co/?$", values["SUPABASE_URL"]):
+  print("SUPABASE_URL must look like https://<project-ref>.supabase.co", file=sys.stderr)
+  sys.exit(1)
+PY
+
       - name: Run synthetic probes
         run: |
           mkdir -p artifacts

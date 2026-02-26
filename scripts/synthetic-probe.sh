@@ -97,6 +97,25 @@ PY
 
 require_envs "Synthetic probe" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 
+sanitize_env_var() {
+  local name="$1"
+  if [[ -z "${!name+x}" ]]; then
+    return
+  fi
+  local value
+  value="${!name}"
+  value="$(python - "$value" <<'PY'
+import sys
+print(sys.argv[1].strip("\r\n"))
+PY
+)"
+  printf -v "$name" '%s' "$value"
+}
+
+for var_name in SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD SAMPLE_INVOICE_ID APP_BASE_URL; do
+  sanitize_env_var "$var_name"
+done
+
 report_dir="${PROBE_REPORT_DIR:-artifacts}"
 mkdir -p "$report_dir"
 report_file="${report_dir}/synthetic-probe-report.json"
