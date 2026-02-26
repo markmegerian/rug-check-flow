@@ -410,6 +410,15 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   }, []);
 
   const openCameraCapture = useCallback(async () => {
+    if (!window.isSecureContext) {
+      toast({
+        title: "Secure context required",
+        description: "Camera capture needs HTTPS (or localhost). Use Upload Photo if you are on an insecure URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraSupported(false);
       toast({
