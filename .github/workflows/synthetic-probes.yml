@@ -1,0 +1,75 @@
+name: Synthetic Probes
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      OFFICE_USER_EMAIL: ${{ secrets.OFFICE_USER_EMAIL }}
+      OFFICE_USER_PASSWORD: ${{ secrets.OFFICE_USER_PASSWORD }}
+      SAMPLE_INVOICE_ID: ${{ secrets.SAMPLE_INVOICE_ID }}
+      APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate probe secrets
+        run: |
+          set -euo pipefail
+          required=(SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD)
+          missing=()
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required probe secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+import os, re, sys
+values={
+  "SUPABASE_URL": os.environ["SUPABASE_URL"],
+  "SUPABASE_ANON_KEY": os.environ["SUPABASE_ANON_KEY"],
+  "OFFICE_USER_EMAIL": os.environ["OFFICE_USER_EMAIL"],
+  "OFFICE_USER_PASSWORD": os.environ["OFFICE_USER_PASSWORD"],
+}
+for key, value in values.items():
+  if "\n" in value or "\r" in value:
+    print(f"{key} contains newline characters. Re-save the GitHub secret without line breaks.", file=sys.stderr)
+    sys.exit(1)
+
+if not re.match(r"^https://[A-Za-z0-9-]+\.supabase\.co/?$", values["SUPABASE_URL"]):
+  print("SUPABASE_URL must look like https://<project-ref>.supabase.co", file=sys.stderr)
+  sys.exit(1)
+PY
+
+      - name: Run synthetic probes
+        run: |
+          mkdir -p artifacts
+          ./scripts/synthetic-probe.sh
+
+      - name: Upload synthetic probe report
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-probe-${{ github.run_id }}
+          path: artifacts/synthetic-probe-report.json
+          if-no-files-found: error

@@ -19,13 +19,25 @@ for var_name in "${required_vars[@]}"; do
   fi
 done
 
+json_payload_file() {
+  local output_file="$1"
+  local email="$2"
+  local password="$3"
+  python - "$output_file" "$email" "$password" <<'PY'
+import json, sys
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
+PY
+}
+
 login_and_get_token() {
   local email="$1"
   local password="$2"
   local response_file
   response_file="$(mktemp)"
-  local payload
-  payload=$(printf '{"email":"%s","password":"%s"}' "$email" "$password")
+  local payload_file
+  payload_file="$(mktemp)"
+  json_payload_file "$payload_file" "$email" "$password"
   local status
   status="$(
     curl -sS -o "$response_file" -w "%{http_code}" \
@@ -33,8 +45,9 @@ login_and_get_token() {
       "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
       -H "apikey: ${SUPABASE_ANON_KEY}" \
       -H "Content-Type: application/json" \
-      -d "$payload"
+      --data-binary "@${payload_file}"
   )"
+  rm -f "$payload_file"
 
   if [[ "$status" != "200" ]]; then
     echo "Auth failed for ${email} with status ${status}" >&2

@@ -15,17 +15,30 @@ for var_name in "${required_vars[@]}"; do
   fi
 done
 
+json_payload_file() {
+  local output_file="$1"
+  local email="$2"
+  local password="$3"
+  python - "$output_file" "$email" "$password" <<'PY'
+import json, sys
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
+PY
+}
+
 echo "==> Authenticating smoke test user"
-auth_payload=$(printf '{"email":"%s","password":"%s"}' "$SMOKE_USER_EMAIL" "$SMOKE_USER_PASSWORD")
 auth_response_file="$(mktemp)"
+auth_payload_file="$(mktemp)"
+json_payload_file "$auth_payload_file" "$SMOKE_USER_EMAIL" "$SMOKE_USER_PASSWORD"
 auth_status="$(
   curl -sS -o "$auth_response_file" -w "%{http_code}" \
     -X POST \
     "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
     -H "apikey: ${SUPABASE_ANON_KEY}" \
     -H "Content-Type: application/json" \
-    -d "$auth_payload"
+    --data-binary "@${auth_payload_file}"
 )"
+rm -f "$auth_payload_file"
 
 if [[ "$auth_status" != "200" ]]; then
   echo "Auth failed with status ${auth_status}" >&2
@@ -113,7 +126,11 @@ if [[ -n "${SAMPLE_INVOICE_ID:-}" ]]; then
       -H "apikey: ${SUPABASE_ANON_KEY}" \
       -H "Authorization: Bearer ${access_token}" \
       -H "Content-Type: application/json" \
-      -d "$(printf '{"invoice_id":"%s"}' "$SAMPLE_INVOICE_ID")"
+      -d "$(python - "$SAMPLE_INVOICE_ID" <<'PY'
+import json, sys
+print(json.dumps({"invoice_id": sys.argv[1]}))
+PY
+)"
   )"
 
   if [[ "$invoice_pdf_status" != "200" ]]; then

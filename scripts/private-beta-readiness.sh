@@ -1,6 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+timestamp() {
+  date '+%Y-%m-%d %H:%M:%S'
+}
+
+log() {
+  echo "[$(timestamp)] $*"
+}
+
+run_with_progress() {
+  local label="$1"
+  shift
+
+  log "START: ${label}"
+  local start_time=$SECONDS
+
+  (
+    while true; do
+      sleep 20
+      log "... still running: ${label}"
+    done
+  ) &
+  local heartbeat_pid=$!
+
+  set +e
+  "$@"
+  local cmd_status=$?
+  set -e
+
+  kill "$heartbeat_pid" >/dev/null 2>&1 || true
+  wait "$heartbeat_pid" 2>/dev/null || true
+
+  local duration=$((SECONDS - start_time))
+  if [[ "$cmd_status" -ne 0 ]]; then
+    log "FAIL: ${label} (${duration}s)"
+    return "$cmd_status"
+  fi
+
+  log "DONE: ${label} (${duration}s)"
+}
+
 require_envs() {
   local context="$1"
   shift
@@ -16,11 +56,34 @@ require_envs() {
   fi
 }
 
+json_payload_file() {
+  local output_file="$1"
+  local email="$2"
+  local password="$3"
+  python - "$output_file" "$email" "$password" <<'PY'
+import json, sys
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
+PY
+}
+
+json_payload_single() {
+  local key="$1"
+  local value="$2"
+  python - "$key" "$value" <<'PY'
+import json, sys
+print(json.dumps({sys.argv[1]: sys.argv[2]}))
+PY
+}
+
 get_access_token() {
   local email="$1"
   local password="$2"
   local response_file
   response_file="$(mktemp)"
+  local payload_file
+  payload_file="$(mktemp)"
+  json_payload_file "$payload_file" "$email" "$password"
   local status
   status="$(
     curl -sS -o "$response_file" -w "%{http_code}" \
@@ -28,8 +91,9 @@ get_access_token() {
       "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
       -H "apikey: ${SUPABASE_ANON_KEY}" \
       -H "Content-Type: application/json" \
-      -d "$(printf '{"email":"%s","password":"%s"}' "$email" "$password")"
+      --data-binary "@${payload_file}"
   )"
+  rm -f "$payload_file"
 
   if [[ "$status" != "200" ]]; then
     echo "Auth failed for ${email} with status ${status}" >&2
@@ -55,30 +119,44 @@ PY
   printf "%s" "$access_token"
 }
 
-echo "==> Private beta readiness checks"
-echo "Step 1/5: Lint, test, and build"
-npm run lint
-npm run test
-npm run build
+log "==> Private beta readiness checks"
+log "Step 1/5: Lint, test, and build"
+run_with_progress "npm run lint" npm run lint
+# Keep unit tests deterministic here; role-scoped network validation runs in Step 3.
+run_with_progress "npm run test (isolated from smoke env vars)" bash -c '
+  unset SUPABASE_URL SUPABASE_ANON_KEY \
+    PORTAL_USER_EMAIL PORTAL_USER_PASSWORD \
+    OFFICE_USER_EMAIL OFFICE_USER_PASSWORD \
+    DRIVER_USER_EMAIL DRIVER_USER_PASSWORD \
+    EXPECTED_PORTAL_CLIENT_ID EXPECTED_DRIVER_USER_ID
+  npm run test
+'
+run_with_progress "npm run build" npm run build
 
-echo "Step 2/5: Staging smoke"
+log "Step 2/5: Staging smoke"
 require_envs "Staging smoke" SUPABASE_URL SUPABASE_ANON_KEY SMOKE_USER_EMAIL SMOKE_USER_PASSWORD
-./scripts/staging-smoke-test.sh
+run_with_progress "scripts/staging-smoke-test.sh" ./scripts/staging-smoke-test.sh
 
-echo "Step 3/5: Role-scoped RLS smoke"
+log "Step 3/5: Role-scoped RLS smoke"
 require_envs "Role-scoped RLS smoke" \
   SUPABASE_URL SUPABASE_ANON_KEY \
   PORTAL_USER_EMAIL PORTAL_USER_PASSWORD \
   OFFICE_USER_EMAIL OFFICE_USER_PASSWORD \
   DRIVER_USER_EMAIL DRIVER_USER_PASSWORD
-./scripts/rls-scope-smoke-test.sh
+run_with_progress "scripts/rls-scope-smoke-test.sh" ./scripts/rls-scope-smoke-test.sh
 
 office_access_token=""
 require_envs "Office auth token" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 office_access_token="$(get_access_token "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD")"
 
-echo "Step 4/5: Invoice PDF edge-function smoke"
-require_envs "Invoice PDF smoke" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD SAMPLE_INVOICE_ID
+log "Step 4/5: Invoice PDF edge-function smoke"
+require_envs "Invoice PDF smoke" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
+if [[ -z "${SAMPLE_INVOICE_ID:-}" ]]; then
+  log "SAMPLE_INVOICE_ID not set; deriving latest visible invoice id from office scope"
+  SAMPLE_INVOICE_ID="$(./scripts/get-sample-invoice-id.sh)"
+  export SAMPLE_INVOICE_ID
+  log "Using SAMPLE_INVOICE_ID=${SAMPLE_INVOICE_ID}"
+fi
 invoice_pdf_response="$(mktemp)"
 invoice_pdf_status="$(
   curl -sS -o "$invoice_pdf_response" -w "%{http_code}" \
@@ -87,7 +165,7 @@ invoice_pdf_status="$(
     -H "apikey: ${SUPABASE_ANON_KEY}" \
     -H "Authorization: Bearer ${office_access_token}" \
     -H "Content-Type: application/json" \
-    -d "$(printf '{"invoice_id":"%s"}' "$SAMPLE_INVOICE_ID")"
+    -d "$(json_payload_single "invoice_id" "$SAMPLE_INVOICE_ID")"
 )"
 
 if [[ "$invoice_pdf_status" != "200" ]]; then
@@ -107,7 +185,7 @@ print("OK: invoice-pdf signed URL returned")
 PY
 rm -f "$invoice_pdf_response"
 
-echo "Step 5/5: Operational alert dry-run"
+log "Step 5/5: Operational alert dry-run"
 require_envs "Operational alert dry-run" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 alert_response_file="$(mktemp)"
 alert_status="$(
@@ -137,4 +215,4 @@ print("OK: operational-alerts dry-run returned success")
 PY
 rm -f "$alert_response_file"
 
-echo "Private beta readiness checks completed."
+log "Private beta readiness checks completed."
