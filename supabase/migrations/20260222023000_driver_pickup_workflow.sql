@@ -21,6 +21,33 @@ USING (
   has_role(auth.uid(), 'admin'::app_role)
   OR has_role(auth.uid(), 'office'::app_role)
   OR assigned_driver_id = auth.uid()
+  OR (
+    status = 'pending'
+    AND EXISTS (
+      SELECT 1 FROM public.portal_users pu
+      WHERE pu.client_id = pickup_requests.client_id
+        AND lower(pu.email) = lower(auth.jwt() ->> 'email')
+        AND pu.status = 'active'
+    )
+  )
+)
+WITH CHECK (
+  has_role(auth.uid(), 'admin'::app_role)
+  OR has_role(auth.uid(), 'office'::app_role)
+  OR assigned_driver_id = auth.uid()
+  OR (
+    status = 'pending'
+    AND assigned_driver_id IS NULL
+    AND assigned_at IS NULL
+    AND completed_at IS NULL
+    AND signature_data_url IS NULL
+    AND EXISTS (
+      SELECT 1 FROM public.portal_users pu
+      WHERE pu.client_id = pickup_requests.client_id
+        AND lower(pu.email) = lower(auth.jwt() ->> 'email')
+        AND pu.status = 'active'
+    )
+  )
 );
 
 -- Drivers can only update items for pickup requests assigned to them
