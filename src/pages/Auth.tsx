@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Auth() {
-  const { user, roles, isPortalUser, loading, signOut } = useAuth();
+  const { user, roles, isPortalUser, loading, signOut, mustChangePassword } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +23,7 @@ export default function Auth() {
   }
 
   if (user) {
+    if (mustChangePassword) return <Navigate to="/auth/reset-password" replace />;
     if (roles.length > 0) return <Navigate to="/" replace />;
     if (isPortalUser) return <Navigate to="/portal" replace />;
     return (

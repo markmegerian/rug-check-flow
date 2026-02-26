@@ -3,6 +3,7 @@ import PortalRugsTab from "@/components/portal/PortalRugsTab";
 import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
 import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
+import PortalPricingTab from "@/components/portal/PortalPricingTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +14,14 @@ import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDial
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-type Tab = "rugs" | "pickups" | "estimates" | "invoices";
+type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "prices";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "rugs", label: "Rugs" },
   { key: "pickups", label: "Pickups" },
   { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
+  { key: "prices", label: "Prices" },
 ];
 
 export default function WholesalePortal() {

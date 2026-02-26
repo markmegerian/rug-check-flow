@@ -20,8 +20,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { Plus } from "lucide-react";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { Plus, Trash2 } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
@@ -159,6 +157,22 @@ export function UsersTab() {
       return;
     }
 
+    const { data: portalUserRows, error: portalUsersError } = await supabase
+      .from("portal_users")
+      .select("email");
+
+    if (portalUsersError) {
+      toast({ title: "Failed to load portal users", description: portalUsersError.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    const portalEmails = new Set(
+      (portalUserRows ?? [])
+        .map((portalUser) => portalUser.email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email))
+    );
+
     const profileByUserId = new Map((profileRows ?? []).map((profile) => [profile.user_id, profile]));
     const merged: AdminUserRow[] = userIds
       .map((userId) => {
@@ -178,6 +192,7 @@ export function UsersTab() {
         };
       })
       .filter((user): user is AdminUserRow => user !== null)
+      .filter((user) => !portalEmails.has(user.email.trim().toLowerCase()))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     setUsers(merged);

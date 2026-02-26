@@ -17,6 +17,7 @@ interface AuthContextType {
   portalOnboardingCompletedAt: string | null;
   isPortalUser: boolean;
   isSuperAdmin: boolean;
+  mustChangePassword: boolean;
   loading: boolean;
   hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
@@ -67,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userChanged = userIdRef.current !== nextUserId;
     userIdRef.current = nextUserId;
 
-    if (!options?.silent || userChanged) {
+    if (userChanged) {
       setLoading(true);
     }
     setSession(nextSession);
@@ -108,7 +109,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, newSession) => {
-        if (event === "TOKEN_REFRESHED") {
+        const nextUserId = newSession?.user?.id ?? null;
+        const isSameUserSession = Boolean(nextUserId && nextUserId === userIdRef.current);
+
+        if (event === "TOKEN_REFRESHED" || (event === "SIGNED_IN" && isSameUserSession)) {
           void syncAuthState(newSession, { silent: true, skipLookup: true });
           return;
         }
@@ -126,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: AppRole) => roles.includes(role);
   const isPortalUser = Boolean(portalClientId);
   const isSuperAdmin = isSuperAdminEmail(user?.email);
+  const mustChangePassword = Boolean(user?.user_metadata?.must_change_password);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -144,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         portalOnboardingCompletedAt,
         isPortalUser,
         isSuperAdmin,
+        mustChangePassword,
         loading,
         hasRole,
         signOut,
