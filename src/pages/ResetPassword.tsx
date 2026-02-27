@@ -37,10 +37,23 @@ export default function ResetPassword() {
       password,
       data: { ...user.user_metadata, must_change_password: false },
     });
+    const shouldMarkPortalPasswordChanged = isPortalUser;
+    const { data: markedPortalPasswordChanged, error: markPortalPasswordChangedError } = shouldMarkPortalPasswordChanged
+      ? await supabase.rpc("mark_portal_password_changed")
+      : { data: true, error: null };
     setSubmitting(false);
 
     if (error) {
       toast({ title: "Password update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    if (!markedPortalPasswordChanged || markPortalPasswordChangedError) {
+      toast({
+        title: "Password updated, but verification is pending",
+        description: "Please sign out and sign in again. If this persists, contact support.",
+        variant: "destructive",
+      });
       return;
     }
 
