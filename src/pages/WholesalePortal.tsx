@@ -48,14 +48,23 @@ export default function WholesalePortal() {
 
   useEffect(() => {
     if (portalClientLoading || autoShownOnboarding) return;
+    if (requiresPasswordReset) return;
     if (!clientId || onboardingCompletedAt) return;
     setOnboardingOpen(true);
     setOnboardingStep(0);
     setActiveTab("rugs");
     setAutoShownOnboarding(true);
-  }, [autoShownOnboarding, clientId, onboardingCompletedAt, portalClientLoading]);
+  }, [autoShownOnboarding, clientId, onboardingCompletedAt, portalClientLoading, requiresPasswordReset]);
 
   const openOnboarding = () => {
+    if (requiresPasswordReset) {
+      toast({
+        title: "Password update required",
+        description: "Change your password first, then onboarding will unlock.",
+        variant: "destructive",
+      });
+      return;
+    }
     setOnboardingStep(0);
     setActiveTab("rugs");
     setOnboardingOpen(true);
