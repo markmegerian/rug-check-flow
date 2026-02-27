@@ -285,6 +285,7 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          must_change_password: boolean
           onboarding_completed_at: string | null
           status: string
         }
@@ -293,6 +294,7 @@ export type Database = {
           created_at?: string
           email: string
           id?: string
+          must_change_password?: boolean
           onboarding_completed_at?: string | null
           status?: string
         }
@@ -301,6 +303,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          must_change_password?: boolean
           onboarding_completed_at?: string | null
           status?: string
         }
@@ -527,6 +530,10 @@ export type Database = {
         Returns: boolean
       }
       mark_portal_onboarding_complete: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      mark_portal_password_changed: {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }

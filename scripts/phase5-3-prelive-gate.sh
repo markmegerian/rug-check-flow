@@ -9,6 +9,7 @@ log() {
 }
 
 declare -a GATE_RESULTS=()
+HAS_SKIP=0
 
 record_result() {
   local name="$1"
@@ -47,6 +48,7 @@ skip_step() {
   local reason="$2"
   log "SKIP : $name ($reason)"
   record_result "$name" "SKIP"
+  HAS_SKIP=1
 }
 
 log "Phase 5.3 pre-live gate started"
@@ -88,6 +90,12 @@ if [[ "${PHASE53_REQUIRE_STAGING_CREDS:-false}" == "true" ]]; then
     print_summary
     exit 1
   fi
+fi
+
+if [[ "${PHASE53_FAIL_ON_SKIP:-false}" == "true" && "$HAS_SKIP" -eq 1 ]]; then
+  log "ERROR: PHASE53_FAIL_ON_SKIP=true and one or more checks were skipped"
+  print_summary
+  exit 1
 fi
 
 log "Phase 5.3 pre-live gate finished"
