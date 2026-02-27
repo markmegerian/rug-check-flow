@@ -232,6 +232,13 @@ Deno.serve(async (req) => {
       typedPortalUser.clients?.contact_name?.trim() || typedPortalUser.clients?.name?.trim() || "Portal User",
       bootstrapPassword
     );
+
+    const { error: portalFlagError } = await adminClient
+      .from("portal_users")
+      .update({ must_change_password: true })
+      .eq("id", typedPortalUser.id);
+    if (portalFlagError) return json({ error: portalFlagError.message }, 500);
+
     const resetLink = await generatePasswordResetLink(adminClient, typedPortalUser.email, portalUrl);
     const setPasswordLink = resetLink || `${portalUrl}/auth/forgot-password`;
 
