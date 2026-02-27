@@ -76,8 +76,9 @@ cp .env.example .env
 
 `VITE_ENABLE_DEV_SWITCHER` defaults to `false` and should stay `false` outside local development.
 If you set it to `true`, also enable the Supabase edge function switch (`ENABLE_DEV_LOGIN=true`) and configure `DEV_LOGIN_TEST_PASSWORD` in edge-function secrets.
-By default, if Supabase env vars are missing the app falls back to the project's default Supabase credentials.
+By default, if Supabase env vars are missing the app can fall back to the project's default Supabase credentials only when `VITE_ALLOW_SUPABASE_FALLBACK="true"`.
 Set `VITE_REQUIRE_SUPABASE_ENV="true"` to enforce strict fail-fast behavior in controlled environments.
+In non-dev environments, missing Supabase env now throws unless fallback is explicitly allowed.
 Set `VITE_ENABLE_OPERATIONAL_REMINDERS="false"` to disable Mission Control reminder queries in environments where workflow tables are not provisioned.
 Set `VITE_ENABLE_OPERATIONAL_ALERTS="true"` only when the `operational-alerts` edge function is deployed and configured.
 
@@ -156,6 +157,8 @@ Phase 5.3 pre-live gate wrapper (runs lint/test/build and conditionally runs smo
 
 ```sh
 ./scripts/phase5-3-prelive-gate.sh
+# optional: fail if any credential-gated checks are skipped
+PHASE53_FAIL_ON_SKIP=true ./scripts/phase5-3-prelive-gate.sh
 # optional: run + capture timestamped evidence artifacts
 ./scripts/phase5-3-run-and-capture.sh
 # optional: sync automated checkboxes into release evidence from latest pre-live log

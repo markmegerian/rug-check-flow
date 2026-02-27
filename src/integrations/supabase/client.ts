@@ -10,17 +10,23 @@ const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const envSupabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const fallbackAllowed = import.meta.env.VITE_ALLOW_SUPABASE_FALLBACK === "true";
 const requireSupabaseEnv = import.meta.env.VITE_REQUIRE_SUPABASE_ENV === "true";
+const isDevMode = import.meta.env.DEV;
 
 const hasEnvConfig = Boolean(envSupabaseUrl && envSupabasePublishableKey);
 
 if (!hasEnvConfig) {
-  if (requireSupabaseEnv && !fallbackAllowed) {
-    console.error(
-      "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY with strict env mode enabled. Falling back to default project credentials to keep app available."
+  const errorMessage =
+    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. This can point the app to the wrong Supabase project and cause schema/policy mismatches.";
+
+  if (requireSupabaseEnv || (!isDevMode && !fallbackAllowed)) {
+    throw new Error(
+      `${errorMessage} Set the missing env vars (recommended), or explicitly allow fallback with VITE_ALLOW_SUPABASE_FALLBACK="true" in local/dev-only contexts.`
     );
-  } else {
+  }
+
+  if (fallbackAllowed) {
     console.warn(
-      "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. Falling back to default project credentials."
+      `${errorMessage} Falling back to default project credentials because VITE_ALLOW_SUPABASE_FALLBACK="true".`
     );
   }
 }
