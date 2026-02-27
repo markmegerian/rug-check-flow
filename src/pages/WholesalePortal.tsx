@@ -32,6 +32,8 @@ export default function WholesalePortal() {
     loading: portalClientLoading,
     onboardingCompletedAt,
     markOnboardingComplete,
+    markPasswordChangeComplete,
+    mustChangePassword: portalMustChangePassword,
   } = usePortalClient();
   const [activeTab, setActiveTab] = useState<Tab>("rugs");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -41,9 +43,8 @@ export default function WholesalePortal() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordGatePassed, setPasswordGatePassed] = useState(false);
   const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
-  const requiresPasswordReset = Boolean(clientId) && !onboardingCompletedAt && !passwordGatePassed;
+  const requiresPasswordReset = Boolean(clientId) && portalMustChangePassword;
 
   useEffect(() => {
     if (portalClientLoading || autoShownOnboarding) return;
@@ -91,14 +92,25 @@ export default function WholesalePortal() {
     }
 
     setChangingPassword(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+      data: { ...(user?.user_metadata ?? {}), must_change_password: false },
+    });
+    const markedComplete = error ? false : await markPasswordChangeComplete();
     setChangingPassword(false);
     if (error) {
       toast({ title: "Password update failed", description: error.message, variant: "destructive" });
       return;
     }
+    if (!markedComplete) {
+      toast({
+        title: "Password updated, but verification is pending",
+        description: "Please sign out and sign in again. If this persists, contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setPasswordGatePassed(true);
     setNewPassword("");
     setConfirmPassword("");
     setOnboardingOpen(true);

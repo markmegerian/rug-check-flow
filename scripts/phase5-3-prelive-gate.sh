@@ -8,6 +8,24 @@ log() {
   printf '[phase5.3][%s] %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
 }
 
+declare -a GATE_RESULTS=()
+HAS_SKIP=0
+
+record_result() {
+  local name="$1"
+  local status="$2"
+  GATE_RESULTS+=("${name}|${status}")
+}
+
+print_summary() {
+  log "SUMMARY: phase5.3 gate results"
+  for item in "${GATE_RESULTS[@]}"; do
+    local name="${item%%|*}"
+    local status="${item##*|}"
+    log "SUMMARY: ${name}=${status}"
+  done
+}
+
 require_env() {
   local key="$1"
   if [[ -z "${!key:-}" ]]; then
@@ -22,6 +40,15 @@ run_step() {
   log "START: $name"
   "$@"
   log "DONE : $name"
+  record_result "$name" "PASS"
+}
+
+skip_step() {
+  local name="$1"
+  local reason="$2"
+  log "SKIP : $name ($reason)"
+  record_result "$name" "SKIP"
+  HAS_SKIP=1
 }
 
 log "Phase 5.3 pre-live gate started"
@@ -40,7 +67,7 @@ if [[ -n "${SMOKE_USER_EMAIL:-}" || -n "${SMOKE_USER_PASSWORD:-}" ]]; then
   require_env SMOKE_USER_PASSWORD
   run_step "staging smoke" ./scripts/staging-smoke-test.sh
 else
-  log "SKIP : staging smoke (SMOKE_USER_EMAIL/SMOKE_USER_PASSWORD not set)"
+  skip_step "staging smoke" "SMOKE_USER_EMAIL/SMOKE_USER_PASSWORD not set"
 fi
 
 if [[ -n "${OFFICE_USER_EMAIL:-}" || -n "${OFFICE_USER_PASSWORD:-}" || -n "${DRIVER_USER_EMAIL:-}" || -n "${DRIVER_USER_PASSWORD:-}" || -n "${PORTAL_USER_EMAIL:-}" || -n "${PORTAL_USER_PASSWORD:-}" ]]; then
@@ -53,10 +80,26 @@ if [[ -n "${OFFICE_USER_EMAIL:-}" || -n "${OFFICE_USER_PASSWORD:-}" || -n "${DRI
   run_step "rls scope smoke" ./scripts/rls-scope-smoke-test.sh
   run_step "private beta readiness" ./scripts/private-beta-readiness.sh
 else
-  log "SKIP : role-scope and readiness checks (role credentials not fully set)"
+  skip_step "rls scope smoke" "role credentials not fully set"
+  skip_step "private beta readiness" "role credentials not fully set"
+fi
+
+if [[ "${PHASE53_REQUIRE_STAGING_CREDS:-false}" == "true" ]]; then
+  if [[ -z "${SMOKE_USER_EMAIL:-}" || -z "${SMOKE_USER_PASSWORD:-}" || -z "${OFFICE_USER_EMAIL:-}" || -z "${OFFICE_USER_PASSWORD:-}" || -z "${DRIVER_USER_EMAIL:-}" || -z "${DRIVER_USER_PASSWORD:-}" || -z "${PORTAL_USER_EMAIL:-}" || -z "${PORTAL_USER_PASSWORD:-}" ]]; then
+    log "ERROR: PHASE53_REQUIRE_STAGING_CREDS=true but required staging credentials are missing"
+    print_summary
+    exit 1
+  fi
+fi
+
+if [[ "${PHASE53_FAIL_ON_SKIP:-false}" == "true" && "$HAS_SKIP" -eq 1 ]]; then
+  log "ERROR: PHASE53_FAIL_ON_SKIP=true and one or more checks were skipped"
+  print_summary
+  exit 1
 fi
 
 log "Phase 5.3 pre-live gate finished"
+print_summary
 
 if [[ -x "./scripts/next-stage.sh" ]]; then
   ./scripts/next-stage.sh --after 5.3

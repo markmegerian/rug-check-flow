@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 type PortalClientState = {
   clientId: string | null;
   onboardingCompletedAt: string | null;
+  mustChangePassword: boolean;
   loading: boolean;
   errorMessage: string | null;
 };
@@ -11,12 +12,14 @@ type PortalClientState = {
 type PortalUserLookup = {
   client_id: string;
   onboarding_completed_at: string | null;
+  must_change_password: boolean;
 };
 
 export function usePortalClient() {
   const [state, setState] = useState<PortalClientState>({
     clientId: null,
     onboardingCompletedAt: null,
+    mustChangePassword: false,
     loading: true,
     errorMessage: null,
   });
@@ -31,25 +34,49 @@ export function usePortalClient() {
       setState({
         clientId: null,
         onboardingCompletedAt: null,
+        mustChangePassword: false,
         loading: false,
         errorMessage: "Portal account required. Please sign in again.",
       });
       return;
     }
 
-    const { data: portalUser, error: portalError } = await supabase
+    const primary = await supabase
       .from("portal_users")
-      .select("client_id, onboarding_completed_at")
+      .select("client_id, onboarding_completed_at, must_change_password")
       .ilike("email", email)
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<PortalUserLookup>();
 
+    let portalUser = primary.data;
+    let portalError = primary.error;
+
+    if (portalError) {
+      const fallback = await supabase
+        .from("portal_users")
+        .select("client_id, onboarding_completed_at")
+        .ilike("email", email)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ client_id: string; onboarding_completed_at: string | null }>();
+
+      if (!fallback.error && fallback.data?.client_id) {
+        portalUser = {
+          ...fallback.data,
+          must_change_password: true,
+        };
+        portalError = null;
+      }
+    }
+
     if (portalError || !portalUser?.client_id) {
       setState({
         clientId: null,
         onboardingCompletedAt: null,
+        mustChangePassword: false,
         loading: false,
         errorMessage: portalError?.message ?? "Your email is not linked to an active client portal account.",
       });
@@ -59,6 +86,7 @@ export function usePortalClient() {
     setState({
       clientId: portalUser.client_id,
       onboardingCompletedAt: portalUser.onboarding_completed_at,
+      mustChangePassword: Boolean(portalUser.must_change_password),
       loading: false,
       errorMessage: null,
     });
@@ -66,6 +94,15 @@ export function usePortalClient() {
 
   const markOnboardingComplete = useCallback(async () => {
     const { data, error } = await supabase.rpc("mark_portal_onboarding_complete");
+    if (error || !data) {
+      return false;
+    }
+    await resolve();
+    return true;
+  }, [resolve]);
+
+  const markPasswordChangeComplete = useCallback(async () => {
+    const { data, error } = await supabase.rpc("mark_portal_password_changed");
     if (error || !data) {
       return false;
     }
@@ -81,5 +118,6 @@ export function usePortalClient() {
     ...state,
     refresh: resolve,
     markOnboardingComplete,
+    markPasswordChangeComplete,
   };
 }

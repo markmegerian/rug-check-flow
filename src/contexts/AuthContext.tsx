@@ -7,6 +7,7 @@ type AppRole = "admin" | "office" | "checkin_staff" | "driver";
 type PortalUserLink = {
   client_id: string;
   onboarding_completed_at: string | null;
+  must_change_password: boolean;
 };
 
 interface AuthContextType {
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [portalClientId, setPortalClientId] = useState<string | null>(null);
   const [portalOnboardingCompletedAt, setPortalOnboardingCompletedAt] = useState<string | null>(null);
+  const [portalMustChangePassword, setPortalMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const syncTokenRef = useRef(0);
   const userIdRef = useRef<string | null>(null);
@@ -46,16 +48,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchPortalLink = useCallback(async (email: string | null | undefined): Promise<PortalUserLink | null> => {
     if (!email) return null;
     const normalizedEmail = email.toLowerCase();
-    const { data, error } = await supabase
+    const primary = await supabase
+      .from("portal_users")
+      .select("client_id, onboarding_completed_at, must_change_password")
+      .ilike("email", normalizedEmail)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<PortalUserLink>();
+
+    if (!primary.error) {
+      return primary.data?.client_id ? primary.data : null;
+    }
+
+    const fallback = await supabase
       .from("portal_users")
       .select("client_id, onboarding_completed_at")
       .ilike("email", normalizedEmail)
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle<PortalUserLink>();
-    if (error) return null;
-    return data?.client_id ? data : null;
+      .maybeSingle<{ client_id: string; onboarding_completed_at: string | null }>();
+
+    if (fallback.error || !fallback.data?.client_id) return null;
+    return {
+      ...fallback.data,
+      must_change_password: true,
+    };
   }, []);
 
   const syncAuthState = useCallback(async (
@@ -78,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles([]);
       setPortalClientId(null);
       setPortalOnboardingCompletedAt(null);
+      setPortalMustChangePassword(false);
       setLoading(false);
       return;
     }
@@ -103,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles(effectiveRoles);
     setPortalClientId(portalLink?.client_id ?? null);
     setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
+    setPortalMustChangePassword(Boolean(portalLink?.must_change_password));
     setLoading(false);
   }, [fetchPortalLink, fetchRoles]);
 
@@ -130,13 +151,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: AppRole) => roles.includes(role);
   const isPortalUser = Boolean(portalClientId);
   const isSuperAdmin = isSuperAdminEmail(user?.email);
-  const mustChangePassword = Boolean(user?.user_metadata?.must_change_password);
+  const mustChangePassword = Boolean(user?.user_metadata?.must_change_password) || portalMustChangePassword;
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setRoles([]);
     setPortalClientId(null);
     setPortalOnboardingCompletedAt(null);
+    setPortalMustChangePassword(false);
   };
 
   return (
