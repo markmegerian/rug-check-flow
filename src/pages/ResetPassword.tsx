@@ -37,12 +37,27 @@ export default function ResetPassword() {
       password,
       data: { ...user.user_metadata, must_change_password: false },
     });
-    setSubmitting(false);
 
     if (error) {
+      setSubmitting(false);
       toast({ title: "Password update failed", description: error.message, variant: "destructive" });
       return;
     }
+
+    if (isPortalUser) {
+      const { data, error: markError } = await supabase.rpc("mark_portal_password_changed");
+      if (markError || !data) {
+        setSubmitting(false);
+        toast({
+          title: "Password updated but portal unlock failed",
+          description: "Please contact support so we can finish unlocking your portal access.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setSubmitting(false);
 
     toast({ title: "Password updated", description: "Sign-in is now unlocked." });
     if (isPortalUser) navigate("/portal", { replace: true });
