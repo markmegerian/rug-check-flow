@@ -66,7 +66,7 @@ export function usePortalClient() {
       if (!fallback.error && fallback.data?.client_id) {
         portalUser = {
           ...fallback.data,
-          must_change_password: true,
+          must_change_password: Boolean(authData.user?.user_metadata?.must_change_password),
         };
         portalError = null;
       }
@@ -103,9 +103,21 @@ export function usePortalClient() {
 
   const markPasswordChangeComplete = useCallback(async () => {
     const { data, error } = await supabase.rpc("mark_portal_password_changed");
-    if (error || !data) {
+
+    if (error) {
+      const missingRpc = error.message.toLowerCase().includes("mark_portal_password_changed")
+        || error.message.toLowerCase().includes("could not find the function");
+      if (!missingRpc) {
+        return false;
+      }
+      await resolve();
+      return true;
+    }
+
+    if (!data) {
       return false;
     }
+
     await resolve();
     return true;
   }, [resolve]);

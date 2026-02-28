@@ -46,7 +46,12 @@ export default function ResetPassword() {
 
     if (isPortalUser) {
       const { data, error: markError } = await supabase.rpc("mark_portal_password_changed");
-      if (markError || !data) {
+      const markErrorMessage = markError?.message?.toLowerCase() ?? "";
+      const missingRpc = Boolean(markError) && (
+        markErrorMessage.includes("mark_portal_password_changed")
+        || markErrorMessage.includes("could not find the function")
+      );
+      if (!missingRpc && (markError || !data)) {
         setSubmitting(false);
         toast({
           title: "Password updated but portal unlock failed",

@@ -45,7 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return (data ?? []).map((r) => r.role as AppRole);
   }, []);
 
-  const fetchPortalLink = useCallback(async (email: string | null | undefined): Promise<PortalUserLink | null> => {
+  const fetchPortalLink = useCallback(async (
+    email: string | null | undefined,
+    metadataMustChangePassword: boolean
+  ): Promise<PortalUserLink | null> => {
     if (!email) return null;
     const normalizedEmail = email.toLowerCase();
     const primary = await supabase
@@ -73,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (fallback.error || !fallback.data?.client_id) return null;
     return {
       ...fallback.data,
-      must_change_password: true,
+      must_change_password: metadataMustChangePassword,
     };
   }, []);
 
@@ -110,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const [nextRoles, portalLink] = await Promise.all([
       fetchRoles(nextUser.id),
-      fetchPortalLink(nextUser.email),
+      fetchPortalLink(nextUser.email, Boolean(nextUser.user_metadata?.must_change_password)),
     ]);
 
     if (syncTokenRef.current !== syncToken) return;
