@@ -8,25 +8,20 @@ const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
 
 const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const envSupabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const fallbackAllowed = import.meta.env.VITE_ALLOW_SUPABASE_FALLBACK === "true";
 const requireSupabaseEnv = import.meta.env.VITE_REQUIRE_SUPABASE_ENV === "true";
 const isDevMode = import.meta.env.DEV;
 
 const hasEnvConfig = Boolean(envSupabaseUrl && envSupabasePublishableKey);
 
 if (!hasEnvConfig) {
-  const errorMessage =
-    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. This can point the app to the wrong Supabase project and cause schema/policy mismatches.";
-
-  if (requireSupabaseEnv || (!isDevMode && !fallbackAllowed)) {
+  if (requireSupabaseEnv) {
     throw new Error(
-      `${errorMessage} Set the missing env vars (recommended), or explicitly allow fallback with VITE_ALLOW_SUPABASE_FALLBACK="true" in local/dev-only contexts.`
+      "VITE_REQUIRE_SUPABASE_ENV is set but VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY is missing. Copy .env.example to .env or set the vars."
     );
   }
-
-  if (fallbackAllowed) {
+  if (isDevMode) {
     console.warn(
-      `${errorMessage} Falling back to default project credentials because VITE_ALLOW_SUPABASE_FALLBACK="true".`
+      "VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY not set. Using default project. Copy .env.example to .env to silence."
     );
   }
 }
