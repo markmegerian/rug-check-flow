@@ -37,7 +37,7 @@ type DeliveryInstructions = {
   note: string | null;
 };
 
-const WHOLESALE_BOOTSTRAP_PASSWORD = "Rugboost!";
+const BOOTSTRAP_PREFIX = "RugBoost!";
 
 const escapeHtml = (value: string) =>
   value
@@ -156,7 +156,10 @@ const buildResetRedirectUrl = (portalUrl: string) => {
   return `${origin}/auth/reset-password`;
 };
 
-const generateBootstrapPassword = () => WHOLESALE_BOOTSTRAP_PASSWORD;
+const generateBootstrapPassword = (portalUserId: string) => {
+  const hex = portalUserId.replace(/-/g, "").slice(0, 10);
+  return `${BOOTSTRAP_PREFIX}${hex}`;
+};
 
 const generatePasswordResetLink = async (
   adminClient: ReturnType<typeof createClient>,
@@ -228,7 +231,7 @@ Deno.serve(async (req) => {
       typedPortalUser.clients?.contact_name?.trim() ||
       typedPortalUser.clients?.name?.trim() ||
       "there";
-    const bootstrapPassword = generateBootstrapPassword();
+    const bootstrapPassword = generateBootstrapPassword(typedPortalUser.id);
     await ensurePortalUserCredentials(
       adminClient,
       typedPortalUser.email,
@@ -252,7 +255,7 @@ Deno.serve(async (req) => {
       "Your RugBoost wholesale portal account is active.",
       "",
       "Sign-in steps:",
-      `1) Use this temporary password to sign in once: ${WHOLESALE_BOOTSTRAP_PASSWORD}`,
+      `1) Use this temporary password to sign in once: ${bootstrapPassword}`,
       `2) Immediately set your own new password here: ${setPasswordLink}`,
       `3) Enter your account email: ${typedPortalUser.email}`,
       "4) Password change is required before continuing. There is no bypass.",
@@ -265,7 +268,7 @@ Deno.serve(async (req) => {
       "<p>Your RugBoost wholesale portal account is active.</p>",
       "<p><strong>Sign-in steps</strong></p>",
       "<ol>",
-      `<li>Use this temporary password to sign in once: <strong>${escapeHtml(WHOLESALE_BOOTSTRAP_PASSWORD)}</strong></li>`,
+      `<li>Use this temporary password to sign in once: <strong>${escapeHtml(bootstrapPassword)}</strong></li>`,
       `<li>Immediately set your own new password here: <a href="${escapeHtml(setPasswordLink)}">${escapeHtml(setPasswordLink)}</a></li>`,
       `<li>Enter your account email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
       "<li><strong>Password change is required before continuing.</strong> There is no bypass.</li>",
@@ -277,7 +280,7 @@ Deno.serve(async (req) => {
       portal_url: portalUrl,
       email: typedPortalUser.email,
       reset_link: resetLink,
-      temporary_password: WHOLESALE_BOOTSTRAP_PASSWORD,
+      temporary_password: bootstrapPassword,
       note: "Temporary password works once; user must set a new password before continuing.",
     };
 
