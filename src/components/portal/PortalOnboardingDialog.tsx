@@ -30,11 +30,11 @@ const STEPS: OnboardingStep[] = [
   },
   {
     tab: "pickups",
-    title: "Manage pickup requests quickly",
-    description: "Request pickups for ready rugs and monitor request status.",
+    title: "Request a pickup",
+    description: "Tell us when to pick up rugs and which ones.",
     bullets: [
-      "Use Request Pickup to schedule your next route-day pickup.",
-      "Edit or cancel pending requests before they are confirmed.",
+      "Click “Request pickup” to schedule your next pickup date.",
+      "Check the rugs we’ve cleaned before, or add new ones, then save.",
     ],
   },
   {

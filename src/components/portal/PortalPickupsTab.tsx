@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarClock, Lock, Plus, Truck, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Lock, Plus, Truck, X } from "lucide-react";
 import {
   supabaseExtended,
   type ExtendedTableInsert,
@@ -32,13 +32,6 @@ const getNextDateForRouteDay = (routeDay: string) => {
   const nextDate = new Date(today);
   nextDate.setDate(today.getDate() + diff);
   return nextDate;
-};
-
-const toLocalIsoDate = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 };
 
 type PickupRequestRow = {
@@ -87,13 +80,14 @@ export default function PortalPickupsTab() {
   const [requestDate, setRequestDate] = useState(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
-  const [draftKnownEstimateRequests, setDraftKnownEstimateRequests] = useState<Record<string, { requested: boolean; details: string }>>({});
+  const [draftEstimateForAll, setDraftEstimateForAll] = useState(false);
+  const [draftEstimateNotes, setDraftEstimateNotes] = useState("");
   const [draftNotes, setDraftNotes] = useState("");
   const [supportsEstimateFields, setSupportsEstimateFields] = useState(true);
   const [draftHydratedPickupId, setDraftHydratedPickupId] = useState<string | null>(null);
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
-  const nextPendingPickup = useMemo(() => pickups.find((pickup) => pickup.status === "pending") ?? null, [pickups]);
+  const nextPendingPickup = useMemo(() => pickups.find((p) => p.status === "pending") ?? null, [pickups]);
 
   const toggleDraftRug = useCallback((rn: string) => {
     setDraftSelectedRugs((prev) => (prev.includes(rn) ? prev.filter((r) => r !== rn) : [...prev, rn]));
@@ -107,13 +101,6 @@ export default function PortalPickupsTab() {
     setDraftNewRugs((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
   }, []);
 
-  const updateDraftKnownEstimate = useCallback((rugNumber: string, updates: Partial<{ requested: boolean; details: string }>) => {
-    setDraftKnownEstimateRequests((prev) => {
-      const current = prev[rugNumber] ?? { requested: false, details: "" };
-      return { ...prev, [rugNumber]: { ...current, ...updates } };
-    });
-  }, []);
-
   const removeDraftRug = useCallback((id: string) => {
     setDraftNewRugs((prev) => prev.filter((r) => r.id !== id));
   }, []);
@@ -123,12 +110,15 @@ export default function PortalPickupsTab() {
       setDraftHydratedPickupId(null);
       return;
     }
-
     if (draftHydratedPickupId === nextPendingPickup.id) return;
-
     setDraftSelectedRugs(nextPendingPickup.rugNumbers);
     setDraftNewRugs(nextPendingPickup.newRugs);
-    setDraftKnownEstimateRequests(nextPendingPickup.knownRugEstimateRequests ?? {});
+    const anyEstimate = Object.values(nextPendingPickup.knownRugEstimateRequests ?? {}).some((r) => r.requested) ||
+      nextPendingPickup.newRugs.some((r) => r.estimateRequested);
+    const firstDetails = Object.values(nextPendingPickup.knownRugEstimateRequests ?? {}).find((r) => r.details)?.details
+      ?? nextPendingPickup.newRugs.find((r) => r.estimateDetails)?.estimateDetails ?? "";
+    setDraftEstimateForAll(anyEstimate);
+    setDraftEstimateNotes(firstDetails);
     setDraftNotes(nextPendingPickup.notes ?? "");
     setRequestDate(new Date(`${nextPendingPickup.date}T00:00:00`));
     setDraftHydratedPickupId(nextPendingPickup.id);
@@ -143,12 +133,15 @@ export default function PortalPickupsTab() {
       .limit(150);
 
     if (reqError) {
-      toast({ title: "Failed to load pickup requests", description: reqError.message, variant: "destructive" });
+      toast({ title: "Failed to load pickups", description: reqError.message, variant: "destructive" });
       return;
     }
 
     const requests = (reqData ?? []) as PickupRequestRow[];
-    if (requests.length === 0) { setPickups([]); return; }
+    if (requests.length === 0) {
+      setPickups([]);
+      return;
+    }
 
     const requestIds = requests.map((r) => r.id);
     let itemData: PickupRequestItemRow[] | null = null;
@@ -159,16 +152,13 @@ export default function PortalPickupsTab() {
         .from("pickup_request_items")
         .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new, estimate_requested, estimate_request_details")
         .in("pickup_request_id", requestIds);
-
       itemData = (result.data ?? []) as PickupRequestItemRow[];
       itemError = result.error ? { message: result.error.message } : null;
-
       if (result.error) {
         const fallback = await supabaseExtended
           .from("pickup_request_items")
           .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
           .in("pickup_request_id", requestIds);
-
         itemData = ((fallback.data ?? []) as PickupRequestItemRow[]).map((item) => ({
           ...item,
           estimate_requested: false,
@@ -182,7 +172,6 @@ export default function PortalPickupsTab() {
         .from("pickup_request_items")
         .select("id, pickup_request_id, rug_number, rug_type, length, width, is_new")
         .in("pickup_request_id", requestIds);
-
       itemData = ((fallback.data ?? []) as PickupRequestItemRow[]).map((item) => ({
         ...item,
         estimate_requested: false,
@@ -229,12 +218,21 @@ export default function PortalPickupsTab() {
   }, [supportsEstimateFields, toast]);
 
   useEffect(() => {
-    if (portalClientLoading) { setLoading(true); return; }
+    if (portalClientLoading) {
+      setLoading(true);
+      return;
+    }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
-      setLoading(false); setReadyRugs([]); setPickups([]); return;
+      setLoading(false);
+      setReadyRugs([]);
+      setPickups([]);
+      return;
     }
-    if (!clientId) { setLoading(false); return; }
+    if (!clientId) {
+      setLoading(false);
+      return;
+    }
 
     const init = async () => {
       setLoading(true);
@@ -245,7 +243,7 @@ export default function PortalPickupsTab() {
         .maybeSingle();
 
       if (clientError || !selectedClient?.id) {
-        toast({ title: "No client found", description: clientError?.message ?? "Please create at least one client record first.", variant: "destructive" });
+        toast({ title: "No client found", description: clientError?.message ?? "Please try again later.", variant: "destructive" });
         setLoading(false);
         return;
       }
@@ -260,7 +258,6 @@ export default function PortalPickupsTab() {
         .from("rugs")
         .select("id, tag, description, services")
         .eq("client_id", selectedClient.id)
-        // "picked_up" represents rugs delivered back to the client (on file) and can be re-serviced.
         .eq("status", "picked_up")
         .order("checked_in_at", { ascending: false })
         .limit(300);
@@ -287,14 +284,7 @@ export default function PortalPickupsTab() {
 
   const handleSchedulePickup = async () => {
     if (!clientId) return;
-    if (nextPendingPickup) {
-      toast({
-        title: "Pickup already scheduled",
-        description: "Your pending pickup is already scheduled. Add rugs below and save your list.",
-      });
-      return;
-    }
-
+    if (nextPendingPickup) return;
     const scheduledDate = requestDate || getNextDateForRouteDay(routeDay);
     setRequesting(true);
     try {
@@ -305,41 +295,40 @@ export default function PortalPickupsTab() {
         status: "pending",
         notes: "",
       };
-
       const { error } = await supabaseExtended.from("pickup_requests").insert(insertPayload);
       if (error) {
-        toast({ title: "Scheduling failed", description: error.message, variant: "destructive" });
+        toast({ title: "Request failed", description: error.message, variant: "destructive" });
         return;
       }
-
       await fetchPickups(clientId, region);
-      toast({
-        title: "Pickup scheduled",
-        description: `You are scheduled for ${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()} (${routeDay}). You can now add rugs below.`,
-      });
+      toast({ title: "Pickup requested", description: `We’ll pick up on ${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}. Add which rugs below and save.` });
     } finally {
       setRequesting(false);
     }
   };
+
+  const buildKnownRugEstimateRequests = useCallback(() => {
+    const out: Record<string, { requested: boolean; details: string }> = {};
+    readyRugNumbers.forEach((rn) => {
+      out[rn] = { requested: draftEstimateForAll, details: draftEstimateNotes };
+    });
+    return out;
+  }, [draftEstimateForAll, draftEstimateNotes, readyRugNumbers]);
 
   const handleSave = async (id: string, updates: Partial<PortalPickup>, options?: { allowEmpty?: boolean }) => {
     if (!clientId) return;
     const allowEmpty = options?.allowEmpty ?? false;
     const pickup = pickups.find((entry) => entry.id === id);
     if (!pickup || !canPortalEditPickup(pickup.status)) {
-      toast({ title: "Pickup is locked", description: "Only pending pickups can be edited.", variant: "destructive" });
+      toast({ title: "Can’t edit", description: "Only your current pickup can be edited.", variant: "destructive" });
       return;
     }
 
-    const nextReady = updates.rugNumbers ?? [];
-    const nextNewRugsRaw = updates.newRugs ?? [];
+    const nextReady = updates.rugNumbers ?? draftSelectedRugs;
+    const nextNewRugsRaw = updates.newRugs ?? draftNewRugs;
     const hasBlankNewRug = nextNewRugsRaw.some((rug) => !rug.label?.trim());
     if (hasBlankNewRug) {
-      toast({
-        title: "Missing rug name",
-        description: "Additional rugs must have a name before you can save this pickup request.",
-        variant: "destructive",
-      });
+      toast({ title: "Add a name", description: "Every rug needs a name or number.", variant: "destructive" });
       return;
     }
 
@@ -349,20 +338,23 @@ export default function PortalPickupsTab() {
       rugType: (rug.rugType ?? "").trim(),
       length: Number(rug.length ?? 0),
       width: Number(rug.width ?? 0),
+      estimateRequested: supportsEstimateFields ? draftEstimateForAll : false,
+      estimateDetails: supportsEstimateFields ? draftEstimateNotes : "",
     }));
 
     if (!allowEmpty && nextReady.length === 0 && nextNewRugs.length === 0) {
-      toast({
-        title: "Add at least one rug",
-        description: "Select an existing rug or add an additional rug before saving.",
-        variant: "destructive",
-      });
+      toast({ title: "Add at least one rug", description: "Check the rugs we’ve cleaned before, or add a new one.", variant: "destructive" });
       return;
     }
 
+    const knownRequests: Record<string, { requested: boolean; details: string }> = {};
+    nextReady.forEach((rn) => {
+      knownRequests[rn] = { requested: draftEstimateForAll, details: draftEstimateNotes };
+    });
+
     const { error: updateErr } = await supabaseExtended
       .from("pickup_requests")
-      .update({ notes: updates.notes ?? "" })
+      .update({ notes: updates.notes ?? draftNotes })
       .eq("id", id);
     if (updateErr) {
       toast({ title: "Save failed", description: updateErr.message, variant: "destructive" });
@@ -378,18 +370,12 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    const knownRequests = updates.knownRugEstimateRequests ?? {};
     const readyItems = nextReady.map((rugNumber) => ({
       pickup_request_id: id,
       rug_number: rugNumber,
       rug_type: "",
       is_new: false,
-      ...(supportsEstimateFields
-        ? {
-            estimate_requested: Boolean(knownRequests[rugNumber]?.requested),
-            estimate_request_details: knownRequests[rugNumber]?.details?.trim() || null,
-          }
-        : {}),
+      ...(supportsEstimateFields ? { estimate_requested: draftEstimateForAll, estimate_request_details: draftEstimateNotes.trim() || null } : {}),
     }));
     const newRugItems = nextNewRugs.map((rug) => ({
       pickup_request_id: id,
@@ -398,12 +384,7 @@ export default function PortalPickupsTab() {
       length: rug.length > 0 ? rug.length : null,
       width: rug.width > 0 ? rug.width : null,
       is_new: true,
-      ...(supportsEstimateFields
-        ? {
-            estimate_requested: Boolean(rug.estimateRequested),
-            estimate_request_details: rug.estimateDetails?.trim() || null,
-          }
-        : {}),
+      ...(supportsEstimateFields ? { estimate_requested: draftEstimateForAll, estimate_request_details: draftEstimateNotes.trim() || null } : {}),
     }));
     const insertItems = [...readyItems, ...newRugItems];
     if (insertItems.length > 0) {
@@ -414,22 +395,21 @@ export default function PortalPickupsTab() {
       }
     }
     await fetchPickups(clientId, region);
-    toast({ title: "Pickup details saved" });
+    toast({ title: "Saved", description: "Your pickup list is updated." });
   };
 
   const handleSaveScheduledPickup = async () => {
     if (!nextPendingPickup) {
-      toast({ title: "Schedule pickup first", description: "Click Schedule Pickup to unlock rug entry.", variant: "destructive" });
+      toast({ title: "Request a pickup first", description: "Use the button above to request a pickup, then add rugs.", variant: "destructive" });
       return;
     }
-
     await handleSave(
       nextPendingPickup.id,
       {
         rugNumbers: draftSelectedRugs,
         newRugs: draftNewRugs,
         notes: draftNotes,
-        knownRugEstimateRequests: draftKnownEstimateRequests,
+        knownRugEstimateRequests: buildKnownRugEstimateRequests(),
       },
       { allowEmpty: true }
     );
@@ -439,10 +419,9 @@ export default function PortalPickupsTab() {
     if (!clientId) return;
     const pickup = pickups.find((entry) => entry.id === id);
     if (!pickup || !canRoleTransitionPickupStatus("portal", pickup.status, "cancelled")) {
-      toast({ title: "Cancellation blocked", description: "Only pending pickups can be cancelled.", variant: "destructive" });
+      toast({ title: "Can’t cancel", description: "Only your current pickup can be cancelled.", variant: "destructive" });
       return;
     }
-
     const { error: deleteItemsError } = await supabaseExtended.from("pickup_request_items").delete().eq("pickup_request_id", id);
     if (deleteItemsError) {
       toast({ title: "Cancellation failed", description: deleteItemsError.message, variant: "destructive" });
@@ -458,179 +437,147 @@ export default function PortalPickupsTab() {
   };
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading pickups…</div>;
-  }
-
-  if (!clientId) {
     return (
-      <div className="text-sm text-muted-foreground">
-        {errorMessage ?? "This login is not linked to an active wholesale portal account."}
+      <div className="py-8 text-center text-muted-foreground">
+        Loading pickups…
       </div>
     );
   }
 
-  const selectedRugCount = draftSelectedRugs.length + draftNewRugs.filter((rug) => rug.label.trim().length > 0).length;
+  if (!clientId) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        {errorMessage ?? "This account isn’t linked to a client. Contact support."}
+      </div>
+    );
+  }
+
+  const scheduledDateStr = new Date(`${requestDate}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const rugCount = draftSelectedRugs.length + draftNewRugs.filter((r) => r.label.trim()).length;
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center gap-2 text-muted-foreground">
-        <CalendarClock className="h-4 w-4" />
-        Service region: <span className="font-medium text-foreground">{region}</span> · Pickup route day: <span className="font-medium text-foreground">{routeDay}</span>
-      </div>
+    <div className="space-y-8 max-w-2xl">
+      {/* One main card: request or edit current pickup */}
+      <section className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="bg-muted/50 px-4 py-3 border-b">
+          <p className="text-sm text-muted-foreground">
+            We pick up in <strong className="text-foreground">{region}</strong> on <strong className="text-foreground">{routeDay}s</strong>.
+          </p>
+        </div>
 
-      <section>
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Schedule a Pickup
-        </h3>
-        <div className="rounded-lg border bg-background p-4 space-y-4">
-          {nextPendingPickup ? (
-            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
-              Pickup scheduled for <strong>{new Date(`${nextPendingPickup.date}T00:00:00`).toLocaleDateString()}</strong> ({nextPendingPickup.routeDay}).
-              Add or update rugs below, then save. You can keep editing this list until the pickup is completed.
-            </div>
-          ) : (
-            <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              Next route pickup date will be <strong className="text-foreground">{new Date(`${requestDate}T00:00:00`).toLocaleDateString()}</strong> ({routeDay}).
-            </div>
-          )}
-
-          <FieldRow label="Pickup date">
-            <span className="text-sm font-medium">
-              {new Date(`${requestDate}T00:00:00`).toLocaleDateString()} ({routeDay})
-            </span>
-          </FieldRow>
-
+        <div className="p-4 space-y-6">
           {!nextPendingPickup ? (
-            <div className="flex justify-end">
-              <Button size="sm" onClick={handleSchedulePickup} disabled={requesting}>
-                <Truck className="mr-1.5 h-3.5 w-3.5" />
-                {requesting ? "Scheduling…" : "Schedule Pickup"}
+            <>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Request a pickup</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your next pickup date is <strong className="text-foreground">{scheduledDateStr}</strong>. Click below to request it, then tell us which rugs to pick up.
+                </p>
+              </div>
+              <Button size="lg" className="w-full sm:w-auto" onClick={handleSchedulePickup} disabled={requesting}>
+                <Truck className="mr-2 h-4 w-4" />
+                {requesting ? "Requesting…" : "Request pickup"}
               </Button>
-            </div>
+            </>
           ) : (
             <>
-              <FieldRow label="Rugs on file">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Your upcoming pickup</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    <strong className="text-foreground">{scheduledDateStr}</strong> · Add or change rugs below, then save.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleCancel.bind(null, nextPendingPickup.id)} className="shrink-0">
+                  Cancel pickup
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-foreground">Which rugs are we picking up?</h3>
                 {readyRugNumbers.length === 0 ? (
-                  <span className="text-sm text-muted-foreground">
-                    No rugs on file yet. Add rugs below.
-                  </span>
+                  <p className="text-sm text-muted-foreground">No rugs in our system yet. Add new rugs below.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                  <div className="flex flex-wrap gap-3">
                     {readyRugNumbers.map((rn) => (
-                      <label key={rn} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                      <label key={rn} className="flex items-center gap-2 cursor-pointer rounded-lg border px-3 py-2 hover:bg-muted/50 transition-colors">
                         <Checkbox checked={draftSelectedRugs.includes(rn)} onCheckedChange={() => toggleDraftRug(rn)} />
-                        {rn}
+                        <span className="text-sm font-medium">{rn}</span>
                       </label>
                     ))}
                   </div>
                 )}
-                {draftSelectedRugs.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {draftSelectedRugs.map((rugNumber) => {
-                      const estimateRequest = draftKnownEstimateRequests[rugNumber] ?? { requested: false, details: "" };
-                      return (
-                        <div key={`${rugNumber}-estimate`} className="rounded-md border p-2">
-                          <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-2 text-xs font-medium shrink-0 whitespace-nowrap">
-                              <Checkbox
-                                checked={estimateRequest.requested}
-                                onCheckedChange={(checked) => updateDraftKnownEstimate(rugNumber, { requested: Boolean(checked) })}
-                              />
-                              Request estimate for {rugNumber}
-                            </label>
-                            <Input
-                              className="h-8 flex-1"
-                              placeholder="Request details / additional notes for this rug"
-                              value={estimateRequest.details}
-                              onChange={(e) => updateDraftKnownEstimate(rugNumber, { details: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </FieldRow>
 
-              <FieldRow label="Additional rugs">
-                <div className="space-y-2 w-full">
-                  {draftNewRugs.map((rug) => (
-                    <div key={rug.id} className="rounded-md border p-2 space-y-2">
-                      <div className="flex items-center gap-2">
+                <div className="pt-2">
+                  <p className="text-sm font-medium text-foreground mb-2">Rugs not in our system yet</p>
+                  <div className="space-y-2">
+                    {draftNewRugs.map((rug) => (
+                      <div key={rug.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
                         <Input
-                          placeholder="Rug Number"
+                          placeholder="Rug name or number"
                           value={rug.label}
                           onChange={(e) => updateDraftRug(rug.id, "label", e.target.value)}
-                          className="h-8 w-28 min-w-0"
+                          className="h-9 flex-1 min-w-[120px]"
                         />
                         <Input
-                          placeholder="Type"
-                          value={rug.rugType}
-                          onChange={(e) => updateDraftRug(rug.id, "rugType", e.target.value)}
-                          className="h-8 flex-1 min-w-0"
+                          placeholder="Size (e.g. 8×10)"
+                          value={rug.length > 0 || rug.width > 0 ? `${rug.length}×${rug.width}` : ""}
+                          onChange={(e) => {
+                            const v = e.target.value.trim();
+                            if (!v) {
+                              updateDraftRug(rug.id, "length", 0);
+                              updateDraftRug(rug.id, "width", 0);
+                              return;
+                            }
+                            const match = v.match(/^(\d+)\s*[×x]\s*(\d+)$/i) || v.match(/^(\d+)\s*(\d+)$/);
+                            if (match) {
+                              updateDraftRug(rug.id, "length", Number(match[1]));
+                              updateDraftRug(rug.id, "width", Number(match[2]));
+                            }
+                          }}
+                          className="h-9 w-24"
                         />
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Input
-                            type="number"
-                            placeholder="L"
-                            min={0}
-                            value={rug.length || ""}
-                            onChange={(e) => updateDraftRug(rug.id, "length", Number(e.target.value))}
-                            className="h-8 w-14 text-center"
-                          />
-                          <span className="text-muted-foreground text-xs">×</span>
-                          <Input
-                            type="number"
-                            placeholder="W"
-                            min={0}
-                            value={rug.width || ""}
-                            onChange={(e) => updateDraftRug(rug.id, "width", Number(e.target.value))}
-                            className="h-8 w-14 text-center"
-                          />
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeDraftRug(rug.id)}>
-                          <X className="h-3.5 w-3.5" />
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeDraftRug(rug.id)}>
+                          <X className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-2 text-xs font-medium shrink-0 whitespace-nowrap">
-                          <Checkbox
-                            checked={Boolean(rug.estimateRequested)}
-                            onCheckedChange={(checked) => updateDraftRug(rug.id, "estimateRequested", Boolean(checked))}
-                          />
-                          Request estimate
-                        </label>
-                        <Input
-                          className="h-8 flex-1"
-                          placeholder="Request details / additional notes for this rug"
-                          value={rug.estimateDetails ?? ""}
-                          onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <button
-                    onClick={addDraftRug}
-                    className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Plus className="h-3 w-3" /> Add rug
-                  </button>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={addDraftRug}>
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Add a rug
+                    </Button>
+                  </div>
                 </div>
-              </FieldRow>
 
-              <FieldRow label="Notes">
-                <Input
-                  placeholder="Optional notes…"
-                  value={draftNotes}
-                  onChange={(e) => setDraftNotes(e.target.value)}
-                  className="h-8"
-                />
-              </FieldRow>
+                {supportsEstimateFields && (
+                  <div className="rounded-lg border p-3 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox checked={draftEstimateForAll} onCheckedChange={(c) => setDraftEstimateForAll(Boolean(c))} />
+                      <span className="text-sm font-medium">I need estimates for some of these rugs</span>
+                    </label>
+                    {draftEstimateForAll && (
+                      <Input
+                        placeholder="What do you need estimated? (optional)"
+                        value={draftEstimateNotes}
+                        onChange={(e) => setDraftEstimateNotes(e.target.value)}
+                        className="h-9"
+                      />
+                    )}
+                  </div>
+                )}
 
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleSaveScheduledPickup} disabled={requesting}>
-                  <Truck className="mr-1.5 h-3.5 w-3.5" />
-                  {requesting ? "Saving…" : `Save Pickup Details (${selectedRugCount})`}
+                <div>
+                  <label className="text-sm font-medium text-foreground block mb-1">Anything else we should know?</label>
+                  <Input
+                    placeholder="Optional notes…"
+                    value={draftNotes}
+                    onChange={(e) => setDraftNotes(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+
+                <Button size="lg" className="w-full sm:w-auto" onClick={handleSaveScheduledPickup} disabled={requesting}>
+                  {requesting ? "Saving…" : rugCount > 0 ? `Save list (${rugCount} rug${rugCount === 1 ? "" : "s"})` : "Save"}
                 </Button>
               </div>
             </>
@@ -638,14 +585,15 @@ export default function PortalPickupsTab() {
         </div>
       </section>
 
-      {pickups.filter((pickup) => pickup.id !== nextPendingPickup?.id).length > 0 && (
+      {/* Past pickups: compact list */}
+      {pickups.filter((p) => p.id !== nextPendingPickup?.id).length > 0 && (
         <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Pickup History</h3>
-          <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Past pickups</h3>
+          <div className="space-y-2">
             {pickups
-              .filter((pickup) => pickup.id !== nextPendingPickup?.id)
+              .filter((p) => p.id !== nextPendingPickup?.id)
               .map((pickup) => (
-                <PickupCard key={pickup.id} pickup={pickup} readyRugNumbers={readyRugNumbers} onSave={handleSave} onCancel={handleCancel} />
+                <PickupHistoryRow key={pickup.id} pickup={pickup} onCancel={handleCancel} />
               ))}
           </div>
         </section>
@@ -654,158 +602,47 @@ export default function PortalPickupsTab() {
   );
 }
 
-function PickupCard({ pickup, readyRugNumbers, onSave, onCancel }: {
-  pickup: PortalPickup; readyRugNumbers: string[];
-  onSave: (id: string, updates: Partial<PortalPickup>) => void;
-  onCancel: (id: string) => void;
-}) {
+function PickupHistoryRow({ pickup, onCancel }: { pickup: PortalPickup; onCancel: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
   const locked = pickup.status === "confirmed";
-  const [selectedRugs, setSelectedRugs] = useState<string[]>(pickup.rugNumbers);
-  const [notes, setNotes] = useState(pickup.notes || "");
-  const [newRugs, setNewRugs] = useState<PickupRugEntry[]>(pickup.newRugs);
-  const [knownRugEstimateRequests, setKnownRugEstimateRequests] = useState<Record<string, { requested: boolean; details: string }>>(pickup.knownRugEstimateRequests ?? {});
-
-  const fmtDate = (d: string) =>
-    new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const toggleRug = (rn: string) =>
-    setSelectedRugs((prev) => (prev.includes(rn) ? prev.filter((r) => r !== rn) : [...prev, rn]));
-  const addNewRug = () =>
-    setNewRugs((prev) => [...prev, { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0 }]);
-  const updateNewRug = (id: string, field: keyof PickupRugEntry, value: string | number | boolean) =>
-    setNewRugs((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
-  const removeNewRug = (id: string) => setNewRugs((prev) => prev.filter((r) => r.id !== id));
-  const updateKnownEstimate = (rugNumber: string, updates: Partial<{ requested: boolean; details: string }>) =>
-    setKnownRugEstimateRequests((prev) => {
-      const current = prev[rugNumber] ?? { requested: false, details: "" };
-      return { ...prev, [rugNumber]: { ...current, ...updates } };
-    });
+  const dateStr = new Date(`${pickup.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const totalRugs = pickup.rugNumbers.length + pickup.newRugs.length;
 
   return (
-    <div className="rounded-lg border bg-background overflow-hidden">
-      {locked && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-muted text-xs text-muted-foreground border-b">
-          <Lock className="h-3 w-3" /> Confirmed — no longer editable
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="font-medium text-foreground">{dateStr}</span>
+        <span className="text-sm text-muted-foreground">
+          {totalRugs} rug{totalRugs !== 1 ? "s" : ""}
+        </span>
+        <span className="flex items-center gap-1">
+          {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+          <span className="text-xs text-muted-foreground capitalize">{pickup.status}</span>
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-0 border-t space-y-2">
+          <div className="text-sm text-muted-foreground pt-2">
+            {pickup.rugNumbers.length > 0 && (
+              <p><strong className="text-foreground">Rugs:</strong> {pickup.rugNumbers.join(", ")}</p>
+            )}
+            {pickup.newRugs.length > 0 && (
+              <p><strong className="text-foreground">New:</strong> {pickup.newRugs.map((r) => r.label || "Unnamed").join(", ")}</p>
+            )}
+            {pickup.notes && <p><strong className="text-foreground">Notes:</strong> {pickup.notes}</p>}
+          </div>
+          {!locked && (
+            <Button variant="outline" size="sm" onClick={() => onCancel(pickup.id)}>
+              Cancel this pickup
+            </Button>
+          )}
         </div>
       )}
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-semibold">{fmtDate(pickup.date)}</span>
-          <span className="text-muted-foreground">{pickup.routeDay} route · {pickup.region}</span>
-        </div>
-
-        {readyRugNumbers.length > 0 && (
-          <FieldRow label="Rugs on file">
-            {locked ? (
-              <span className="text-sm">{pickup.rugNumbers.join(", ") || "—"}</span>
-            ) : (
-              <div className="space-y-2">
-                {readyRugNumbers.map((rn) => (
-                  <div key={rn} className="rounded-md border p-2">
-                    <label className="flex items-center gap-1.5 cursor-pointer text-sm">
-                      <Checkbox checked={selectedRugs.includes(rn)} onCheckedChange={() => toggleRug(rn)} />
-                      {rn}
-                    </label>
-                    {selectedRugs.includes(rn) ? (
-                      <div className="mt-2 flex items-center gap-2">
-                        <label className="flex items-center gap-2 text-xs font-medium shrink-0 whitespace-nowrap">
-                          <Checkbox
-                            checked={knownRugEstimateRequests[rn]?.requested ?? false}
-                            onCheckedChange={(checked) => updateKnownEstimate(rn, { requested: Boolean(checked) })}
-                          />
-                          Request estimate for {rn}
-                        </label>
-                        <Input
-                          className="h-8 flex-1"
-                          placeholder="Request details / additional notes for this rug"
-                          value={knownRugEstimateRequests[rn]?.details ?? ""}
-                          onChange={(e) => updateKnownEstimate(rn, { details: e.target.value })}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </FieldRow>
-        )}
-
-        <FieldRow label="Additional rugs">
-          {locked ? (
-            newRugs.length > 0 ? (
-              <div className="space-y-1">
-                {newRugs.map((r) => (
-                  <span key={r.id} className="text-sm block">
-                    {r.label || "Unnamed"} · {r.rugType} · {r.length}×{r.width} ft
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )
-          ) : (
-            <div className="space-y-2 w-full">
-              {newRugs.map((rug) => (
-                <div key={rug.id} className="rounded-md border p-2 space-y-2">
-                  <div className="flex items-center gap-2">
-                  <Input placeholder="Rug Number" value={rug.label} onChange={(e) => updateNewRug(rug.id, "label", e.target.value)} className="h-8 w-28 min-w-0" />
-                  <Input placeholder="Type" value={rug.rugType} onChange={(e) => updateNewRug(rug.id, "rugType", e.target.value)} className="h-8 flex-1 min-w-0" />
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Input type="number" placeholder="L" min={0} value={rug.length || ""} onChange={(e) => updateNewRug(rug.id, "length", Number(e.target.value))} className="h-8 w-14 text-center" />
-                    <span className="text-muted-foreground text-xs">×</span>
-                    <Input type="number" placeholder="W" min={0} value={rug.width || ""} onChange={(e) => updateNewRug(rug.id, "width", Number(e.target.value))} className="h-8 w-14 text-center" />
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeNewRug(rug.id)}>
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 text-xs font-medium shrink-0 whitespace-nowrap">
-                      <Checkbox
-                        checked={Boolean(rug.estimateRequested)}
-                        onCheckedChange={(checked) => updateNewRug(rug.id, "estimateRequested", Boolean(checked))}
-                      />
-                      Request estimate
-                    </label>
-                    <Input
-                      className="h-8 flex-1"
-                      placeholder="Request details / additional notes for this rug"
-                      value={rug.estimateDetails ?? ""}
-                      onChange={(e) => updateNewRug(rug.id, "estimateDetails", e.target.value)}
-                    />
-                  </div>
-                </div>
-              ))}
-              <button onClick={addNewRug} className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <Plus className="h-3 w-3" /> Add rug
-              </button>
-            </div>
-          )}
-        </FieldRow>
-
-        <FieldRow label="Notes">
-          {locked ? (
-            <span className="text-sm">{pickup.notes || "—"}</span>
-          ) : (
-            <Input placeholder="Optional notes…" value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8" />
-          )}
-        </FieldRow>
-
-        {!locked && (
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => onCancel(pickup.id)}>Cancel</Button>
-            <Button size="sm" className="text-xs" onClick={() => onSave(pickup.id, { rugNumbers: selectedRugs, newRugs, notes, knownRugEstimateRequests })}>Save</Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function FieldRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex gap-3 text-sm">
-      <span className="w-24 shrink-0 text-muted-foreground text-xs pt-1">{label}</span>
-      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
