@@ -223,11 +223,13 @@ export type Database = {
         Row: {
           client_id: string | null
           created_at: string
+          delivery_list_id: string | null
           due_at: string | null
           id: string
           invoice_number: string
           issued_at: string | null
           paid_at: string | null
+          pdf_storage_path: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           total: number
           updated_at: string
@@ -235,11 +237,13 @@ export type Database = {
         Insert: {
           client_id?: string | null
           created_at?: string
+          delivery_list_id?: string | null
           due_at?: string | null
           id?: string
           invoice_number: string
           issued_at?: string | null
           paid_at?: string | null
+          pdf_storage_path?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           total?: number
           updated_at?: string
@@ -247,11 +251,13 @@ export type Database = {
         Update: {
           client_id?: string | null
           created_at?: string
+          delivery_list_id?: string | null
           due_at?: string | null
           id?: string
           invoice_number?: string
           issued_at?: string | null
           paid_at?: string | null
+          pdf_storage_path?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           total?: number
           updated_at?: string
@@ -264,6 +270,13 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "invoices_delivery_list_id_fkey"
+            columns: ["delivery_list_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_lists"
+            referencedColumns: ["id"]
+          },
         ]
       }
       portal_users: {
@@ -272,6 +285,8 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          must_change_password: boolean
+          onboarding_completed_at: string | null
           status: string
         }
         Insert: {
@@ -279,6 +294,8 @@ export type Database = {
           created_at?: string
           email: string
           id?: string
+          must_change_password?: boolean
+          onboarding_completed_at?: string | null
           status?: string
         }
         Update: {
@@ -286,6 +303,8 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          must_change_password?: boolean
+          onboarding_completed_at?: string | null
           status?: string
         }
         Relationships: [
@@ -508,6 +527,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      mark_portal_onboarding_complete: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      mark_portal_password_changed: {
+        Args: Record<PropertyKey, never>
         Returns: boolean
       }
     }
