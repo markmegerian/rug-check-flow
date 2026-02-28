@@ -120,6 +120,20 @@ export default function PortalPickupsTab() {
     setDraftEstimateByRug((prev) => ({ ...prev, [rugNumber]: { requested, details } }));
   }, []);
 
+  /** True if this new rug's label duplicates a selected known rug or another new rug on the current pickup. */
+  const isDuplicateNewRugLabel = useCallback(
+    (rugId: string, label: string) => {
+      const key = label.trim().toLowerCase();
+      if (!key) return false;
+      const others = [
+        ...draftSelectedRugs,
+        ...draftNewRugs.filter((r) => r.id !== rugId).map((r) => r.label.trim()),
+      ].filter(Boolean).map((s) => s.toLowerCase());
+      return others.includes(key);
+    },
+    [draftSelectedRugs, draftNewRugs]
+  );
+
   useEffect(() => {
     if (!nextPendingPickup) {
       setDraftHydratedPickupId(null);
@@ -357,6 +371,20 @@ export default function PortalPickupsTab() {
       return;
     }
 
+    // No duplicate rug numbers on this pickup (same number in known + new, or twice in new)
+    const allIdentifiers = [...nextReady, ...nextNewRugs.map((r) => r.label)].filter(Boolean).map((s) => s.trim());
+    const normalized = allIdentifiers.map((s) => s.toLowerCase());
+    const duplicateKey = normalized.find((key, i) => normalized.indexOf(key) !== i);
+    if (duplicateKey) {
+      const example = allIdentifiers[normalized.indexOf(duplicateKey)];
+      toast({
+        title: "Duplicate rug",
+        description: `"${example}" is listed more than once on this pickup. Each rug can only appear once.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { error: updateErr } = await supabaseExtended
       .from("pickup_requests")
       .update({ notes: updates.notes ?? draftNotes })
@@ -542,28 +570,39 @@ export default function PortalPickupsTab() {
                   <div className="space-y-2">
                     {draftNewRugs.map((rug) => (
                       <div key={rug.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
-                        <Input
-                          placeholder="Rug name or number"
-                          value={rug.label}
-                          onChange={(e) => updateDraftRug(rug.id, "label", e.target.value)}
-                          className="h-9 flex-1 min-w-[120px]"
-                        />
-                        <Input
-                          type="number"
-                          min={1}
-                          placeholder="Length (ft)"
-                          value={rug.length > 0 ? rug.length : ""}
-                          onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseInt(e.target.value, 10) || 0))}
-                          className="h-9 w-20"
-                        />
-                        <Input
-                          type="number"
-                          min={1}
-                          placeholder="Width (ft)"
-                          value={rug.width > 0 ? rug.width : ""}
-                          onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseInt(e.target.value, 10) || 0))}
-                          className="h-9 w-20"
-                        />
+                        <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
+                          <Input
+                            placeholder="Rug name or number"
+                            value={rug.label}
+                            onChange={(e) => updateDraftRug(rug.id, "label", e.target.value)}
+                            className={isDuplicateNewRugLabel(rug.id, rug.label) ? "border-destructive" : ""}
+                          />
+                          {isDuplicateNewRugLabel(rug.id, rug.label) && (
+                            <p className="text-xs text-destructive">This rug is already on this pickup.</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-muted-foreground">Length (ft)</label>
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder="—"
+                            value={rug.length > 0 ? rug.length : ""}
+                            onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                            className="h-9 w-20"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-muted-foreground">Width (ft)</label>
+                          <Input
+                            type="number"
+                            min={1}
+                            placeholder="—"
+                            value={rug.width > 0 ? rug.width : ""}
+                            onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                            className="h-9 w-20"
+                          />
+                        </div>
                         {supportsEstimateFields && (
                           <>
                             <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground shrink-0">
