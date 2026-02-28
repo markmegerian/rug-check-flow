@@ -67,6 +67,9 @@ type ExtendedTables = Database["public"]["Tables"] & {
       unit_price: number;
       total: number;
       created_at: string;
+      client_approved: boolean | null;
+      client_decision_at: string | null;
+      service_category: string;
     };
     Insert: {
       id?: string;
@@ -77,6 +80,9 @@ type ExtendedTables = Database["public"]["Tables"] & {
       unit_price?: number;
       total?: number;
       created_at?: string;
+      client_approved?: boolean | null;
+      client_decision_at?: string | null;
+      service_category?: string;
     };
     Update: {
       id?: string;
@@ -87,6 +93,9 @@ type ExtendedTables = Database["public"]["Tables"] & {
       unit_price?: number;
       total?: number;
       created_at?: string;
+      client_approved?: boolean | null;
+      client_decision_at?: string | null;
+      service_category?: string;
     };
     Relationships: [];
   };

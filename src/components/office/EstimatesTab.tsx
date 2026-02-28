@@ -41,7 +41,7 @@ type RugOption = {
   client_id: Tables<"rugs">["client_id"];
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
-type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_name" | "unit_price" | "line_total">;
+type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_id" | "service_name" | "unit_price" | "line_total">;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "sent", "approved", "rejected", "expired"]);
 
@@ -54,6 +54,7 @@ export function EstimatesTab() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
+  const [clientDecisionByEstimateId, setClientDecisionByEstimateId] = useState<Record<string, { event_type: string; body: string; created_at: string }>>({});
 
   const statusParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -70,10 +71,29 @@ export function EstimatesTab() {
       .order("created_at", { ascending: false })
       .limit(200);
 
+    const estimateList = (estRows ?? []) as unknown as EstimateRow[];
     if (estErr) {
       toast({ title: "Failed to load estimates", description: estErr.message, variant: "destructive" });
     } else {
-      setEstimates((estRows ?? []) as unknown as EstimateRow[]);
+      setEstimates(estimateList);
+    }
+
+    const approvedOrRejectedIds = estimateList.filter((e) => e.status === "approved" || e.status === "rejected").map((e) => e.id);
+    if (approvedOrRejectedIds.length > 0) {
+      const { data: eventsData } = await supabaseExtended
+        .from("communication_events")
+        .select("estimate_id, event_type, body, created_at")
+        .in("estimate_id", approvedOrRejectedIds)
+        .in("event_type", ["estimate_approved_by_client", "estimate_rejected_by_client"])
+        .order("created_at", { ascending: false });
+      const events = (eventsData ?? []) as { estimate_id: string | null; event_type: string; body: string; created_at: string }[];
+      const byEstimate: Record<string, { event_type: string; body: string; created_at: string }> = {};
+      events.forEach((ev) => {
+        if (ev.estimate_id && !byEstimate[ev.estimate_id]) byEstimate[ev.estimate_id] = ev;
+      });
+      setClientDecisionByEstimateId(byEstimate);
+    } else {
+      setClientDecisionByEstimateId({});
     }
 
     const { data: rugsData } = await supabaseExtended
@@ -112,7 +132,7 @@ export function EstimatesTab() {
 
     const { data: serviceRows, error: svcErr } = await supabaseExtended
       .from("rug_services")
-      .select("id, service_name, unit_price, line_total")
+      .select("id, service_id, service_name, unit_price, line_total")
       .eq("rug_id", selectedRugId);
 
     if (svcErr) {
@@ -126,6 +146,13 @@ export function EstimatesTab() {
       toast({ title: "No service snapshots", description: "This rug has no captured service pricing yet.", variant: "destructive" });
       setCreating(false);
       return;
+    }
+
+    const serviceIds = [...new Set(services.map((s) => s.service_id).filter(Boolean))] as string[];
+    let categoryByServiceId: Record<string, string> = {};
+    if (serviceIds.length > 0) {
+      const { data: catRows } = await supabaseExtended.from("services").select("id, category").in("id", serviceIds);
+      categoryByServiceId = Object.fromEntries(((catRows ?? []) as { id: string; category: string }[]).map((r) => [r.id, r.category ?? ""]));
     }
 
     const total = services.reduce((sum, service) => sum + Number(service.line_total ?? 0), 0);
@@ -157,6 +184,7 @@ export function EstimatesTab() {
       quantity: 1,
       unit_price: Number(service.unit_price ?? 0),
       total: Number(service.line_total ?? 0),
+      service_category: service.service_id ? (categoryByServiceId[service.service_id] ?? "") : "",
     }));
 
     const { error: itemErr } = await supabaseExtended.from("estimate_items").insert(items);
@@ -381,7 +409,12 @@ export function EstimatesTab() {
             </div>
             <Separator />
             <div className="divide-y">
-              {list.map((estimate) => (
+              {list.map((estimate) => {
+                const clientDecision = clientDecisionByEstimateId[estimate.id];
+                const clientNote = clientDecision?.body?.includes("Client note:")
+                  ? clientDecision.body.split("Client note:")[1]?.trim()
+                  : null;
+                return (
                 <div key={estimate.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div>
@@ -392,6 +425,16 @@ export function EstimatesTab() {
                     </div>
                     {statusBadge(estimate.status)}
                   </div>
+
+                  {(estimate.status === "approved" || estimate.status === "rejected") && (
+                    <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
+                      <p className="text-muted-foreground font-medium">
+                        {estimate.status === "approved" && estimate.approved_at && `Client approved ${new Date(estimate.approved_at).toLocaleDateString()} at ${new Date(estimate.approved_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+                        {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${new Date(estimate.rejected_at).toLocaleDateString()} at ${new Date(estimate.rejected_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+                      </p>
+                      {clientNote && <p className="text-foreground">Client note: {clientNote}</p>}
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {estimate.status === "draft" && (
@@ -422,7 +465,8 @@ export function EstimatesTab() {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </section>
         ))

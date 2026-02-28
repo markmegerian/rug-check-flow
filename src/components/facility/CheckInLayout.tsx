@@ -269,6 +269,12 @@ export function CheckInLayout() {
           return;
         }
 
+        const serviceIds = data.serviceSnapshots.map((s) => s.service_id).filter(Boolean);
+        let categoryByServiceId: Record<string, string> = {};
+        if (serviceIds.length > 0) {
+          const { data: catRows } = await supabaseExtended.from("services").select("id, category").in("id", serviceIds);
+          categoryByServiceId = Object.fromEntries(((catRows ?? []) as { id: string; category: string }[]).map((r) => [r.id, r.category ?? ""]));
+        }
         const estimateItems = data.serviceSnapshots.map((service) => ({
           estimate_id: insertedEstimate.id,
           rug_service_id: null,
@@ -276,6 +282,7 @@ export function CheckInLayout() {
           quantity: 1,
           unit_price: Number(service.unit_price ?? 0),
           total: Number(service.line_total ?? 0),
+          service_category: service.service_id ? (categoryByServiceId[service.service_id] ?? "") : "",
         }));
 
         const { error: itemError } = await supabaseExtended.from("estimate_items").insert(estimateItems);
