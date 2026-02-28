@@ -1,6 +1,6 @@
 -- Ensure wholesale portal users must reset password on first/temporary login.
 ALTER TABLE public.portal_users
-ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT true;
+ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT true; 
 
 COMMENT ON COLUMN public.portal_users.must_change_password IS
   'When true, portal user must set a non-temporary password before accessing workflow tabs.';
