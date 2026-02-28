@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import PortalRugsTab from "@/components/portal/PortalRugsTab";
 import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
@@ -39,22 +39,12 @@ export default function WholesalePortal() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
-  const [autoShownOnboarding, setAutoShownOnboarding] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
   const requiresPasswordReset = Boolean(clientId) && portalMustChangePassword;
-
-  useEffect(() => {
-    if (portalClientLoading || autoShownOnboarding) return;
-    if (requiresPasswordReset) return;
-    if (!clientId || onboardingCompletedAt) return;
-    setOnboardingOpen(true);
-    setOnboardingStep(0);
-    setActiveTab("rugs");
-    setAutoShownOnboarding(true);
-  }, [autoShownOnboarding, clientId, onboardingCompletedAt, portalClientLoading, requiresPasswordReset]);
+  const onboardingUnlocked = Boolean(clientId) && !portalMustChangePassword;
 
   const openOnboarding = () => {
     if (requiresPasswordReset) {
@@ -122,8 +112,7 @@ export default function WholesalePortal() {
 
     setNewPassword("");
     setConfirmPassword("");
-    setOnboardingOpen(true);
-    toast({ title: "Password updated", description: "Continue onboarding." });
+    toast({ title: "Password updated", description: "You can now start the onboarding guide." });
   };
 
   return (
@@ -151,8 +140,18 @@ export default function WholesalePortal() {
               ))}
             </nav>
             {clientId ? (
-              <Button variant="outline" size="sm" onClick={openOnboarding}>
-                {onboardingCompletedAt ? "View onboarding guide" : "Start onboarding guide"}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openOnboarding}
+                disabled={!onboardingUnlocked}
+                title={!onboardingUnlocked ? "Change your password first to unlock the onboarding guide" : undefined}
+              >
+                {onboardingCompletedAt
+                  ? "View onboarding guide"
+                  : onboardingUnlocked
+                    ? "Start onboarding guide"
+                    : "Onboarding guide (change password to unlock)"}
               </Button>
             ) : null}
           </div>
