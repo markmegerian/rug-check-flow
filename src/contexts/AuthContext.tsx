@@ -126,7 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles(effectiveRoles);
     setPortalClientId(portalLink?.client_id ?? null);
     setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
-    setPortalMustChangePassword(Boolean(portalLink?.must_change_password));
+    setPortalMustChangePassword(
+      portalLink != null
+        ? Boolean(portalLink.must_change_password)
+        : Boolean(nextUser.user_metadata?.must_change_password)
+    );
     setLoading(false);
   }, [fetchPortalLink, fetchRoles]);
 

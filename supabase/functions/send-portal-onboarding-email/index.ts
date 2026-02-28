@@ -151,7 +151,10 @@ const buildPortalUrl = (req: Request) => {
   return "https://mr.rugboost.com/portal";
 };
 
-const buildResetRedirectUrl = (portalUrl: string) => `${portalUrl}/auth/reset-password`;
+const buildResetRedirectUrl = (portalUrl: string) => {
+  const origin = new URL(portalUrl).origin;
+  return `${origin}/auth/reset-password`;
+};
 
 const generateBootstrapPassword = () => WHOLESALE_BOOTSTRAP_PASSWORD;
 
@@ -240,7 +243,7 @@ Deno.serve(async (req) => {
     if (portalFlagError) return json({ error: portalFlagError.message }, 500);
 
     const resetLink = await generatePasswordResetLink(adminClient, typedPortalUser.email, portalUrl);
-    const setPasswordLink = resetLink || `${portalUrl}/auth/forgot-password`;
+    const setPasswordLink = resetLink ?? `${new URL(portalUrl).origin}/auth/reset-password`;
 
     const subject = `RugBoost portal login instructions`;
     const bodyText = [
