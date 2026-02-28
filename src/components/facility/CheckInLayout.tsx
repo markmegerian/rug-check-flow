@@ -30,7 +30,7 @@ type CompletedPickupRequestRow = Pick<
 >;
 type CompletedPickupItemRow = Pick<
   ExtendedTableRow<"pickup_request_items">,
-  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "checked_in_rug_id"
+  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "checked_in_rug_id" | "estimate_requested" | "estimate_request_details"
 >;
 
 export function CheckInLayout() {
@@ -66,7 +66,7 @@ export function CheckInLayout() {
     const requestIds = completedRequests.map((request) => request.id);
     const { data: itemRows, error: itemError } = await supabaseExtended
       .from("pickup_request_items")
-      .select("id, pickup_request_id, rug_number, rug_type, length, width, checked_in_rug_id")
+      .select("id, pickup_request_id, rug_number, rug_type, length, width, checked_in_rug_id, estimate_requested, estimate_request_details")
       .in("pickup_request_id", requestIds)
       .is("checked_in_rug_id", null)
       .limit(1000);
@@ -110,6 +110,8 @@ export function CheckInLayout() {
         pickupRequestId: request?.id,
         pickupRequestItemId: item.id,
         pickupDate: request?.scheduled_date,
+        estimateRequested: Boolean(item.estimate_requested),
+        estimateRequestDetails: item.estimate_request_details ?? undefined,
       };
     });
 

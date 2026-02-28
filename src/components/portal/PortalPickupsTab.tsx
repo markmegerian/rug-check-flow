@@ -91,8 +91,8 @@ export default function PortalPickupsTab() {
   const [requestDate, setRequestDate] = useState<string>(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
-  const [draftEstimateForAll, setDraftEstimateForAll] = useState(false);
-  const [draftEstimateNotes, setDraftEstimateNotes] = useState("");
+  /** Per known rug (by rug_number): estimate requested + optional details. */
+  const [draftEstimateByRug, setDraftEstimateByRug] = useState<Record<string, { requested: boolean; details: string }>>({});
   const [draftNotes, setDraftNotes] = useState("");
   const [supportsEstimateFields, setSupportsEstimateFields] = useState(true);
   const [draftHydratedPickupId, setDraftHydratedPickupId] = useState<string | null>(null);
@@ -105,7 +105,7 @@ export default function PortalPickupsTab() {
   }, []);
 
   const addDraftRug = useCallback(() => {
-    setDraftNewRugs((prev) => [...prev, { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0 }]);
+    setDraftNewRugs((prev) => [...prev, { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0, estimateRequested: false, estimateDetails: "" }]);
   }, []);
 
   const updateDraftRug = useCallback((id: string, field: keyof PickupRugEntry, value: string | number | boolean) => {
@@ -116,6 +116,10 @@ export default function PortalPickupsTab() {
     setDraftNewRugs((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
+  const setDraftEstimateForKnownRug = useCallback((rugNumber: string, requested: boolean, details: string) => {
+    setDraftEstimateByRug((prev) => ({ ...prev, [rugNumber]: { requested, details } }));
+  }, []);
+
   useEffect(() => {
     if (!nextPendingPickup) {
       setDraftHydratedPickupId(null);
@@ -123,13 +127,8 @@ export default function PortalPickupsTab() {
     }
     if (draftHydratedPickupId === nextPendingPickup.id) return;
     setDraftSelectedRugs(nextPendingPickup.rugNumbers);
-    setDraftNewRugs(nextPendingPickup.newRugs);
-    const anyEstimate = Object.values(nextPendingPickup.knownRugEstimateRequests ?? {}).some((r) => r.requested) ||
-      nextPendingPickup.newRugs.some((r) => r.estimateRequested);
-    const firstDetails = Object.values(nextPendingPickup.knownRugEstimateRequests ?? {}).find((r) => r.details)?.details
-      ?? nextPendingPickup.newRugs.find((r) => r.estimateDetails)?.estimateDetails ?? "";
-    setDraftEstimateForAll(anyEstimate);
-    setDraftEstimateNotes(firstDetails);
+    setDraftNewRugs(nextPendingPickup.newRugs.map((r) => ({ ...r, estimateRequested: r.estimateRequested ?? false, estimateDetails: r.estimateDetails ?? "" })));
+    setDraftEstimateByRug(nextPendingPickup.knownRugEstimateRequests ?? {});
     setDraftNotes(nextPendingPickup.notes ?? "");
     setRequestDate(nextPendingPickup.date);
     setDraftHydratedPickupId(nextPendingPickup.id);
@@ -321,10 +320,10 @@ export default function PortalPickupsTab() {
   const buildKnownRugEstimateRequests = useCallback(() => {
     const out: Record<string, { requested: boolean; details: string }> = {};
     readyRugNumbers.forEach((rn) => {
-      out[rn] = { requested: draftEstimateForAll, details: draftEstimateNotes };
+      out[rn] = draftEstimateByRug[rn] ?? { requested: false, details: "" };
     });
     return out;
-  }, [draftEstimateForAll, draftEstimateNotes, readyRugNumbers]);
+  }, [draftEstimateByRug, readyRugNumbers]);
 
   const handleSave = async (id: string, updates: Partial<PortalPickup>, options?: { allowEmpty?: boolean }) => {
     if (!clientId) return;
@@ -349,19 +348,14 @@ export default function PortalPickupsTab() {
       rugType: (rug.rugType ?? "").trim(),
       length: Number(rug.length ?? 0),
       width: Number(rug.width ?? 0),
-      estimateRequested: supportsEstimateFields ? draftEstimateForAll : false,
-      estimateDetails: supportsEstimateFields ? draftEstimateNotes : "",
+      estimateRequested: supportsEstimateFields ? (rug.estimateRequested ?? false) : false,
+      estimateDetails: supportsEstimateFields ? (rug.estimateDetails ?? "") : "",
     }));
 
     if (!allowEmpty && nextReady.length === 0 && nextNewRugs.length === 0) {
       toast({ title: "Add at least one rug", description: "Check the rugs we’ve cleaned before, or add a new one.", variant: "destructive" });
       return;
     }
-
-    const knownRequests: Record<string, { requested: boolean; details: string }> = {};
-    nextReady.forEach((rn) => {
-      knownRequests[rn] = { requested: draftEstimateForAll, details: draftEstimateNotes };
-    });
 
     const { error: updateErr } = await supabaseExtended
       .from("pickup_requests")
@@ -381,13 +375,16 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    const readyItems = nextReady.map((rugNumber) => ({
-      pickup_request_id: id,
-      rug_number: rugNumber,
-      rug_type: "",
-      is_new: false,
-      ...(supportsEstimateFields ? { estimate_requested: draftEstimateForAll, estimate_request_details: draftEstimateNotes.trim() || null } : {}),
-    }));
+    const readyItems = nextReady.map((rugNumber) => {
+      const est = draftEstimateByRug[rugNumber] ?? { requested: false, details: "" };
+      return {
+        pickup_request_id: id,
+        rug_number: rugNumber,
+        rug_type: "",
+        is_new: false,
+        ...(supportsEstimateFields ? { estimate_requested: est.requested, estimate_request_details: est.details.trim() || null } : {}),
+      };
+    });
     const newRugItems = nextNewRugs.map((rug) => ({
       pickup_request_id: id,
       rug_number: rug.label,
@@ -395,7 +392,7 @@ export default function PortalPickupsTab() {
       length: rug.length > 0 ? rug.length : null,
       width: rug.width > 0 ? rug.width : null,
       is_new: true,
-      ...(supportsEstimateFields ? { estimate_requested: draftEstimateForAll, estimate_request_details: draftEstimateNotes.trim() || null } : {}),
+      ...(supportsEstimateFields ? { estimate_requested: rug.estimateRequested ?? false, estimate_request_details: (rug.estimateDetails ?? "").trim() || null } : {}),
     }));
     const insertItems = [...readyItems, ...newRugItems];
     if (insertItems.length > 0) {
@@ -509,13 +506,34 @@ export default function PortalPickupsTab() {
                 {readyRugNumbers.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No rugs in our system yet. Add new rugs below.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-3">
-                    {readyRugNumbers.map((rn) => (
-                      <label key={rn} className="flex items-center gap-2 cursor-pointer rounded-lg border px-3 py-2 hover:bg-muted/50 transition-colors">
-                        <Checkbox checked={draftSelectedRugs.includes(rn)} onCheckedChange={() => toggleDraftRug(rn)} />
-                        <span className="text-sm font-medium">{rn}</span>
-                      </label>
-                    ))}
+                  <div className="space-y-2">
+                    {readyRugNumbers.map((rn) => {
+                      const est = draftEstimateByRug[rn] ?? { requested: false, details: "" };
+                      return (
+                        <div key={rn} className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
+                          <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                            <Checkbox checked={draftSelectedRugs.includes(rn)} onCheckedChange={() => toggleDraftRug(rn)} />
+                            <span className="text-sm font-medium">{rn}</span>
+                          </label>
+                          {supportsEstimateFields && (
+                            <>
+                              <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground ml-2">
+                                <Checkbox checked={est.requested} onCheckedChange={(c) => setDraftEstimateForKnownRug(rn, Boolean(c), est.details)} />
+                                <span>Estimate requested</span>
+                              </label>
+                              {est.requested && (
+                                <Input
+                                  placeholder="Details (optional)"
+                                  value={est.details}
+                                  onChange={(e) => setDraftEstimateForKnownRug(rn, true, e.target.value)}
+                                  className="h-8 flex-1 min-w-[140px] text-sm"
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -531,23 +549,40 @@ export default function PortalPickupsTab() {
                           className="h-9 flex-1 min-w-[120px]"
                         />
                         <Input
-                          placeholder="Size (e.g. 8×10)"
-                          value={rug.length > 0 || rug.width > 0 ? `${rug.length}×${rug.width}` : ""}
-                          onChange={(e) => {
-                            const v = e.target.value.trim();
-                            if (!v) {
-                              updateDraftRug(rug.id, "length", 0);
-                              updateDraftRug(rug.id, "width", 0);
-                              return;
-                            }
-                            const match = v.match(/^(\d+)\s*[×x]\s*(\d+)$/i) || v.match(/^(\d+)\s*(\d+)$/);
-                            if (match) {
-                              updateDraftRug(rug.id, "length", Number(match[1]));
-                              updateDraftRug(rug.id, "width", Number(match[2]));
-                            }
-                          }}
-                          className="h-9 w-24"
+                          type="number"
+                          min={1}
+                          placeholder="Length (ft)"
+                          value={rug.length > 0 ? rug.length : ""}
+                          onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          className="h-9 w-20"
                         />
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="Width (ft)"
+                          value={rug.width > 0 ? rug.width : ""}
+                          onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          className="h-9 w-20"
+                        />
+                        {supportsEstimateFields && (
+                          <>
+                            <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground shrink-0">
+                              <Checkbox
+                                checked={rug.estimateRequested ?? false}
+                                onCheckedChange={(c) => updateDraftRug(rug.id, "estimateRequested", Boolean(c))}
+                              />
+                              <span>Estimate requested</span>
+                            </label>
+                            {(rug.estimateRequested ?? false) && (
+                              <Input
+                                placeholder="Details (optional)"
+                                value={rug.estimateDetails ?? ""}
+                                onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
+                                className="h-8 flex-1 min-w-[120px] text-sm"
+                              />
+                            )}
+                          </>
+                        )}
                         <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeDraftRug(rug.id)}>
                           <X className="h-4 w-4" />
                         </Button>
@@ -559,23 +594,6 @@ export default function PortalPickupsTab() {
                     </Button>
                   </div>
                 </div>
-
-                {supportsEstimateFields && (
-                  <div className="rounded-lg border p-3 space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox checked={draftEstimateForAll} onCheckedChange={(c) => setDraftEstimateForAll(Boolean(c))} />
-                      <span className="text-sm font-medium">I need estimates for some of these rugs</span>
-                    </label>
-                    {draftEstimateForAll && (
-                      <Input
-                        placeholder="What do you need estimated? (optional)"
-                        value={draftEstimateNotes}
-                        onChange={(e) => setDraftEstimateNotes(e.target.value)}
-                        className="h-9"
-                      />
-                    )}
-                  </div>
-                )}
 
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-1">Anything else we should know?</label>

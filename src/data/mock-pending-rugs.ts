@@ -10,6 +10,9 @@ export interface PendingRug {
   pickupRequestId?: string;
   pickupRequestItemId?: string;
   pickupDate?: string;
+  /** Client requested an estimate for this rug; show during check-in so staff don’t miss it. */
+  estimateRequested?: boolean;
+  estimateRequestDetails?: string;
 }
 
 export const MOCK_CLIENTS = [

@@ -6,6 +6,7 @@ import { Camera, ChevronDown, Search, X } from "lucide-react";
 import RugEdgeDiagram from "./RugEdgeDiagram";
 import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -582,6 +583,16 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-6">
+          {selectedRug?.estimateRequested && (
+            <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100">
+              <AlertTitle>Estimate requested</AlertTitle>
+              <AlertDescription>
+                The client requested an estimate for this rug. {selectedRug.estimateRequestDetails?.trim()
+                  ? `Details: ${selectedRug.estimateRequestDetails}`
+                  : "Review services and create/send estimate as needed."}
+              </AlertDescription>
+            </Alert>
+          )}
           {/* Identity row */}
           {isReadOnlyIdentity ? (
             <div className="grid grid-cols-2 gap-3 md:gap-4">
