@@ -25,14 +25,25 @@ const DAY_INDEX: Record<string, number> = {
   Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
 };
 
-const getNextDateForRouteDay = (routeDay: string) => {
+/** Returns ISO date string YYYY-MM-DD for the next occurrence of routeDay. */
+function getNextDateForRouteDay(routeDay: string): string {
   const targetDay = DAY_INDEX[routeDay] ?? 4;
   const today = new Date();
   const diff = (targetDay - today.getDay() + 7) % 7 || 7;
   const nextDate = new Date(today);
   nextDate.setDate(today.getDate() + diff);
-  return nextDate;
-};
+  const y = nextDate.getFullYear();
+  const m = String(nextDate.getMonth() + 1).padStart(2, "0");
+  const d = String(nextDate.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** Format ISO date string for display; never returns "Invalid Date". */
+function formatPickupDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
 
 type PickupRequestRow = {
   id: ExtendedTableRow<"pickup_requests">["id"];
@@ -77,7 +88,7 @@ export default function PortalPickupsTab() {
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [requesting, setRequesting] = useState(false);
-  const [requestDate, setRequestDate] = useState(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
+  const [requestDate, setRequestDate] = useState<string>(() => getNextDateForRouteDay(DEFAULT_ROUTE_DAY));
   const [draftSelectedRugs, setDraftSelectedRugs] = useState<string[]>([]);
   const [draftNewRugs, setDraftNewRugs] = useState<PickupRugEntry[]>([]);
   const [draftEstimateForAll, setDraftEstimateForAll] = useState(false);
@@ -120,7 +131,7 @@ export default function PortalPickupsTab() {
     setDraftEstimateForAll(anyEstimate);
     setDraftEstimateNotes(firstDetails);
     setDraftNotes(nextPendingPickup.notes ?? "");
-    setRequestDate(new Date(`${nextPendingPickup.date}T00:00:00`));
+    setRequestDate(nextPendingPickup.date);
     setDraftHydratedPickupId(nextPendingPickup.id);
   }, [draftHydratedPickupId, nextPendingPickup]);
 
@@ -285,7 +296,7 @@ export default function PortalPickupsTab() {
   const handleSchedulePickup = async () => {
     if (!clientId) return;
     if (nextPendingPickup) return;
-    const scheduledDate = requestDate || getNextDateForRouteDay(routeDay);
+    const scheduledDate = requestDate && /^\d{4}-\d{2}-\d{2}$/.test(requestDate) ? requestDate : getNextDateForRouteDay(routeDay);
     setRequesting(true);
     try {
       const insertPayload: ExtendedTableInsert<"pickup_requests"> = {
@@ -301,7 +312,7 @@ export default function PortalPickupsTab() {
         return;
       }
       await fetchPickups(clientId, region);
-      toast({ title: "Pickup requested", description: `We’ll pick up on ${new Date(`${scheduledDate}T00:00:00`).toLocaleDateString()}. Add which rugs below and save.` });
+      toast({ title: "Pickup requested", description: `We’ll pick up on ${formatPickupDate(scheduledDate)}. Add which rugs below and save.` });
     } finally {
       setRequesting(false);
     }
@@ -452,7 +463,7 @@ export default function PortalPickupsTab() {
     );
   }
 
-  const scheduledDateStr = new Date(`${requestDate}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const scheduledDateStr = formatPickupDate(requestDate);
   const rugCount = draftSelectedRugs.length + draftNewRugs.filter((r) => r.label.trim()).length;
 
   return (
@@ -605,7 +616,8 @@ export default function PortalPickupsTab() {
 function PickupHistoryRow({ pickup, onCancel }: { pickup: PortalPickup; onCancel: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const locked = pickup.status === "confirmed";
-  const dateStr = new Date(`${pickup.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const d = new Date(`${pickup.date}T12:00:00`);
+  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const totalRugs = pickup.rugNumbers.length + pickup.newRugs.length;
 
   return (
