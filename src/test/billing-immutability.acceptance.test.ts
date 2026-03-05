@@ -256,9 +256,8 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       let paymentId = asSingleRow(paymentResponse)?.id as string | undefined;
       if (!paymentId) {
         paymentId = await queryFirstIdWithFallback(officeToken, [
-          `payments?select=id&client_id=eq.${clientId}&amount=eq.200&method=eq.cash&order=created_at.desc&limit=1`,
-          `payments?select=id&client_id=eq.${clientId}&amount=eq.200&order=created_at.desc&limit=1`,
-          `payments?select=id&client_id=eq.${clientId}&order=created_at.desc&limit=1`,
+          `payments?select=id&reference=eq.${encodeURIComponent(paymentReference)}&client_id=eq.${clientId}&limit=1`,
+          `payments?select=id&reference=eq.${encodeURIComponent(paymentReference)}&limit=1`,
         ]);
       }
       if (!paymentId) {
