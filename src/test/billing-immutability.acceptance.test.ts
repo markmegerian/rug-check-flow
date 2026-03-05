@@ -230,10 +230,12 @@ runIfConfigured("Billing immutability acceptance tests", () => {
 
       // Create a payment
       const paymentReference = `TEST-PAY-${Date.now()}`;
+      const paymentAmount = 200;
+      const paymentMethod = "cash";
       const paymentResponse = await queryRest(officeToken, "payments", "POST", {
         client_id: clientId,
-        amount: 200,
-        method: "cash",
+        amount: paymentAmount,
+        method: paymentMethod,
         reference: paymentReference,
         received_at: new Date().toISOString(),
       });
@@ -242,7 +244,7 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       if (!paymentId) {
         const paymentRows = await queryRest(
           officeToken,
-          `payments?select=id&client_id=eq.${clientId}&reference=eq.${paymentReference}&order=created_at.desc&limit=1`,
+          `payments?select=id&client_id=eq.${clientId}&amount=eq.${paymentAmount}&method=eq.${paymentMethod}&reference=eq.${encodeURIComponent(paymentReference)}&order=created_at.desc&limit=1`,
         );
         paymentId = paymentRows[0]?.id as string | undefined;
       }
@@ -254,7 +256,7 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       await queryRest(officeToken, "payment_allocations", "POST", {
         payment_id: paymentId,
         invoice_id: invoiceId,
-        amount: 200,
+        amount: paymentAmount,
       });
 
       // Check balance updated (500 - 200 = 300)
