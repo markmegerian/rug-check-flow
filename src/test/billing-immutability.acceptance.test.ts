@@ -49,18 +49,33 @@ async function queryRest(token: string, path: string, method: string = "GET", bo
     body: body ? JSON.stringify(body) : undefined,
   });
 
+  // Handle empty responses (common for DELETE, PATCH with no return)
+  const text = await response.text();
+  let payload: unknown = null;
+  
+  if (text.trim()) {
+    try {
+      payload = JSON.parse(text);
+    } catch (e) {
+      // If JSON parsing fails, treat as error
+      if (!response.ok) {
+        return { error: { message: text }, status: response.status };
+      }
+      throw new Error(`Invalid JSON response for ${path}: ${text}`);
+    }
+  }
+
   if (method === "GET") {
-    const payload = await response.json();
     if (!response.ok || !Array.isArray(payload)) {
-      throw new Error(`REST query failed for ${path}: ${JSON.stringify(payload)}`);
+      throw new Error(`REST query failed for ${path}: ${JSON.stringify(payload || text)}`);
     }
     return payload as RestRow[];
   } else {
-    const payload = await response.json();
     if (!response.ok) {
-      return { error: payload, status: response.status };
+      return { error: payload || { message: text }, status: response.status };
     }
-    return payload as RestRow | RestRow[];
+    // For successful non-GET requests, return payload or empty object
+    return (payload as RestRow | RestRow[]) || (method === "DELETE" ? {} : []);
   }
 }
 
