@@ -21,7 +21,7 @@ if [[ -z "$LOG_FILE" || ! -f "$LOG_FILE" ]]; then
   exit 1
 fi
 
-python3 - "$EVIDENCE_FILE" "$LOG_FILE" <<'PY'
+python - "$EVIDENCE_FILE" "$LOG_FILE" <<'PY'
 from pathlib import Path
 import re, sys
 

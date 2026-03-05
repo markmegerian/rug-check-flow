@@ -8,71 +8,50 @@
 -- - Stops are generated from these existing sources
 
 -- ============================================================================
--- PART A: Create New Enums (Idempotent)
+-- PART A: Create New Enums
 -- ============================================================================
 
--- Create enums only if they don't exist
-DO $$ BEGIN
-    CREATE TYPE "public"."route_stop_status" AS ENUM (
-        'queued',
-        'in_progress',
-        'completed',
-        'completed_with_exceptions',
-        'unable_to_complete'
-    );
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "public"."route_stop_status" AS ENUM (
+    'queued',
+    'in_progress',
+    'completed',
+    'completed_with_exceptions',
+    'unable_to_complete'
+);
 
 COMMENT ON TYPE "public"."route_stop_status" IS 'Status of a route stop (one per client per route date)';
 
-DO $$ BEGIN
-    CREATE TYPE "public"."route_stop_phase" AS ENUM (
-        'delivery',
-        'pickup'
-    );
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "public"."route_stop_phase" AS ENUM (
+    'delivery',
+    'pickup'
+);
 
 COMMENT ON TYPE "public"."route_stop_phase" IS 'Phase of a stop item: delivery or pickup';
 
-DO $$ BEGIN
-    CREATE TYPE "public"."route_stop_item_status" AS ENUM (
-        'pending',
-        'verified',
-        'disputed',
-        'exception',
-        'skipped'
-    );
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "public"."route_stop_item_status" AS ENUM (
+    'pending',
+    'verified',
+    'disputed',
+    'exception',
+    'skipped'
+);
 
 COMMENT ON TYPE "public"."route_stop_item_status" IS 'Status of an individual item within a stop';
 
-DO $$ BEGIN
-    CREATE TYPE "public"."dispute_type" AS ENUM (
-        'refused_delivery',
-        'post_delivery_claim'
-    );
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "public"."dispute_type" AS ENUM (
+    'refused_delivery',
+    'post_delivery_claim'
+);
 
 COMMENT ON TYPE "public"."dispute_type" IS 'Type of dispute: refused at delivery vs claim after delivery';
 
-DO $$ BEGIN
-    CREATE TYPE "public"."dispute_status" AS ENUM (
-        'open',
-        'investigating',
-        'resolved',
-        'credited',
-        'denied'
-    );
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE "public"."dispute_status" AS ENUM (
+    'open',
+    'investigating',
+    'resolved',
+    'credited',
+    'denied'
+);
 
 COMMENT ON TYPE "public"."dispute_status" IS 'Status of a dispute record';
 
@@ -215,7 +194,6 @@ ALTER TABLE "public"."disputes" ENABLE ROW LEVEL SECURITY;
 
 -- route_stops RLS
 -- Drivers can SELECT assigned stops for today +/- 1 day
-DROP POLICY IF EXISTS "route_stops_select_driver" ON "public"."route_stops";
 CREATE POLICY "route_stops_select_driver" ON "public"."route_stops"
     FOR SELECT
     TO "authenticated"
@@ -226,7 +204,6 @@ CREATE POLICY "route_stops_select_driver" ON "public"."route_stops"
     );
 
 -- Internal roles (admin/office/checkin_staff) can manage all stops
-DROP POLICY IF EXISTS "route_stops_manage_internal" ON "public"."route_stops";
 CREATE POLICY "route_stops_manage_internal" ON "public"."route_stops"
     TO "authenticated"
     USING (
@@ -242,7 +219,6 @@ CREATE POLICY "route_stops_manage_internal" ON "public"."route_stops"
 
 -- route_stop_items RLS
 -- Drivers can SELECT items for stops assigned to them
-DROP POLICY IF EXISTS "route_stop_items_select_driver" ON "public"."route_stop_items";
 CREATE POLICY "route_stop_items_select_driver" ON "public"."route_stop_items"
     FOR SELECT
     TO "authenticated"
@@ -257,7 +233,6 @@ CREATE POLICY "route_stop_items_select_driver" ON "public"."route_stop_items"
     );
 
 -- Internal roles can manage all items
-DROP POLICY IF EXISTS "route_stop_items_manage_internal" ON "public"."route_stop_items";
 CREATE POLICY "route_stop_items_manage_internal" ON "public"."route_stop_items"
     TO "authenticated"
     USING (
@@ -273,7 +248,6 @@ CREATE POLICY "route_stop_items_manage_internal" ON "public"."route_stop_items"
 
 -- route_stop_events RLS
 -- Drivers can INSERT events for stops assigned to them
-DROP POLICY IF EXISTS "route_stop_events_insert_driver" ON "public"."route_stop_events";
 CREATE POLICY "route_stop_events_insert_driver" ON "public"."route_stop_events"
     FOR INSERT
     TO "authenticated"
@@ -286,7 +260,6 @@ CREATE POLICY "route_stop_events_insert_driver" ON "public"."route_stop_events"
     );
 
 -- Drivers can SELECT their own events
-DROP POLICY IF EXISTS "route_stop_events_select_driver" ON "public"."route_stop_events";
 CREATE POLICY "route_stop_events_select_driver" ON "public"."route_stop_events"
     FOR SELECT
     TO "authenticated"
@@ -299,7 +272,6 @@ CREATE POLICY "route_stop_events_select_driver" ON "public"."route_stop_events"
     );
 
 -- Internal roles can manage all events
-DROP POLICY IF EXISTS "route_stop_events_manage_internal" ON "public"."route_stop_events";
 CREATE POLICY "route_stop_events_manage_internal" ON "public"."route_stop_events"
     TO "authenticated"
     USING (
@@ -315,7 +287,6 @@ CREATE POLICY "route_stop_events_manage_internal" ON "public"."route_stop_events
 
 -- disputes RLS
 -- Internal roles can manage all disputes
-DROP POLICY IF EXISTS "disputes_manage_internal" ON "public"."disputes";
 CREATE POLICY "disputes_manage_internal" ON "public"."disputes"
     TO "authenticated"
     USING (
@@ -330,7 +301,6 @@ CREATE POLICY "disputes_manage_internal" ON "public"."disputes"
     );
 
 -- Portal users can SELECT disputes for their client
-DROP POLICY IF EXISTS "disputes_select_portal" ON "public"."disputes";
 CREATE POLICY "disputes_select_portal" ON "public"."disputes"
     FOR SELECT
     TO "authenticated"
@@ -502,8 +472,7 @@ $$;
 
 COMMENT ON FUNCTION "public"."route_stops_status_transition_guard" IS 'Trigger function enforcing status transitions and completion invariants';
 
--- Create trigger (drop first if exists for idempotency)
-DROP TRIGGER IF EXISTS "route_stops_status_transition_trigger" ON "public"."route_stops";
+-- Create trigger
 CREATE TRIGGER "route_stops_status_transition_trigger"
     BEFORE UPDATE ON "public"."route_stops"
     FOR EACH ROW
@@ -568,8 +537,7 @@ $$;
 
 COMMENT ON FUNCTION "public"."route_stop_items_status_transition_guard" IS 'Trigger function enforcing item status transitions';
 
--- Create trigger (drop first if exists for idempotency)
-DROP TRIGGER IF EXISTS "route_stop_items_status_transition_trigger" ON "public"."route_stop_items";
+-- Create trigger
 CREATE TRIGGER "route_stop_items_status_transition_trigger"
     BEFORE UPDATE ON "public"."route_stop_items"
     FOR EACH ROW

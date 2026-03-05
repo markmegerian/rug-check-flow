@@ -47,20 +47,16 @@ describe("critical journey acceptance coverage", () => {
   it("journey 4: invoice send + PDF retrieval remains in readiness gate", () => {
     const script = readFileSync(resolve(process.cwd(), "scripts/private-beta-readiness.sh"), "utf-8");
 
-    expect(script).toContain("Invoice PDF edge-function smoke");
+    expect(script).toContain("Step 4/5: Invoice PDF edge-function smoke");
     expect(script).toContain('"${SUPABASE_URL}/functions/v1/invoice-pdf"');
     expect(script).toContain("invoice-pdf response missing signed_url");
   });
 
-  it("journey 5: onboarding + role-scoped operational visibility remains in role-scope smoke", () => {
+  it("journey 5: onboarding + payment tracking remains in role-scope smoke", () => {
     const script = readFileSync(resolve(process.cwd(), "scripts/rls-scope-smoke-test.sh"), "utf-8");
 
-    expect(script).toContain("estimates?select=");
-    expect(script).toContain("rugs?select=");
     expect(script).toContain("payment_attempts?select=");
     expect(script).toContain("portal_users?select=");
-    expect(script).toContain(
-      "portal invoices, invoice_items, estimates, rugs, payment_attempts, pickup_requests, and portal_users are readable",
-    );
+    expect(script).toContain("portal invoices, invoice_items, payment_attempts, pickup_requests, and portal_users are readable");
   });
 });

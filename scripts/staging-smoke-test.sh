@@ -15,31 +15,11 @@ for var_name in "${required_vars[@]}"; do
   fi
 done
 
-sanitize_env_var() {
-  local name="$1"
-  if [[ -z "${!name+x}" ]]; then
-    return
-  fi
-
-  local value
-  value="${!name}"
-  value="$(python3 - "$value" <<'PYTHON'
-import sys
-print(sys.argv[1].strip("\r\n"))
-PYTHON
-)"
-  printf -v "$name" '%s' "$value"
-}
-
-for var_name in SUPABASE_URL SUPABASE_ANON_KEY SMOKE_USER_EMAIL SMOKE_USER_PASSWORD APP_BASE_URL SAMPLE_INVOICE_ID; do
-  sanitize_env_var "$var_name"
-done
-
 json_payload_file() {
   local output_file="$1"
   local email="$2"
   local password="$3"
-  python3 - "$output_file" "$email" "$password" <<'PY'
+  python - "$output_file" "$email" "$password" <<'PY'
 import json, sys
 with open(sys.argv[1], "w", encoding="utf-8") as fh:
     json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
@@ -68,7 +48,7 @@ if [[ "$auth_status" != "200" ]]; then
 fi
 
 access_token="$(
-  python3 - "$auth_response_file" <<'PY'
+  python - "$auth_response_file" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -146,7 +126,7 @@ if [[ -n "${SAMPLE_INVOICE_ID:-}" ]]; then
       -H "apikey: ${SUPABASE_ANON_KEY}" \
       -H "Authorization: Bearer ${access_token}" \
       -H "Content-Type: application/json" \
-      -d "$(python3 - "$SAMPLE_INVOICE_ID" <<'PY'
+      -d "$(python - "$SAMPLE_INVOICE_ID" <<'PY'
 import json, sys
 print(json.dumps({"invoice_id": sys.argv[1]}))
 PY
@@ -160,7 +140,7 @@ PY
     exit 1
   fi
 
-  python3 - "$invoice_pdf_response" <<'PY'
+  python - "$invoice_pdf_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)

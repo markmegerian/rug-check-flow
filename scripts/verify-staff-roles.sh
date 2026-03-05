@@ -25,7 +25,7 @@ sanitize_env_var() {
   fi
   local value
   value="${!name}"
-  value="$(python3 - "$value" <<'PY'
+  value="$(python - "$value" <<'PY'
 import sys
 print(sys.argv[1].strip("\r\n"))
 PY
@@ -43,7 +43,7 @@ json_payload_file() {
   local value1="$3"
   local key2="$4"
   local value2="$5"
-  python3 - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
 import json, sys
 with open(sys.argv[1], 'w', encoding='utf-8') as fh:
     json.dump({sys.argv[2]: sys.argv[3], sys.argv[4]: sys.argv[5]}, fh)
@@ -89,7 +89,7 @@ for spec in "${users[@]}"; do
   auth_file="$(mktemp)"
   printf '%s' "$auth_payload" > "$auth_file"
   read -r user_id access_token < <(
-    python3 - "$auth_file" <<'PY'
+    python - "$auth_file" <<'PY'
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     payload = json.load(fh)
@@ -119,7 +119,7 @@ PY
     exit 1
   fi
 
-  actual_role="$(python3 - <<'PY' "$roles_file"
+  actual_role="$(python - <<'PY' "$roles_file"
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     rows = json.load(fh)

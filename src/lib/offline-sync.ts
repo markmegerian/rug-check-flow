@@ -5,7 +5,6 @@ import {
   markEventFailed,
   getPendingPhotos,
   markPhotoUploaded,
-  addEvent,
   type OfflineEvent,
   type PendingPhoto,
 } from "./offline-queue";
@@ -47,6 +46,7 @@ export async function syncPendingPhotos(): Promise<{ uploaded: number; failed: n
       await markPhotoUploaded(photo.id!, publicUrl);
 
       // Emit PHOTO_ATTACHED event
+      const { addEvent } = await import("./offline-queue");
       await addEvent(photo.route_stop_id, "PHOTO_ATTACHED", {
         route_stop_item_id: photo.route_stop_item_id,
         photo_url: publicUrl,

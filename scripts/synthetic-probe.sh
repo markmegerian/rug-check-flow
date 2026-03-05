@@ -19,7 +19,7 @@ require_envs() {
 json_get() {
   local file="$1"
   local expr="$2"
-  python3 - "$file" "$expr" <<'PY'
+  python - "$file" "$expr" <<'PY'
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     payload = json.load(fh)
@@ -37,7 +37,7 @@ json_payload_file() {
   local value1="$3"
   local key2="$4"
   local value2="$5"
-  python3 - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
 import json,sys
 with open(sys.argv[1], 'w', encoding='utf-8') as fh:
     json.dump({sys.argv[2]: sys.argv[3], sys.argv[4]: sys.argv[5]}, fh)
@@ -47,7 +47,7 @@ PY
 json_payload_single() {
   local key="$1"
   local value="$2"
-  python3 - "$key" "$value" <<'PY'
+  python - "$key" "$value" <<'PY'
 import json,sys
 print(json.dumps({sys.argv[1]: sys.argv[2]}))
 PY
@@ -86,7 +86,7 @@ http_check() {
     ok="true"
   fi
 
-  echo "{\"label\":\"${label}\",\"url\":\"${url}\",\"status\":${status},\"ok\":${ok},\"body\":$(python3 - <<'PY' "$out_file"
+  echo "{\"label\":\"${label}\",\"url\":\"${url}\",\"status\":${status},\"ok\":${ok},\"body\":$(python - <<'PY' "$out_file"
 import json,sys
 text=open(sys.argv[1],encoding='utf-8').read()
 print(json.dumps(text[:500]))
@@ -104,7 +104,7 @@ sanitize_env_var() {
   fi
   local value
   value="${!name}"
-  value="$(python3 - "$value" <<'PY'
+  value="$(python - "$value" <<'PY'
 import sys
 print(sys.argv[1].strip("\r\n"))
 PY
@@ -158,7 +158,7 @@ if [[ -n "${APP_BASE_URL:-}" ]]; then
   done
 fi
 
-python3 - "$results_file" "$report_file" <<'PY'
+python - "$results_file" "$report_file" <<'PY'
 import json,sys,datetime
 rows=[json.loads(line) for line in open(sys.argv[1],encoding='utf-8') if line.strip()]
 summary={

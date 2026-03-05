@@ -6,7 +6,6 @@
 DROP POLICY IF EXISTS "delivery_list_items_manage_admin_office" ON "public"."delivery_list_items";
 
 -- New policy: Internal roles (admin/office/checkin_staff) can manage all fields
-DROP POLICY IF EXISTS "delivery_list_items_manage_internal" ON "public"."delivery_list_items";
 CREATE POLICY "delivery_list_items_manage_internal" ON "public"."delivery_list_items"
     TO "authenticated"
     USING (
@@ -39,8 +38,7 @@ $$;
 
 COMMENT ON FUNCTION "public"."validate_driver_delivery_item_update" IS 'Validates that drivers can only update loaded_on_truck, not confirmed_for_delivery';
 
--- Create trigger for driver updates (drop first if exists for idempotency)
-DROP TRIGGER IF EXISTS "delivery_list_items_driver_update_guard" ON "public"."delivery_list_items";
+-- Create trigger for driver updates
 CREATE TRIGGER "delivery_list_items_driver_update_guard"
     BEFORE UPDATE ON "public"."delivery_list_items"
     FOR EACH ROW
@@ -56,7 +54,6 @@ CREATE TRIGGER "delivery_list_items_driver_update_guard"
 
 -- Policy: Drivers can SELECT delivery_list_items for stops assigned to them
 -- (This is needed for drivers to see items in their stops)
-DROP POLICY IF EXISTS "delivery_list_items_select_driver" ON "public"."delivery_list_items";
 CREATE POLICY "delivery_list_items_select_driver" ON "public"."delivery_list_items"
     FOR SELECT
     TO "authenticated"
@@ -73,7 +70,6 @@ CREATE POLICY "delivery_list_items_select_driver" ON "public"."delivery_list_ite
     );
 
 -- Policy: Drivers can UPDATE loaded_on_truck (but trigger will block confirmed_for_delivery changes)
-DROP POLICY IF EXISTS "delivery_list_items_update_driver_loaded" ON "public"."delivery_list_items";
 CREATE POLICY "delivery_list_items_update_driver_loaded" ON "public"."delivery_list_items"
     FOR UPDATE
     TO "authenticated"
