@@ -269,10 +269,10 @@ export function CheckInLayout() {
           return;
         }
 
-        const serviceIds = data.serviceSnapshots.map((s) => s.service_id).filter(Boolean);
+        const idsForCategory = serviceIds.filter(Boolean);
         let categoryByServiceId: Record<string, string> = {};
-        if (serviceIds.length > 0) {
-          const { data: catRows } = await supabaseExtended.from("services").select("id, category").in("id", serviceIds);
+        if (idsForCategory.length > 0) {
+          const { data: catRows } = await supabaseExtended.from("services").select("id, category").in("id", idsForCategory);
           categoryByServiceId = Object.fromEntries(((catRows ?? []) as { id: string; category: string }[]).map((r) => [r.id, r.category ?? ""]));
         }
         const estimateItems = data.serviceSnapshots.map((service) => ({
