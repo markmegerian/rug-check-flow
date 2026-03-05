@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { OfflineQueueProvider } from "@/contexts/OfflineQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
 import { LoadingState } from "@/components/states/PageState";
@@ -27,6 +28,7 @@ const FacilityOps = lazy(() => import("./pages/FacilityOps"));
 const FacilityOffice = lazy(() => import("./pages/FacilityOffice"));
 const WholesalePortal = lazy(() => import("./pages/WholesalePortal"));
 const DriverPortal = lazy(() => import("./pages/DriverPortal"));
+const StopPortal = lazy(() => import("./pages/StopPortal"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -39,68 +41,70 @@ const RouteLoadingFallback = () => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/facility/ops"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
-                    <FacilityOps />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/facility/office"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "office"]}>
-                    <FacilityOffice />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/portal"
-                element={
-                  <PortalRoute>
-                    <WholesalePortal />
-                  </PortalRoute>
-                }
-              />
-              <Route
-                path="/driver"
-                element={
-                  <ProtectedRoute allowedRoles={["admin", "driver"]}>
-                    <DriverPortal />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute allowedRoles={["admin"]}>
-                    <AdminPanel />
-                  </ProtectedRoute>
-                }
-              />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </Suspense>
-      </TooltipProvider>
+      <OfflineQueueProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/reset-password" element={<ResetPassword />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/facility/ops"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
+                      <FacilityOps />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/facility/office"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "office"]}>
+                      <FacilityOffice />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/portal"
+                  element={
+                    <PortalRoute>
+                      <WholesalePortal />
+                    </PortalRoute>
+                  }
+                />
+                <Route
+                  path="/driver"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "driver"]}>
+                      <StopPortal />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]}>
+                      <AdminPanel />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </Suspense>
+        </TooltipProvider>
+      </OfflineQueueProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
