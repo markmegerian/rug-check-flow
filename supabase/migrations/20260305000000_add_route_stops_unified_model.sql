@@ -8,50 +8,71 @@
 -- - Stops are generated from these existing sources
 
 -- ============================================================================
--- PART A: Create New Enums
+-- PART A: Create New Enums (Idempotent)
 -- ============================================================================
 
-CREATE TYPE "public"."route_stop_status" AS ENUM (
-    'queued',
-    'in_progress',
-    'completed',
-    'completed_with_exceptions',
-    'unable_to_complete'
-);
+-- Create enums only if they don't exist
+DO $$ BEGIN
+    CREATE TYPE "public"."route_stop_status" AS ENUM (
+        'queued',
+        'in_progress',
+        'completed',
+        'completed_with_exceptions',
+        'unable_to_complete'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 COMMENT ON TYPE "public"."route_stop_status" IS 'Status of a route stop (one per client per route date)';
 
-CREATE TYPE "public"."route_stop_phase" AS ENUM (
-    'delivery',
-    'pickup'
-);
+DO $$ BEGIN
+    CREATE TYPE "public"."route_stop_phase" AS ENUM (
+        'delivery',
+        'pickup'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 COMMENT ON TYPE "public"."route_stop_phase" IS 'Phase of a stop item: delivery or pickup';
 
-CREATE TYPE "public"."route_stop_item_status" AS ENUM (
-    'pending',
-    'verified',
-    'disputed',
-    'exception',
-    'skipped'
-);
+DO $$ BEGIN
+    CREATE TYPE "public"."route_stop_item_status" AS ENUM (
+        'pending',
+        'verified',
+        'disputed',
+        'exception',
+        'skipped'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 COMMENT ON TYPE "public"."route_stop_item_status" IS 'Status of an individual item within a stop';
 
-CREATE TYPE "public"."dispute_type" AS ENUM (
-    'refused_delivery',
-    'post_delivery_claim'
-);
+DO $$ BEGIN
+    CREATE TYPE "public"."dispute_type" AS ENUM (
+        'refused_delivery',
+        'post_delivery_claim'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 COMMENT ON TYPE "public"."dispute_type" IS 'Type of dispute: refused at delivery vs claim after delivery';
 
-CREATE TYPE "public"."dispute_status" AS ENUM (
-    'open',
-    'investigating',
-    'resolved',
-    'credited',
-    'denied'
-);
+DO $$ BEGIN
+    CREATE TYPE "public"."dispute_status" AS ENUM (
+        'open',
+        'investigating',
+        'resolved',
+        'credited',
+        'denied'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 COMMENT ON TYPE "public"."dispute_status" IS 'Status of a dispute record';
 
@@ -472,7 +493,8 @@ $$;
 
 COMMENT ON FUNCTION "public"."route_stops_status_transition_guard" IS 'Trigger function enforcing status transitions and completion invariants';
 
--- Create trigger
+-- Create trigger (drop first if exists for idempotency)
+DROP TRIGGER IF EXISTS "route_stops_status_transition_trigger" ON "public"."route_stops";
 CREATE TRIGGER "route_stops_status_transition_trigger"
     BEFORE UPDATE ON "public"."route_stops"
     FOR EACH ROW
@@ -537,7 +559,8 @@ $$;
 
 COMMENT ON FUNCTION "public"."route_stop_items_status_transition_guard" IS 'Trigger function enforcing item status transitions';
 
--- Create trigger
+-- Create trigger (drop first if exists for idempotency)
+DROP TRIGGER IF EXISTS "route_stop_items_status_transition_trigger" ON "public"."route_stop_items";
 CREATE TRIGGER "route_stop_items_status_transition_trigger"
     BEFORE UPDATE ON "public"."route_stop_items"
     FOR EACH ROW
