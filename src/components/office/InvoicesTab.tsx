@@ -410,19 +410,75 @@ export function InvoicesTab() {
   const [invoiceBalance, setInvoiceBalance] = useState<number | null>(null);
 
   const fetchInvoiceFinancials = useCallback(async (invoiceId: string) => {
-    // Fetch payments with allocations
-    const { data: paymentsData } = await supabase
-      .from("payments")
-      .select("*, payment_allocations(*, invoices(invoice_number, id))")
-      .eq("payment_allocations.invoice_id", invoiceId);
-    setPayments((paymentsData as PaymentRow[]) ?? []);
+    // Fetch payment allocations for this invoice (simple query first)
+    const { data: allocationsData } = await supabase
+      .from("payment_allocations")
+      .select("id, payment_id, amount, invoice_id")
+      .eq("invoice_id", invoiceId);
+    
+    if (!allocationsData || allocationsData.length === 0) {
+      setPayments([]);
+    } else {
+      // Get unique payment IDs
+      const paymentIds = [...new Set(allocationsData.map(a => a.payment_id as string))];
+      
+      // Fetch payments
+      const { data: paymentsData } = await supabase
+        .from("payments")
+        .select("*")
+        .in("id", paymentIds);
+      
+      // Combine payments with their allocations
+      const paymentsMap = new Map<string, PaymentRow>();
+      if (paymentsData) {
+        for (const payment of paymentsData) {
+          paymentsMap.set(payment.id, {
+            ...payment,
+            payment_allocations: [],
+          });
+        }
+      }
+      
+      // Add allocations to payments
+      for (const alloc of allocationsData) {
+        const paymentId = alloc.payment_id as string;
+        const payment = paymentsMap.get(paymentId);
+        if (payment) {
+          payment.payment_allocations.push({
+            ...alloc,
+            invoices: { invoice_number: "", id: invoiceId },
+          } as PaymentRow["payment_allocations"][0]);
+        }
+      }
+      
+      setPayments(Array.from(paymentsMap.values()));
+    }
 
-    // Fetch credit memos
+    // Fetch credit memos (simplified query)
     const { data: creditMemosData } = await supabase
       .from("credit_memos")
-      .select("*, credit_memo_lines(*), invoices(invoice_number)")
+      .select("id, invoice_id, memo_number, reason, total, created_at")
       .eq("invoice_id", invoiceId);
-    setCreditMemos((creditMemosData as CreditMemoRow[]) ?? []);
+    
+    if (creditMemosData && creditMemosData.length > 0) {
+      // Fetch credit memo lines separately
+      const memoIds = creditMemosData.map(m => m.id);
+      const { data: linesData } = await supabase
+        .from("credit_memo_lines")
+        .select("*")
+        .in("credit_memo_id", memoIds);
+      
+      // Combine memos with lines
+      const memosWithLines: CreditMemoRow[] = creditMemosData.map(memo => ({
+        ...memo,
+        credit_memo_lines: linesData?.filter(l => l.credit_memo_id === memo.id) ?? [],
+        invoices: { invoice_number: "" },
+      })) as CreditMemoRow[];
+      
+      setCreditMemos(memosWithLines);
+    } else {
+      setCreditMemos([]);
+    }
 
     // Fetch invoice balance
     const { data: invoiceData } = await supabase
