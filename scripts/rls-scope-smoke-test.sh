@@ -208,15 +208,19 @@ driver_token="$(login_and_get_token "$DRIVER_USER_EMAIL" "$DRIVER_USER_PASSWORD"
 echo "==> Portal scope checks"
 portal_invoices_file="$(query_rest "$portal_token" "invoices?select=id,client_id,status&limit=25")"
 portal_invoice_items_file="$(query_rest "$portal_token" "invoice_items?select=id,invoice_id&limit=50")"
+portal_estimates_file="$(query_rest "$portal_token" "estimates?select=id,client_id,status&limit=25")"
+portal_rugs_file="$(query_rest "$portal_token" "rugs?select=id,client_id,status&limit=25")"
 portal_payment_attempts_file="$(query_rest "$portal_token" "payment_attempts?select=id,client_id,status&limit=25")"
 portal_pickups_file="$(query_rest "$portal_token" "pickup_requests?select=id,client_id,status&limit=25")"
 portal_users_file="$(query_rest "$portal_token" "portal_users?select=id,client_id,email,status&limit=10")"
 assert_invoice_items_match_visible_invoices "$portal_invoice_items_file" "$portal_invoices_file"
-echo "OK: portal invoices, invoice_items, payment_attempts, pickup_requests, and portal_users are readable"
+echo "OK: portal invoices, invoice_items, estimates, rugs, payment_attempts, pickup_requests, and portal_users are readable"
 echo "OK: portal invoice_items are scoped to visible invoices"
 
 if [[ -n "${EXPECTED_PORTAL_CLIENT_ID:-}" ]]; then
   assert_all_client_ids_match "$portal_invoices_file" "$EXPECTED_PORTAL_CLIENT_ID"
+  assert_all_client_ids_match "$portal_estimates_file" "$EXPECTED_PORTAL_CLIENT_ID"
+  assert_all_client_ids_match "$portal_rugs_file" "$EXPECTED_PORTAL_CLIENT_ID"
   assert_all_client_ids_match "$portal_payment_attempts_file" "$EXPECTED_PORTAL_CLIENT_ID"
   assert_all_client_ids_match "$portal_pickups_file" "$EXPECTED_PORTAL_CLIENT_ID"
   assert_portal_users_match_client "$portal_users_file" "$EXPECTED_PORTAL_CLIENT_ID"
@@ -226,11 +230,13 @@ fi
 echo "==> Office scope checks"
 office_invoices_file="$(query_rest "$office_token" "invoices?select=id,client_id,status&limit=25")"
 office_invoice_items_file="$(query_rest "$office_token" "invoice_items?select=id,invoice_id&limit=50")"
+office_estimates_file="$(query_rest "$office_token" "estimates?select=id,client_id,status&limit=25")"
+office_rugs_file="$(query_rest "$office_token" "rugs?select=id,client_id,status&limit=25")"
 office_payment_attempts_file="$(query_rest "$office_token" "payment_attempts?select=id,client_id,status&limit=25")"
 office_pickups_file="$(query_rest "$office_token" "pickup_requests?select=id,client_id,status&limit=25")"
 office_portal_users_file="$(query_rest "$office_token" "portal_users?select=id,client_id,email,status&limit=10")"
 assert_invoice_items_match_visible_invoices "$office_invoice_items_file" "$office_invoices_file"
-echo "OK: office invoices, invoice_items, payment_attempts, pickup_requests, and portal_users are readable"
+echo "OK: office invoices, invoice_items, estimates, rugs, payment_attempts, pickup_requests, and portal_users are readable"
 echo "OK: office invoice_items are linked to visible invoices"
 
 echo "==> Driver scope checks"
@@ -246,11 +252,15 @@ fi
 rm -f \
   "$portal_invoices_file" \
   "$portal_invoice_items_file" \
+  "$portal_estimates_file" \
+  "$portal_rugs_file" \
   "$portal_payment_attempts_file" \
   "$portal_pickups_file" \
   "$portal_users_file" \
   "$office_invoices_file" \
   "$office_invoice_items_file" \
+  "$office_estimates_file" \
+  "$office_rugs_file" \
   "$office_payment_attempts_file" \
   "$office_pickups_file" \
   "$office_portal_users_file" \
