@@ -18,5 +18,8 @@ verify_jwt = false
 [functions.invoice-pdf]
 verify_jwt = false
 
+[functions.ingest-stop-events]
+verify_jwt = false
+
 [functions.admin-delete-user]
 verify_jwt = false
