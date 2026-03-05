@@ -215,6 +215,7 @@ ALTER TABLE "public"."disputes" ENABLE ROW LEVEL SECURITY;
 
 -- route_stops RLS
 -- Drivers can SELECT assigned stops for today +/- 1 day
+DROP POLICY IF EXISTS "route_stops_select_driver" ON "public"."route_stops";
 CREATE POLICY "route_stops_select_driver" ON "public"."route_stops"
     FOR SELECT
     TO "authenticated"
@@ -225,6 +226,7 @@ CREATE POLICY "route_stops_select_driver" ON "public"."route_stops"
     );
 
 -- Internal roles (admin/office/checkin_staff) can manage all stops
+DROP POLICY IF EXISTS "route_stops_manage_internal" ON "public"."route_stops";
 CREATE POLICY "route_stops_manage_internal" ON "public"."route_stops"
     TO "authenticated"
     USING (
@@ -240,6 +242,7 @@ CREATE POLICY "route_stops_manage_internal" ON "public"."route_stops"
 
 -- route_stop_items RLS
 -- Drivers can SELECT items for stops assigned to them
+DROP POLICY IF EXISTS "route_stop_items_select_driver" ON "public"."route_stop_items";
 CREATE POLICY "route_stop_items_select_driver" ON "public"."route_stop_items"
     FOR SELECT
     TO "authenticated"
@@ -254,6 +257,7 @@ CREATE POLICY "route_stop_items_select_driver" ON "public"."route_stop_items"
     );
 
 -- Internal roles can manage all items
+DROP POLICY IF EXISTS "route_stop_items_manage_internal" ON "public"."route_stop_items";
 CREATE POLICY "route_stop_items_manage_internal" ON "public"."route_stop_items"
     TO "authenticated"
     USING (
@@ -269,6 +273,7 @@ CREATE POLICY "route_stop_items_manage_internal" ON "public"."route_stop_items"
 
 -- route_stop_events RLS
 -- Drivers can INSERT events for stops assigned to them
+DROP POLICY IF EXISTS "route_stop_events_insert_driver" ON "public"."route_stop_events";
 CREATE POLICY "route_stop_events_insert_driver" ON "public"."route_stop_events"
     FOR INSERT
     TO "authenticated"
@@ -281,6 +286,7 @@ CREATE POLICY "route_stop_events_insert_driver" ON "public"."route_stop_events"
     );
 
 -- Drivers can SELECT their own events
+DROP POLICY IF EXISTS "route_stop_events_select_driver" ON "public"."route_stop_events";
 CREATE POLICY "route_stop_events_select_driver" ON "public"."route_stop_events"
     FOR SELECT
     TO "authenticated"
@@ -293,6 +299,7 @@ CREATE POLICY "route_stop_events_select_driver" ON "public"."route_stop_events"
     );
 
 -- Internal roles can manage all events
+DROP POLICY IF EXISTS "route_stop_events_manage_internal" ON "public"."route_stop_events";
 CREATE POLICY "route_stop_events_manage_internal" ON "public"."route_stop_events"
     TO "authenticated"
     USING (
@@ -308,6 +315,7 @@ CREATE POLICY "route_stop_events_manage_internal" ON "public"."route_stop_events
 
 -- disputes RLS
 -- Internal roles can manage all disputes
+DROP POLICY IF EXISTS "disputes_manage_internal" ON "public"."disputes";
 CREATE POLICY "disputes_manage_internal" ON "public"."disputes"
     TO "authenticated"
     USING (
