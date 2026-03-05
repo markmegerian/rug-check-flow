@@ -67,11 +67,65 @@ VALUES
 ON CONFLICT (tag) DO NOTHING;
 
 -- A demo staff-owned job and inspection flow
--- Note: auth.users isn’t populated in previews; we’ll use nullables where possible and focus on relations that don’t require auth.users
+-- Ensure deterministic auth users exist for FK-constrained seed rows
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  confirmation_token,
+  email_change,
+  email_change_token_new,
+  recovery_token
+)
+VALUES
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '10111111-1111-1111-1111-111111111111',
+    'authenticated',
+    'authenticated',
+    'staff.demo@demorugs.example',
+    crypt('preview-password', gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}',
+    '{"seeded":true,"role":"staff"}',
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '20222222-2222-2222-2222-222222222222',
+    'authenticated',
+    'authenticated',
+    'client.portal@acme.example',
+    crypt('preview-password', gen_salt('bf')),
+    now(),
+    '{"provider":"email","providers":["email"]}',
+    '{"seeded":true,"role":"client"}',
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  )
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO public.jobs (id, user_id, job_number, client_name, client_email, client_phone, status, company_id, last_activity_at)
 VALUES (
   '55555555-5555-5555-5555-555555555555',
-  '00000000-0000-0000-0000-000000000000', -- placeholder (not FK constrained to auth.users here due to schema)
+  '10111111-1111-1111-1111-111111111111',
   'J-2001',
   'Acme Interiors',
   'client@acme.example',
@@ -141,11 +195,23 @@ VALUES (
 )
 ON CONFLICT (inspection_id) DO NOTHING;
 
+-- Portal account record tied to auth.users for client_job_access FK
+INSERT INTO public.client_accounts (id, user_id, email, full_name, phone, company_id)
+VALUES (
+  '22333333-3333-3333-3333-333333333333',
+  '20222222-2222-2222-2222-222222222222',
+  'client.portal@acme.example',
+  'Casey Client',
+  '+1-555-0101',
+  '11111111-1111-1111-1111-111111111111'
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- Client portal access (token-only style)
 INSERT INTO public.client_job_access (id, client_id, job_id, access_token, company_id)
 VALUES (
   '99999999-9999-9999-9999-999999999999',
-  '22222222-2222-2222-2222-222222222222',
+  '22333333-3333-3333-3333-333333333333',
   '55555555-5555-5555-5555-555555555555',
   'demo-access-token',
   '11111111-1111-1111-1111-111111111111'
@@ -153,12 +219,13 @@ VALUES (
 ON CONFLICT (access_token) DO NOTHING;
 
 -- Invoices (draft)
-INSERT INTO public.invoices (id, invoice_number, client_id, status, total, balance)
+INSERT INTO public.invoices (id, invoice_number, client_id, status, total, total_amount, balance_due)
 VALUES (
   'aaaaaaaa-bbbb-cccc-dddd-eeeeffffffff',
   'INV-1001',
   '22222222-2222-2222-2222-222222222222',
   'draft',
+  400,
   400,
   400
 )
