@@ -43,6 +43,10 @@ async function queryRest(token: string, path: string, method: string = "GET", bo
 
   if (body) {
     headers["Content-Type"] = "application/json";
+    // For POST requests, request the created object to be returned
+    if (method === "POST") {
+      headers["Prefer"] = "return=representation";
+    }
   }
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -76,8 +80,20 @@ async function queryRest(token: string, path: string, method: string = "GET", bo
     if (!response.ok) {
       return { error: payload || { message: text }, status: response.status };
     }
-    // For successful non-GET requests, return payload or empty object
-    return (payload as RestRow | RestRow[]) || (method === "DELETE" ? {} : []);
+    // For successful non-GET requests, return payload
+    // POST typically returns a single object or array, PATCH returns object or array, DELETE returns empty
+    if (payload === null) {
+      return method === "DELETE" ? {} : (method === "POST" ? {} : {});
+    }
+    // POST can return single object or array depending on Prefer header
+    // If it's an array with one item, return the item; if single object, return as-is
+    if (Array.isArray(payload) && payload.length === 1) {
+      return payload[0] as RestRow;
+    }
+    if (Array.isArray(payload)) {
+      return payload as RestRow[];
+    }
+    return payload as RestRow;
   }
 }
 
@@ -140,7 +156,8 @@ runIfConfigured("Messaging threads acceptance tests", () => {
       sent_at: new Date().toISOString(),
     }) as RestRow;
 
-    expect(notification1.id).toBeDefined();
+    expect(notification1).toBeDefined();
+    expect((notification1 as RestRow).id).toBeDefined();
 
     // Check throttle function - should return false (throttled)
     const { data: throttleCheck } = await queryRest(officeToken, `rpc/check_notification_throttle?client_id=eq.${clientId}&p_throttle_key=eq.${throttleKey}`) as { data?: unknown };
@@ -155,7 +172,10 @@ runIfConfigured("Messaging threads acceptance tests", () => {
     expect(recentNotifications.length).toBeGreaterThanOrEqual(1);
 
     // Cleanup
-    await queryRest(officeToken, `notification_cadence?id=eq.${notification1.id}`, "DELETE");
+    const notifId = (notification1 as RestRow)?.id;
+    if (notifId) {
+      await queryRest(officeToken, `notification_cadence?id=eq.${notifId}`, "DELETE");
+    }
   });
 
   it("internal roles can see all message threads", async () => {
@@ -178,17 +198,25 @@ runIfConfigured("Messaging threads acceptance tests", () => {
       thread_type: "general",
     }) as RestRow;
 
+    if (!thread1?.id || !thread2?.id) {
+      throw new Error(`Failed to create threads: thread1.id=${thread1?.id}, thread2.id=${thread2?.id}`);
+    }
+
     try {
       // Office user should see both threads
       const allThreads = await queryRest(officeToken, "message_threads?select=id");
       const threadIds = allThreads.map((t) => t.id as string);
       
-      expect(threadIds).toContain(thread1.id);
-      expect(threadIds).toContain(thread2.id);
+      expect(threadIds).toContain(thread1.id as string);
+      expect(threadIds).toContain(thread2.id as string);
     } finally {
       // Cleanup
-      await queryRest(officeToken, `message_threads?id=eq.${thread1.id}`, "DELETE").catch(() => {});
-      await queryRest(officeToken, `message_threads?id=eq.${thread2.id}`, "DELETE").catch(() => {});
+      if (thread1?.id) {
+        await queryRest(officeToken, `message_threads?id=eq.${thread1.id}`, "DELETE").catch(() => {});
+      }
+      if (thread2?.id) {
+        await queryRest(officeToken, `message_threads?id=eq.${thread2.id}`, "DELETE").catch(() => {});
+      }
     }
   });
 
