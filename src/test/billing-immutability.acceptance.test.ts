@@ -287,9 +287,12 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       if (!creditMemoId) {
         const creditMemoRows = await queryRest(
           officeToken,
-          `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
+          `credit_memos?select=id,memo_number&invoice_id=eq.${invoiceId}&memo_number=eq.${encodeURIComponent(creditMemoNumber)}&order=created_at.desc&limit=1`,
         );
-        creditMemoId = creditMemoRows[0]?.id as string | undefined;
+        const fallbackMemo = creditMemoRows[0];
+        if (fallbackMemo?.memo_number === creditMemoNumber) {
+          creditMemoId = fallbackMemo.id as string | undefined;
+        }
       }
       if (!creditMemoId) {
         throw new Error(`Failed to create credit memo: no ID returned. Response: ${JSON.stringify(creditMemoResponse)}`);
