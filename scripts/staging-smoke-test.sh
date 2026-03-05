@@ -15,6 +15,26 @@ for var_name in "${required_vars[@]}"; do
   fi
 done
 
+sanitize_env_var() {
+  local name="$1"
+  if [[ -z "${!name+x}" ]]; then
+    return
+  fi
+
+  local value
+  value="${!name}"
+  value="$(python - "$value" <<'PYTHON'
+import sys
+print(sys.argv[1].strip("\r\n"))
+PYTHON
+)"
+  printf -v "$name" '%s' "$value"
+}
+
+for var_name in SUPABASE_URL SUPABASE_ANON_KEY SMOKE_USER_EMAIL SMOKE_USER_PASSWORD APP_BASE_URL SAMPLE_INVOICE_ID; do
+  sanitize_env_var "$var_name"
+done
+
 json_payload_file() {
   local output_file="$1"
   local email="$2"
