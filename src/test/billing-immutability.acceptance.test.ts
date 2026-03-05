@@ -28,6 +28,21 @@ function asSingleRow(value: unknown): RestRow | null {
   return null;
 }
 
+async function queryFirstIdWithFallback(token: string, paths: string[]) {
+  for (const path of paths) {
+    try {
+      const rows = await queryRest(token, path);
+      const id = rows[0]?.id;
+      if (typeof id === "string" && id.length > 0) {
+        return id;
+      }
+    } catch {
+      // Try next candidate query when schema differs across environments.
+    }
+  }
+  return undefined;
+}
+
 async function loginAndGetToken(email: string, password: string) {
   const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: "POST",
@@ -242,6 +257,11 @@ runIfConfigured("Billing immutability acceptance tests", () => {
 
       let paymentId = asSingleRow(paymentResponse)?.id as string | undefined;
       if (!paymentId) {
+        paymentId = await queryFirstIdWithFallback(officeToken, [
+          `payments?select=id&client_id=eq.${clientId}&amount=eq.200&method=eq.cash&order=created_at.desc&limit=1`,
+          `payments?select=id&client_id=eq.${clientId}&amount=eq.200&order=created_at.desc&limit=1`,
+          `payments?select=id&client_id=eq.${clientId}&order=created_at.desc&limit=1`,
+        ]);
         const paymentRows = await queryRest(
           officeToken,
           `payments?select=id&client_id=eq.${clientId}&amount=eq.${paymentAmount}&method=eq.${paymentMethod}&reference=eq.${encodeURIComponent(paymentReference)}&order=created_at.desc&limit=1`,
@@ -285,6 +305,11 @@ runIfConfigured("Billing immutability acceptance tests", () => {
 
       let creditMemoId = asSingleRow(creditMemoResponse)?.id as string | undefined;
       if (!creditMemoId) {
+        creditMemoId = await queryFirstIdWithFallback(officeToken, [
+          `credit_memos?select=id&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
+          `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
+          `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&total=eq.-50&order=created_at.desc&limit=1`,
+        ]);
         const creditMemoRows = await queryRest(
           officeToken,
           `credit_memos?select=id,memo_number&invoice_id=eq.${invoiceId}&memo_number=eq.${encodeURIComponent(creditMemoNumber)}&order=created_at.desc&limit=1`,
