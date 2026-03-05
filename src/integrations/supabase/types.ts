@@ -232,6 +232,7 @@ export type Database = {
           pdf_storage_path: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           total: number
+          balance: number
           updated_at: string
         }
         Insert: {
@@ -541,7 +542,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "office" | "checkin_staff" | "driver"
       delivery_list_status: "compiling" | "confirmed" | "checked_out"
-      invoice_status: "draft" | "sent" | "paid" | "overdue"
+      invoice_status: "draft" | "sent" | "paid" | "overdue" | "disputed"
       pricing_tier: "standard" | "preferred" | "vip"
       rug_status: "checked_in" | "in_production" | "ready" | "picked_up"
     }

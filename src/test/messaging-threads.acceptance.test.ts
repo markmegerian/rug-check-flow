@@ -126,7 +126,8 @@ runIfConfigured("Messaging threads acceptance tests", () => {
     }) as { error?: unknown; status?: number };
 
     expect(createThreadResult.error || createThreadResult.status).toBeDefined();
-    expect(createThreadResult.status).toBeGreaterThanOrEqual(400);
+    const status = (createThreadResult as { status?: number }).status;
+    expect(status).toBeGreaterThanOrEqual(400);
 
     // Try to query threads for another client - should return empty
     const otherClientThreads = await queryRest(portalToken, `message_threads?client_id=eq.${otherClientId}`);
@@ -159,12 +160,8 @@ runIfConfigured("Messaging threads acceptance tests", () => {
     expect(notification1).toBeDefined();
     expect((notification1 as RestRow).id).toBeDefined();
 
-    // Check throttle function - should return false (throttled)
-    const { data: throttleCheck } = await queryRest(officeToken, `rpc/check_notification_throttle?client_id=eq.${clientId}&p_throttle_key=eq.${throttleKey}`) as { data?: unknown };
-    
-    // The function should exist and be callable
-    // Note: Direct RPC calls via REST may need different syntax, so we'll test via a query
-    // Instead, let's verify that a second notification within 72h would be throttled by checking the count
+    // Check throttle by verifying that a second notification within 72h would be throttled
+    // We test this by checking the count of recent notifications
     
     const recentNotifications = await queryRest(officeToken, `notification_cadence?client_id=eq.${clientId}&throttle_key=eq.${throttleKey}&sent_at=gte.${new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()}`);
     
@@ -248,7 +245,10 @@ runIfConfigured("Messaging threads acceptance tests", () => {
       total: 100,
     }) as RestRow;
 
-    const estimateId = estimate.id as string;
+    const estimateId = (estimate as RestRow)?.id as string;
+    if (!estimateId) {
+      throw new Error("Failed to create estimate: no ID returned");
+    }
 
     try {
       // Update estimate to sent (should trigger notification scheduling)
