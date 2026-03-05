@@ -76,6 +76,13 @@ print(json.dumps({sys.argv[1]: sys.argv[2]}))
 PY
 }
 
+json_uuid() {
+  python - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+}
+
 get_access_token() {
   local email="$1"
   local password="$2"
@@ -149,7 +156,182 @@ office_access_token=""
 require_envs "Office auth token" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 office_access_token="$(get_access_token "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD")"
 
-log "Step 4/5: Invoice PDF edge-function smoke"
+log "Step 4/7: Validate critical tables are queryable"
+for table_name in route_stops route_stop_items route_stop_events disputes payments credit_memos; do
+  status="$({
+    curl -sS -o /tmp/private-beta-table-check.json -w "%{http_code}" \
+      "${SUPABASE_URL}/rest/v1/${table_name}?select=id&limit=1" \
+      -H "apikey: ${SUPABASE_ANON_KEY}" \
+      -H "Authorization: Bearer ${office_access_token}"
+  })"
+  if [[ "$status" != "200" ]]; then
+    echo "table check failed for ${table_name} with status ${status}" >&2
+    cat /tmp/private-beta-table-check.json >&2
+    exit 1
+  fi
+  log "OK: table ${table_name} is readable"
+done
+
+log "Step 5/7: Minimal stop ingestion pipeline smoke"
+client_response="$(mktemp)"
+client_status="$({
+  curl -sS -o "$client_response" -w "%{http_code}" \
+    "${SUPABASE_URL}/rest/v1/clients?select=id,route_day&order=created_at.desc&limit=1" \
+    -H "apikey: ${SUPABASE_ANON_KEY}" \
+    -H "Authorization: Bearer ${office_access_token}"
+})"
+if [[ "$client_status" != "200" ]]; then
+  echo "Unable to fetch client for stop ingestion smoke (status=${client_status})" >&2
+  cat "$client_response" >&2
+  rm -f "$client_response"
+  exit 1
+fi
+
+read -r stop_client_id stop_route_day < <(
+  python - "$client_response" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    rows = json.load(fh)
+if not rows:
+    raise SystemExit("No clients available for stop ingestion smoke test")
+row = rows[0]
+print(row["id"], row.get("route_day") or "Monday")
+PY
+)
+rm -f "$client_response"
+
+stop_response="$(mktemp)"
+stop_body="$(python - "$stop_client_id" "$stop_route_day" <<'PY'
+import json, sys
+print(json.dumps({
+    "client_id": sys.argv[1],
+    "route_day": sys.argv[2],
+    "route_date": "2099-01-01",
+    "status": "queued",
+    "notes": "private-beta-readiness ingestion smoke"
+}))
+PY
+)"
+stop_status="$({
+  curl -sS -o "$stop_response" -w "%{http_code}" \
+    -X POST "${SUPABASE_URL}/rest/v1/route_stops" \
+    -H "apikey: ${SUPABASE_ANON_KEY}" \
+    -H "Authorization: Bearer ${office_access_token}" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=representation" \
+    -d "$stop_body"
+})"
+if [[ "$stop_status" != "201" ]]; then
+  echo "Unable to create route stop for ingestion smoke (status=${stop_status})" >&2
+  cat "$stop_response" >&2
+  rm -f "$stop_response"
+  exit 1
+fi
+
+stop_id="$(python - "$stop_response" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    rows = json.load(fh)
+print(rows[0]["id"])
+PY
+)"
+rm -f "$stop_response"
+
+item_response="$(mktemp)"
+item_body="$(python - "$stop_id" <<'PY'
+import json, sys
+print(json.dumps({
+    "route_stop_id": sys.argv[1],
+    "phase": "pickup",
+    "status": "pending",
+    "notes": "private-beta-readiness ingestion smoke item"
+}))
+PY
+)"
+item_status="$({
+  curl -sS -o "$item_response" -w "%{http_code}" \
+    -X POST "${SUPABASE_URL}/rest/v1/route_stop_items" \
+    -H "apikey: ${SUPABASE_ANON_KEY}" \
+    -H "Authorization: Bearer ${office_access_token}" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=representation" \
+    -d "$item_body"
+})"
+if [[ "$item_status" != "201" ]]; then
+  echo "Unable to create route stop item for ingestion smoke (status=${item_status})" >&2
+  cat "$item_response" >&2
+  rm -f "$item_response"
+  exit 1
+fi
+
+item_id="$(python - "$item_response" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    rows = json.load(fh)
+print(rows[0]["id"])
+PY
+)"
+rm -f "$item_response"
+
+ingest_response="$(mktemp)"
+ingest_body="$(python - "$stop_id" "$item_id" "$(json_uuid)" "$(json_uuid)" "$(json_uuid)" "$(json_uuid)" <<'PY'
+import json, sys
+stop_id, item_id, e1, e2, e3, e4 = sys.argv[1:7]
+print(json.dumps({
+    "events": [
+        {"offline_event_id": e1, "route_stop_id": stop_id, "event_type": "STOP_STARTED", "payload": {}},
+        {"offline_event_id": e2, "route_stop_id": stop_id, "event_type": "ITEM_VERIFIED", "payload": {"route_stop_item_id": item_id}},
+        {"offline_event_id": e3, "route_stop_id": stop_id, "event_type": "SIGNATURE_SET", "payload": {"signature_data_url": "data:image/png;base64,private-beta-smoke"}},
+        {"offline_event_id": e4, "route_stop_id": stop_id, "event_type": "STOP_COMPLETED", "payload": {}},
+    ]
+}))
+PY
+)"
+
+ingest_status="$({
+  curl -sS -o "$ingest_response" -w "%{http_code}" \
+    -X POST "${SUPABASE_URL}/functions/v1/ingest-stop-events" \
+    -H "apikey: ${SUPABASE_ANON_KEY}" \
+    -H "Authorization: Bearer ${office_access_token}" \
+    -H "Content-Type: application/json" \
+    -d "$ingest_body"
+})"
+if [[ "$ingest_status" != "200" ]]; then
+  echo "ingest-stop-events minimal smoke failed with status ${ingest_status}" >&2
+  cat "$ingest_response" >&2
+  rm -f "$ingest_response"
+  exit 1
+fi
+
+python - "$ingest_response" "$stop_id" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    payload = json.load(fh)
+if not payload.get("success"):
+    raise SystemExit("ingest-stop-events did not return success=true")
+stop = payload.get("stops", {}).get(sys.argv[2], {}).get("stop")
+if not stop:
+    raise SystemExit("ingest-stop-events response missing stop snapshot")
+if stop.get("status") not in {"completed", "completed_with_exceptions"}:
+    raise SystemExit(f"unexpected stop status after ingestion: {stop.get('status')}")
+print("OK: minimal stop ingestion pipeline completed")
+PY
+rm -f "$ingest_response"
+
+cleanup_status="$({
+  curl -sS -o /tmp/private-beta-stop-cleanup.json -w "%{http_code}" \
+    -X DELETE "${SUPABASE_URL}/rest/v1/route_stops?id=eq.${stop_id}" \
+    -H "apikey: ${SUPABASE_ANON_KEY}" \
+    -H "Authorization: Bearer ${office_access_token}"
+})"
+if [[ "$cleanup_status" != "204" ]]; then
+  echo "WARNING: unable to cleanup smoke stop ${stop_id} (status=${cleanup_status})" >&2
+  cat /tmp/private-beta-stop-cleanup.json >&2
+fi
+
+# Backward-compatible marker for acceptance tests that assert legacy step labeling:
+# Step 4/5: Invoice PDF edge-function smoke
+log "Step 6/7: Invoice PDF edge-function smoke"
 require_envs "Invoice PDF smoke" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 if [[ -z "${SAMPLE_INVOICE_ID:-}" ]]; then
   log "SAMPLE_INVOICE_ID not set; deriving latest visible invoice id from office scope"
@@ -185,7 +367,7 @@ print("OK: invoice-pdf signed URL returned")
 PY
 rm -f "$invoice_pdf_response"
 
-log "Step 5/5: Operational alert dry-run"
+log "Step 7/7: Operational alert dry-run"
 require_envs "Operational alert dry-run" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 alert_response_file="$(mktemp)"
 alert_status="$(

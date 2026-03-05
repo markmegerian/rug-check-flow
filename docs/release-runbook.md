@@ -33,11 +33,24 @@ This runbook is the operational checklist for promoting the RugBoost app.
 - `OPS_ALERT_EMAILS` (optional CSV list for critical operational alert emails)
 - `OPS_ALERT_FROM_EMAIL` (optional sender identity for operational alert emails)
 
+### ingest-stop-events required env vars
+
+The `ingest-stop-events` function requires these secrets at runtime:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+If any are missing, ingestion requests will fail with a 500 configuration error.
+
 ## 3) Migration and deploy order
 
-1. Deploy database migrations to staging.
+Use this strict order in both staging and production:
+
+1. Deploy database migrations.
 2. Deploy Supabase edge functions.
    - Ensure `invoice-pdf` and `operational-alerts` are deployed alongside existing functions.
+   - Ensure `ingest-stop-events` is deployed with required env vars.
 3. Deploy frontend build.
 4. Run staging smoke test script:
 
@@ -63,7 +76,8 @@ This runbook is the operational checklist for promoting the RugBoost app.
    ```sh
    ./scripts/private-beta-readiness.sh
    ```
-9. Save outputs in a release evidence file (`docs/release-evidence/<release-name>.md`) and attach logs/artifacts.
+9. Confirm private beta readiness includes the minimal stop ingestion pipeline check and route/offline tables validation.
+10. Save outputs in a release evidence file (`docs/release-evidence/<release-name>.md`) and attach logs/artifacts.
 
 ## Release evidence contract (Phase 1.1)
 
@@ -181,3 +195,13 @@ If a release fails:
    - Prefer forward-fix migrations.
    - If absolutely necessary, apply reviewed rollback SQL scripts.
 5. Re-run smoke tests before reopening access.
+
+### 6.1) Ordered rollback steps (new stop + offline pipeline)
+
+1. Pause driver/offline ingestion traffic (or feature-flag any clients that call `ingest-stop-events`).
+2. Roll frontend back first if the issue is UI-only and schema/function contracts are still valid.
+3. Roll edge functions back to the previous known-good versions (especially `ingest-stop-events`, `operational-alerts`, and `invoice-pdf`).
+4. Handle database rollback via forward-fix by default:
+   - Keep new tables in place (`route_stops`, `route_stop_items`, `route_stop_events`, `disputes`, `payments`, `credit_memos`) unless data recovery requires explicit rollback SQL.
+   - If hard rollback is required, use pre-reviewed SQL and capture a backup/export first.
+5. Re-run `./scripts/private-beta-readiness.sh` in staging before retrying production promote.
