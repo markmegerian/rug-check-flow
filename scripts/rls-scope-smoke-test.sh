@@ -27,7 +27,7 @@ sanitize_env_var() {
 
   local value
   value="${!name}"
-  value="$(python - "$value" <<'PYTHON'
+  value="$(python3 - "$value" <<'PYTHON'
 import sys
 print(sys.argv[1].strip("\r\n"))
 PYTHON
@@ -54,7 +54,7 @@ json_payload_file() {
   local output_file="$1"
   local email="$2"
   local password="$3"
-  python - "$output_file" "$email" "$password" <<'PY'
+  python3 - "$output_file" "$email" "$password" <<'PY'
 import json, sys
 with open(sys.argv[1], "w", encoding="utf-8") as fh:
     json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
@@ -89,7 +89,7 @@ login_and_get_token() {
 
   local token
   token="$(
-    python - "$response_file" <<'PY'
+    python3 - "$response_file" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -132,7 +132,7 @@ query_rest() {
 assert_all_client_ids_match() {
   local json_file="$1"
   local expected_client_id="$2"
-  python - "$json_file" "$expected_client_id" <<'PY'
+  python3 - "$json_file" "$expected_client_id" <<'PY'
 import json, sys
 path = sys.argv[1]
 expected = sys.argv[2]
@@ -149,7 +149,7 @@ PY
 assert_all_driver_ids_match() {
   local json_file="$1"
   local expected_driver_id="$2"
-  python - "$json_file" "$expected_driver_id" <<'PY'
+  python3 - "$json_file" "$expected_driver_id" <<'PY'
 import json, sys
 path = sys.argv[1]
 expected = sys.argv[2]
@@ -166,7 +166,7 @@ PY
 assert_portal_users_match_client() {
   local json_file="$1"
   local expected_client_id="$2"
-  python - "$json_file" "$expected_client_id" <<'PY'
+  python3 - "$json_file" "$expected_client_id" <<'PY'
 import json, sys
 path = sys.argv[1]
 expected = sys.argv[2]
@@ -183,7 +183,7 @@ PY
 assert_invoice_items_match_visible_invoices() {
   local invoice_items_file="$1"
   local invoices_file="$2"
-  python - "$invoice_items_file" "$invoices_file" <<'PY'
+  python3 - "$invoice_items_file" "$invoices_file" <<'PY'
 import json, sys
 items_path = sys.argv[1]
 invoices_path = sys.argv[2]

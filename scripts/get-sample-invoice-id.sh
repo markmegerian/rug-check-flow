@@ -16,7 +16,7 @@ sanitize_env_var() {
   fi
   local value
   value="${!name}"
-  value="$(python - "$value" <<'PY'
+  value="$(python3 - "$value" <<'PY'
 import sys
 print(sys.argv[1].strip("\r\n"))
 PY
@@ -34,7 +34,7 @@ json_payload_file() {
   local value1="$3"
   local key2="$4"
   local value2="$5"
-  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+  python3 - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
 import json, sys
 with open(sys.argv[1], 'w', encoding='utf-8') as fh:
     json.dump({sys.argv[2]: sys.argv[3], sys.argv[4]: sys.argv[5]}, fh)
@@ -62,7 +62,7 @@ if [[ "$status" != "200" ]]; then
 fi
 
 office_access_token="$(
-  python - "$response_file" <<'PY'
+  python3 - "$response_file" <<'PY'
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     payload = json.load(fh)
@@ -92,7 +92,7 @@ if [[ "$invoice_status" != "200" ]]; then
 fi
 
 sample_invoice_id="$(
-  python - "$invoice_file" <<'PY'
+  python3 - "$invoice_file" <<'PY'
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     rows = json.load(fh)
