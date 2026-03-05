@@ -330,6 +330,7 @@ CREATE POLICY "disputes_manage_internal" ON "public"."disputes"
     );
 
 -- Portal users can SELECT disputes for their client
+DROP POLICY IF EXISTS "disputes_select_portal" ON "public"."disputes";
 CREATE POLICY "disputes_select_portal" ON "public"."disputes"
     FOR SELECT
     TO "authenticated"
