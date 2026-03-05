@@ -16,7 +16,7 @@ sanitize_env_var() {
   fi
   local value
   value="${!name}"
-  value="$(python - "$value" <<'PY'
+  value="$(python3 - "$value" <<'PY'
 import sys
 print(sys.argv[1].strip("\r\n"))
 PY
@@ -34,7 +34,7 @@ json_payload_file() {
   local value1="$3"
   local key2="${4:-}"
   local value2="${5:-}"
-  python - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
+  python3 - "$output_file" "$key1" "$value1" "$key2" "$value2" <<'PY'
 import json, sys
 payload = {sys.argv[2]: sys.argv[3]}
 if len(sys.argv) >= 6 and sys.argv[4]:
@@ -46,7 +46,7 @@ PY
 
 project_ref="${SUPABASE_PROJECT_REF:-}"
 if [[ -z "$project_ref" ]]; then
-  project_ref="$(python - <<'PY'
+  project_ref="$(python3 - <<'PY'
 import os
 from urllib.parse import urlparse
 host = urlparse(os.environ['SUPABASE_URL']).hostname or ''
@@ -89,7 +89,7 @@ if [[ "$status" != "200" ]]; then
   exit 1
 fi
 
-office_access_token="$(python - "$auth_response" <<'PY'
+office_access_token="$(python3 - "$auth_response" <<'PY'
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     payload = json.load(fh)

@@ -16,6 +16,18 @@ const runIfConfigured = hasIntegrationEnv ? describe : describe.skip;
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? "";
 
+
+function asSingleRow(value: unknown): RestRow | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    return (value[0] as RestRow | undefined) ?? null;
+  }
+  if (typeof value === "object") {
+    return value as RestRow;
+  }
+  return null;
+}
+
 async function loginAndGetToken(email: string, password: string) {
   const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: "POST",
@@ -217,17 +229,25 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       expect(balance).toBe(invoiceTotal);
 
       // Create a payment
-      const payment = await queryRest(officeToken, "payments", "POST", {
+      const paymentReference = `TEST-PAY-${Date.now()}`;
+      const paymentResponse = await queryRest(officeToken, "payments", "POST", {
         client_id: clientId,
         amount: 200,
         method: "cash",
-        reference: "TEST-PAY",
+        reference: paymentReference,
         received_at: new Date().toISOString(),
-      }) as RestRow;
+      });
 
-      const paymentId = (payment as RestRow)?.id as string;
+      let paymentId = asSingleRow(paymentResponse)?.id as string | undefined;
       if (!paymentId) {
-        throw new Error("Failed to create payment: no ID returned");
+        const paymentRows = await queryRest(
+          officeToken,
+          `payments?select=id&client_id=eq.${clientId}&reference=eq.${paymentReference}&order=created_at.desc&limit=1`,
+        );
+        paymentId = paymentRows[0]?.id as string | undefined;
+      }
+      if (!paymentId) {
+        throw new Error(`Failed to create payment: no ID returned. Response: ${JSON.stringify(paymentResponse)}`);
       }
 
       // Allocate payment to invoice
@@ -252,17 +272,25 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       expect(balanceAfterPayment).toBe(300);
 
       // Create a credit memo
-      const creditMemo = await queryRest(officeToken, "credit_memos", "POST", {
+      const creditMemoNumber = `TEST-CM-${Date.now()}`;
+      const creditMemoResponse = await queryRest(officeToken, "credit_memos", "POST", {
         invoice_id: invoiceId,
         client_id: clientId,
-        memo_number: `TEST-CM-${Date.now()}`,
+        memo_number: creditMemoNumber,
         reason: "Test credit",
         total: -50,
-      }) as RestRow;
+      });
 
-      const creditMemoId = (creditMemo as RestRow)?.id as string;
+      let creditMemoId = asSingleRow(creditMemoResponse)?.id as string | undefined;
       if (!creditMemoId) {
-        throw new Error("Failed to create credit memo: no ID returned");
+        const creditMemoRows = await queryRest(
+          officeToken,
+          `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
+        );
+        creditMemoId = creditMemoRows[0]?.id as string | undefined;
+      }
+      if (!creditMemoId) {
+        throw new Error(`Failed to create credit memo: no ID returned. Response: ${JSON.stringify(creditMemoResponse)}`);
       }
 
       // Add credit memo line
