@@ -28,7 +28,7 @@ if ! rg -n "Final decision:\s*GO" "$EVIDENCE_FILE" >/dev/null; then
   exit 1
 fi
 
-python - "$ROADMAP_FILE" <<'PY'
+python3 - "$ROADMAP_FILE" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1])

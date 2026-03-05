@@ -28,7 +28,7 @@ if [[ ! -f "$ROADMAP_FILE" ]]; then
   exit 1
 fi
 
-payload="$(python - "$ROADMAP_FILE" "$AFTER_PHASE" <<'PY'
+payload="$(python3 - "$ROADMAP_FILE" "$AFTER_PHASE" <<'PY'
 import json,re,sys
 path,after=sys.argv[1],sys.argv[2]
 rows=[]
@@ -87,13 +87,13 @@ if [[ "$JSON_MODE" == "true" ]]; then
   exit 0
 fi
 
-next_stage="$(python - <<'PY' "$payload"
+next_stage="$(python3 - <<'PY' "$payload"
 import json,sys
 print(json.loads(sys.argv[1]).get('next',''))
 PY
 )"
 
-note="$(python - <<'PY' "$payload"
+note="$(python3 - <<'PY' "$payload"
 import json,sys
 print(json.loads(sys.argv[1]).get('note',''))
 PY

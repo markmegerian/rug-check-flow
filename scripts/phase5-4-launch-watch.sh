@@ -67,7 +67,7 @@ while [[ "$(date +%s)" -lt "$end_epoch" ]]; do
   sleep "$PROBE_INTERVAL_SECONDS"
 done
 
-python - "$records_file" "$summary_file" "$WATCH_MINUTES" "$PROBE_INTERVAL_SECONDS" <<'PY'
+python3 - "$records_file" "$summary_file" "$WATCH_MINUTES" "$PROBE_INTERVAL_SECONDS" <<'PY'
 import json, sys
 rows=[json.loads(line) for line in open(sys.argv[1],encoding='utf-8') if line.strip()]
 summary={
