@@ -72,10 +72,15 @@ async function queryRest(token: string, path: string, method: string = "GET", bo
   }
 
   if (method === "GET") {
-    if (!response.ok || !Array.isArray(payload)) {
+    if (!response.ok) {
       throw new Error(`REST query failed for ${path}: ${JSON.stringify(payload || text)}`);
     }
-    return payload as RestRow[];
+    // RPC functions may return single objects or arrays
+    if (Array.isArray(payload)) {
+      return payload as RestRow[];
+    }
+    // Single object response (common for RPC)
+    return [payload as RestRow];
   } else {
     if (!response.ok) {
       return { error: payload || { message: text }, status: response.status };
@@ -160,8 +165,41 @@ runIfConfigured("Messaging threads acceptance tests", () => {
     expect(notification1).toBeDefined();
     expect((notification1 as RestRow).id).toBeDefined();
 
-    // Check throttle by verifying that a second notification within 72h would be throttled
-    // We test this by checking the count of recent notifications
+    // Record the throttle (simulate sending)
+    await queryRest(officeToken, "rpc/record_notification_throttle", "POST", {
+      client_id: clientId,
+      p_throttle_key: throttleKey,
+    });
+
+    // Check throttle via RPC - should return allowed=false since we just recorded
+    // PostgREST RPC calls use query params: ?client_id=uuid&p_throttle_key=text
+    const throttleCheckResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/check_notification_throttle?client_id=${clientId}&p_throttle_key=${encodeURIComponent(throttleKey)}`,
+      {
+        method: "GET",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${officeToken}`,
+        },
+      }
+    );
+    
+    const throttleCheckText = await throttleCheckResponse.text();
+    let throttleResult: { allowed: boolean; retry_after_seconds: number } | null = null;
+    
+    if (throttleCheckText.trim()) {
+      try {
+        const parsed = JSON.parse(throttleCheckText);
+        // RPC can return single object or array
+        throttleResult = Array.isArray(parsed) ? parsed[0] : parsed;
+      } catch (e) {
+        throw new Error(`Failed to parse throttle check response: ${throttleCheckText}`);
+      }
+    }
+    
+    expect(throttleResult).toBeDefined();
+    expect(throttleResult?.allowed).toBe(false);
+    expect(Number(throttleResult?.retry_after_seconds ?? 0)).toBeGreaterThan(0);
     
     const recentNotifications = await queryRest(officeToken, `notification_cadence?client_id=eq.${clientId}&throttle_key=eq.${throttleKey}&sent_at=gte.${new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()}`);
     
