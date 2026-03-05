@@ -299,8 +299,9 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       let creditMemoId = asSingleRow(creditMemoResponse)?.id as string | undefined;
       if (!creditMemoId) {
         creditMemoId = await queryFirstIdWithFallback(officeToken, [
-          `credit_memos?select=id&invoice_id=eq.${invoiceId}&total=eq.-50&order=created_at.desc&limit=1`,
-          `credit_memos?select=id&invoice_id=eq.${invoiceId}&order=created_at.desc&limit=1`,
+          `credit_memos?select=id&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
+          `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
+          `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&total=eq.-50&order=created_at.desc&limit=1`,
         ]);
       }
       if (!creditMemoId) {
