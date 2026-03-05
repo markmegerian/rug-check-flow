@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { ClipboardCheck, Factory, Truck } from "lucide-react";
+import { ClipboardCheck, Factory, Truck, Package } from "lucide-react";
 import { CheckInLayout } from "@/components/facility/CheckInLayout";
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
 import { PendingPickupsPanel } from "@/components/facility/PendingPickupsPanel";
+import { DeliveryPrepTab } from "@/components/facility/DeliveryPrepTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 
 const TABS = [
   { id: "checkin", label: "Check-In", icon: ClipboardCheck, subtitle: "Intake and service capture" },
   { id: "production", label: "Production", icon: Factory, subtitle: "Track rugs through production stages" },
+  { id: "delivery-prep", label: "Delivery Prep", icon: Package, subtitle: "Confirm rugs ready for tomorrow" },
   { id: "pickups", label: "Pickups", icon: Truck, subtitle: "Manage ready rugs and pickups" },
 ] as const;
 
@@ -39,6 +41,7 @@ export default function FacilityOps() {
           <main className="flex-1 min-w-0 min-h-0 overflow-hidden bg-background">
             {activeTab === "checkin" && <CheckInLayout />}
             {activeTab === "production" && <ProductionBoard />}
+            {activeTab === "delivery-prep" && <DeliveryPrepTab />}
             {activeTab === "pickups" && <PendingPickupsPanel />}
           </main>
         </div>
