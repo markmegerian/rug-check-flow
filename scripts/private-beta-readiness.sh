@@ -296,7 +296,7 @@ print(json.dumps({
     "client_id": client_id,
     "route_date": route_date,
     "route_day": "monday",
-    "status": "pending"
+    "status": "queued"
 }))
 PY
   )"
@@ -335,16 +335,85 @@ PY
   )"
   rm -f "$test_stop_response"
   
-  # Ingest test events
-  test_events_payload="$(python - "$test_stop_id" <<'PY'
+  # Create a test route_stop_item (required for completion)
+  test_item_payload="$(python - "$test_stop_id" <<'PY'
+import json, sys
+stop_id = sys.argv[1]
+print(json.dumps({
+    "route_stop_id": stop_id,
+    "phase": "delivery",
+    "status": "pending",
+    "notes": "Test item for readiness check"
+}))
+PY
+  )"
+  
+  test_item_response="$(mktemp)"
+  test_item_status="$(
+    curl -sS -o "$test_item_response" -w "%{http_code}" \
+      -X POST \
+      "${SUPABASE_URL}/rest/v1/route_stop_items" \
+      -H "apikey: ${SUPABASE_ANON_KEY}" \
+      -H "Authorization: Bearer ${office_access_token}" \
+      -H "Content-Type: application/json" \
+      -H "Prefer: return=representation" \
+      -d "$test_item_payload"
+  )"
+  
+  if [[ "$test_item_status" != "201" ]]; then
+    echo "Failed to create test stop item with status ${test_item_status}" >&2
+    cat "$test_item_response" >&2
+    rm -f "$test_item_response"
+    # Cleanup test stop
+    curl -sS -X DELETE \
+      "${SUPABASE_URL}/rest/v1/route_stops?id=eq.${test_stop_id}" \
+      -H "apikey: ${SUPABASE_ANON_KEY}" \
+      -H "Authorization: Bearer ${office_access_token}" >/dev/null 2>&1 || true
+    exit 1
+  fi
+  
+  test_item_id="$(
+    python - "$test_item_response" <<'PY'
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+if isinstance(data, list) and len(data) > 0:
+    print(data[0]["id"])
+elif isinstance(data, dict) and "id" in data:
+    print(data["id"])
+else:
+    raise SystemExit("Could not extract item ID from response")
+PY
+  )"
+  rm -f "$test_item_response"
+  
+  # Ingest test events (start, set signature, verify item, complete)
+  test_events_payload="$(python - "$test_stop_id" "$test_item_id" <<'PY'
 import json, sys, uuid
 stop_id = sys.argv[1]
+item_id = sys.argv[2]
 events = [
     {
         "offline_event_id": str(uuid.uuid4()),
         "route_stop_id": stop_id,
         "event_type": "STOP_STARTED",
         "payload": {}
+    },
+    {
+        "offline_event_id": str(uuid.uuid4()),
+        "route_stop_id": stop_id,
+        "event_type": "SIGNATURE_SET",
+        "payload": {
+            "signature_data_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        }
+    },
+    {
+        "offline_event_id": str(uuid.uuid4()),
+        "route_stop_id": stop_id,
+        "event_type": "ITEM_VERIFIED",
+        "payload": {
+            "route_stop_item_id": item_id
+        }
     },
     {
         "offline_event_id": str(uuid.uuid4()),
