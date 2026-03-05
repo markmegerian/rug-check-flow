@@ -131,7 +131,7 @@ runIfConfigured("Messaging threads acceptance tests", () => {
     }) as { error?: unknown; status?: number };
 
     expect(createThreadResult.error || createThreadResult.status).toBeDefined();
-    const status = (createThreadResult as { status?: number }).status;
+    const status = Number((createThreadResult as { status?: number | string }).status ?? 0);
     expect(status).toBeGreaterThanOrEqual(400);
 
     // Try to query threads for another client - should return empty
