@@ -1,285 +1,545 @@
-# Platform 1.0 Assessment and Roadmap
+You are working in the repo markmegerian/rug-check-flow (Vite + React + TS + Supabase).
+Goal: make the platform production-ready by implementing:
+1) explicit state machines enforced in DB,
+2) unified driver “Stop” model (delivery + pickup under one stop with one signature),
+3) offline-first driver operation via event ingestion,
+4) day-before delivery confirmation by check-in staff,
+5) accounting primitives (payments + allocations + credits) and invoice immutability,
+6) dispute flow: refused delivery vs post-delivery claim,
+7) messaging threads + notification throttling.
+
+IMPORTANT CONTEXT FROM CURRENT CODEBASE:
+- Driver pickup workflow uses pickup_requests / pickup_request_items with signature_data_url, verified, driver_notes, driver_photo_urls; completion requires all verified + signature (see src/pages/DriverPortal.tsx).
+- Delivery workflow uses delivery_lists / delivery_list_items confirmed_for_delivery + loaded_on_truck; checkout is via supabase/functions/checkout-delivery which generates invoices and marks rugs.status="picked_up".
+- Rug statuses are enum: checked_in, in_production, ready, picked_up (picked_up is used as delivered).
+- Invoice PDF is produced via supabase/functions/invoice-pdf and shared rendering helpers.
+- Estimates exist via estimates + estimate_items; portal line approvals are being added.
+
+IMPLEMENTATION PLAN (DO IN ORDER):
+
+PHASE 1 — Database migrations (Supabase)
+A) Add new enums:
+- route_stop_status, route_stop_phase, route_stop_item_status, dispute_type
+
+B) Add tables:
+- route_stops (route_date, client_id, route_day, assigned_driver_id, delivery_list_id nullable, pickup_request_id nullable, status, signature_data_url, started_at, completed_at, exception_code, notes)
+- route_stop_items (route_stop_id, phase, status, rug_id nullable, pickup_request_item_id nullable, delivery_list_item_id nullable, notes, photo_urls[])
+- route_stop_events (offline_event_id unique, route_stop_id, event_type, payload jsonb, created_by, created_at)
+- disputes (rug_id, client_id, type dispute_type, status, notes, created_by, created_at)
+- payments, payment_allocations, credit_memos, credit_memo_lines
+
+C) RLS policies:
+- Internal roles (admin/office/checkin_staff) manage all.
+- Driver can SELECT assigned stops for today +/- 1 day.
+- Driver can INSERT events into route_stop_events only (not directly mutate core stop tables).
+- Portal users: no stop access.
+- For payments/credits: office/admin manage; portal only views invoices and their own payment history.
+
+D) State machine enforcement (DB triggers / constraint functions):
+- route_stops transition rules (queued->in_progress->completed/completed_with_exceptions/unable_to_complete)
+- completion requires signature and item status constraints
+- invoice immutability: if invoices.status in (sent, paid, overdue, disputed) then block edits to invoice_number/total/lines; allow status changes and appending payments/credits.
+
+E) Backfill + stop generation functions:
+- Create SQL function build_route_stops_for_date(target_date):
+  - For each delivery_list_items loaded_on_truck=TRUE for that date’s delivery list(s), create/ensure a route_stop row per client_id.
+  - Attach delivery items as route_stop_items (phase=delivery, status=pending, rug_id set, delivery_list_item_id set).
+  - For each pickup_request assigned to driver on that date, ensure same client’s stop exists and attach pickup items (phase=pickup, status=pending, pickup_request_item_id set, rug_number stored via join).
+  - If a pickup_request exists without any delivery items, stop still exists.
+  - If delivery exists without pickup_request, stop still exists (delivery-only).
+- Add indexes so this runs fast.
+
+PHASE 2 — Edge functions (offline-first ingestion + manifest)
+A) Add supabase/functions/ingest-stop-events:
+- Accept { events: [{ offline_event_id, route_stop_id, event_type, payload }] }
+- Validate auth user is driver/admin; if driver, must be assigned_driver_id for stop.
+- Insert events with ON CONFLICT DO NOTHING on offline_event_id.
+- Apply event effects transactionally:
+  - STOP_STARTED -> route_stops.status=in_progress, started_at=now()
+  - SIGNATURE_SET -> route_stops.signature_data_url updated
+  - ITEM_VERIFIED -> route_stop_items.status=verified
+  - ITEM_EXCEPTION -> route_stop_items.status=exception + exception metadata
+  - ITEM_DISPUTED -> route_stop_items.status=disputed + create dispute row (type depends on payload)
+  - STOP_COMPLETED -> attempt to transition route_stop based on invariants; return error if invariants fail (signature missing, pending items remain, etc.)
+- Return updated stop snapshot (stop + items).
+
+B) Add scheduled job (can be via cron in Supabase or external runner):
+- daily: build_route_stops_for_date(tomorrow) after check-in confirmations
+- notifications (estimate reminders, invoice reminders) using throttle rules
+
+PHASE 3 — Frontend: DriverPortal becomes StopPortal
+A) Refactor src/pages/DriverPortal.tsx:
+- Replace pickup_requests fetch with route_stops fetch for date
+- Stop detail UI:
+  - show Delivery section first, then Pickup section
+  - one signature component for the stop (reuse SignatureCanvas)
+  - each item has verify + notes + photos
+  - disputes: refused_delivery vs post_delivery_claim (post claim should not require return; refused should mark exception and create dispute)
+- All mutations go through ingest-stop-events.
+- Implement offline queue:
+  - store events in IndexedDB first
+  - background sync loop flushes events batch to ingest function when online
+  - show visible “Sync Queue” and per-stop sync status
+  - allow stop completion offline; server-side state updates occur when sync returns
+
+B) Evidence uploads:
+- For photos: if offline, store file metadata and upload later; once uploaded, emit PHOTO_ATTACHED event with public URL.
+- For delivery photos: store in a new bucket (delivery-photos) or reuse pickup-photos with a clear path prefix.
+
+PHASE 4 — Facility: Day-before delivery confirmation
+A) Add a new Facility Ops view “Delivery Prep”:
+- Query delivery_list_items for tomorrow where rug.status=ready and list is compiling/confirmed
+- Check-in staff toggles confirmed_for_delivery=true after physical verification
+- This is role-gated to checkin_staff/admin/office (but intended use is check-in)
+- Driver cannot set confirmed_for_delivery; driver only sets loaded_on_truck.
 
-Date: 2026-02-23
+PHASE 5 — Accounting primitives
+A) Add Office UI:
+- payment entry creates payments row + allocations, updates invoice.balance_cents
+- credit memo issuance creates credit memo and applies to invoice, updates balance
+- Ensure invoice immutability is respected
 
-## Executive summary
+PHASE 6 — Messaging + throttled notifications
+A) Use existing interactions table:
+- Create “threads” by convention with interaction_type values:
+  - thread_general
+  - thread_estimate:<estimate_id>
+  - thread_invoice:<invoice_id>
+- Allow portal user INSERT for their client_id only for those types.
+- Add Office “Inbox” view grouped by client/thread.
+B) Implement reminder cadence:
+- Estimates: +24h, +72h, +7d, then stop
+- Invoices: -3d, due date, +7d, +14d, then weekly statements
+- cap: 1 automated collections email per client per 72h
 
-The platform is in a **strong private-beta state** with core workflow breadth already implemented across facility operations, office operations, driver portal, wholesale portal, billing, onboarding, and role-based controls. The best path to 1.0 is to execute in **small, verifiable increments**: finish one subphase, validate, fix any regressions, then move forward.
+TESTS / ACCEPTANCE CRITERIA (must all pass)
+1) Driver can complete a stop in airplane mode; when online, events sync and stop becomes completed on server.
+2) Stop completion is blocked if signature missing or any item still pending (unless stop is completed_with_exceptions with evidence).
+3) Delivery-only stops exist and can be completed.
+4) Pickup-only stops exist and can be completed.
+5) Refused delivery creates dispute record and does NOT mark rug picked_up.
+6) Post-delivery claim creates dispute record but rug remains picked_up.
+7) Invoice marked sent cannot have line items edited; credits/payments adjust balance via new primitives only.
+8) Day-before delivery confirmation is done by check-in staff, and driver load list is based on confirmed_for_delivery.
 
-**Current maturity estimate:** ~0.8–0.9 (feature-complete beta, not yet fully hardened 1.0).
+Keep existing portal flows operational during the refactor:
+- PortalPickupsTab continues creating pickup_requests.
+- Office DeliveriesTab continues compiling delivery_lists.
+Stops are built from these two sources and become the driver’s sole interface.
 
----
 
-## Current platform state
+1) What your repo already has (baseline)
 
-### What is already in place
+Stack
 
-1. **Core multi-role workflow coverage**
-   - Facility check-in and production operations.
-   - Office operations for pickups, estimates, invoicing, and deliveries.
-   - Driver workflow and portal experiences.
-   - Wholesale portal onboarding + invoice access/payments trail.
+Vite + React + TypeScript + Supabase JS + TanStack Query (modern SPA). 
 
-2. **Backend and policy foundations**
-   - Significant migration history covering MVP foundations through late-phase hardening.
-   - Explicit RLS hardening and role-scope protections.
-   - Edge functions for lifecycle-critical actions (checkout, onboarding, invoice PDFs, operational alerts, admin controls).
+package
 
-3. **Quality and release scaffolding**
-   - Unit and workflow tests, plus role-scope integration tests.
-   - Release runbook and private-beta readiness scripts.
-   - Full-system check documenting healthy local quality gates.
+Pickup workflow (driver proof)
 
-### What remains before 1.0
+pickup_requests + pickup_request_items with driver assignment, signature (signature_data_url), per-item verification, driver notes, and completion timestamp. 
 
-1. **Staging/production evidence closure**
-   - Local checks are green, but several release checks are env/credential-gated and need repeatable execution evidence.
+supabase - [Repo name: markmege…
 
-2. **Observability and SLO formalization**
-   - Alerts exist, but SLO/error-budget ownership and dashboards are not yet formal release gates.
+Driver UI already enforces “all verified + signature” before completion. 
 
-3. **Reliability and recovery rigor**
-   - Rollback guidance exists, but incident drills and restoration proof need to be practiced.
+src/pages/DriverPortal
 
-4. **Security and governance completion**
-   - RLS posture is strong, but 1.0 needs recurring audits, secret rotation cadence, and retention policy sign-off.
+Delivery workflow (office-driven today)
 
----
+delivery_lists (route_day + target_date + status) and delivery_list_items (confirmed_for_delivery + loaded_on_truck). 
 
-## 1.0 definition (recommended)
+supabase/migrations_archive/202…
 
-Declare 1.0 only when all are true:
+Checkout is done via edge function checkout-delivery after list is confirmed, and it generates invoices + invoice PDFs and marks rugs picked_up (your “delivered” status). 
 
-1. Launch-critical workflows pass deterministic staging and production smoke checks.
-2. SLOs, alert thresholds, and ownership are documented and running.
-3. Security controls are validated continuously (RLS regression + least privilege + secret hygiene).
-4. Incident and rollback procedures are tested, not just documented.
-5. Release evidence is attached to every release candidate with explicit go/no-go sign-off.
+supabase/functions/checkout-del…
 
----
+ 
 
-## Execution model: one step at a time
+Changes - [Repo name: markmeger…
 
-For **every subphase** below, use this same loop:
+Invoice PDF pipeline
 
-1. Implement only that subphase scope.
-2. Run local checks (`npm run lint`, `npm run test`, `npm run build`).
-3. Run targeted smoke checks for impacted workflows.
-4. Fix all regressions found in that subphase.
-5. Capture evidence and sign off the subphase before continuing.
+Dedicated invoice-pdf edge function generates artifact + signed URL and logs events. 
 
-No parallel jumps; move sequentially.
+Implement private-beta billing …
 
----
+Office/portal both download via supabase.functions.invoke("invoice-pdf"). 
 
-## Phase 0 — Prephase: known blockers and stabilization
+Implement private-beta billing …
 
-This phase is the immediate pre-1.0 blocker pass. Do not proceed to Phase 1 until these are fixed and verified in staging.
+Estimates
 
-### 0.1 Rug check-in failure (`public.intake_jobs` not found)
-- Reproduce the check-in failure end-to-end in Facility flow.
-- Trace the exact failing query/function and confirm whether table/function reference is outdated (`public.intake_jobs`) or environment schema drift exists.
-- Patch the failing path and add regression coverage for successful check-in completion.
+estimates + estimate_items, plus portal line item approvals (client_approved etc.) are already being built. 
 
-**Validation gate:** facility check-in completes successfully for a representative rug in staging with no missing-relation errors.
+supabase - [Repo name: markmege…
 
-### 0.2 Wholesale estimate note text not persisting
-- Reproduce as wholesale client user and capture request/response payload path.
-- Confirm whether failure is UI state handling, API mutation path, RLS denial, or missing DB column mapping.
-- Implement fix and add deterministic test coverage for save + reload persistence of estimate note text.
+ 
 
-**Validation gate:** estimate text entered by wholesale user persists after refresh/re-login and is visible in expected role scopes.
+feat: enhance PortalEstimatesTa…
 
-### 0.3 Pickup request behavior with existing pending request
-- Change pickup submission logic: if client already has an active `pending` pickup request, do not create/shift to a future request date.
-- Instead, merge/attribute new submission changes onto the existing pending request record.
-- Define and enforce merge semantics (fields updated, audit trail/event log entry, timestamp behavior).
+Rug lifecycle
 
-**Validation gate:** submitting while pending updates current pending request rather than creating/extending to a new upcoming date.
+rug_status enum is checked_in | in_production | ready | picked_up (picked_up = delivered back). 
 
-### 0.4 Phase 0 sign-off checklist
-- Confirm fixes for 0.1–0.3 in staging with role-appropriate test users.
-- Run local checks (`npm run lint`, `npm run test`, `npm run build`) and targeted staging smoke for affected workflows.
-- Record evidence (before/after screenshots/logs, query traces, commit SHAs) in release artifacts.
+supabase - [Repo name: markmege…
 
-**Validation gate:** all three blocker workflows are green with evidence attached.
+2) The production gap (what’s missing / what must change)
+A) Your driver execution is not a unified “Stop”
 
-## Phase 1 — Release gate hardening
+Today:
 
-### 1.1 Define release evidence contract
-- Add a release evidence template (commit SHA, migrations, function versions, smoke logs, owner sign-off).
-- Require artifact links in every release candidate.
+Driver manages pickup stops via pickup_requests.
 
-**Validation gate:** template completed for one dry-run release.
+Deliveries are managed in office via delivery_lists.
 
-### 1.2 CI enforce readiness scripts
-- Run `scripts/private-beta-readiness.sh` on release branches.
-- Add fail-fast behavior when required env vars are missing in release contexts.
+Production spec requires:
 
-**Validation gate:** CI blocks merge on failed readiness gate.
+Driver executes a single Stop per client/location per route date that may include:
 
-### 1.3 Gate role-scope protections
-- Run `scripts/rls-scope-smoke-test.sh` for release candidates.
-- Require role-scope pass output as release evidence.
+delivery items (from delivery list)
 
-**Validation gate:** portal/office/driver scope checks green in staging.
+pickup items (from pickup request)
 
-### 1.4 Add release sign-off workflow
-- Add explicit engineering + operations go/no-go checklist section to runbook.
+one signature for the stop
 
-**Validation gate:** one staged release includes signed go/no-go record.
+item-driven completion with exceptions/disputes
 
----
+B) No offline-first driver
 
-## Phase 2 — Reliability and observability
+DriverPortal writes directly to Supabase tables; this will fail under bad network and create partial states. 
 
-### 2.1 Define SLOs and alert thresholds
-- Define minimum SLO set: auth success, edge-function success, critical workflow completion rate.
-- Set thresholds and escalation ownership.
+src/pages/DriverPortal
 
-**Validation gate:** SLO doc approved by engineering + operations.
+C) No explicit state machines (DB-enforced)
 
-### 2.2 Ship baseline dashboards
-- Create dashboards for auth failures, edge function errors, PDF generation issues, operational alerts.
+You have status enums, but not DB-level guardrails preventing illegal transitions, especially for:
 
-**Validation gate:** dashboards show live data for at least 3 consecutive days.
+delivery list statuses
 
-### 2.3 Add synthetic checks
-- Add scheduled probes for critical user routes and core function endpoints.
+pickup completion without evidence
 
-**Validation gate:** probe pass/fail history visible; alerting wired for failures.
+invoice immutability once sent
 
-### 2.4 Run incident game day
-- Simulate outage/misconfig scenarios (e.g., webhook failure, expired secret, function timeout).
+returned-unable-to-deliver
 
-**Validation gate:** postmortem complete with tracked remediation actions.
+D) Accounting primitives are incomplete
 
----
+You have payment_attempts ledger and billing profiles, but no proper:
 
-## Phase 3 — Security and data governance
+payments + allocation
 
-### 3.1 Automate RLS regression cadence
-- Run role-scope/RLS checks daily in staging and pre-release in production.
+credit_memos / adjustments
 
-**Validation gate:** one full week of clean scheduled runs.
+invoice immutability rules
 
-### 3.2 Secrets inventory and rotation schedule
-- Document all runtime secrets and their owners.
-- Set and track rotation windows.
+E) Messaging exists as “events,” not threads
 
-**Validation gate:** all secrets mapped to owner + next rotation date.
+You have communication_events and interactions models, but no portal↔office thread model with throttled notifications. 
 
-### 3.3 Least-privilege review
-- Review service-role and admin-only paths.
-- Remove/lock any excessive permissions.
+supabase - [Repo name: markmege…
 
-**Validation gate:** privileged-surface checklist signed.
+ 
 
-### 3.4 Retention and compliance policy
-- Define retention windows for events, payment attempts, and generated artifacts.
+Lock wholesale pickup requests …
 
-**Validation gate:** policy approved and reflected in ops docs.
+3) Target workflow for THIS repo (no hand-wavy redesign)
+Core design decision (recommended)
 
----
+Keep your existing pickup_requests and delivery_lists (so you don’t break portal + office flows), but add a new “Stop” layer that unifies driver execution:
 
-## Phase 4 — Product quality and UX stabilization
+New driver-centric entities
 
-### 4.1 Beta feedback triage
-- Rank issues by severity and workflow impact.
-- Fix highest-severity friction first.
+route_stops (one row per client/location per route_date)
 
-**Validation gate:** all P0/P1 beta issues closed.
+route_stop_items (one row per rug per phase: delivery/pickup)
 
-### 4.2 Critical journey acceptance tests
-- Add deterministic acceptance coverage for:
-  1) pickup request
-  2) check-in to production
-  3) estimate lifecycle
-  4) invoice send + PDF retrieval
-  5) portal onboarding + payment tracking
+route_stop_events (idempotent event ingestion for offline-first)
 
-**Validation gate:** 100% pass rate on critical journeys.
+delivery_item_evidence (photos/notes for deliveries; you already have pickup photos)
 
-### 4.3 UX consistency pass
-- Standardize empty states, loading states, and actionable error copy by role.
+Then:
 
-**Validation gate:** design/ops walkthrough approved.
+Driver UI works entirely off route_stops.
 
-### 4.4 Regression stabilization window
-- Freeze net-new features for a short hardening window.
-- Resolve all regressions introduced in Phase 4.
+Office keeps compiling delivery lists as today (day-before confirmation stays).
 
-**Validation gate:** no open release-blocking regressions.
+System auto-builds tomorrow’s route_stops from:
 
----
+delivery_list_items (confirmed + loaded)
 
-## Phase 5 — Production readiness and 1.0 launch
+pickup_requests (assigned)
 
-### 5.1 Schema and migration freeze
-- Freeze schema for launch candidate.
-- Dry-run migrations against production-like snapshot.
+This is the smallest refactor that satisfies your “Stop” requirement and preserves your existing office/portal flows.
 
-**Validation gate:** zero migration blockers or rollback ambiguity.
+4) DB Build Contract (tables + states + invariants)
+4.1 New enums
 
-### 5.2 Full staging rehearsal
-- Execute full runbook in staging with real-like data and credentials.
+route_stop_status: queued | in_progress | completed | completed_with_exceptions | unable_to_complete
 
-**Validation gate:** complete green rehearsal evidence package.
+route_stop_phase: delivery | pickup
 
-### 5.3 Controlled production rollout
-- Execute rollout with on-call and rollback owner active.
-- Run full page-by-page click/intent UAT before live cutover.
-- Run production smoke checks immediately post-deploy.
+route_stop_item_status: pending | verified | disputed | exception | skipped
 
-**Validation gate:** page-by-page UAT completed, then production smoke and role-scope checks pass.
+dispute_type: refused_delivery | post_delivery_claim
 
-### 5.4 1.0 cutover and monitoring watch
-- Announce 1.0.
-- Run structured launch-watch probes for the initial post-cutover window.
-- Record watch summary and incident outcomes in release evidence.
+invoice_status: keep existing, but enforce immutability post-sent (see triggers)
 
-**Validation gate:** no unresolved Sev1/Sev2 incidents in initial watch window and launch-watch probe summary is attached.
+4.2 New tables (minimum)
 
----
+route_stops
 
-## Suggested pacing (little-by-little)
+id uuid pk
 
-- Week 1: Phase 0 (subphases 0.1 → 0.4)
-- Week 2: Phase 1 (subphases 1.1 → 1.4)
-- Week 3: Phase 2 (subphases 2.1 → 2.4)
-- Week 4: Phase 3 (subphases 3.1 → 3.4)
-- Week 5: Phase 4 (subphases 4.1 → 4.4)
-- Week 6: Phase 5 (subphases 5.1 → 5.4)
+route_date date
 
-If any subphase fails validation, stop and fix before advancing.
+client_id uuid -> clients.id
 
----
+route_day text
 
-## Progress tracker template
+assigned_driver_id uuid -> auth.users.id
 
-Use this checklist style while executing:
+delivery_list_id uuid -> delivery_lists.id (nullable)
 
-- [ ] Phase 0.1 complete
-- [ ] Phase 0.2 complete
-- [ ] Phase 0.3 complete
-- [ ] Phase 0.4 complete
-- [x] Phase 1.1 complete
-- [x] Phase 1.2 complete
-- [x] Phase 1.3 complete
-- [x] Phase 1.4 complete
-- [x] Phase 2.1 complete
-- [ ] Phase 2.2 complete
-- [x] Phase 2.3 complete
-- [x] Phase 2.4 complete
-- [ ] Phase 3.1 complete *(automation shipped: `.github/workflows/rls-regression-daily.yml`; waiting 7-day clean streak)*
-- [x] Phase 3.2 complete
-- [x] Phase 3.3 complete
-- [x] Phase 3.4 complete
-- [x] Phase 4.1 complete
-- [x] Phase 4.2 complete
-- [x] Phase 4.3 complete
-- [x] Phase 4.4 complete
-- [x] Phase 5.1 complete
-- [x] Phase 5.2 complete
-- [ ] Phase 5.3 complete
-- [ ] Phase 5.4 complete
+pickup_request_id uuid -> pickup_requests.id (nullable)
+
+status route_stop_status
+
+signature_data_url text (one signature per stop)
+
+started_at, completed_at timestamptz
+
+exception_code text nullable
+
+indexes: (route_date), (assigned_driver_id, route_date), (client_id, route_date)
+
+route_stop_items
+
+id uuid pk
+
+route_stop_id uuid -> route_stops.id
+
+phase route_stop_phase
+
+status route_stop_item_status
+
+rug_id uuid -> rugs.id nullable (delivery always has rug_id; pickup item may not yet map)
+
+pickup_request_item_id uuid -> pickup_request_items.id nullable
+
+delivery_list_item_id uuid -> delivery_list_items.id nullable
+
+notes text
+
+photo_urls text[] default '{}' (for delivery evidence; pickup already has driver_photo_urls)
+
+indexes: (route_stop_id), (phase, status)
+
+route_stop_events (for offline-first)
+
+id uuid pk
+
+offline_event_id uuid unique ✅ idempotency
+
+route_stop_id
+
+event_type text
+
+payload jsonb
+
+created_by uuid
+
+created_at timestamptz default now()
+
+disputes
+
+id uuid pk
+
+rug_id uuid
+
+client_id uuid
+
+type dispute_type
+
+status text enum: open|investigating|resolved|credited|denied
+
+created_by uuid
+
+notes text
+
+created_at
+
+4.3 State machine invariants (DB-enforced)
+
+Stop completion
+
+route_stops.status may transition:
+
+queued -> in_progress -> completed|completed_with_exceptions|unable_to_complete
+
+completed requires:
+
+signature present
+
+every stop_item status in verified|skipped
+
+completed_with_exceptions requires:
+
+signature present
+
+every stop_item in verified|disputed|exception|skipped
+
+at least one item is disputed|exception
+
+unable_to_complete requires:
+
+exception_code set + stop-level note/event
+
+Delivery outcomes
+
+If delivery item verified: set rugs.status='picked_up' and picked_up_at=now() (this matches your current meaning). 
+
+supabase - [Repo name: markmege…
+
+If delivery item refused_delivery: set rug status to ready (or create a “returned” flag) + create dispute record (refused_delivery).
+
+If post_delivery_claim: rug stays picked_up, dispute record created.
+
+Invoice immutability
+
+If invoice is sent or later, block UPDATEs to:
+
+invoice number, line items, totals
+
+allow only:
+
+status changes (paid/overdue/disputed)
+
+append-only financial records (payments/credits)
+
+5) Offline-first driver (mandatory design)
+5.1 Frontend: local event queue
+
+Use IndexedDB (lightweight library like idb-keyval or dexie) and store:
+
+event id
+
+stop id
+
+event type (STOP_STARTED, ITEM_VERIFIED, ITEM_EXCEPTION, SIGNATURE_SET, STOP_COMPLETED, PHOTO_ATTACHED)
+
+payload
+
+created_at
+
+synced_at
+
+5.2 Backend: single ingestion edge function
+
+Add: supabase/functions/ingest-stop-events/index.ts
+
+It:
+
+validates auth (driver/admin)
+
+inserts events into route_stop_events (unique on offline_event_id)
+
+applies derived state changes transactionally:
+
+updates route_stops
+
+updates route_stop_items
+
+creates disputes when needed
+
+returns updated stop snapshot
+
+Rule: Driver UI never calls .update() on core tables directly while offline-first is enabled; it calls ingest in batches.
+
+6) Day-before delivery confirmation (fits your current delivery_lists model)
+
+Right now the “confirm for delivery” and “loaded” toggles live in Office DeliveriesTab. 
+
+Add Deliveries UI and backend -…
+
+
+Your spec requires check-in staff to do day-before physical confirmation.
+
+Implementation (minimal refactor)
+
+Keep delivery_list_items.confirmed_for_delivery but change who sets it:
+
+Check-in staff sets confirmed_for_delivery=true in a new “Delivery Prep” queue page.
+
+Driver sets loaded_on_truck=true morning-of.
+
+Office remains responsible for compiling lists and confirming list readiness.
+
+7) Notifications & messaging (best-practice throttle)
+
+You already log communication_events and have interactions. 
+
+supabase - [Repo name: markmege…
+
+ 
+
+Lock wholesale pickup requests …
+
+
+For production, implement threads via a light wrapper using interactions:
+
+Thread model
+
+interaction_type values:
+
+thread_general
+
+thread_estimate:<estimate_id>
+
+thread_invoice:<invoice_id>
+
+Allow portal users to INSERT interactions only when:
+
+client_id matches their portal linkage
+
+interaction_type is one of the above
+
+body length + rate limiting enforced (server-side)
+
+Throttle (recommended)
+
+Estimates
+
+send on sent
+
+reminders at +24h, +72h, +7d
+
+stop reminders after 3
+
+Invoices
+Replace “every 2 days” with standard A/R cadence:
+
++3 days before due date
+
+due date
+
+7 days overdue
+
+14 days overdue
+
+then weekly statement (one email with all open invoices)
+Hard cap: max 1 automated collections email per client per 72h.
+
+8) Accounting primitives (minimal production-safe additions)
+
+You have payment_attempts (good for logging), but you need:
+
+payments
+
+payment_allocations
+
+credit_memos (+ lines)
+
+Do not overbuild. Just enough to keep invoices immutable and reconcile correctly.
