@@ -84,6 +84,15 @@ export function InvoicesTab() {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [clientSearch, setClientSearch] = useState("");
   const [selected, setSelected] = useState<InvoiceRow | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentReceivedAt, setPaymentReceivedAt] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [allocationSearch, setAllocationSearch] = useState("");
+  const [paymentAllocations, setPaymentAllocations] = useState<Record<string, string>>({});
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [creditReason, setCreditReason] = useState("");
+  const [creditAmount, setCreditAmount] = useState("");
+  const [savingCredit, setSavingCredit] = useState(false);
 
   // Create flow state
   const [createOpen, setCreateOpen] = useState(false);
@@ -287,7 +296,98 @@ export function InvoicesTab() {
 
   const openInvoice = (inv: InvoiceRow) => {
     setSelected(inv);
+    setPaymentAllocations({ [inv.id]: Number(inv.total).toFixed(2) });
+    setAllocationSearch("");
+    setCreditReason("");
+    setCreditAmount("");
     setSheetOpen(true);
+  };
+
+  const selectedClientOpenInvoices = useMemo(() => {
+    if (!selected?.client_id) return [];
+    const query = allocationSearch.trim().toLowerCase();
+    return invoices
+      .filter((invoice) => invoice.client_id === selected.client_id && ["sent", "overdue"].includes(invoice.status))
+      .filter((invoice) => !query || invoice.invoice_number.toLowerCase().includes(query));
+  }, [allocationSearch, invoices, selected?.client_id]);
+
+  const totalAllocated = useMemo(() => Object.values(paymentAllocations)
+    .reduce((sum, value) => sum + (Number(value) || 0), 0), [paymentAllocations]);
+
+  const savePayment = async () => {
+    if (!selected?.client_id || totalAllocated <= 0) return;
+    setSavingPayment(true);
+    const { data: payment, error: paymentError } = await (supabase as any)
+      .from("payments")
+      .insert({
+        client_id: selected.client_id,
+        amount: totalAllocated,
+        method: paymentMethod,
+        reference: paymentReference || null,
+        received_at: `${paymentReceivedAt}T00:00:00.000Z`,
+        status: "succeeded",
+        job_id: null,
+      })
+      .select("id")
+      .single();
+
+    if (paymentError || !payment?.id) {
+      toast({ title: "Payment failed", description: paymentError?.message, variant: "destructive" });
+      setSavingPayment(false);
+      return;
+    }
+
+    const rows = Object.entries(paymentAllocations)
+      .map(([invoiceId, amount]) => ({ payment_id: payment.id, invoice_id: invoiceId, amount: Number(amount) || 0 }))
+      .filter((row) => row.amount > 0);
+
+    const { error: allocationError } = await (supabase as any).from("payment_allocations").insert(rows);
+    if (allocationError) {
+      toast({ title: "Allocation failed", description: allocationError.message, variant: "destructive" });
+      setSavingPayment(false);
+      return;
+    }
+
+    toast({ title: "Payment recorded", description: `Allocated $${totalAllocated.toFixed(2)} across ${rows.length} invoice(s).` });
+    setPaymentReference("");
+    setSavingPayment(false);
+    await refreshInvoices();
+  };
+
+  const issueCreditMemo = async () => {
+    if (!selected?.id) return;
+    const normalized = Math.abs(Number(creditAmount) || 0);
+    if (!creditReason.trim() || normalized <= 0) return;
+
+    setSavingCredit(true);
+    const { data: memo, error: memoError } = await (supabase as any)
+      .from("credit_memos")
+      .insert({ invoice_id: selected.id, reason: creditReason.trim() })
+      .select("id")
+      .single();
+
+    if (memoError || !memo?.id) {
+      toast({ title: "Credit memo failed", description: memoError?.message, variant: "destructive" });
+      setSavingCredit(false);
+      return;
+    }
+
+    const { error: lineError } = await (supabase as any).from("credit_memo_lines").insert({
+      credit_memo_id: memo.id,
+      description: creditReason.trim(),
+      amount: -normalized,
+    });
+    if (lineError) {
+      toast({ title: "Credit line failed", description: lineError.message, variant: "destructive" });
+      setSavingCredit(false);
+      return;
+    }
+
+    toast({ title: "Credit memo issued", description: `Applied -$${normalized.toFixed(2)} to ${selected.invoice_number}.` });
+    setCreditReason("");
+    setCreditAmount("");
+    setSavingCredit(false);
+    await refreshInvoices();
   };
 
   const logInvoiceEvent = useCallback(async (
@@ -604,6 +704,61 @@ export function InvoicesTab() {
                       <Download className="h-3.5 w-3.5" /> Download PDF
                     </Button>
                   </div>
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-3">
+                  <Label className="text-sm font-semibold">Record Payment (with allocation)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input value={paymentReceivedAt} onChange={(e) => setPaymentReceivedAt(e.target.value)} type="date" />
+                    <Input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="Reference" />
+                  </div>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                      <SelectItem value="check">Check</SelectItem>
+                      <SelectItem value="card">Card</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={allocationSearch}
+                    onChange={(e) => setAllocationSearch(e.target.value)}
+                    placeholder="Search invoice number for allocation"
+                  />
+                  <div className="space-y-2 max-h-44 overflow-auto">
+                    {selectedClientOpenInvoices.map((invoice) => (
+                      <div key={invoice.id} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground min-w-28">{invoice.invoice_number}</span>
+                        <Input
+                          value={paymentAllocations[invoice.id] ?? ""}
+                          onChange={(e) => setPaymentAllocations((prev) => ({ ...prev, [invoice.id]: e.target.value }))}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Total allocated</span>
+                    <span className="font-semibold">${totalAllocated.toFixed(2)}</span>
+                  </div>
+                  <Button size="sm" onClick={savePayment} disabled={savingPayment || totalAllocated <= 0} className="w-full">
+                    {savingPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Save Payment
+                  </Button>
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-3">
+                  <Label className="text-sm font-semibold">Issue Credit Memo</Label>
+                  <Input value={creditReason} onChange={(e) => setCreditReason(e.target.value)} placeholder="Reason" />
+                  <Input value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} type="number" min="0" step="0.01" placeholder="Credit amount" />
+                  <Button size="sm" variant="outline" className="w-full" onClick={issueCreditMemo} disabled={savingCredit || !creditReason || Number(creditAmount) <= 0}>
+                    {savingCredit ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Issue Credit Memo
+                  </Button>
                 </div>
               </div>
             </>
