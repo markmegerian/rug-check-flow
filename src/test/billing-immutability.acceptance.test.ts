@@ -245,10 +245,12 @@ runIfConfigured("Billing immutability acceptance tests", () => {
 
       // Create a payment
       const paymentReference = `TEST-PAY-${Date.now()}`;
+      const paymentAmount = 200;
+      const paymentMethod = "cash";
       const paymentResponse = await queryRest(officeToken, "payments", "POST", {
         client_id: clientId,
-        amount: 200,
-        method: "cash",
+        amount: paymentAmount,
+        method: paymentMethod,
         reference: paymentReference,
         received_at: new Date().toISOString(),
       });
@@ -260,6 +262,11 @@ runIfConfigured("Billing immutability acceptance tests", () => {
           `payments?select=id&client_id=eq.${clientId}&amount=eq.200&order=created_at.desc&limit=1`,
           `payments?select=id&client_id=eq.${clientId}&order=created_at.desc&limit=1`,
         ]);
+        const paymentRows = await queryRest(
+          officeToken,
+          `payments?select=id&client_id=eq.${clientId}&amount=eq.${paymentAmount}&method=eq.${paymentMethod}&reference=eq.${encodeURIComponent(paymentReference)}&order=created_at.desc&limit=1`,
+        );
+        paymentId = paymentRows[0]?.id as string | undefined;
       }
       if (!paymentId) {
         throw new Error(`Failed to create payment: no ID returned. Response: ${JSON.stringify(paymentResponse)}`);
@@ -269,7 +276,7 @@ runIfConfigured("Billing immutability acceptance tests", () => {
       await queryRest(officeToken, "payment_allocations", "POST", {
         payment_id: paymentId,
         invoice_id: invoiceId,
-        amount: 200,
+        amount: paymentAmount,
       });
 
       // Check balance updated (500 - 200 = 300)
@@ -303,6 +310,14 @@ runIfConfigured("Billing immutability acceptance tests", () => {
           `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&order=created_at.desc&limit=1`,
           `credit_memos?select=id&invoice_id=eq.${invoiceId}&memo_number=eq.${creditMemoNumber}&total=eq.-50&order=created_at.desc&limit=1`,
         ]);
+        const creditMemoRows = await queryRest(
+          officeToken,
+          `credit_memos?select=id,memo_number&invoice_id=eq.${invoiceId}&memo_number=eq.${encodeURIComponent(creditMemoNumber)}&order=created_at.desc&limit=1`,
+        );
+        const fallbackMemo = creditMemoRows[0];
+        if (fallbackMemo?.memo_number === creditMemoNumber) {
+          creditMemoId = fallbackMemo.id as string | undefined;
+        }
       }
       if (!creditMemoId) {
         throw new Error(`Failed to create credit memo: no ID returned. Response: ${JSON.stringify(creditMemoResponse)}`);
