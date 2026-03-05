@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 type RestRow = Record<string, unknown>;
 
+const getEnv = (key: string) => (process.env[key] ?? "").trim();
+
 const REQUIRED_ENV_KEYS = [
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
@@ -13,14 +15,14 @@ const REQUIRED_ENV_KEYS = [
   "DRIVER_USER_PASSWORD",
 ] as const;
 
-const missingRequiredEnv = REQUIRED_ENV_KEYS.filter((key) => !process.env[key]);
+const missingRequiredEnv = REQUIRED_ENV_KEYS.filter((key) => !getEnv(key));
 const hasIntegrationEnv = missingRequiredEnv.length === 0;
 const runIfConfigured = hasIntegrationEnv ? describe : describe.skip;
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? "";
-const EXPECTED_PORTAL_CLIENT_ID = process.env.EXPECTED_PORTAL_CLIENT_ID ?? "";
-const EXPECTED_DRIVER_USER_ID = process.env.EXPECTED_DRIVER_USER_ID ?? "";
+const SUPABASE_URL = getEnv("SUPABASE_URL");
+const SUPABASE_ANON_KEY = getEnv("SUPABASE_ANON_KEY");
+const EXPECTED_PORTAL_CLIENT_ID = getEnv("EXPECTED_PORTAL_CLIENT_ID");
+const EXPECTED_DRIVER_USER_ID = getEnv("EXPECTED_DRIVER_USER_ID");
 
 async function loginAndGetToken(email: string, password: string) {
   const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -60,7 +62,7 @@ function assertClientScoped(rows: RestRow[], expectedClientId: string, tableName
 
 runIfConfigured("Supabase role-scoped integration", () => {
   it("portal user is client-scoped for invoices, estimates, pickups, and rugs", async () => {
-    const portalToken = await loginAndGetToken(process.env.PORTAL_USER_EMAIL ?? "", process.env.PORTAL_USER_PASSWORD ?? "");
+    const portalToken = await loginAndGetToken(getEnv("PORTAL_USER_EMAIL"), getEnv("PORTAL_USER_PASSWORD"));
 
     const invoices = await queryRest(portalToken, "invoices?select=id,client_id,status&limit=25");
     const invoiceItems = await queryRest(portalToken, "invoice_items?select=id,invoice_id&limit=50");
@@ -81,7 +83,7 @@ runIfConfigured("Supabase role-scoped integration", () => {
   });
 
   it("driver user cannot see unrelated pickup requests", async () => {
-    const driverToken = await loginAndGetToken(process.env.DRIVER_USER_EMAIL ?? "", process.env.DRIVER_USER_PASSWORD ?? "");
+    const driverToken = await loginAndGetToken(getEnv("DRIVER_USER_EMAIL"), getEnv("DRIVER_USER_PASSWORD"));
     const pickupRows = await queryRest(driverToken, "pickup_requests?select=id,assigned_driver_id,status&limit=25");
 
     if (EXPECTED_DRIVER_USER_ID) {
@@ -95,7 +97,7 @@ runIfConfigured("Supabase role-scoped integration", () => {
   });
 
   it("office user retains broad visibility across operational tables", async () => {
-    const officeToken = await loginAndGetToken(process.env.OFFICE_USER_EMAIL ?? "", process.env.OFFICE_USER_PASSWORD ?? "");
+    const officeToken = await loginAndGetToken(getEnv("OFFICE_USER_EMAIL"), getEnv("OFFICE_USER_PASSWORD"));
     const officeInvoices = await queryRest(officeToken, "invoices?select=id,client_id,status&limit=50");
     const officePickups = await queryRest(officeToken, "pickup_requests?select=id,client_id,status&limit=50");
     const officePortalUsers = await queryRest(officeToken, "portal_users?select=id,client_id,email,status&limit=20");
