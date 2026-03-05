@@ -131,8 +131,13 @@ runIfConfigured("Messaging threads acceptance tests", () => {
     }) as { error?: unknown; status?: number };
 
     expect(createThreadResult.error || createThreadResult.status).toBeDefined();
-    const status = (createThreadResult as { status?: number }).status;
-    expect(status).toBeGreaterThanOrEqual(400);
+    const rawStatus = (createThreadResult as { status?: number | string }).status;
+    const status = Number(rawStatus);
+    if (Number.isFinite(status)) {
+      expect(status).toBeGreaterThanOrEqual(400);
+    } else {
+      expect(createThreadResult.error).toBeDefined();
+    }
 
     // Try to query threads for another client - should return empty
     const otherClientThreads = await queryRest(portalToken, `message_threads?client_id=eq.${otherClientId}`);

@@ -60,7 +60,7 @@ json_payload_file() {
   local output_file="$1"
   local email="$2"
   local password="$3"
-  python - "$output_file" "$email" "$password" <<'PY'
+  python3 - "$output_file" "$email" "$password" <<'PY'
 import json, sys
 with open(sys.argv[1], "w", encoding="utf-8") as fh:
     json.dump({"email": sys.argv[2], "password": sys.argv[3]}, fh)
@@ -70,7 +70,7 @@ PY
 json_payload_single() {
   local key="$1"
   local value="$2"
-  python - "$key" "$value" <<'PY'
+  python3 - "$key" "$value" <<'PY'
 import json, sys
 print(json.dumps({sys.argv[1]: sys.argv[2]}))
 PY
@@ -104,7 +104,7 @@ get_access_token() {
 
   local access_token
   access_token="$(
-    python - "$response_file" <<'PY'
+    python3 - "$response_file" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -175,7 +175,7 @@ if [[ "$invoice_pdf_status" != "200" ]]; then
   exit 1
 fi
 
-python - "$invoice_pdf_response" <<'PY'
+python3 - "$invoice_pdf_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -205,7 +205,7 @@ if [[ "$alert_status" != "200" ]]; then
   exit 1
 fi
 
-python - "$alert_response_file" <<'PY'
+python3 - "$alert_response_file" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -274,7 +274,7 @@ else
   fi
   
   test_client_id="$(
-    python - "$test_client_id_response" <<'PY'
+    python3 - "$test_client_id_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
@@ -286,7 +286,7 @@ PY
   rm -f "$test_client_id_response"
   
   # Create test stop
-  test_stop_payload="$(python - "$test_client_id" "$test_route_date" <<'PY'
+  test_stop_payload="$(python3 - "$test_client_id" "$test_route_date" <<'PY'
 import json, sys, uuid
 client_id = sys.argv[1]
 route_date = sys.argv[2]
@@ -321,7 +321,7 @@ PY
   fi
   
   test_stop_id="$(
-    python - "$test_stop_response" <<'PY'
+    python3 - "$test_stop_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
@@ -336,7 +336,7 @@ PY
   rm -f "$test_stop_response"
   
   # Create a test route_stop_item (required for completion)
-  test_item_payload="$(python - "$test_stop_id" <<'PY'
+  test_item_payload="$(python3 - "$test_stop_id" <<'PY'
 import json, sys
 stop_id = sys.argv[1]
 print(json.dumps({
@@ -373,7 +373,7 @@ PY
   fi
   
   test_item_id="$(
-    python - "$test_item_response" <<'PY'
+    python3 - "$test_item_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
@@ -388,7 +388,7 @@ PY
   rm -f "$test_item_response"
   
   # Ingest test events (start, set signature, verify item, complete)
-  test_events_payload="$(python - "$test_stop_id" "$test_item_id" <<'PY'
+  test_events_payload="$(python3 - "$test_stop_id" "$test_item_id" <<'PY'
 import json, sys, uuid
 stop_id = sys.argv[1]
 item_id = sys.argv[2]
@@ -449,7 +449,7 @@ PY
     exit 1
   fi
   
-  python - "$ingest_response" <<'PY'
+  python3 - "$ingest_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
@@ -471,7 +471,7 @@ PY
   
   if [[ "$verify_stop_status" == "200" ]]; then
     stop_status="$(
-      python - "$verify_stop_response" <<'PY'
+      python3 - "$verify_stop_response" <<'PY'
 import json, sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)

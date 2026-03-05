@@ -44,7 +44,7 @@ jobs:
             exit 1
           fi
 
-          python - <<'PY'
+          python3 - <<'PY'
           import os, re, sys
           values={
             "SUPABASE_URL": os.environ["SUPABASE_URL"],
