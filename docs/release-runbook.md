@@ -25,20 +25,50 @@ This runbook is the operational checklist for promoting the RugBoost app.
 
 ### Supabase Edge Function secrets
 
+**Required for all functions:**
+- `SUPABASE_URL` (Supabase project URL)
+- `SUPABASE_SERVICE_ROLE_KEY` (required by edge functions that perform admin actions)
+- `SUPABASE_ANON_KEY` (public anon key for auth validation)
+
+**Function-specific secrets:**
+
 - `ENABLE_DEV_LOGIN` (recommended `"false"` in staging/prod unless explicitly needed)
 - `DEV_LOGIN_TEST_PASSWORD` (only required when dev login is enabled)
-- `SUPABASE_SERVICE_ROLE_KEY` (required by edge functions that perform admin actions)
 - `INVOICE_PDF_BUCKET` (optional override; defaults to `invoice-pdfs`)
+
+**Operational alerts:**
 - `SLACK_WEBHOOK_URL` (optional; enables Slack dispatch for critical operational alerts)
 - `OPS_ALERT_EMAILS` (optional CSV list for critical operational alert emails)
 - `OPS_ALERT_FROM_EMAIL` (optional sender identity for operational alert emails)
 
+**ingest-stop-events function:**
+- `SUPABASE_URL` (required)
+- `SUPABASE_SERVICE_ROLE_KEY` (required for admin operations)
+- `SUPABASE_ANON_KEY` (required for auth validation)
+
+**Note:** The `ingest-stop-events` function uses the same Supabase credentials as other functions. No additional secrets are required beyond the standard set above.
+
 ## 3) Migration and deploy order
 
-1. Deploy database migrations to staging.
-2. Deploy Supabase edge functions.
-   - Ensure `invoice-pdf` and `operational-alerts` are deployed alongside existing functions.
-3. Deploy frontend build.
+**Critical: Deploy in this exact order to avoid breaking changes**
+
+1. **Deploy database migrations to staging.**
+   - Apply all migrations in chronological order
+   - Verify migrations complete successfully
+   - Check for any migration errors or warnings
+
+2. **Deploy Supabase edge functions.**
+   - Deploy `ingest-stop-events` (requires new tables: route_stops, route_stop_items, route_stop_events)
+   - Deploy `invoice-pdf` (requires payments, credit_memos tables)
+   - Deploy `operational-alerts`
+   - Deploy any other edge functions
+   - Verify function deployments complete successfully
+
+3. **Deploy frontend build.**
+   - Build must include all new UI components for stops, payments, credit memos
+   - Verify build completes without errors
+   - Deploy to staging environment
+
 4. Run staging smoke test script:
 
    ```sh
@@ -172,12 +202,87 @@ Before Phase 5.3 sign-off, run `./scripts/phase5-3-verify-remediation.sh` to con
 
 ## 6) Rollback guidance
 
-If a release fails:
+If a release fails, follow these steps in order:
 
-1. Stop rollout and notify the team.
-2. Roll frontend back to previous build.
-3. Revert edge function deployment to previous version.
-4. For DB changes:
-   - Prefer forward-fix migrations.
-   - If absolutely necessary, apply reviewed rollback SQL scripts.
-5. Re-run smoke tests before reopening access.
+### Immediate actions
+
+1. **Stop rollout and notify the team.**
+   - Pause any ongoing deployments
+   - Alert on-call engineer and operations team
+   - Document the failure point and symptoms
+
+2. **Assess impact.**
+   - Determine which components are affected (frontend, functions, database)
+   - Check if data integrity is at risk
+   - Verify if any partial deployments occurred
+
+### Rollback steps (in reverse deployment order)
+
+3. **Roll frontend back to previous build.**
+   - Revert to the last known good frontend deployment
+   - Verify frontend is accessible and functional
+   - Check that UI components load correctly
+
+4. **Revert edge function deployment to previous version.**
+   - Roll back `ingest-stop-events` if deployed
+   - Roll back `invoice-pdf` if deployed
+   - Roll back `operational-alerts` if deployed
+   - Verify functions are accessible and responding
+
+5. **For database changes:**
+   - **Prefer forward-fix migrations** over rollback migrations
+   - Create new migration to fix issues rather than reverting
+   - If rollback is absolutely necessary:
+     - Review rollback SQL scripts before execution
+     - Test rollback in staging first
+     - Document any data loss or transformation required
+     - Apply rollback migration carefully with backups
+   - **Critical tables to check:**
+     - `route_stops`, `route_stop_items`, `route_stop_events` (stop pipeline)
+     - `payments`, `payment_allocations`, `credit_memos` (billing)
+     - `message_threads`, `messages` (messaging)
+     - `notification_cadence` (email automation)
+
+6. **Verify rollback success.**
+   - Re-run smoke tests against rolled-back environment
+   - Verify critical workflows still function:
+     - Stop ingestion pipeline
+     - Invoice creation and payment processing
+     - Messaging threads
+   - Check database integrity
+   - Confirm no data corruption occurred
+
+7. **Reopen access only after verification.**
+   - Ensure all smoke tests pass
+   - Confirm no critical errors in logs
+   - Get sign-off from engineering lead before reopening
+
+### Rollback considerations for new features
+
+**Stop pipeline rollback:**
+- If `route_stops` tables are rolled back, ensure drivers can still use previous workflow
+- Check that offline event queue can drain properly
+- Verify no orphaned route_stop_events remain
+
+**Billing rollback:**
+- If `payments` or `credit_memos` tables are rolled back, ensure invoices remain accessible
+- Verify invoice balance calculations still work
+- Check that payment allocations are preserved
+
+**Messaging rollback:**
+- If `message_threads` tables are rolled back, ensure communication_events still work
+- Verify notification cadence doesn't break
+
+### Post-rollback
+
+8. **Document the incident.**
+   - Record what failed and why
+   - Document rollback steps taken
+   - Update runbook with lessons learned
+   - Create follow-up tasks to fix root cause
+
+9. **Plan forward-fix.**
+   - Identify the root cause
+   - Create forward-fix migration or code changes
+   - Test fix thoroughly in staging
+   - Schedule re-deployment with fixes
