@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck } from "lucide-react";
 import { PricingTab } from "@/components/office/PricingTab";
@@ -7,6 +7,8 @@ import { ClientsTab } from "@/components/office/ClientsTab";
 import { DeliveriesTab } from "@/components/office/DeliveriesTab";
 import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
+import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
+import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
@@ -30,6 +32,10 @@ export default function FacilityOffice() {
   const canManagePricing = hasRole("admin");
   const tabs = useMemo(() => (canManagePricing ? [ADMIN_PRICING_TAB, ...BASE_TABS] : [...BASE_TABS]), [canManagePricing]);
   const tabIds = useMemo(() => new Set<string>(tabs.map((tab) => tab.id)), [tabs]);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [detailRugId, setDetailRugId] = useState<string | null>(null);
+  const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -57,6 +63,7 @@ export default function FacilityOffice() {
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
       statusBar={<WorkspaceStatusBar />}
+      onSearchOpen={() => setSearchOpen(true)}
       actions={<ClientPricingDialog triggerLabel="Price Lookup" />}
     >
       <div className="h-full flex flex-col bg-muted/20">
@@ -80,6 +87,9 @@ export default function FacilityOffice() {
           </main>
         </div>
       </div>
+
+      <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
+      <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
     </AppShell>
   );
 }

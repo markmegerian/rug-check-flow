@@ -1,6 +1,5 @@
-import type { Tables } from "@/integrations/supabase/types";
-
-export type AppRole = Tables<"user_roles">["role"];
+export type { AppRole } from "@/types/app-roles";
+import type { AppRole } from "@/types/app-roles";
 
 export type RoleDefinition = {
   id: AppRole;

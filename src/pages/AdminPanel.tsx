@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Users, Shield, ScrollText, Store } from "lucide-react";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { RolesTab } from "@/components/admin/RolesTab";
 import { AuditLogTab } from "@/components/admin/AuditLogTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
+import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
+import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
@@ -19,7 +21,10 @@ type TabId = (typeof TABS)[number]["id"];
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("users");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
+  const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
 
   return (
     <AppShell
@@ -27,6 +32,7 @@ export default function AdminPanel() {
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
       statusBar={<WorkspaceStatusBar />}
+      onSearchOpen={() => setSearchOpen(true)}
     >
       <div className="h-full flex flex-col bg-muted/20">
         <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
@@ -47,6 +53,9 @@ export default function AdminPanel() {
           </main>
         </div>
       </div>
+
+      <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
+      <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
     </AppShell>
   );
 }

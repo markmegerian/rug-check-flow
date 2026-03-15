@@ -1,46 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
-import { useToast } from "@/hooks/use-toast";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-type AuditEntry = Tables<"audit_log">;
+import { useAuditLog } from "@/hooks/useAuditLog";
 
 export function AuditLogTab() {
-  const { toast } = useToast();
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: infiniteData, isLoading: loading, hasNextPage, isFetchingNextPage: loadingMore, fetchNextPage } = useAuditLog();
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchAuditLog = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("audit_log")
-      .select("id, created_at, user_name, action, user_id")
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (error) {
-      toast({ title: "Failed to load audit log", description: error.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    setEntries(data ?? []);
-    setLoading(false);
-  }, [toast]);
-
-  useEffect(() => {
-    fetchAuditLog();
-  }, [fetchAuditLog]);
+  const entries = useMemo(() => infiniteData?.pages.flat() ?? [], [infiniteData]);
 
   const filteredEntries = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     if (query.length === 0) return entries;
-
     return entries.filter((entry) => {
       const actor = (entry.user_name ?? "").toLowerCase();
       const action = (entry.action ?? "").toLowerCase();
@@ -126,6 +100,13 @@ export function AuditLogTab() {
           ))}
         </TableBody>
       </Table>
+      {hasNextPage && (
+        <div className="flex justify-center pt-2">
+          <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={loadingMore}>
+            {loadingMore ? "Loading..." : "Load more"}
+          </Button>
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">Read-only log. No actions.</p>
     </div>
   );

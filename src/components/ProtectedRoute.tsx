@@ -1,7 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-
-type AppRole = "admin" | "office" | "checkin_staff" | "driver";
+import type { AppRole } from "@/types/app-roles";
 
 interface Props {
   children: React.ReactNode;

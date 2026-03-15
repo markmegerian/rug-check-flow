@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Package, Loader2 } from "lucide-react";
+import { LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
+import { RugDetailSheet } from "./RugDetailSheet";
 
 interface ReadyRug {
   id: string;
@@ -28,6 +30,7 @@ export function PendingPickupsPanel() {
   const [rugs, setRugs] = useState<ReadyRug[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [detailRugId, setDetailRugId] = useState<string | null>(null);
 
   const fetchReady = useCallback(async () => {
     const { data, error } = await supabase
@@ -83,7 +86,7 @@ export function PendingPickupsPanel() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <LoadingState title="Loading pickups" description="Fetching ready rugs..." />
       </div>
     );
   }
@@ -110,7 +113,12 @@ export function PendingPickupsPanel() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-sm">{rug.tag}</span>
+                    <span
+                      className="font-mono font-bold text-sm text-primary hover:underline cursor-pointer"
+                      onClick={() => setDetailRugId(rug.id)}
+                    >
+                      {rug.tag}
+                    </span>
                     {rug.client_name && (
                       <span className="text-sm text-muted-foreground truncate">{rug.client_name}</span>
                     )}
@@ -144,6 +152,12 @@ export function PendingPickupsPanel() {
           </div>
         )}
       </div>
+
+      <RugDetailSheet
+        rugId={detailRugId}
+        open={Boolean(detailRugId)}
+        onOpenChange={(open) => { if (!open) setDetailRugId(null); }}
+      />
     </div>
   );
 }

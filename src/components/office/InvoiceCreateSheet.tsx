@@ -12,13 +12,8 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useClients } from "@/hooks/useClients";
 import type { Tables } from "@/integrations/supabase/types";
-
-interface ClientOption {
-  id: string;
-  name: string;
-  pricing_tier: string;
-}
 
 interface RugOption {
   id: string;
@@ -39,7 +34,8 @@ interface InvoiceCreateSheetProps {
 }
 
 export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCreateSheetProps) {
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  const { data: allClients = [] } = useClients();
+  const clients = useMemo(() => allClients.map((c) => ({ id: c.id, name: c.name, pricing_tier: c.pricing_tier })), [allClients]);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
@@ -47,13 +43,9 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
 
   useEffect(() => {
     if (!open) return;
-    (async () => {
-      const { data } = await supabase.from("clients").select("id, name, pricing_tier").order("name");
-      setClients(data ?? []);
-      setSelectedClientId("");
-      setClientRugs([]);
-      setSelectedRugIds(new Set());
-    })();
+    setSelectedClientId("");
+    setClientRugs([]);
+    setSelectedRugIds(new Set());
   }, [open]);
 
   useEffect(() => {

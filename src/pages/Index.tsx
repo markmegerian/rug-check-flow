@@ -5,21 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { OperationalRemindersPanel } from "@/components/dashboard/OperationalRemindersPanel";
-
-type AppRole = "admin" | "office" | "checkin_staff" | "driver";
+import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 
 const ROLE_REDIRECTS: Record<AppRole, string> = {
   checkin_staff: "/facility/ops",
   driver: "/driver",
   office: "/facility/office",
   admin: "/admin",
-};
-
-const ROLE_LABELS: Record<AppRole, string> = {
-  admin: "Admin",
-  office: "Office",
-  checkin_staff: "Check-In",
-  driver: "Driver",
 };
 
 const SECTIONS: Array<{

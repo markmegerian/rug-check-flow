@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import type { ProductionStage } from "@/data/production";
@@ -17,6 +17,8 @@ export interface RugWithServices {
   size_length: number | null;
   size_width: number | null;
   checked_in_at: string;
+  completed_at?: string | null;
+  picked_up_at?: string | null;
   notes: string;
   client_id: string | null;
   client_name: string | null;
@@ -95,6 +97,73 @@ export function useRugCountsByClient() {
       return counts;
     },
     staleTime: 30_000,
+  });
+}
+
+/** Single rug detail query */
+export function useRug(id: string | null) {
+  return useQuery({
+    queryKey: [...RUGS_KEY, "detail", id],
+    queryFn: async (): Promise<RugWithServices | null> => {
+      if (!id) return null;
+      const { data, error } = await supabase
+        .from("rugs")
+        .select("id, tag, description, status, size_length, size_width, checked_in_at, completed_at, picked_up_at, notes, client_id, photo_url, clients(name)")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      const row = data as unknown as Pick<
+        Tables<"rugs">,
+        "id" | "tag" | "description" | "status" | "size_length" | "size_width" | "checked_in_at" | "completed_at" | "picked_up_at" | "notes" | "client_id" | "photo_url"
+      > & { clients: { name: string } | null };
+
+      const { data: serviceData } = await supabase
+        .from("rug_services")
+        .select("rug_id, line_total, service_name, edges")
+        .eq("rug_id", id);
+
+      const services = ((serviceData ?? []) as RugServiceRow[]).map((s) => ({
+        name: s.service_name || "Unknown",
+        line_total: Number(s.line_total),
+        edges: s.edges ?? [],
+      }));
+
+      return {
+        id: row.id,
+        tag: row.tag,
+        description: row.description,
+        status: row.status as ProductionStage,
+        size_length: row.size_length,
+        size_width: row.size_width,
+        checked_in_at: row.checked_in_at,
+        completed_at: (row as Record<string, unknown>).completed_at as string | null,
+        picked_up_at: (row as Record<string, unknown>).picked_up_at as string | null,
+        notes: row.notes,
+        client_id: row.client_id,
+        client_name: row.clients?.name ?? null,
+        photo_url: row.photo_url,
+        services,
+      };
+    },
+    enabled: Boolean(id),
+    staleTime: 10_000,
+  });
+}
+
+/** Update rug notes mutation */
+export function useUpdateRugNotes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
+      const { error } = await supabase.from("rugs").update({ notes }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: RUGS_KEY });
+    },
   });
 }
 

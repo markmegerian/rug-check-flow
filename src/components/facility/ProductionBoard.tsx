@@ -1,94 +1,34 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import { PRODUCTION_STAGES, ProductionStage } from "@/data/production";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useRugs, useInvalidateRugs, type RugWithServices } from "@/hooks/useRugs";
+import { RugDetailSheet } from "./RugDetailSheet";
 
-type RugRow = Pick<
-  Tables<"rugs">,
-  "id" | "tag" | "description" | "status" | "size_length" | "size_width" | "checked_in_at" | "notes"
-> & {
-  clients: Pick<Tables<"clients">, "name"> | null;
-};
-
-type RugServiceRow = Pick<Tables<"rug_services">, "rug_id" | "line_total" | "service_name" | "edges">;
-
-export interface DbRug {
-  id: string;
-  tag: string;
-  description: string;
-  services: { name: string; line_total: number; edges?: string[] }[];
-  status: ProductionStage;
-  size_length: number | null;
-  size_width: number | null;
-  checked_in_at: string;
-  notes: string;
-  client_name: string | null;
-}
+export type DbRug = RugWithServices;
 
 export function ProductionBoard() {
-  const [rugs, setRugs] = useState<DbRug[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rugs = [], isLoading: loading } = useRugs();
+  const invalidateRugs = useInvalidateRugs();
   const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [detailRugId, setDetailRugId] = useState<string | null>(null);
 
-  const fetchRugs = async () => {
-    const { data, error } = await supabase
-      .from("rugs")
-      .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, clients(name)")
-      .order("checked_in_at", { ascending: false });
-
-    if (error) {
-      toast({ title: "Error loading rugs", description: error.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    const rugRows = (data ?? []) as unknown as RugRow[];
-    const rugIds = rugRows.map((rug) => rug.id);
-
-    const rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
-    if (rugIds.length > 0) {
-      const { data: rs } = await supabase
-        .from("rug_services")
-        .select("rug_id, line_total, service_name, edges")
-        .in("rug_id", rugIds);
-      const serviceRows = (rs ?? []) as RugServiceRow[];
-      for (const row of serviceRows) {
-        const list = rugServiceMap.get(row.rug_id) ?? [];
-        list.push({
-          name: row.service_name || "Unknown",
-          line_total: Number(row.line_total),
-          edges: row.edges ?? [],
-        });
-        rugServiceMap.set(row.rug_id, list);
-      }
-    }
-
-    setRugs(
-      rugRows.map((rug) => ({
-        id: rug.id,
-        tag: rug.tag,
-        description: rug.description,
-        services: rugServiceMap.get(rug.id) ?? [],
-        status: rug.status as ProductionStage,
-        size_length: rug.size_length,
-        size_width: rug.size_width,
-        checked_in_at: rug.checked_in_at,
-        notes: rug.notes,
-        client_name: rug.clients?.name ?? null,
-      }))
+  const filteredRugs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rugs;
+    return rugs.filter((r) =>
+      r.tag.toLowerCase().includes(q) ||
+      (r.client_name ?? "").toLowerCase().includes(q)
     );
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchRugs();
-  }, []);
+  }, [rugs, search]);
 
   const handleAdvanceStage = async (rugId: string) => {
     const rug = rugs.find((r) => r.id === rugId);
@@ -107,9 +47,7 @@ export function ProductionBoard() {
       return;
     }
 
-    setRugs((prev) =>
-      prev.map((r) => (r.id === rugId ? { ...r, status: nextStage } : r))
-    );
+    invalidateRugs();
   };
 
   if (loading) {
@@ -130,13 +68,24 @@ export function ProductionBoard() {
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 shrink-0">
         <h2 className="text-sm font-semibold">Production Board</h2>
-        <Badge variant="outline" className="text-xs">{rugs.length} rugs</Badge>
+        <Badge variant="outline" className="text-xs">
+          {search ? `${filteredRugs.length} of ${rugs.length}` : `${rugs.length}`} rugs
+        </Badge>
+        <div className="relative ml-auto">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tag or client..."
+            className="pl-7 h-7 w-[180px] text-xs"
+          />
+        </div>
       </div>
 
       {/* Mobile: stage tabs */}
       <div className="flex md:hidden border-b border-border overflow-x-auto shrink-0">
         {PRODUCTION_STAGES.map((stage) => {
-          const count = rugs.filter((r) => r.status === stage.id).length;
+          const count = filteredRugs.filter((r) => r.status === stage.id).length;
           const isActive = (activeStage ?? PRODUCTION_STAGES[0].id) === stage.id;
           return (
             <button
@@ -162,11 +111,11 @@ export function ProductionBoard() {
       <div className="flex-1 overflow-auto md:hidden p-2">
         {(() => {
           const stageId = activeStage ?? PRODUCTION_STAGES[0].id;
-          const stageRugs = rugs.filter((r) => r.status === stageId);
+          const stageRugs = filteredRugs.filter((r) => r.status === stageId);
           return (
             <div className="space-y-2">
               {stageRugs.map((rug) => (
-                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} />
+                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} onViewDetail={setDetailRugId} />
               ))}
               {stageRugs.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-6">No rugs</p>
@@ -180,7 +129,7 @@ export function ProductionBoard() {
       <div className="flex-1 overflow-x-auto hidden md:block">
         <div className="flex h-full min-w-max">
           {PRODUCTION_STAGES.map((stage) => {
-            const stageRugs = rugs.filter((r) => r.status === stage.id);
+            const stageRugs = filteredRugs.filter((r) => r.status === stage.id);
             return (
               <div key={stage.id} className="flex flex-col w-64 border-r last:border-r-0 shrink-0">
                 <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20">
@@ -198,6 +147,7 @@ export function ProductionBoard() {
                         key={rug.id}
                         rug={rug}
                         onAdvanceStage={handleAdvanceStage}
+                        onViewDetail={setDetailRugId}
                       />
                     ))}
                     {stageRugs.length === 0 && (
@@ -210,6 +160,12 @@ export function ProductionBoard() {
           })}
         </div>
       </div>
+
+      <RugDetailSheet
+        rugId={detailRugId}
+        open={Boolean(detailRugId)}
+        onOpenChange={(open) => { if (!open) setDetailRugId(null); }}
+      />
     </div>
   );
 }
