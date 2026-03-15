@@ -2,8 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { isSuperAdminEmail } from "@/lib/super-admin";
-
-type AppRole = "admin" | "office" | "checkin_staff" | "driver";
+import type { AppRole } from "@/types/app-roles";
 type PortalUserLink = {
   client_id: string;
   onboarding_completed_at: string | null;

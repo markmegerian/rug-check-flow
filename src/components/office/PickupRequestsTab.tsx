@@ -12,30 +12,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import { canRoleTransitionPickupStatus } from "@/lib/workflow-guards";
 import type { Tables } from "@/integrations/supabase/types";
+import {
+  usePickupRequests,
+  usePickupItems,
+  useInvalidatePickupRequests,
+  type PickupRequestRow,
+} from "@/hooks/usePickupRequests";
 
-type PickupStatus = ExtendedTableRow<"pickup_requests">["status"];
-
-type PickupRequestRow = {
-  id: ExtendedTableRow<"pickup_requests">["id"];
-  client_id: ExtendedTableRow<"pickup_requests">["client_id"];
-  route_day: ExtendedTableRow<"pickup_requests">["route_day"];
-  scheduled_date: ExtendedTableRow<"pickup_requests">["scheduled_date"];
-  status: ExtendedTableRow<"pickup_requests">["status"];
-  notes: ExtendedTableRow<"pickup_requests">["notes"];
-  assigned_driver_id: ExtendedTableRow<"pickup_requests">["assigned_driver_id"];
-  updated_at: ExtendedTableRow<"pickup_requests">["updated_at"];
-  clients?: { name: string } | null;
-};
-
-type PickupItemRow = {
-  id: string;
-  pickup_request_id: string;
-  rug_number: string;
-  is_new: boolean;
-};
+type PickupStatus = PickupRequestRow["status"];
 
 type DriverOption = {
   id: string;
@@ -52,11 +39,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 export function PickupRequestsTab() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const [requests, setRequests] = useState<PickupRequestRow[]>([]);
-  const [items, setItems] = useState<PickupItemRow[]>([]);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [driverSelection, setDriverSelection] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
 
   const statusFilterParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -65,6 +49,21 @@ export function PickupRequestsTab() {
     .map((status) => status.trim())
     .filter((status): status is PickupStatus => STATUS_SET.has(status as PickupStatus));
   const hasReminderFilter = statusFilters.length > 0 || minAgeDays > 0;
+
+  const { data: requests = [], isLoading: loading } = usePickupRequests();
+  const invalidatePickupRequests = useInvalidatePickupRequests();
+
+  const requestIds = useMemo(() => requests.map((r) => r.id), [requests]);
+  const { data: items = [] } = usePickupItems(requestIds);
+
+  // Initialize driver selections when requests load
+  useEffect(() => {
+    const defaultSelections: Record<string, string> = {};
+    requests.forEach((r) => {
+      defaultSelections[r.id] = r.assigned_driver_id ?? "none";
+    });
+    setDriverSelection(defaultSelections);
+  }, [requests]);
 
   const fetchDrivers = useCallback(async () => {
     const { data: roleRows } = await supabaseExtended
@@ -93,47 +92,9 @@ export function PickupRequestsTab() {
     setDrivers(mapped);
   }, []);
 
-  const fetchAll = useCallback(async () => {
-    const { data: reqData, error: reqErr } = await supabaseExtended
-      .from("pickup_requests")
-      .select("id, client_id, route_day, scheduled_date, status, notes, assigned_driver_id, updated_at, clients(name)")
-      .order("scheduled_date", { ascending: true });
-
-    if (reqErr) {
-      toast({ title: "Failed to load pickup requests", description: reqErr.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    const typedRequests = (reqData ?? []) as unknown as PickupRequestRow[];
-    setRequests(typedRequests);
-
-    const defaultSelections: Record<string, string> = {};
-    typedRequests.forEach((r) => {
-      defaultSelections[r.id] = r.assigned_driver_id ?? "none";
-    });
-    setDriverSelection(defaultSelections);
-
-    const reqIds = typedRequests.map((r) => r.id);
-    if (reqIds.length === 0) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data: itemData } = await supabaseExtended
-      .from("pickup_request_items")
-      .select("id, pickup_request_id, rug_number, is_new")
-      .in("pickup_request_id", reqIds);
-
-    setItems((itemData ?? []) as PickupItemRow[]);
-    setLoading(false);
-  }, [toast]);
-
   useEffect(() => {
     fetchDrivers();
-    fetchAll();
-  }, [fetchAll, fetchDrivers]);
+  }, [fetchDrivers]);
 
   const filteredRequests = useMemo(() => {
     let filtered = [...requests];
@@ -192,8 +153,8 @@ export function PickupRequestsTab() {
       return;
     }
 
-    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
     toast({ title: "Pickup updated", description: `Status set to ${status}.` });
+    invalidatePickupRequests();
   };
 
   const assignDriver = async (requestId: string) => {
@@ -228,8 +189,8 @@ export function PickupRequestsTab() {
       return;
     }
 
-    setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, assigned_driver_id: selected, status: "assigned" } : r)));
     toast({ title: "Driver assigned" });
+    invalidatePickupRequests();
   };
 
   const statusBadge = (status: PickupStatus) => {

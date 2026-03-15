@@ -16,13 +16,7 @@ import { InvoiceFilters } from "@/components/office/InvoiceFilters";
 import { InvoiceDetailSheet } from "@/components/office/InvoiceDetailSheet";
 import { InvoiceCreateSheet } from "@/components/office/InvoiceCreateSheet";
 import { LoadingState } from "@/components/states/PageState";
-import type { Tables } from "@/integrations/supabase/types";
-
-type InvoiceRow = Tables<"invoices"> & {
-  pdf_storage_path: string | null;
-  clients: { name: string } | null;
-  invoice_items: Tables<"invoice_items">[];
-};
+import { useInvoices, useInvalidateInvoices, type InvoiceRow } from "@/hooks/useInvoices";
 
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
 
@@ -42,16 +36,24 @@ const STATUSES: Array<{ value: string; label: string }> = [
 ];
 const STATUS_VALUES = new Set(STATUSES.map((status) => status.value));
 
-const PAGE_SIZE = 100;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function InvoicesTab() {
   const [searchParams] = useSearchParams();
-  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  const {
+    data: infiniteData,
+    isLoading: loading,
+    hasNextPage,
+    isFetchingNextPage: loadingMore,
+    fetchNextPage,
+  } = useInvoices();
+  const invalidateInvoices = useInvalidateInvoices();
+
+  const invoices = useMemo(
+    () => infiniteData?.pages.flat() ?? [],
+    [infiniteData],
+  );
+
   const [activeTab, setActiveTab] = useState("all");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -63,46 +65,6 @@ export function InvoicesTab() {
   const queryStatus = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
   const hasReminderFilter = STATUS_VALUES.has(queryStatus ?? "") || minAgeDays > 0;
-
-  const fetchInvoicesPage = useCallback(async (targetPageIndex: number, append: boolean) => {
-    if (append) setLoadingMore(true);
-    else setLoading(true);
-
-    const from = targetPageIndex * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    const { data, error } = await supabase
-      .from("invoices")
-      .select("*, pdf_storage_path, clients(name), invoice_items(*)")
-      .order("created_at", { ascending: false })
-      .range(from, to);
-
-    if (error) {
-      toast({ title: "Error loading invoices", description: error.message, variant: "destructive" });
-      if (append) setLoadingMore(false);
-      else setLoading(false);
-      return;
-    }
-
-    const nextRows = (data as InvoiceRow[]) ?? [];
-    setHasMore(nextRows.length === PAGE_SIZE);
-    setPageIndex(targetPageIndex);
-    setInvoices((prev) => {
-      if (!append) return nextRows;
-      const byId = new Map(prev.map((invoice) => [invoice.id, invoice]));
-      for (const invoice of nextRows) byId.set(invoice.id, invoice);
-      return Array.from(byId.values());
-    });
-
-    if (append) setLoadingMore(false);
-    else setLoading(false);
-  }, []);
-
-  const refreshInvoices = useCallback(async () => {
-    await fetchInvoicesPage(0, false);
-  }, [fetchInvoicesPage]);
-
-  useEffect(() => { refreshInvoices(); }, [refreshInvoices]);
 
   useEffect(() => {
     if (queryStatus && STATUS_VALUES.has(queryStatus)) setActiveTab(queryStatus);
@@ -195,7 +157,7 @@ export function InvoicesTab() {
 
     await logInvoiceEvent(selected, `invoice_marked_${newStatus}`, `${selected.invoice_number} marked ${newStatus}`, `Office marked invoice ${selected.invoice_number} as ${newStatus}.`);
     toast({ title: `Marked as ${newStatus}` });
-    await refreshInvoices();
+    invalidateInvoices();
   };
 
   const deleteDraft = async () => {
@@ -209,7 +171,7 @@ export function InvoicesTab() {
     setSheetOpen(false);
     setSelected(null);
     toast({ title: "Draft deleted" });
-    await refreshInvoices();
+    invalidateInvoices();
   };
 
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
@@ -256,7 +218,7 @@ export function InvoicesTab() {
     }
 
     toast({ title: "Payment recorded", description: `Allocated $${totalAllocated.toFixed(2)} across ${rows.length} invoice(s).` });
-    await refreshInvoices();
+    invalidateInvoices();
   };
 
   const handleIssueCreditMemo = async (reason: string, amount: string) => {
@@ -286,7 +248,7 @@ export function InvoicesTab() {
     }
 
     toast({ title: "Credit memo issued", description: `Applied -$${normalized.toFixed(2)} to ${selected.invoice_number}.` });
-    await refreshInvoices();
+    invalidateInvoices();
   };
 
   const clientName = (inv: InvoiceRow) => inv.clients?.name ?? "Unknown";
@@ -387,9 +349,9 @@ export function InvoicesTab() {
 
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Showing {invoices.length} most recent invoices.</span>
-        {hasMore && (
-          <Button variant="outline" size="sm" onClick={() => fetchInvoicesPage(pageIndex + 1, true)} disabled={loadingMore}>
-            {loadingMore ? "Loading…" : "Load older invoices"}
+        {hasNextPage && (
+          <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={loadingMore}>
+            {loadingMore ? "Loading\u2026" : "Load older invoices"}
           </Button>
         )}
       </div>
@@ -409,7 +371,7 @@ export function InvoicesTab() {
       <InvoiceCreateSheet
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={refreshInvoices}
+        onCreated={invalidateInvoices}
       />
     </div>
   );
