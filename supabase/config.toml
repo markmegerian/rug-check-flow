@@ -1,0 +1,25 @@
+project_id = "toitgmaeuscrdwbpntda"
+
+[functions.admin-provision-employee]
+verify_jwt = true
+
+[functions.send-portal-onboarding-email]
+verify_jwt = true
+
+[functions.send-estimate-email]
+verify_jwt = true
+
+[functions.operational-alerts]
+verify_jwt = true
+
+[functions.checkout-delivery]
+verify_jwt = true
+
+[functions.invoice-pdf]
+verify_jwt = true
+
+[functions.ingest-stop-events]
+verify_jwt = true
+
+[functions.admin-delete-user]
+verify_jwt = true
