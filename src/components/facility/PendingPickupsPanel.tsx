@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Package, Loader2 } from "lucide-react";
+import { LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,7 +84,7 @@ export function PendingPickupsPanel() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <LoadingState title="Loading pickups" description="Fetching ready rugs..." />
       </div>
     );
   }

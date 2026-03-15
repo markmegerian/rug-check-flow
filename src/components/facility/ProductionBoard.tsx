@@ -1,94 +1,20 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import { PRODUCTION_STAGES, ProductionStage } from "@/data/production";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useRugs, useInvalidateRugs, type RugWithServices } from "@/hooks/useRugs";
 
-type RugRow = Pick<
-  Tables<"rugs">,
-  "id" | "tag" | "description" | "status" | "size_length" | "size_width" | "checked_in_at" | "notes"
-> & {
-  clients: Pick<Tables<"clients">, "name"> | null;
-};
-
-type RugServiceRow = Pick<Tables<"rug_services">, "rug_id" | "line_total" | "service_name" | "edges">;
-
-export interface DbRug {
-  id: string;
-  tag: string;
-  description: string;
-  services: { name: string; line_total: number; edges?: string[] }[];
-  status: ProductionStage;
-  size_length: number | null;
-  size_width: number | null;
-  checked_in_at: string;
-  notes: string;
-  client_name: string | null;
-}
+export type DbRug = RugWithServices;
 
 export function ProductionBoard() {
-  const [rugs, setRugs] = useState<DbRug[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rugs = [], isLoading: loading } = useRugs();
+  const invalidateRugs = useInvalidateRugs();
   const [activeStage, setActiveStage] = useState<string | null>(null);
-
-  const fetchRugs = async () => {
-    const { data, error } = await supabase
-      .from("rugs")
-      .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, clients(name)")
-      .order("checked_in_at", { ascending: false });
-
-    if (error) {
-      toast({ title: "Error loading rugs", description: error.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    const rugRows = (data ?? []) as unknown as RugRow[];
-    const rugIds = rugRows.map((rug) => rug.id);
-
-    const rugServiceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
-    if (rugIds.length > 0) {
-      const { data: rs } = await supabase
-        .from("rug_services")
-        .select("rug_id, line_total, service_name, edges")
-        .in("rug_id", rugIds);
-      const serviceRows = (rs ?? []) as RugServiceRow[];
-      for (const row of serviceRows) {
-        const list = rugServiceMap.get(row.rug_id) ?? [];
-        list.push({
-          name: row.service_name || "Unknown",
-          line_total: Number(row.line_total),
-          edges: row.edges ?? [],
-        });
-        rugServiceMap.set(row.rug_id, list);
-      }
-    }
-
-    setRugs(
-      rugRows.map((rug) => ({
-        id: rug.id,
-        tag: rug.tag,
-        description: rug.description,
-        services: rugServiceMap.get(rug.id) ?? [],
-        status: rug.status as ProductionStage,
-        size_length: rug.size_length,
-        size_width: rug.size_width,
-        checked_in_at: rug.checked_in_at,
-        notes: rug.notes,
-        client_name: rug.clients?.name ?? null,
-      }))
-    );
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchRugs();
-  }, []);
 
   const handleAdvanceStage = async (rugId: string) => {
     const rug = rugs.find((r) => r.id === rugId);
@@ -107,9 +33,7 @@ export function ProductionBoard() {
       return;
     }
 
-    setRugs((prev) =>
-      prev.map((r) => (r.id === rugId ? { ...r, status: nextStage } : r))
-    );
+    invalidateRugs();
   };
 
   if (loading) {

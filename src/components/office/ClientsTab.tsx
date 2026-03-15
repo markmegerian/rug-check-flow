@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ChangeEvent } from "react";
+import { useState, useCallback, useRef, type ChangeEvent } from "react";
 import { Plus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
+import { useClients, useInvalidateClients } from "@/hooks/useClients";
+import { useRugCountsByClient, useInvalidateRugs } from "@/hooks/useRugs";
 import { ClientDetailSheet } from "@/components/office/ClientDetailSheet";
+import { LoadingState } from "@/components/states/PageState";
 
 type Client = Tables<"clients">;
 type PortalUser = Tables<"portal_users">;
@@ -163,14 +166,15 @@ export function ClientsTab() {
   const { toast } = useToast();
   const { hasRole, isSuperAdmin } = useAuth();
   const csvInputRef = useRef<HTMLInputElement | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [rugCounts, setRugCounts] = useState<Record<string, number>>({});
+  const { data: clients = [], isLoading: loading } = useClients();
+  const { data: rugCounts = {} } = useRugCountsByClient();
+  const invalidateClients = useInvalidateClients();
+  const invalidateRugs = useInvalidateRugs();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newPortalEmail, setNewPortalEmail] = useState("");
-  const [loading, setLoading] = useState(true);
   const [filterDay, setFilterDay] = useState("");
   const [importing, setImporting] = useState(false);
   const [portalActionId, setPortalActionId] = useState<string | null>(null);
@@ -182,24 +186,6 @@ export function ClientsTab() {
     if (!accessToken) return null;
     return { Authorization: `Bearer ${accessToken}` };
   }, []);
-
-  const fetchClients = useCallback(async () => {
-    const { data, error } = await supabase.from("clients").select("*").order("name");
-    if (error) toast({ title: "Failed to load clients", description: error.message, variant: "destructive" });
-    else setClients(data ?? []);
-    setLoading(false);
-  }, [toast]);
-
-  const fetchRugCounts = useCallback(async () => {
-    const { data } = await supabase.from("rugs").select("client_id");
-    if (data) {
-      const counts: Record<string, number> = {};
-      data.forEach((r) => { if (r.client_id) counts[r.client_id] = (counts[r.client_id] || 0) + 1; });
-      setRugCounts(counts);
-    }
-  }, []);
-
-  useEffect(() => { fetchClients(); fetchRugCounts(); }, [fetchClients, fetchRugCounts]);
 
   const fetchPortalUsers = async (clientId: string) => {
     const { data } = await supabase.from("portal_users").select("*").eq("client_id", clientId);
@@ -228,7 +214,7 @@ export function ClientsTab() {
       if (error) { toast({ title: "Create failed", description: error.message, variant: "destructive" }); return; }
     }
     setSheetOpen(false);
-    fetchClients();
+    invalidateClients();
   };
 
   const updateField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
@@ -282,8 +268,8 @@ export function ClientsTab() {
           else createdPortalUsers += 1;
         }
       }
-      await fetchClients();
-      await fetchRugCounts();
+      invalidateClients();
+      invalidateRugs();
       toast({ title: "Client import complete", description: `${createdClients} clients added, ${createdPortalUsers} portal logins staged as invited, ${failedRows} rows failed. No onboarding emails were sent.` });
     } catch (error) {
       toast({ title: "CSV import failed", description: error instanceof Error ? error.message : "Unknown parsing error", variant: "destructive" });
@@ -366,11 +352,15 @@ export function ClientsTab() {
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); setDeletingClient(false); return; }
     toast({ title: "Client account deleted" });
     setDeletingClient(false); setSheetOpen(false); setEditingId(null); setPortalUsers([]);
-    await fetchClients(); await fetchRugCounts();
+    invalidateClients(); invalidateRugs();
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">Loading clients…</div>;
+    return (
+      <div className="flex items-center justify-center h-full">
+        <LoadingState title="Loading clients" description="Fetching client records..." />
+      </div>
+    );
   }
 
   return (

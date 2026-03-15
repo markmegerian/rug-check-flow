@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -240,7 +241,11 @@ export function PickupRequestsTab() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">Loading pickup requests…</div>;
+    return (
+      <div className="flex items-center justify-center h-full">
+        <LoadingState title="Loading pickup requests" description="Fetching request records..." />
+      </div>
+    );
   }
 
   if (filteredRequests.length === 0) {

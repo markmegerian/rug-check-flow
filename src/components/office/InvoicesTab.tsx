@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Eye, Plus, Loader2 } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 import { InvoiceFilters } from "@/components/office/InvoiceFilters";
 import { InvoiceDetailSheet } from "@/components/office/InvoiceDetailSheet";
 import { InvoiceCreateSheet } from "@/components/office/InvoiceCreateSheet";
+import { LoadingState } from "@/components/states/PageState";
 import type { Tables } from "@/integrations/supabase/types";
 
 type InvoiceRow = Tables<"invoices"> & {
@@ -293,7 +294,7 @@ export function InvoicesTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <LoadingState title="Loading invoices" description="Fetching invoice records..." />
       </div>
     );
   }
