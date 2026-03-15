@@ -9,6 +9,7 @@ import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
+import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 import { ClientPricingDialog } from "@/components/pricing/ClientPricingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -55,6 +56,7 @@ export default function FacilityOffice() {
       title="Office Workspace"
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
+      statusBar={<WorkspaceStatusBar />}
       actions={<ClientPricingDialog triggerLabel="Price Lookup" />}
     >
       <div className="h-full flex flex-col bg-muted/20">

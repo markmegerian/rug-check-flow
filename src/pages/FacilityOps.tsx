@@ -6,6 +6,7 @@ import { PendingPickupsPanel } from "@/components/facility/PendingPickupsPanel";
 import { DeliveryPrepTab } from "@/components/facility/DeliveryPrepTab";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
+import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 
 const TABS = [
   { id: "checkin", label: "Check-In", icon: ClipboardCheck, subtitle: "Intake and service capture" },
@@ -25,6 +26,7 @@ export default function FacilityOps() {
       title="Facility Operations"
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
+      statusBar={<WorkspaceStatusBar />}
     >
       <div className="h-full flex flex-col bg-muted/20">
         <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">

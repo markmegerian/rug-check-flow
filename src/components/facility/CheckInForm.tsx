@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/form";
 import { toast } from "@/hooks/use-toast";
 import { RUG_TYPES } from "@/data/services";
-import { type PendingRug } from "@/data/mock-pending-rugs";
+import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 

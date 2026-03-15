@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { type PortalPickup, type PickupRugEntry } from "@/data/mock-portal";
+import { type PortalPickup, type PickupRugEntry } from "@/types/portal";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, ChevronRight, Lock, Plus, Truck, X } from "lucide-react";
 import {

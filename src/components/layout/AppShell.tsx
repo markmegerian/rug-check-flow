@@ -11,6 +11,7 @@ interface AppShellProps {
   subtitle?: string;
   children: ReactNode;
   actions?: ReactNode;
+  statusBar?: ReactNode;
   contentClassName?: string;
   showHomeLink?: boolean;
 }
@@ -20,6 +21,7 @@ export function AppShell({
   subtitle,
   children,
   actions,
+  statusBar,
   contentClassName,
   showHomeLink = true,
 }: AppShellProps) {
@@ -64,6 +66,7 @@ export function AppShell({
           </Button>
         </div>
       </header>
+      {statusBar}
       <main className={cn("flex-1 min-h-0", contentClassName)}>{children}</main>
     </div>
   );

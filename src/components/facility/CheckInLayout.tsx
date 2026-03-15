@@ -3,7 +3,7 @@ import { ClipboardList, FileText, Plus } from "lucide-react";
 import { PendingRugsPanel } from "./PendingRugsPanel";
 import { CheckInForm } from "./CheckInForm";
 import { CheckInLogPanel } from "./CheckInLogPanel";
-import { type PendingRug } from "@/data/mock-pending-rugs";
+import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry, type UserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";

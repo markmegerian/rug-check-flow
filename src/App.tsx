@@ -27,7 +27,6 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const FacilityOps = lazy(() => import("./pages/FacilityOps"));
 const FacilityOffice = lazy(() => import("./pages/FacilityOffice"));
 const WholesalePortal = lazy(() => import("./pages/WholesalePortal"));
-const DriverPortal = lazy(() => import("./pages/DriverPortal"));
 const StopPortal = lazy(() => import("./pages/StopPortal"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const NotFound = lazy(() => import("./pages/NotFound"));
