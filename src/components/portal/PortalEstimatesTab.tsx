@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -212,6 +214,9 @@ export default function PortalEstimatesTab() {
   const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
+  const pendingPagination = usePaginatedList(pending);
+  const historyPagination = usePaginatedList(history);
+
   if (portalClientLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
   }
@@ -232,7 +237,7 @@ export default function PortalEstimatesTab() {
           {pending.length === 0 ? (
             <p className="text-sm text-muted-foreground">No estimates awaiting your approval.</p>
           ) : (
-            pending.map((estimate) => {
+            pendingPagination.items.map((estimate) => {
               const lineItems = lineItemsByEstimateId[estimate.id] ?? [];
               const isUpdating = updatingId === estimate.id;
               return (
@@ -341,6 +346,16 @@ export default function PortalEstimatesTab() {
               );
             })
           )}
+          <PaginationControls
+            page={pendingPagination.page}
+            totalPages={pendingPagination.totalPages}
+            total={pendingPagination.total}
+            hasPrev={pendingPagination.hasPrev}
+            hasNext={pendingPagination.hasNext}
+            onPrev={pendingPagination.prevPage}
+            onNext={pendingPagination.nextPage}
+            label="estimates"
+          />
         </CardContent>
       </Card>
 
@@ -350,7 +365,7 @@ export default function PortalEstimatesTab() {
           {history.length === 0 ? (
             <p className="text-sm text-muted-foreground">No estimate history yet.</p>
           ) : (
-            history.map((estimate, index) => (
+            historyPagination.items.map((estimate, index) => (
               <div key={estimate.id}>
                 <div className="flex items-center justify-between gap-3 py-1.5">
                   <div>
@@ -361,10 +376,20 @@ export default function PortalEstimatesTab() {
                   </div>
                   {statusBadge(estimate.status)}
                 </div>
-                {index < history.length - 1 && <Separator />}
+                {index < historyPagination.items.length - 1 && <Separator />}
               </div>
             ))
           )}
+          <PaginationControls
+            page={historyPagination.page}
+            totalPages={historyPagination.totalPages}
+            total={historyPagination.total}
+            hasPrev={historyPagination.hasPrev}
+            hasNext={historyPagination.hasNext}
+            onPrev={historyPagination.prevPage}
+            onNext={historyPagination.nextPage}
+            label="estimates"
+          />
         </CardContent>
       </Card>
     </div>

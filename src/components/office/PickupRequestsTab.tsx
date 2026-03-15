@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
@@ -111,15 +113,17 @@ export function PickupRequestsTab() {
     return filtered;
   }, [minAgeDays, requests, statusFilters]);
 
+  const pagination = usePaginatedList(filteredRequests);
+
   const requestsByRoute = useMemo(() => {
     const map: Record<string, PickupRequestRow[]> = {};
-    for (const req of filteredRequests) {
+    for (const req of pagination.items) {
       const key = req.route_day || "Unassigned";
       if (!map[key]) map[key] = [];
       map[key].push(req);
     }
     return map;
-  }, [filteredRequests]);
+  }, [pagination.items]);
 
   const itemCounts = useMemo(() => {
     const counts: Record<string, { ready: number; newRugs: number }> = {};
@@ -290,6 +294,17 @@ export function PickupRequestsTab() {
           </div>
         </section>
       ))}
+
+      <PaginationControls
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        hasPrev={pagination.hasPrev}
+        hasNext={pagination.hasNext}
+        onPrev={pagination.prevPage}
+        onNext={pagination.nextPage}
+        label="requests"
+      />
     </div>
   );
 }

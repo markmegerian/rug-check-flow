@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
@@ -105,6 +107,8 @@ export default function PortalRugsTab() {
   }), [rugs]);
 
   const filtered = filter === "all" ? rugs : rugs.filter((r) => r.status === filter);
+  const pagination = usePaginatedList(filtered);
+  useEffect(() => { pagination.resetPage(); }, [filter]);
 
   const filters: { key: Filter; label: string; count: number }[] = [
     { key: "all", label: "All", count: counts.total },
@@ -153,7 +157,7 @@ export default function PortalRugsTab() {
       </div>
 
       <div className="rounded-lg border bg-background divide-y">
-        {filtered.map((rug) => {
+        {pagination.items.map((rug) => {
           const isExpanded = expandedRow === rug.id;
           return (
             <div key={rug.id}>
@@ -193,6 +197,17 @@ export default function PortalRugsTab() {
           );
         })}
       </div>
+
+      <PaginationControls
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        hasPrev={pagination.hasPrev}
+        hasNext={pagination.hasNext}
+        onPrev={pagination.prevPage}
+        onNext={pagination.nextPage}
+        label="rugs"
+      />
     </div>
   );
 }

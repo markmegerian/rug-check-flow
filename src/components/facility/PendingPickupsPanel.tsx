@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Package, Loader2 } from "lucide-react";
 import { LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,7 @@ export function PendingPickupsPanel() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
+  const pagination = usePaginatedList(rugs);
 
   const fetchReady = useCallback(async () => {
     const { data, error } = await supabase
@@ -105,8 +108,9 @@ export function PendingPickupsPanel() {
             <p className="text-sm">No rugs waiting for pickup</p>
           </div>
         ) : (
+          <>
           <div className="space-y-2">
-            {rugs.map((rug) => (
+            {pagination.items.map((rug) => (
               <div
                 key={rug.id}
                 className="flex items-center justify-between border rounded-md bg-card px-3 md:px-4 py-3 gap-3"
@@ -150,6 +154,19 @@ export function PendingPickupsPanel() {
               </div>
             ))}
           </div>
+          <div className="px-1 pt-2">
+            <PaginationControls
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              total={pagination.total}
+              hasPrev={pagination.hasPrev}
+              hasNext={pagination.hasNext}
+              onPrev={pagination.prevPage}
+              onNext={pagination.nextPage}
+              label="rugs"
+            />
+          </div>
+          </>
         )}
       </div>
 

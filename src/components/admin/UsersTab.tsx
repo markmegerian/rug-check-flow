@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { ROLE_DEFINITIONS, type AppRole } from "@/lib/role-definitions";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -245,6 +247,9 @@ export function UsersTab() {
       return matchesSearch && matchesRole;
     });
   }, [roleFilter, searchTerm, users]);
+
+  const pagination = usePaginatedList(filteredUsers);
+  useEffect(() => { pagination.resetPage(); }, [searchTerm, roleFilter]);
 
   const save = async () => {
     setSaving(true);
@@ -544,6 +549,7 @@ export function UsersTab() {
           }
         />
       ) : (
+        <>
         <Table>
           <TableHeader>
             <TableRow>
@@ -555,7 +561,7 @@ export function UsersTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.map((user) => (
+            {pagination.items.map((user) => (
               <TableRow key={user.userId} className="cursor-pointer" onClick={() => openEdit(user)}>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell className="text-muted-foreground">{user.email || "—"}</TableCell>
@@ -570,6 +576,17 @@ export function UsersTab() {
             ))}
           </TableBody>
         </Table>
+        <PaginationControls
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          total={pagination.total}
+          hasPrev={pagination.hasPrev}
+          hasNext={pagination.hasNext}
+          onPrev={pagination.prevPage}
+          onNext={pagination.nextPage}
+          label="users"
+        />
+        </>
       )}
 
       <Sheet open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>
