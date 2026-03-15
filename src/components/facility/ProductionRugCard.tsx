@@ -8,9 +8,10 @@ import type { DbRug } from "./ProductionBoard";
 interface Props {
   rug: DbRug;
   onAdvanceStage: (rugId: string) => void;
+  onViewDetail?: (rugId: string) => void;
 }
 
-export function ProductionRugCard({ rug, onAdvanceStage }: Props) {
+export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail }: Props) {
   const [expanded, setExpanded] = useState(false);
   const stageIndex = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
   const isLastStage = stageIndex === PRODUCTION_STAGES.length - 1;
@@ -23,7 +24,12 @@ export function ProductionRugCard({ rug, onAdvanceStage }: Props) {
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-mono font-bold text-sm">{rug.tag}</span>
+            <span
+              className={`font-mono font-bold text-sm ${onViewDetail ? "text-primary hover:underline cursor-pointer" : ""}`}
+              onClick={onViewDetail ? (e) => { e.stopPropagation(); onViewDetail(rug.id); } : undefined}
+            >
+              {rug.tag}
+            </span>
             {rug.client_name && (
               <span className="text-sm text-muted-foreground truncate">{rug.client_name}</span>
             )}

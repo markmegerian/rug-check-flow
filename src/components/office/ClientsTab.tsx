@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef, type ChangeEvent } from "react";
-import { Plus, Upload } from "lucide-react";
+import { useState, useCallback, useMemo, useRef, type ChangeEvent } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useSortableTable, type SortState } from "@/hooks/useSortableTable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -162,6 +164,36 @@ const buildManualOnboardingInstructions = (instructions: NonNullable<OnboardingE
   return lines.join("\n");
 };
 
+type ClientSortCol = "name" | "contact" | "phone" | "route_day" | "rugs" | "tier";
+
+function SortableHead({
+  col,
+  sort,
+  onToggle,
+  className,
+  children,
+}: {
+  col: ClientSortCol;
+  sort: SortState<ClientSortCol> | null;
+  onToggle: (col: ClientSortCol) => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const active = sort?.column === col;
+  const Icon = active ? (sort.direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={className}>
+      <button
+        className="flex items-center gap-1 hover:text-foreground transition-colors -ml-1 px-1"
+        onClick={() => onToggle(col)}
+      >
+        {children}
+        <Icon className={`h-3 w-3 shrink-0 ${active ? "text-foreground" : "text-muted-foreground/50"}`} />
+      </button>
+    </TableHead>
+  );
+}
+
 export function ClientsTab() {
   const { toast } = useToast();
   const { hasRole, isSuperAdmin } = useAuth();
@@ -176,9 +208,12 @@ export function ClientsTab() {
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [newPortalEmail, setNewPortalEmail] = useState("");
   const [filterDay, setFilterDay] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [importing, setImporting] = useState(false);
   const [portalActionId, setPortalActionId] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
+
+  const { sort, toggleSort } = useSortableTable<ClientSortCol>("name");
 
   const getFunctionAuthHeaders = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -343,6 +378,38 @@ export function ClientsTab() {
     if (editingId) fetchPortalUsers(editingId);
   };
 
+  const filteredClients = useMemo(() => {
+    let result = clients;
+    if (filterDay) {
+      result = result.filter((c) => filterDay === "unassigned" ? !c.route_day : c.route_day === filterDay);
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      result = result.filter((c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.contact_name ?? "").toLowerCase().includes(q) ||
+        (c.phone ?? "").toLowerCase().includes(q) ||
+        (c.email ?? "").toLowerCase().includes(q)
+      );
+    }
+    if (sort) {
+      const dir = sort.direction === "asc" ? 1 : -1;
+      result = [...result].sort((a, b) => {
+        let cmp = 0;
+        switch (sort.column) {
+          case "name": cmp = a.name.localeCompare(b.name); break;
+          case "contact": cmp = (a.contact_name ?? "").localeCompare(b.contact_name ?? ""); break;
+          case "phone": cmp = (a.phone ?? "").localeCompare(b.phone ?? ""); break;
+          case "route_day": cmp = (a.route_day ?? "").localeCompare(b.route_day ?? ""); break;
+          case "rugs": cmp = (rugCounts[a.id] ?? 0) - (rugCounts[b.id] ?? 0); break;
+          case "tier": cmp = a.pricing_tier.localeCompare(b.pricing_tier); break;
+        }
+        return cmp * dir;
+      });
+    }
+    return result;
+  }, [clients, filterDay, searchQuery, sort, rugCounts]);
+
   const canDeleteClient = hasRole("admin") || isSuperAdmin;
 
   const deleteClientAccount = async () => {
@@ -365,9 +432,18 @@ export function ClientsTab() {
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
-      <div className="flex items-center justify-between mb-4 gap-3">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-lg font-semibold text-foreground">Clients</h2>
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search clients..."
+              className="pl-8 h-9 w-[200px]"
+            />
+          </div>
           <Button size="sm" variant="outline" onClick={triggerCsvPicker} disabled={importing}>
             <Upload className="h-4 w-4 mr-1" />
             {importing ? "Importing..." : "Import CSV"}
@@ -385,11 +461,11 @@ export function ClientsTab() {
               ))}
             </SelectContent>
           </Select>
-          {filterDay && (
-            <Badge variant="secondary" className="text-xs">
-              {clients.filter((c) => filterDay === "unassigned" ? !c.route_day : c.route_day === filterDay).length}
-            </Badge>
-          )}
+          <Badge variant="secondary" className="text-xs">
+            {filteredClients.length === clients.length
+              ? `${clients.length}`
+              : `${filteredClients.length} of ${clients.length}`}
+          </Badge>
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1" /> Add Client
           </Button>
@@ -403,16 +479,16 @@ export function ClientsTab() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Client</TableHead>
-            <TableHead className="hidden md:table-cell">Contact</TableHead>
-            <TableHead className="hidden sm:table-cell">Phone</TableHead>
-            <TableHead className="hidden lg:table-cell w-24">Route Day</TableHead>
-            <TableHead className="w-16 text-center">Rugs</TableHead>
-            <TableHead className="w-24">Tier</TableHead>
+            <SortableHead col="name" sort={sort} onToggle={toggleSort}>Client</SortableHead>
+            <SortableHead col="contact" sort={sort} onToggle={toggleSort} className="hidden md:table-cell">Contact</SortableHead>
+            <SortableHead col="phone" sort={sort} onToggle={toggleSort} className="hidden sm:table-cell">Phone</SortableHead>
+            <SortableHead col="route_day" sort={sort} onToggle={toggleSort} className="hidden lg:table-cell w-24">Route Day</SortableHead>
+            <SortableHead col="rugs" sort={sort} onToggle={toggleSort} className="w-16 text-center">Rugs</SortableHead>
+            <SortableHead col="tier" sort={sort} onToggle={toggleSort} className="w-24">Tier</SortableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {clients.filter((c) => !filterDay || (filterDay === "unassigned" ? !c.route_day : c.route_day === filterDay)).map((c) => (
+          {filteredClients.map((c) => (
             <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>

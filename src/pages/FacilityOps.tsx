@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ClipboardCheck, Factory, Truck, Package } from "lucide-react";
 import { CheckInLayout } from "@/components/facility/CheckInLayout";
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
 import { PendingPickupsPanel } from "@/components/facility/PendingPickupsPanel";
 import { DeliveryPrepTab } from "@/components/facility/DeliveryPrepTab";
+import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
+import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
@@ -19,7 +21,10 @@ type TabId = (typeof TABS)[number]["id"];
 
 export default function FacilityOps() {
   const [activeTab, setActiveTab] = useState<TabId>("checkin");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
+  const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
 
   return (
     <AppShell
@@ -27,6 +32,7 @@ export default function FacilityOps() {
       subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
       contentClassName="overflow-hidden"
       statusBar={<WorkspaceStatusBar />}
+      onSearchOpen={() => setSearchOpen(true)}
     >
       <div className="h-full flex flex-col bg-muted/20">
         <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
@@ -48,6 +54,9 @@ export default function FacilityOps() {
           </main>
         </div>
       </div>
+
+      <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
+      <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
     </AppShell>
   );
 }
