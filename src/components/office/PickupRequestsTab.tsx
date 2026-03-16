@@ -43,6 +43,7 @@ export function PickupRequestsTab() {
   const { toast } = useToast();
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [driverSelection, setDriverSelection] = useState<Record<string, string>>({});
+  const [quickFilter, setQuickFilter] = useState<PickupStatus | "all">("all");
 
   const statusFilterParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -110,8 +111,19 @@ export function PickupRequestsTab() {
         return ageMs >= minAgeDays * MS_PER_DAY;
       });
     }
+    if (quickFilter !== "all" && !hasReminderFilter) {
+      filtered = filtered.filter((request) => request.status === quickFilter);
+    }
     return filtered;
-  }, [minAgeDays, requests, statusFilters]);
+  }, [minAgeDays, requests, statusFilters, quickFilter, hasReminderFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: requests.length };
+    for (const req of requests) {
+      counts[req.status] = (counts[req.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [requests]);
 
   const pagination = usePaginatedList(filteredRequests);
 
@@ -230,7 +242,30 @@ export function PickupRequestsTab() {
           {minAgeDays > 0 ? ` · min age ${minAgeDays} days` : ""}
         </div>
       ) : null}
-      <h2 className="text-lg font-semibold text-foreground">Pickup Requests</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-lg font-semibold text-foreground">Pickup Requests</h2>
+        {!hasReminderFilter && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(["all", ...STATUS_ORDER.slice(0, 4)] as const).map((s) => {
+              const count = statusCounts[s] ?? 0;
+              const active = quickFilter === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setQuickFilter(s)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/50 text-muted-foreground border-border hover:border-primary hover:text-foreground"
+                  }`}
+                >
+                  {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {Object.entries(requestsByRoute).map(([routeDay, list]) => (
         <section key={routeDay} className="border rounded-lg bg-card overflow-hidden">
