@@ -43,7 +43,7 @@ export function CheckInLayout() {
   const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const userRole = deriveUserRole(roles);
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("form");
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
 
   const fetchPendingPickupRugs = useCallback(async () => {
     const { data: requestRows, error: requestError } = await supabaseExtended
@@ -456,12 +456,24 @@ export function CheckInLayout() {
             />
           )}
           {mobilePanel === "pending" && (
-            <PendingRugsPanel
-              rugs={pendingRugs}
-              selectedRugId={selectedRugId}
-              onSelectRug={handleSelectRug}
-              onAddWalkIn={handleAddWalkIn}
-            />
+            <div className="relative h-full">
+              <PendingRugsPanel
+                rugs={pendingRugs}
+                selectedRugId={selectedRugId}
+                onSelectRug={handleSelectRug}
+                onAddWalkIn={handleAddWalkIn}
+              />
+              <button
+                onClick={() => {
+                  setSelectedRugId(null);
+                  setEditingEntryId(null);
+                  setMobilePanel("form");
+                }}
+                className="absolute bottom-4 right-4 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+              >
+                <ClipboardList className="h-5 w-5" />
+              </button>
+            </div>
           )}
           {mobilePanel === "log" && (
             <CheckInLogPanel

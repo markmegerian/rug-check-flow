@@ -457,21 +457,26 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
         </div>
 
-        {/* Footer with line-item summary */}
-        <div className="sticky bottom-0 border-t border-border bg-background rounded-b-lg">
+        {/* Sticky review / action footer */}
+        <div className="sticky bottom-0 border-t border-border bg-background rounded-b-lg shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
           {watchedServices.length > 0 && (
-            <div className="px-3 md:px-4 pt-2 pb-1 space-y-0.5 max-h-28 overflow-y-auto">
-              {watchedServices.map((id) => {
-                const svc = serviceById.get(id);
-                if (!svc) return null;
-                const lt = getLineTotal(svc);
-                return (
-                  <div key={id} className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="truncate mr-2">{svc.name}</span>
-                    <span className="shrink-0 font-medium text-foreground">${lt.toFixed(2)}</span>
-                  </div>
-                );
-              })}
+            <div className="px-3 md:px-4 pt-2 pb-1">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                {watchedServices.length} service{watchedServices.length !== 1 ? "s" : ""}
+              </p>
+              <div className="space-y-0.5 max-h-28 overflow-y-auto">
+                {watchedServices.map((id) => {
+                  const svc = serviceById.get(id);
+                  if (!svc) return null;
+                  const lt = getLineTotal(svc);
+                  return (
+                    <div key={id} className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="truncate mr-2">{svc.name}</span>
+                      <span className="shrink-0 font-medium text-foreground">${lt.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between">
