@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export function usePaginatedList<T>(items: T[], pageSize = DEFAULT_PAGE_SIZE) {
   const [page, setPage] = useState(0);
 
-  // Reset to page 0 when items change significantly
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
 
@@ -17,6 +16,10 @@ export function usePaginatedList<T>(items: T[], pageSize = DEFAULT_PAGE_SIZE) {
   const hasPrev = safePage > 0;
   const hasNext = safePage < totalPages - 1;
 
+  const resetPage = useCallback(() => setPage(0), []);
+  const nextPage = useCallback(() => setPage((p) => Math.min(p + 1, totalPages - 1)), [totalPages]);
+  const prevPage = useCallback(() => setPage((p) => Math.max(p - 1, 0)), []);
+
   return {
     items: paginatedItems,
     page: safePage,
@@ -25,8 +28,8 @@ export function usePaginatedList<T>(items: T[], pageSize = DEFAULT_PAGE_SIZE) {
     hasPrev,
     hasNext,
     setPage,
-    nextPage: () => setPage((p) => Math.min(p + 1, totalPages - 1)),
-    prevPage: () => setPage((p) => Math.max(p - 1, 0)),
-    resetPage: () => setPage(0),
+    nextPage,
+    prevPage,
+    resetPage,
   } as const;
 }

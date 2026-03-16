@@ -198,12 +198,18 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     [getUnitPrice, sqft, edgeSelections, flatPrices, watchedLength, watchedWidth]
   );
 
+  const serviceById = useMemo(() => {
+    const map = new Map<string, DbService>();
+    for (const svc of dbServices) map.set(svc.id, svc);
+    return map;
+  }, [dbServices]);
+
   const totalPrice = useMemo(() => {
     return watchedServices.reduce((sum, id) => {
-      const svc = dbServices.find((s) => s.id === id);
+      const svc = serviceById.get(id);
       return svc ? sum + getLineTotal(svc) : sum;
     }, 0);
-  }, [watchedServices, dbServices, getLineTotal]);
+  }, [watchedServices, serviceById, getLineTotal]);
 
   const toggleService = (serviceId: string) => {
     const current = form.getValues("selectedServices");
@@ -228,7 +234,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     if (onCheckInComplete) {
       const serviceSnapshots = data.selectedServices
         .map((id) => {
-          const svc = dbServices.find((s) => s.id === id);
+          const svc = serviceById.get(id);
           if (!svc) return null;
           const lt = getLineTotal(svc);
           const up = svc.unit === "flat" ? lt : getUnitPrice(svc);
@@ -456,7 +462,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           {watchedServices.length > 0 && (
             <div className="px-3 md:px-4 pt-2 pb-1 space-y-0.5 max-h-28 overflow-y-auto">
               {watchedServices.map((id) => {
-                const svc = dbServices.find((s) => s.id === id);
+                const svc = serviceById.get(id);
                 if (!svc) return null;
                 const lt = getLineTotal(svc);
                 return (
