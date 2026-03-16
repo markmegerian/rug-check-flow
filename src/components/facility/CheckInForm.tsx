@@ -1,18 +1,13 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ChevronDown, Search, X } from "lucide-react";
-import RugEdgeDiagram from "./RugEdgeDiagram";
-import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -33,27 +28,12 @@ import { RUG_TYPES } from "@/data/services";
 import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
+import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
 
-interface DbService {
-  id: string;
-  name: string;
-  unit: string;
-  base_price: number;
-  preferred_price: number;
-  vip_price: number;
-  category: string;
-}
+import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
+import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
 
 type PricingTier = "standard" | "preferred" | "vip";
-
-const ACCEPTED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const ACCEPTED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
-
-const isSupportedImageFile = (file: File) => {
-  if (ACCEPTED_IMAGE_MIME_TYPES.has(file.type.toLowerCase())) return true;
-  const name = file.name.toLowerCase();
-  return ACCEPTED_IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
-};
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -85,155 +65,11 @@ interface CheckInFormProps {
   }) => void;
 }
 
-function ServiceCategoryGroup({
-  category, services, isFirst, watchedServices, getUnitPrice, getLineTotal,
-  toggleService, edgeSelections, setEdgeSelections, flatPrices, setFlatPrices,
-  watchedLength, watchedWidth,
-}: {
-  category: string;
-  services: DbService[];
-  isFirst: boolean;
-  watchedServices: string[];
-  getUnitPrice: (svc: DbService) => number;
-  getLineTotal: (svc: DbService) => number;
-  toggleService: (id: string) => void;
-  edgeSelections: Record<string, RugEdge[]>;
-  setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
-  flatPrices: Record<string, string>;
-  setFlatPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  watchedLength: number;
-  watchedWidth: number;
-}) {
-  const [open, setOpen] = useState(true);
-  const selectedCount = services.filter((s) => watchedServices.includes(s.id)).length;
-
-  return (
-    <div className={!isFirst ? "border-t border-border" : ""}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted transition-colors text-left"
-      >
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {category}
-          {selectedCount > 0 && (
-            <span className="ml-1.5 text-foreground normal-case tracking-normal font-bold">
-              ({selectedCount})
-            </span>
-          )}
-        </span>
-        <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
-      </button>
-      {open && (
-        <div className="divide-y divide-border/50">
-          {services.map((svc) => {
-            const unitPrice = getUnitPrice(svc);
-            const lineTotal = getLineTotal(svc);
-            const checked = watchedServices.includes(svc.id);
-            const isFlat = svc.unit === "flat";
-            const isLinear = svc.unit === "per linear ft";
-            const edges = edgeSelections[svc.id] ?? [];
-            const l = Number(watchedLength) || 0;
-            const w = Number(watchedWidth) || 0;
-
-            const toggleEdge = (edge: RugEdge) => {
-              setEdgeSelections((prev) => {
-                const current = prev[svc.id] ?? [];
-                return {
-                  ...prev,
-                  [svc.id]: current.includes(edge)
-                    ? current.filter((e) => e !== edge)
-                    : [...current, edge],
-                };
-              });
-            };
-
-            return (
-              <div key={svc.id} className="px-1">
-                <label
-                  className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
-                    checked ? "bg-accent" : "hover:bg-muted"
-                  }`}
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => toggleService(svc.id)}
-                  />
-                  <span className="flex-1 text-sm truncate">{svc.name}</span>
-                  {!isFlat && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
-                    </span>
-                  )}
-                  {isFlat && !checked && (
-                    <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
-                  )}
-                  {checked && !isFlat && !isLinear && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
-                  )}
-                  {checked && isLinear && edges.length > 0 && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
-                  )}
-                </label>
-                {checked && isLinear && l > 0 && w > 0 && (
-                  <div className="ml-4 md:ml-8 mt-2 mb-2">
-                    <RugEdgeDiagram
-                      lengthFt={l}
-                      widthFt={w}
-                      selectedEdges={edges}
-                      onToggleEdge={toggleEdge}
-                    />
-                    {edges.length > 0 && (
-                      <p className="text-xs text-muted-foreground text-center mt-1">
-                        {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
-                      </p>
-                    )}
-                  </div>
-                )}
-                {checked && isFlat && (
-                  <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Price $</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      placeholder="Enter price"
-                      className="h-8 w-28"
-                      value={flatPrices[svc.id] ?? ""}
-                      onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
-                    />
-                    {lineTotal > 0 && (
-                      <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
-  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [dbServices, setDbServices] = useState<DbService[]>([]);
-  const [serviceSearch, setServiceSearch] = useState("");
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [cameraSupported, setCameraSupported] = useState(true);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
-  // Per-service edge selections for linear-ft services
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
 
   const form = useForm<CheckInValues>({
@@ -369,138 +205,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }, 0);
   }, [watchedServices, dbServices, getLineTotal]);
 
-  const appendFilesAsPhotos = useCallback((files: File[]) => {
-    const invalidFiles = files.filter((file) => !isSupportedImageFile(file));
-    if (invalidFiles.length > 0) {
-      toast({
-        title: "Unsupported file type",
-        description: "Only JPG, PNG, and WEBP photos are supported. HEIC and video files are not allowed.",
-        variant: "destructive",
-      });
-    }
-
-    const validFiles = files.filter((file) => isSupportedImageFile(file));
-    const remaining = 20 - photos.length;
-    const toAdd = validFiles.slice(0, remaining);
-    const newPhotos = toAdd.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-
-    if (validFiles.length > remaining) {
-      toast({
-        title: "Photo limit reached",
-        description: "You can upload up to 20 photos per check-in.",
-        variant: "destructive",
-      });
-    }
-
-    if (newPhotos.length > 0) {
-      setPhotos((prev) => [...prev, ...newPhotos]);
-    }
-  }, [photos.length]);
-
-  const stopCameraStream = useCallback(() => {
-    if (cameraStreamRef.current) {
-      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
-      cameraStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }, []);
-
-  const openCameraCapture = useCallback(async () => {
-    if (!window.isSecureContext) {
-      toast({
-        title: "Secure context required",
-        description: "Camera capture needs HTTPS (or localhost). Use Upload Photo if you are on an insecure URL.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraSupported(false);
-      toast({
-        title: "Camera not supported",
-        description: "This device/browser does not support direct camera capture. Use Upload instead.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setCameraLoading(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
-      cameraStreamRef.current = stream;
-      setCameraOpen(true);
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      }, 0);
-    } catch (error) {
-      toast({
-        title: "Unable to open camera",
-        description: error instanceof Error ? error.message : "Camera permission was denied.",
-        variant: "destructive",
-      });
-    } finally {
-      setCameraLoading(false);
-    }
-  }, []);
-
-  const captureFromCamera = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      toast({ title: "Camera not ready", description: "Wait for camera preview, then try again.", variant: "destructive" });
-      return;
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      toast({ title: "Capture failed", description: "Could not access camera frame.", variant: "destructive" });
-      return;
-    }
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        toast({ title: "Capture failed", description: "Could not create captured image.", variant: "destructive" });
-        return;
-      }
-      const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: "image/jpeg" });
-      appendFilesAsPhotos([file]);
-      setCameraOpen(false);
-      stopCameraStream();
-    }, "image/jpeg", 0.92);
-  }, [appendFilesAsPhotos, stopCameraStream]);
-
-  useEffect(() => {
-    return () => stopCameraStream();
-  }, [stopCameraStream]);
-
-  const handlePhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    appendFilesAsPhotos(files);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const removePhoto = (index: number) => {
-    setPhotos((prev) => {
-      URL.revokeObjectURL(prev[index].preview);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
   const toggleService = (serviceId: string) => {
     const current = form.getValues("selectedServices");
     const next = current.includes(serviceId)
@@ -555,7 +259,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const isFromPanel = !!selectedRug;
   const isEditing = !!editingEntry;
   const isReadOnlyIdentity = isFromPanel || isEditing;
-
   const tierLabel = clientTier !== "standard" ? clientTier.charAt(0).toUpperCase() + clientTier.slice(1) : null;
 
   return (
@@ -593,6 +296,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               </AlertDescription>
             </Alert>
           )}
+
           {/* Identity row */}
           {isReadOnlyIdentity ? (
             <div className="grid grid-cols-2 gap-3 md:gap-4">
@@ -636,7 +340,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </div>
           )}
 
-          {/* Rug details — stack on mobile */}
+          {/* Rug details */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
             <FormField
               control={form.control}
@@ -718,204 +422,33 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
 
           {/* Photo upload */}
-          <div className="space-y-2">
-            <Label>
-              Photos{" "}
-              <span className="text-muted-foreground font-normal">
-                ({photos.length}/20 — min 1)
-              </span>
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {photos.map((photo, i) => (
-                <div
-                  key={i}
-                  className="relative w-16 h-16 md:w-20 md:h-20 rounded-md overflow-hidden border border-border group"
-                >
-                  <img
-                    src={photo.preview}
-                    alt={`Photo ${i + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(i)}
-                    className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 md:p-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
-                  </button>
-                </div>
-              ))}
-              {photos.length < 20 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-16 h-16 md:w-20 md:h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                    title="Upload photo"
-                  >
-                    <Camera className="h-5 w-5" />
-                  </button>
-                  <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => void openCameraCapture()} disabled={cameraLoading || !cameraSupported}>
-                    {cameraLoading ? "Opening camera…" : "Use Camera"}
-                  </Button>
-                </>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-              capture="environment"
-              multiple
-              className="hidden"
-              onChange={handlePhotos}
-            />
-            <Dialog open={cameraOpen} onOpenChange={(open) => { setCameraOpen(open); if (!open) stopCameraStream(); }}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Capture check-in photo</DialogTitle>
-                  <DialogDescription>Use attached webcam or mobile camera to capture a photo now.</DialogDescription>
-                </DialogHeader>
-                <div className="rounded-md border bg-black/80 overflow-hidden">
-                  <video ref={videoRef} className="w-full h-auto" playsInline muted />
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => { setCameraOpen(false); stopCameraStream(); }}>Cancel</Button>
-                  <Button type="button" onClick={captureFromCamera}>Capture Photo</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+          <CheckInPhotoSection
+            photos={photos}
+            onPhotosChange={setPhotos}
+          />
 
           {/* Service selection */}
-          <div className="space-y-2 md:space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Label className="text-sm md:text-base">Services</Label>
-                {watchedServices.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      form.setValue("selectedServices", [], { shouldValidate: true });
-                      setFlatPrices({});
-                      setEdgeSelections({});
-                    }}
-                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    Clear all
-                  </button>
-                )}
-              </div>
-              {tierLabel && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-accent text-accent-foreground">
-                  {tierLabel} pricing
-                </span>
-              )}
-            </div>
-
-            {/* Preset quick-select chips */}
-            {dbServices.length > 0 && (() => {
-              const PRESETS = [
-                { label: "Basic Clean", names: ["Standard Wash"] },
-                { label: "Full Service", names: ["Deep Wash", "Scotchgard"] },
-                { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
-              ];
-              return (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {PRESETS.map((preset) => {
-                    const ids = preset.names
-                      .map((n) => dbServices.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id)
-                      .filter(Boolean) as string[];
-                    if (ids.length === 0) return null;
-                    const allSelected = ids.length > 0 && ids.every((id) => watchedServices.includes(id));
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => {
-                          if (allSelected) {
-                            const next = watchedServices.filter((id) => !ids.includes(id));
-                            form.setValue("selectedServices", next, { shouldValidate: true });
-                          } else {
-                            const merged = Array.from(new Set([...watchedServices, ...ids]));
-                            form.setValue("selectedServices", merged, { shouldValidate: true });
-                          }
-                        }}
-                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                          allSelected
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-muted/50 text-muted-foreground border-border hover:border-primary hover:text-foreground"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            {dbServices.length > 0 && (
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search services…"
-                  className="h-8 pl-8 text-sm"
-                  value={serviceSearch}
-                  onChange={(e) => setServiceSearch(e.target.value)}
-                />
-              </div>
-            )}
-
-            {dbServices.length === 0 && (
-              <p className="text-sm text-muted-foreground italic">Loading services…</p>
-            )}
-
-            <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md">
-              {(() => {
-                const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
-                const searchLower = serviceSearch.toLowerCase();
-                const filteredServices = searchLower
-                  ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
-                  : dbServices;
-                const grouped: Record<string, DbService[]> = {};
-                filteredServices.forEach((svc) => {
-                  const cat = svc.category || "Other";
-                  if (!grouped[cat]) grouped[cat] = [];
-                  grouped[cat].push(svc);
-                });
-                const categories = CATEGORY_ORDER.filter((c) => grouped[c]?.length).concat(
-                  Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c))
-                );
-
-                return categories.map((cat, catIdx) => (
-                  <ServiceCategoryGroup
-                    key={cat}
-                    category={cat}
-                    services={grouped[cat]}
-                    isFirst={catIdx === 0}
-                    watchedServices={watchedServices}
-                    getUnitPrice={getUnitPrice}
-                    getLineTotal={getLineTotal}
-                    toggleService={toggleService}
-                    edgeSelections={edgeSelections}
-                    setEdgeSelections={setEdgeSelections}
-                    flatPrices={flatPrices}
-                    setFlatPrices={setFlatPrices}
-                    watchedLength={watchedLength}
-                    watchedWidth={watchedWidth}
-                  />
-                ));
-              })()}
-            </div>
-
-            {form.formState.errors.selectedServices && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.selectedServices.message}
-              </p>
-            )}
-          </div>
+          <CheckInServiceSelector
+            dbServices={dbServices}
+            watchedServices={watchedServices}
+            toggleService={toggleService}
+            clearAll={() => {
+              form.setValue("selectedServices", [], { shouldValidate: true });
+              setFlatPrices({});
+              setEdgeSelections({});
+            }}
+            setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+            getUnitPrice={getUnitPrice}
+            getLineTotal={getLineTotal}
+            edgeSelections={edgeSelections}
+            setEdgeSelections={setEdgeSelections}
+            flatPrices={flatPrices}
+            setFlatPrices={setFlatPrices}
+            watchedLength={watchedLength}
+            watchedWidth={watchedWidth}
+            tierLabel={tierLabel}
+            error={form.formState.errors.selectedServices?.message}
+          />
         </div>
 
         {/* Footer with line-item summary */}
