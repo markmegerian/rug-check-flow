@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { OfflineQueueProvider } from "@/contexts/OfflineQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingState } from "@/components/states/PageState";
 
 const queryClient = new QueryClient({
@@ -37,6 +38,7 @@ const RouteLoadingFallback = () => (
 );
 
 const App = () => (
+  <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <OfflineQueueProvider>
@@ -104,6 +106,7 @@ const App = () => (
       </OfflineQueueProvider>
     </AuthProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

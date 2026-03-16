@@ -120,7 +120,10 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     const rows = lineItems.map((li) => ({ ...li, invoice_id: inv.id }));
     const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
     if (itemsErr) {
-      toast({ title: "Error adding line items", description: itemsErr.message, variant: "destructive" });
+      await supabase.from("invoices").delete().eq("id", inv.id);
+      toast({ title: "Invoice creation failed", description: `Line items could not be saved. ${itemsErr.message}`, variant: "destructive" });
+      setCreating(false);
+      return;
     }
 
     toast({ title: `Draft ${invNum} created` });
