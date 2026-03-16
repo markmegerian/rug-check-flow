@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { APP_NAME } from "@/lib/branding";
 
 export default function Auth() {
   const { user, roles, isPortalUser, loading, signOut, mustChangePassword } = useAuth();
@@ -34,7 +35,7 @@ export default function Auth() {
             Your login is valid, but this account is not linked to an internal role or an active wholesale portal profile.
           </p>
           <p className="text-sm text-muted-foreground">
-            Please contact RugBoost support so your account can be activated.
+            Please contact {APP_NAME} support so your account can be activated.
           </p>
           <Button variant="outline" className="w-full" onClick={() => void signOut()}>
             Sign out
@@ -60,7 +61,7 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">RugBoost</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">{APP_NAME}</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to continue</p>
         </div>
 
@@ -92,7 +93,7 @@ export default function Auth() {
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
-          Accounts are provisioned by RugBoost staff. Contact support if you need access.
+          Accounts are provisioned by {APP_NAME} staff. Contact support if you need access.
         </p>
       </div>
     </div>

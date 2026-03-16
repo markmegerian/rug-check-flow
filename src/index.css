@@ -50,11 +50,11 @@
     --sidebar-border: 220 20% 88%;
     --sidebar-ring: 210 70% 45%;
 
-    /* RugBoost brand */
-    --rugboost-blue: 210 70% 45%;
-    --rugboost-blue-light: 210 65% 55%;
-    --rugboost-purple: 263 55% 58%;
-    --rugboost-purple-light: 263 50% 68%;
+    /* Brand accent */
+    --brand-blue: 210 70% 45%;
+    --brand-blue-light: 210 65% 55%;
+    --brand-purple: 263 55% 58%;
+    --brand-purple-light: 263 50% 68%;
     --cream: 220 30% 97%;
     --cream-dark: 220 25% 92%;
     --navy: 210 50% 25%;

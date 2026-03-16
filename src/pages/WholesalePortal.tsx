@@ -118,7 +118,7 @@ export default function WholesalePortal() {
   return (
     <AppShell
       title="Wholesale Portal"
-      subtitle={`Pacific Rug Gallery · ${activeTabLabel}`}
+      subtitle={activeTabLabel}
       contentClassName="bg-gradient-to-b from-muted/40 to-background overflow-auto"
     >
       <div className="max-w-6xl mx-auto py-5">
@@ -194,6 +194,7 @@ export default function WholesalePortal() {
                 {activeTab === "pickups" && <PortalPickupsTab />}
                 {activeTab === "estimates" && <PortalEstimatesTab />}
                 {activeTab === "invoices" && <PortalInvoicesTab />}
+                {activeTab === "prices" && <PortalPricingTab />}
               </>
             )}
           </main>
