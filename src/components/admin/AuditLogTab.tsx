@@ -25,7 +25,8 @@ export function AuditLogTab() {
   }, [entries, searchTerm]);
 
   const pagination = usePaginatedList(filteredEntries);
-  useEffect(() => { pagination.resetPage(); }, [searchTerm]);
+  const { resetPage } = pagination;
+  useEffect(() => { resetPage(); }, [searchTerm, resetPage]);
 
   if (loading) {
     return (

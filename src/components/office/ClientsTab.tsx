@@ -416,7 +416,8 @@ export function ClientsTab() {
   const pagination = usePaginatedList(filteredClients);
 
   // Reset to page 0 when search or filter changes
-  useEffect(() => { pagination.resetPage(); }, [searchQuery, filterDay, sort]);
+  const { resetPage } = pagination;
+  useEffect(() => { resetPage(); }, [searchQuery, filterDay, sort, resetPage]);
 
   const canDeleteClient = hasRole("admin") || isSuperAdmin;
 

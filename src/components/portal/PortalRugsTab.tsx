@@ -108,7 +108,8 @@ export default function PortalRugsTab() {
 
   const filtered = filter === "all" ? rugs : rugs.filter((r) => r.status === filter);
   const pagination = usePaginatedList(filtered);
-  useEffect(() => { pagination.resetPage(); }, [filter]);
+  const { resetPage } = pagination;
+  useEffect(() => { resetPage(); }, [filter, resetPage]);
 
   const filters: { key: Filter; label: string; count: number }[] = [
     { key: "all", label: "All", count: counts.total },

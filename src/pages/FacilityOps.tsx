@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ClipboardCheck, Factory, Truck, Package } from "lucide-react";
 import { CheckInLayout } from "@/components/facility/CheckInLayout";
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
@@ -18,13 +19,30 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
 
 export default function FacilityOps() {
-  const [activeTab, setActiveTab] = useState<TabId>("checkin");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab: TabId = requestedTab && TAB_IDS.has(requestedTab) ? (requestedTab as TabId) : "checkin";
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
   const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
+
+  const handleTabChange = (tabId: TabId) => {
+    setActiveTab(tabId);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tabId);
+    setSearchParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    if (requestedTab && TAB_IDS.has(requestedTab)) {
+      setActiveTab((cur) => (cur === requestedTab ? cur : (requestedTab as TabId)));
+    }
+  }, [requestedTab]);
 
   return (
     <AppShell
@@ -39,7 +57,7 @@ export default function FacilityOps() {
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+            onTabChange={(tabId) => handleTabChange(tabId as TabId)}
             desktopWidthClassName="md:w-48"
             mobileLabelMode="always"
             className="bg-muted/30"

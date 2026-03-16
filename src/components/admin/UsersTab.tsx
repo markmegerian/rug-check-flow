@@ -249,7 +249,8 @@ export function UsersTab() {
   }, [roleFilter, searchTerm, users]);
 
   const pagination = usePaginatedList(filteredUsers);
-  useEffect(() => { pagination.resetPage(); }, [searchTerm, roleFilter]);
+  const { resetPage } = pagination;
+  useEffect(() => { resetPage(); }, [searchTerm, roleFilter, resetPage]);
 
   const save = async () => {
     setSaving(true);
