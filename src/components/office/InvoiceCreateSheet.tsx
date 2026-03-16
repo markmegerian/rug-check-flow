@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useClients } from "@/hooks/useClients";
+import { generateDocNumber } from "@/lib/checkin-operations";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface RugOption {
@@ -95,7 +96,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     if (!selectedClientId || selectedRugIds.size === 0) return;
     setCreating(true);
 
-    const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
+    const invNum = generateDocNumber("INV");
     const lineItems = computeLineItems();
     const total = lineItems.reduce((s, li) => s + li.total, 0);
 

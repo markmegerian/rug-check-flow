@@ -141,7 +141,9 @@ Deno.serve(async (req) => {
       }
 
       // Generate invoice number
-      const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}-${clientId.slice(0, 4).toUpperCase()}`;
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const uid = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+      const invoiceNumber = `INV-${dateStr}-${uid}`;
       const pdfStoragePath = resolveInvoicePdfStoragePath(clientId, invoiceNumber);
 
       // Create invoice

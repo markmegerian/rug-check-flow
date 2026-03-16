@@ -258,6 +258,33 @@ type ExtendedTables = Database["public"]["Tables"] & {
     };
     Relationships: [];
   };
+  rug_photos: {
+    Row: {
+      id: string;
+      rug_id: string;
+      storage_path: string;
+      public_url: string;
+      display_order: number;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      rug_id: string;
+      storage_path: string;
+      public_url: string;
+      display_order?: number;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      rug_id?: string;
+      storage_path?: string;
+      public_url?: string;
+      display_order?: number;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
   pickup_requests: {
     Row: {
       id: string;
