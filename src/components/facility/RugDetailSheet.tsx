@@ -1,7 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -9,11 +18,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { useRug, useUpdateRugNotes, useInvalidateRugs } from "@/hooks/useRugs";
+import { useRug, useInvalidateRugs } from "@/hooks/useRugs";
 import { PRODUCTION_STAGES } from "@/data/production";
+import { RUG_TYPES } from "@/data/services";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Save } from "lucide-react";
+import { Check, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 interface RugDetailSheetProps {
   rugId: string | null;
@@ -28,29 +38,112 @@ const STATUS_COLORS: Record<string, string> = {
   picked_up: "bg-muted text-muted-foreground",
 };
 
+type RugServiceRow = {
+  id: string;
+  rug_id: string;
+  service_id: string | null;
+  service_name: string;
+  unit_price: number;
+  line_total: number;
+  edges: string[];
+};
+
+type AvailableService = {
+  id: string;
+  name: string;
+  unit: string;
+  base_price: number;
+};
+
+type EditableFields = {
+  description: string;
+  size_length: string;
+  size_width: string;
+  notes: string;
+};
+
 export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProps) {
   const { data: rug, isLoading } = useRug(open ? rugId : null);
-  const updateNotes = useUpdateRugNotes();
   const invalidateRugs = useInvalidateRugs();
-  const [notes, setNotes] = useState("");
-  const [notesDirty, setNotesDirty] = useState(false);
 
+  // Editable fields
+  const [editing, setEditing] = useState(false);
+  const [fields, setFields] = useState<EditableFields>({ description: "", size_length: "", size_width: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  // Services
+  const [services, setServices] = useState<RugServiceRow[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [availableServices, setAvailableServices] = useState<AvailableService[]>([]);
+  const [addingServiceId, setAddingServiceId] = useState<string>("none");
+  const [addingService, setAddingService] = useState(false);
+
+  // Load rug data into editable fields
   useEffect(() => {
     if (rug) {
-      setNotes(rug.notes ?? "");
-      setNotesDirty(false);
+      setFields({
+        description: rug.description ?? "",
+        size_length: rug.size_length != null ? String(rug.size_length) : "",
+        size_width: rug.size_width != null ? String(rug.size_width) : "",
+        notes: rug.notes ?? "",
+      });
+      setEditing(false);
     }
   }, [rug]);
 
-  const handleSaveNotes = async () => {
+  // Fetch rug_services rows
+  const fetchServices = useCallback(async () => {
     if (!rugId) return;
-    try {
-      await updateNotes.mutateAsync({ id: rugId, notes });
-      setNotesDirty(false);
-      toast({ title: "Notes saved" });
-    } catch (err) {
-      toast({ title: "Failed to save notes", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    setServicesLoading(true);
+    const { data } = await supabase
+      .from("rug_services")
+      .select("id, rug_id, service_id, service_name, unit_price, line_total, edges")
+      .eq("rug_id", rugId)
+      .order("created_at", { ascending: true });
+    setServices((data ?? []) as RugServiceRow[]);
+    setServicesLoading(false);
+  }, [rugId]);
+
+  useEffect(() => {
+    if (open && rugId) {
+      fetchServices();
     }
+  }, [open, rugId, fetchServices]);
+
+  // Fetch available services catalog for adding
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from("services")
+      .select("id, name, unit, base_price")
+      .eq("active", true)
+      .order("name")
+      .then(({ data }) => {
+        setAvailableServices((data ?? []) as AvailableService[]);
+      });
+  }, [open]);
+
+  const handleSaveFields = async () => {
+    if (!rugId) return;
+    setSaving(true);
+    const updates: Record<string, unknown> = {
+      description: fields.description,
+      notes: fields.notes,
+    };
+    const len = parseFloat(fields.size_length);
+    const wid = parseFloat(fields.size_width);
+    if (!isNaN(len) && len > 0) updates.size_length = len;
+    if (!isNaN(wid) && wid > 0) updates.size_width = wid;
+
+    const { error } = await supabase.from("rugs").update(updates).eq("id", rugId);
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Rug updated" });
+      invalidateRugs();
+      setEditing(false);
+    }
+    setSaving(false);
   };
 
   const handleAdvanceStage = async () => {
@@ -71,6 +164,48 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     toast({ title: `Advanced to ${PRODUCTION_STAGES[idx + 1].label}` });
   };
 
+  const handleAddService = async () => {
+    if (!rugId || addingServiceId === "none") return;
+    const svc = availableServices.find((s) => s.id === addingServiceId);
+    if (!svc) return;
+
+    setAddingService(true);
+    const l = parseFloat(fields.size_length) || 0;
+    const w = parseFloat(fields.size_width) || 0;
+    let lineTotal = Number(svc.base_price);
+    if (svc.unit === "per sqft") lineTotal = Number(svc.base_price) * l * w;
+
+    const { error } = await supabase.from("rug_services").insert({
+      rug_id: rugId,
+      service_id: svc.id,
+      service_name: svc.name,
+      unit_price: Number(svc.base_price),
+      line_total: lineTotal,
+      edges: [],
+    });
+
+    if (error) {
+      toast({ title: "Failed to add service", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `${svc.name} added` });
+      setAddingServiceId("none");
+      await fetchServices();
+      invalidateRugs();
+    }
+    setAddingService(false);
+  };
+
+  const handleRemoveService = async (serviceRowId: string) => {
+    const { error } = await supabase.from("rug_services").delete().eq("id", serviceRowId);
+    if (error) {
+      toast({ title: "Failed to remove service", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Service removed" });
+      setServices((prev) => prev.filter((s) => s.id !== serviceRowId));
+      invalidateRugs();
+    }
+  };
+
   const stageIndex = rug ? PRODUCTION_STAGES.findIndex((s) => s.id === rug.status) : -1;
   const isLastStage = stageIndex === PRODUCTION_STAGES.length - 1;
   const stageLabel = PRODUCTION_STAGES.find((s) => s.id === rug?.status)?.label ?? rug?.status;
@@ -82,6 +217,13 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
         { label: "Picked Up", date: rug.picked_up_at },
       ]
     : [];
+
+  const servicesTotal = services.reduce((sum, s) => sum + Number(s.line_total), 0);
+
+  // Filter out services already added to this rug
+  const addableServices = availableServices.filter(
+    (as) => !services.some((s) => s.service_id === as.id)
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -123,43 +265,157 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
               />
             )}
 
-            {/* Details grid */}
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-xs text-muted-foreground">Size</p>
-                <p>{rug.size_length ?? "?"}×{rug.size_width ?? "?"} ft</p>
+            {/* Editable Details */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Details</h4>
+                {!editing ? (
+                  <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => setEditing(true)}>
+                    <Pencil className="h-3 w-3" /> Edit
+                  </Button>
+                ) : (
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
+                      setFields({
+                        description: rug.description ?? "",
+                        size_length: rug.size_length != null ? String(rug.size_length) : "",
+                        size_width: rug.size_width != null ? String(rug.size_width) : "",
+                        notes: rug.notes ?? "",
+                      });
+                      setEditing(false);
+                    }}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                    <Button size="sm" className="h-6 text-xs gap-1" onClick={handleSaveFields} disabled={saving}>
+                      <Save className="h-3 w-3" /> {saving ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Description</p>
-                <p>{rug.description || "—"}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-xs text-muted-foreground">Check-in Date</p>
-                <p>{new Date(rug.checked_in_at).toLocaleDateString()}</p>
-              </div>
+
+              {editing ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs">Rug Type</Label>
+                    <Select value={fields.description} onValueChange={(v) => setFields((f) => ({ ...f, description: v }))}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RUG_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Length (ft)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        className="h-8 text-sm"
+                        value={fields.size_length}
+                        onChange={(e) => setFields((f) => ({ ...f, size_length: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Width (ft)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        className="h-8 text-sm"
+                        value={fields.size_width}
+                        onChange={(e) => setFields((f) => ({ ...f, size_width: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Size</p>
+                    <p>{rug.size_length ?? "?"}×{rug.size_width ?? "?"} ft</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Type</p>
+                    <p>{rug.description || "—"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Check-in Date</p>
+                    <p>{new Date(rug.checked_in_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />
 
-            {/* Services */}
-            {rug.services.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Services</h4>
+            {/* Services — editable */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Services {services.length > 0 && <span className="normal-case">· ${servicesTotal.toFixed(2)}</span>}
+                </h4>
+              </div>
+
+              {servicesLoading ? (
+                <p className="text-xs text-muted-foreground">Loading services...</p>
+              ) : services.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No services assigned.</p>
+              ) : (
                 <div className="space-y-1.5">
-                  {rug.services.map((s, i) => {
+                  {services.map((s) => {
                     const edgeLabel = s.edges && s.edges.length > 0 && s.edges.length < 4
                       ? ` (${s.edges.map(e => e === "end1" ? "E1" : e === "end2" ? "E2" : e === "side1" ? "S1" : "S2").join("+")})`
                       : "";
                     return (
-                      <div key={i} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                        <span>{s.name}{edgeLabel}</span>
-                        <span className="text-muted-foreground">${s.line_total.toFixed(2)}</span>
+                      <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm group">
+                        <span>{s.service_name}{edgeLabel}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">${Number(s.line_total).toFixed(2)}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
+                            onClick={() => handleRemoveService(s.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Add service */}
+              {addableServices.length > 0 && (
+                <div className="flex gap-2 pt-1">
+                  <Select value={addingServiceId} onValueChange={setAddingServiceId}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <SelectValue placeholder="Add service..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Select service...</SelectItem>
+                      {addableServices.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name} — ${Number(s.base_price).toFixed(2)}/{s.unit === "per sqft" ? "sf" : s.unit === "per linear ft" ? "lf" : "flat"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={addingServiceId === "none" || addingService}
+                    onClick={handleAddService}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+              )}
+            </div>
 
             <Separator />
 
@@ -188,21 +444,25 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
             {/* Notes */}
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</h4>
-              <Textarea
-                value={notes}
-                onChange={(e) => { setNotes(e.target.value); setNotesDirty(true); }}
-                placeholder="Add notes about this rug..."
-                rows={3}
-              />
-              {notesDirty && (
-                <Button
-                  size="sm"
-                  onClick={handleSaveNotes}
-                  disabled={updateNotes.isPending}
-                >
-                  <Save className="h-3.5 w-3.5 mr-1" />
-                  {updateNotes.isPending ? "Saving..." : "Save Notes"}
-                </Button>
+              {editing ? (
+                <Textarea
+                  value={fields.notes}
+                  onChange={(e) => setFields((f) => ({ ...f, notes: e.target.value }))}
+                  placeholder="Add notes about this rug..."
+                  rows={3}
+                />
+              ) : (
+                <>
+                  <Textarea
+                    value={fields.notes}
+                    onChange={(e) => {
+                      setFields((f) => ({ ...f, notes: e.target.value }));
+                      setEditing(true);
+                    }}
+                    placeholder="Add notes about this rug..."
+                    rows={3}
+                  />
+                </>
               )}
             </div>
 

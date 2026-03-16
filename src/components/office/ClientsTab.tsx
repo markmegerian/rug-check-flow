@@ -1,7 +1,9 @@
-import { useState, useCallback, useMemo, useRef, type ChangeEvent } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSortableTable, type SortState } from "@/hooks/useSortableTable";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -410,6 +412,11 @@ export function ClientsTab() {
     return result;
   }, [clients, filterDay, searchQuery, sort, rugCounts]);
 
+  const pagination = usePaginatedList(filteredClients);
+
+  // Reset to page 0 when search or filter changes
+  useEffect(() => { pagination.resetPage(); }, [searchQuery, filterDay, sort]);
+
   const canDeleteClient = hasRole("admin") || isSuperAdmin;
 
   const deleteClientAccount = async () => {
@@ -488,7 +495,7 @@ export function ClientsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredClients.map((c) => (
+          {pagination.items.map((c) => (
             <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
@@ -504,6 +511,17 @@ export function ClientsTab() {
           ))}
         </TableBody>
       </Table>
+
+      <PaginationControls
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        hasPrev={pagination.hasPrev}
+        hasNext={pagination.hasNext}
+        onPrev={pagination.prevPage}
+        onNext={pagination.nextPage}
+        label="clients"
+      />
 
       <ClientDetailSheet
         open={sheetOpen}

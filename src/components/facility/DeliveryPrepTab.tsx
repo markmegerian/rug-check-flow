@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { format, addDays } from "date-fns";
 import { Package, CheckCircle2, Calendar, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -186,10 +188,12 @@ export function DeliveryPrepTab() {
     }
   };
 
+  const pagination = usePaginatedList(items);
+
   // Group items by route_day and client
   const itemsByRouteAndClient = useMemo(() => {
     const map: Record<string, Record<string, DeliveryItem[]>> = {};
-    items.forEach((item) => {
+    pagination.items.forEach((item) => {
       const list = deliveryListMap[item.delivery_list_id];
       if (!list) return;
       const routeDay = list.route_day;
@@ -199,7 +203,7 @@ export function DeliveryPrepTab() {
       map[routeDay][clientId].push(item);
     });
     return map;
-  }, [items, deliveryListMap]);
+  }, [pagination.items, deliveryListMap]);
 
   const clientName = (clientId: string | null) => {
     if (!clientId) return "Unknown";
@@ -329,6 +333,16 @@ export function DeliveryPrepTab() {
               </div>
             </div>
           ))}
+          <PaginationControls
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            hasPrev={pagination.hasPrev}
+            hasNext={pagination.hasNext}
+            onPrev={pagination.prevPage}
+            onNext={pagination.nextPage}
+            label="items"
+          />
         </div>
       )}
     </div>

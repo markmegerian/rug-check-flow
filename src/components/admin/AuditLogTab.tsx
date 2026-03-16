@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { format } from "date-fns";
 import { EmptyState, LoadingState } from "@/components/states/PageState";
@@ -21,6 +23,9 @@ export function AuditLogTab() {
       return actor.includes(query) || action.includes(query);
     });
   }, [entries, searchTerm]);
+
+  const pagination = usePaginatedList(filteredEntries);
+  useEffect(() => { pagination.resetPage(); }, [searchTerm]);
 
   if (loading) {
     return (
@@ -89,7 +94,7 @@ export function AuditLogTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredEntries.map((entry) => (
+          {pagination.items.map((entry) => (
             <TableRow key={entry.id}>
               <TableCell className="text-muted-foreground whitespace-nowrap">
                 {format(new Date(entry.created_at), "M/d h:mm a")}
@@ -100,6 +105,16 @@ export function AuditLogTab() {
           ))}
         </TableBody>
       </Table>
+      <PaginationControls
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        hasPrev={pagination.hasPrev}
+        hasNext={pagination.hasNext}
+        onPrev={pagination.prevPage}
+        onNext={pagination.nextPage}
+        label="entries"
+      />
       {hasNextPage && (
         <div className="flex justify-center pt-2">
           <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={loadingMore}>

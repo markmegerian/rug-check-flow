@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -99,6 +101,8 @@ export default function PortalPickupsTab() {
 
   const readyRugNumbers = useMemo(() => readyRugs.map((r) => r.rugNumber), [readyRugs]);
   const nextPendingPickup = useMemo(() => pickups.find((p) => p.status === "pending") ?? null, [pickups]);
+  const pastPickups = useMemo(() => pickups.filter((p) => p.id !== nextPendingPickup?.id), [pickups, nextPendingPickup]);
+  const pastPickupsPagination = usePaginatedList(pastPickups);
 
   const toggleDraftRug = useCallback((rn: string) => {
     setDraftSelectedRugs((prev) => (prev.includes(rn) ? prev.filter((r) => r !== rn) : [...prev, rn]));
@@ -654,16 +658,24 @@ export default function PortalPickupsTab() {
       </section>
 
       {/* Past pickups: compact list */}
-      {pickups.filter((p) => p.id !== nextPendingPickup?.id).length > 0 && (
+      {pastPickups.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Past pickups</h3>
           <div className="space-y-2">
-            {pickups
-              .filter((p) => p.id !== nextPendingPickup?.id)
-              .map((pickup) => (
-                <PickupHistoryRow key={pickup.id} pickup={pickup} onCancel={handleCancel} />
-              ))}
+            {pastPickupsPagination.items.map((pickup) => (
+              <PickupHistoryRow key={pickup.id} pickup={pickup} onCancel={handleCancel} />
+            ))}
           </div>
+          <PaginationControls
+            page={pastPickupsPagination.page}
+            totalPages={pastPickupsPagination.totalPages}
+            total={pastPickupsPagination.total}
+            hasPrev={pastPickupsPagination.hasPrev}
+            hasNext={pastPickupsPagination.hasNext}
+            onPrev={pastPickupsPagination.prevPage}
+            onNext={pastPickupsPagination.nextPage}
+            label="pickups"
+          />
         </section>
       )}
     </div>

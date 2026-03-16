@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -352,14 +354,16 @@ export function EstimatesTab() {
     return next;
   }, [estimates, minAgeDays, statusFilter]);
 
+  const pagination = usePaginatedList(filteredEstimates);
+
   const grouped = useMemo(() => {
     const map: Record<string, EstimateRow[]> = {};
-    filteredEstimates.forEach((e) => {
+    pagination.items.forEach((e) => {
       if (!map[e.status]) map[e.status] = [];
       map[e.status].push(e);
     });
     return map;
-  }, [filteredEstimates]);
+  }, [pagination.items]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading estimates…</div>;
@@ -471,6 +475,17 @@ export function EstimatesTab() {
           </section>
         ))
       )}
+
+      <PaginationControls
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        total={pagination.total}
+        hasPrev={pagination.hasPrev}
+        hasNext={pagination.hasNext}
+        onPrev={pagination.prevPage}
+        onNext={pagination.nextPage}
+        label="estimates"
+      />
     </div>
   );
 }
