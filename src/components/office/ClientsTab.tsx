@@ -20,6 +20,7 @@ import { useClients, useInvalidateClients } from "@/hooks/useClients";
 import { useRugCountsByClient, useInvalidateRugs } from "@/hooks/useRugs";
 import { ClientDetailSheet } from "@/components/office/ClientDetailSheet";
 import { LoadingState } from "@/components/states/PageState";
+import { APP_NAME } from "@/lib/branding";
 
 type Client = Tables<"clients">;
 type PortalUser = Tables<"portal_users">;
@@ -155,7 +156,7 @@ const extractProviderMessage = (response: unknown) => {
 
 const buildManualOnboardingInstructions = (instructions: NonNullable<OnboardingEmailResponse["delivery_instructions"]>) => {
   const lines = [
-    "RugBoost portal sign-in instructions",
+    `${APP_NAME} portal sign-in instructions`,
     `Portal URL: ${instructions.portal_url}`,
     `Email: ${instructions.email}`,
     `Temporary password: ${instructions.temporary_password}`,

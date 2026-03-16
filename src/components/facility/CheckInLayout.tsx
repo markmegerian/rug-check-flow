@@ -4,7 +4,7 @@ import { PendingRugsPanel } from "./PendingRugsPanel";
 import { CheckInForm } from "./CheckInForm";
 import { CheckInLogPanel } from "./CheckInLogPanel";
 import { type PendingRug } from "@/types/pending-rug";
-import { type CheckInEntry, type UserRole } from "@/data/check-in-log";
+import { type CheckInEntry, deriveUserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import type { Tables } from "@/integrations/supabase/types";
@@ -34,14 +34,14 @@ type CompletedPickupItemRow = Pick<
 >;
 
 export function CheckInLayout() {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [pendingRugs, setPendingRugs] = useState<PendingRug[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>([]);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
-  const [userRole] = useState<UserRole>("checkin_staff");
+  const userRole = deriveUserRole(roles);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("form");
 
   const fetchPendingPickupRugs = useCallback(async () => {
@@ -351,9 +351,10 @@ export function CheckInLayout() {
         }
 
         if (data.photos.length > 0) {
-          const firstPhotoUrl = await uploadCheckinPhoto(editingEntryId, data.photos[0]);
-          if (firstPhotoUrl) {
-            await supabase.from("rugs").update({ photo_url: firstPhotoUrl }).eq("id", editingEntryId);
+          const uploadResults = await Promise.all(data.photos.map((file) => uploadCheckinPhoto(editingEntryId, file)));
+          const firstUrl = uploadResults.find(Boolean);
+          if (firstUrl) {
+            await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", editingEntryId);
           }
         }
 
@@ -442,9 +443,10 @@ export function CheckInLayout() {
         }
 
         if (data.photos.length > 0) {
-          const firstPhotoUrl = await uploadCheckinPhoto(inserted.id, data.photos[0]);
-          if (firstPhotoUrl) {
-            await supabase.from("rugs").update({ photo_url: firstPhotoUrl }).eq("id", inserted.id);
+          const uploadResults = await Promise.all(data.photos.map((file) => uploadCheckinPhoto(inserted.id, file)));
+          const firstUrl = uploadResults.find(Boolean);
+          if (firstUrl) {
+            await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", inserted.id);
           }
         }
 

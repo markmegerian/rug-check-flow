@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { OperationalRemindersPanel } from "@/components/dashboard/OperationalRemindersPanel";
 import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
+import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
 const ROLE_REDIRECTS: Record<AppRole, string> = {
   checkin_staff: "/facility/ops",
@@ -89,8 +90,8 @@ export default function Index() {
 
   return (
     <AppShell
-      title="RugBoost"
-      subtitle="Mission Control"
+      title={APP_NAME}
+      subtitle={APP_TAGLINE}
       showHomeLink={false}
       contentClassName="overflow-auto"
     >

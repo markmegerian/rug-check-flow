@@ -739,9 +739,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                   <button
                     type="button"
                     onClick={() => removePhoto(i)}
-                    className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 md:p-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
                   </button>
                 </div>
               ))}

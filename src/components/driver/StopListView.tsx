@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/states/PageState";
+import { DRIVER_TITLE } from "@/lib/branding";
 import { type Stop } from "@/types/route-stop";
 
 interface StopListViewProps {
@@ -39,7 +40,7 @@ export function StopListView({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
-            <h1 className="text-lg font-semibold">RugBoost Driver</h1>
+            <h1 className="text-lg font-semibold">{DRIVER_TITLE}</h1>
           </div>
           <div className="flex items-center gap-2">
             {!isOnline && (
