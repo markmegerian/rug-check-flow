@@ -52,8 +52,8 @@ export default function FacilityOps() {
       statusBar={<WorkspaceStatusBar />}
       onSearchOpen={() => setSearchOpen(true)}
     >
-      <div className="h-full flex flex-col bg-muted/20">
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      <div className="h-full flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row border-t border-border bg-card overflow-hidden">
           <WorkspaceTabs
             tabs={TABS}
             activeTab={activeTab}

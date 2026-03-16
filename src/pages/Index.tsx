@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { OperationalRemindersPanel } from "@/components/dashboard/OperationalRemindersPanel";
 import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
@@ -95,97 +96,59 @@ export default function Index() {
       showHomeLink={false}
       contentClassName="overflow-auto"
     >
-      <div className="max-w-6xl mx-auto w-full px-6 py-6 md:py-8 space-y-6">
-        <section className="rounded-xl border bg-card p-5 md:p-6">
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h2 className="text-2xl font-semibold mt-1">Focus on your top workflows first.</h2>
-          <p className="text-sm text-muted-foreground mt-2">
-            Use recommended actions to jump directly into today&apos;s operations.
-          </p>
-          <div className="flex flex-wrap gap-2 mt-4">
+      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-4 md:py-6 space-y-4">
+        {/* Compact welcome + roles */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Welcome back</h2>
+            <p className="text-sm text-muted-foreground">Jump into today&apos;s operations.</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
             {orderedRoles.length > 0 ? (
               orderedRoles.map((role) => (
-                <Badge key={role} variant="secondary">
+                <Badge key={role} variant="secondary" className="text-[10px]">
                   {ROLE_LABELS[role]}
                 </Badge>
               ))
             ) : (
-              <Badge variant="outline">Portal access</Badge>
+              <Badge variant="outline" className="text-[10px]">Portal</Badge>
             )}
-            {isSuperAdmin ? (
-              <Badge className="border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300">
-                Superadmin
-              </Badge>
-            ) : null}
-            {user?.email ? (
-              <Badge variant="outline" className="hidden sm:inline-flex">
-                {user.email}
-              </Badge>
-            ) : null}
           </div>
-        </section>
+        </div>
 
         <OperationalRemindersPanel />
 
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Recommended next actions
-            </h3>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {fallbackRecommendations.map((section) => {
-              const Icon = section.icon;
-              return (
-                <Link
-                  key={`recommended-${section.to}`}
-                  to={section.to}
-                  className="rounded-lg border bg-card p-4 hover:bg-accent transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-semibold">{section.label}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
-                    </div>
-                    <div className="p-2 rounded-md bg-primary/10">
-                      <Icon className="h-4 w-4 text-primary" />
-                    </div>
-                  </div>
-                  <div className="pt-3 text-sm font-medium text-primary inline-flex items-center gap-1">
-                    Open workspace <ArrowRight className="h-3.5 w-3.5" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            All workspaces
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {SECTIONS.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <Link
-                  key={s.to}
-                  to={s.to}
-                  className="flex items-start gap-4 rounded-lg border border-border bg-card p-5 shadow-card transition-all hover:shadow-medium hover:-translate-y-0.5 animate-fade-in-up"
-                  style={{ animationDelay: `${i * 50}ms`, opacity: 0 }}
-                >
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-foreground">{s.label}</div>
-                    <div className="text-sm text-muted-foreground mt-1">{s.description}</div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
+        {/* Single workspace grid — recommended highlighted */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const isRecommended = fallbackRecommendations.some((r) => r.to === s.to);
+            return (
+              <Link
+                key={s.to}
+                to={s.to}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3.5 transition-all hover:shadow-md hover:-translate-y-0.5",
+                  isRecommended
+                    ? "border-primary/30 bg-primary/5 shadow-sm"
+                    : "border-border bg-card"
+                )}
+              >
+                <div className={cn(
+                  "p-2 rounded-lg shrink-0",
+                  isRecommended ? "bg-primary/15" : "bg-muted"
+                )}>
+                  <Icon className={cn("h-4 w-4", isRecommended ? "text-primary" : "text-muted-foreground")} />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm text-foreground">{s.label}</div>
+                  <div className="text-xs text-muted-foreground truncate">{s.description}</div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0" />
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </AppShell>
   );

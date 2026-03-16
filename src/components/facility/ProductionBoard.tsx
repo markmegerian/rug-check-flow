@@ -113,7 +113,7 @@ export function ProductionBoard() {
           const stageId = activeStage ?? PRODUCTION_STAGES[0].id;
           const stageRugs = filteredRugs.filter((r) => r.status === stageId);
           return (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {stageRugs.map((rug) => (
                 <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} onViewDetail={setDetailRugId} />
               ))}
@@ -131,17 +131,17 @@ export function ProductionBoard() {
           {PRODUCTION_STAGES.map((stage) => {
             const stageRugs = filteredRugs.filter((r) => r.status === stage.id);
             return (
-              <div key={stage.id} className="flex flex-col w-64 border-r last:border-r-0 shrink-0">
-                <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div key={stage.id} className="flex flex-col w-56 lg:w-64 border-r last:border-r-0 shrink-0">
+                <div className="flex items-center justify-between px-2.5 py-1.5 border-b bg-muted/20">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {stage.label}
                   </span>
-                  <Badge variant="secondary" className="text-xs h-5 min-w-5 justify-center">
+                  <Badge variant="secondary" className="text-[10px] h-4 min-w-4 px-1 justify-center">
                     {stageRugs.length}
                   </Badge>
                 </div>
                 <ScrollArea className="flex-1">
-                  <div className="p-2 space-y-2">
+                  <div className="p-1.5 space-y-1.5">
                     {stageRugs.map((rug) => (
                       <ProductionRugCard
                         key={rug.id}

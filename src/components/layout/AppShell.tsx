@@ -81,16 +81,14 @@ export function AppShell({
           )}
           {actions}
           {isSuperAdmin ? (
-            <Badge className="border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300">
+            <Badge className="border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300 text-[10px]">
               Superadmin
             </Badge>
           ) : null}
-          <span className="hidden md:inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-            Live Workspace
-          </span>
-          <span className="text-sm text-muted-foreground hidden lg:inline">{user?.email}</span>
-          <Button variant="ghost" size="sm" onClick={signOut}>
-            <LogOut className="h-4 w-4 mr-1" /> Sign Out
+          <span className="text-xs text-muted-foreground hidden lg:inline truncate max-w-[160px]">{user?.email}</span>
+          <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground" onClick={signOut}>
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline ml-1 text-xs">Sign Out</span>
           </Button>
         </div>
       </header>
