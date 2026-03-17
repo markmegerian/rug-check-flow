@@ -67,8 +67,7 @@ export async function addEvent(
  */
 export async function getPendingEvents(): Promise<OfflineEvent[]> {
   return await db.events
-    .where("synced_at")
-    .equals(null)
+    .filter((event) => event.synced_at === null)
     .sortBy("created_at");
 }
 
