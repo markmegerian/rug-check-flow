@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useRugs, useInvalidateRugs, type RugWithServices } from "@/hooks/useRugs";
 import { RugDetailSheet } from "./RugDetailSheet";
+import { QaCheckDialog } from "./QaCheckDialog";
 
 export type DbRug = RugWithServices;
 
@@ -20,6 +21,7 @@ export function ProductionBoard() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
+  const [qaTarget, setQaTarget] = useState<{ rugId: string; tag: string; stage: string } | null>(null);
 
   const filteredRugs = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -30,24 +32,39 @@ export function ProductionBoard() {
     );
   }, [rugs, search]);
 
-  const handleAdvanceStage = async (rugId: string) => {
+  const handleAdvanceStage = (rugId: string) => {
     const rug = rugs.find((r) => r.id === rugId);
     if (!rug) return;
     const idx = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
     if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) return;
+    setQaTarget({ rugId: rug.id, tag: rug.tag, stage: rug.status });
+  };
+
+  const handleQaComplete = async (passed: boolean) => {
+    if (!passed || !qaTarget) {
+      setQaTarget(null);
+      return;
+    }
+
+    const rug = rugs.find((r) => r.id === qaTarget.rugId);
+    if (!rug) { setQaTarget(null); return; }
+    const idx = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
+    if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) { setQaTarget(null); return; }
 
     const nextStage = PRODUCTION_STAGES[idx + 1].id;
     const updates: Record<string, string> = { status: nextStage };
     if (nextStage === "ready") updates.completed_at = new Date().toISOString();
     if (nextStage === "picked_up") updates.picked_up_at = new Date().toISOString();
 
-    const { error } = await supabase.from("rugs").update(updates).eq("id", rugId);
+    const { error } = await supabase.from("rugs").update(updates).eq("id", qaTarget.rugId);
     if (error) {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      setQaTarget(null);
       return;
     }
 
     invalidateRugs();
+    setQaTarget(null);
   };
 
   if (loading) {
@@ -166,6 +183,17 @@ export function ProductionBoard() {
         open={Boolean(detailRugId)}
         onOpenChange={(open) => { if (!open) setDetailRugId(null); }}
       />
+
+      {qaTarget && (
+        <QaCheckDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setQaTarget(null); }}
+          rugId={qaTarget.rugId}
+          rugTag={qaTarget.tag}
+          currentStage={qaTarget.stage}
+          onComplete={handleQaComplete}
+        />
+      )}
     </div>
   );
 }

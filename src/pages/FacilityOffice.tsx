@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck } from "lucide-react";
+import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck, ShieldAlert } from "lucide-react";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
 import { DeliveriesTab } from "@/components/office/DeliveriesTab";
 import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
+import { DisputesTab } from "@/components/office/DisputesTab";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
@@ -21,11 +22,12 @@ const BASE_TABS = [
   { id: "clients", label: "Clients", icon: Users, subtitle: "Client accounts and portal access" },
   { id: "pickups", label: "Pickups", icon: CalendarCheck, subtitle: "Pickup request coordination" },
   { id: "deliveries", label: "Deliveries", icon: Truck, subtitle: "Route planning and truck checkout" },
+  { id: "disputes", label: "Disputes", icon: ShieldAlert, subtitle: "Review and resolve delivery disputes" },
 ] as const;
 
 const ADMIN_PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign, subtitle: "Manage service rates" } as const;
 
-type TabId = "pricing" | (typeof BASE_TABS)[number]["id"];
+type TabId = "pricing" | "disputes" | (typeof BASE_TABS)[number]["id"];
 
 export default function FacilityOffice() {
   const { hasRole } = useAuth();
@@ -84,6 +86,7 @@ export default function FacilityOffice() {
             {activeTab === "clients" && <ClientsTab />}
             {activeTab === "pickups" && <PickupRequestsTab />}
             {activeTab === "deliveries" && <DeliveriesTab />}
+            {activeTab === "disputes" && <DisputesTab />}
           </main>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { OperationalRemindersPanel } from "@/components/dashboard/OperationalRemindersPanel";
+import { OperationalDashboard } from "@/components/dashboard/OperationalDashboard";
 import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
@@ -63,7 +64,7 @@ const SECTIONS: Array<{
 const ROLE_PRIORITY: AppRole[] = ["admin", "office", "checkin_staff", "driver"];
 
 export default function Index() {
-  const { user, roles, isSuperAdmin } = useAuth();
+  const { user, roles, isSuperAdmin, hasRole } = useAuth();
   const appRoles = roles.filter((role): role is AppRole => role in ROLE_LABELS);
   const orderedRoles = [...appRoles].sort(
     (a, b) => ROLE_PRIORITY.indexOf(a) - ROLE_PRIORITY.indexOf(b)
@@ -117,6 +118,8 @@ export default function Index() {
         </div>
 
         <OperationalRemindersPanel />
+
+        {(hasRole("admin") || hasRole("office")) && <OperationalDashboard />}
 
         {/* Single workspace grid — recommended highlighted */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { Tables } from "@/integrations/supabase/types";
+import { ClientPriceOverrides } from "@/components/office/ClientPriceOverrides";
 
 type PricingTier = "standard" | "preferred" | "vip";
 type PortalUser = Tables<"portal_users">;
@@ -225,6 +226,9 @@ export function ClientDetailSheet({
                   </Button>
                 </div>
               </div>
+
+              <Separator />
+              <ClientPriceOverrides clientId={editingId} />
             </>
           )}
         </div>

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppShellProps {
   title: string;
@@ -79,6 +80,7 @@ export function AppShell({
               </kbd>
             </Button>
           )}
+          <NotificationBell />
           {actions}
           {isSuperAdmin ? (
             <Badge className="border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300 text-[10px]">
