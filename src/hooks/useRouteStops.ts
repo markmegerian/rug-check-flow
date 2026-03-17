@@ -57,9 +57,9 @@ export function useRouteStops() {
             .order("phase", { ascending: true })
             .order("created_at", { ascending: true });
 
-      const deliveryListItemIds = (itemsData ?? [])
-        .filter((item: RouteStopItemRow) => item.delivery_list_item_id)
-        .map((item: RouteStopItemRow) => item.delivery_list_item_id) as string[];
+      const deliveryListItemIds = ((itemsData ?? []) as unknown as RouteStopItemRow[])
+        .filter((item) => item.delivery_list_item_id)
+        .map((item) => item.delivery_list_item_id) as string[];
 
       let deliveryItemsMap: Record<string, { loaded_on_truck: boolean }> = {};
       if (deliveryListItemIds.length > 0) {

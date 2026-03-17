@@ -102,7 +102,7 @@ export function usePortalClient() {
   }, [resolve]);
 
   const markPasswordChangeComplete = useCallback(async () => {
-    const { data, error } = await supabase.rpc("mark_portal_password_changed");
+    const { data, error } = await supabase.rpc("mark_portal_password_changed" as any);
 
     if (error) {
       const missingRpc = error.message.toLowerCase().includes("mark_portal_password_changed")

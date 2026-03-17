@@ -16,7 +16,7 @@ async function fetchInvoicesPage(pageIndex: number): Promise<InvoiceRow[]> {
 
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, pdf_storage_path, clients(name), invoice_items(*)")
+    .select("*, clients(name), invoice_items(*)")
     .order("created_at", { ascending: false })
     .range(from, to);
 
