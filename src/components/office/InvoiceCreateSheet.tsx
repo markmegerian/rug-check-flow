@@ -106,7 +106,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
         client_id: selectedClientId,
         status: "draft" as const,
         total,
-        pdf_storage_path: `clients/${selectedClientId}/${invNum}.pdf`,
+        pdf_storage_path: `clients/${selectedClientId}/${invNum}.pdf` as any,
       })
       .select()
       .single();

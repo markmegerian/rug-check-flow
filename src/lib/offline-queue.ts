@@ -158,7 +158,7 @@ export async function addPendingPhoto(
     public_url: null,
   };
 
-  return await db.photos.add(photo);
+  return await db.photos.add(photo) as number;
 }
 
 /**

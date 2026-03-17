@@ -30,7 +30,7 @@ export function useRouteStops() {
     setLoading(true);
 
     try {
-      const { data: stopsData, error: stopsError } = await supabaseExtended
+      const { data: stopsData, error: stopsError } = await (supabaseExtended as any)
         .from("route_stops")
         .select("*, clients(name, address)")
         .eq("assigned_driver_id", user.id)
@@ -50,16 +50,16 @@ export function useRouteStops() {
 
       const { data: itemsData, error: itemsError } = stopIds.length === 0
         ? { data: [], error: null }
-        : await supabaseExtended
+        : await (supabaseExtended as any)
             .from("route_stop_items")
             .select("*, rugs(tag, size_length, size_width)")
             .in("route_stop_id", stopIds)
             .order("phase", { ascending: true })
             .order("created_at", { ascending: true });
 
-      const deliveryListItemIds = (itemsData ?? [])
-        .filter((item: RouteStopItemRow) => item.delivery_list_item_id)
-        .map((item: RouteStopItemRow) => item.delivery_list_item_id) as string[];
+      const deliveryListItemIds = ((itemsData ?? []) as unknown as RouteStopItemRow[])
+        .filter((item) => item.delivery_list_item_id)
+        .map((item) => item.delivery_list_item_id) as string[];
 
       let deliveryItemsMap: Record<string, { loaded_on_truck: boolean }> = {};
       if (deliveryListItemIds.length > 0) {

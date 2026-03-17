@@ -45,7 +45,7 @@ export default function ResetPassword() {
     }
 
     if (isPortalUser) {
-      const { data, error: markError } = await supabase.rpc("mark_portal_password_changed");
+      const { data, error: markError } = await supabase.rpc("mark_portal_password_changed" as any);
       const markErrorMessage = markError?.message?.toLowerCase() ?? "";
       const missingRpc = Boolean(markError) && (
         markErrorMessage.includes("mark_portal_password_changed")

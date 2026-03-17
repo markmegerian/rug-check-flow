@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
 export type InvoiceRow = Tables<"invoices"> & {
-  pdf_storage_path: string | null;
   clients: { name: string } | null;
   invoice_items: Tables<"invoice_items">[];
 };
@@ -17,7 +16,7 @@ async function fetchInvoicesPage(pageIndex: number): Promise<InvoiceRow[]> {
 
   const { data, error } = await supabase
     .from("invoices")
-    .select("*, pdf_storage_path, clients(name), invoice_items(*)")
+    .select("*, clients(name), invoice_items(*)")
     .order("created_at", { ascending: false })
     .range(from, to);
 

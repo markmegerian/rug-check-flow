@@ -1,15 +1,24 @@
-# Plan: Fix Build Errors + Modern Dashboard SaaS UI Overhaul
 
-No reference needed — we'll design a **Linear/Vercel-inspired** modern dashboard: clean sidebar navigation, neutral palette with accent pops, data-dense cards, crisp typography, and smooth transitions. Everything should be mobile optimized as a priority
 
----
+# Add Route Day Filter to Clients Tab
 
-## Phase 1: Fix All Build Errors
+## What Already Exists
+The **Deliveries tab** already has a full weekly route view grouping clients by their assigned route day, with compile/confirm/checkout workflow. No changes needed there.
 
-### 1a. TypeScript target → ES2021+ (fixes `replaceAll`)
+The **Clients tab** shows a "Route Day" column but has no way to filter the list by day.
 
-Update `tsconfig.app.json` lib from `ES2020` to `ES2022` to support `String.replaceAll`.
+## What Will Change
 
-### 1b. Fix `@fontsource-variable/plus-jakarta-sans` import
+**File: `src/components/office/ClientsTab.tsx`**
 
-The package exists in `package.json` but TS can't find type
+Add a route day filter dropdown in the header bar next to the "Add Client" button. When a day is selected, the client table will only show clients assigned to that route day. An "All" option resets the filter.
+
+### Implementation Details
+
+1. Add a `filterDay` state variable (default: `""` meaning "All")
+2. Add a `Select` dropdown in the header between the title and the "Add Client" button with options: All, Monday through Sunday
+3. Filter the `clients` array before rendering the table rows: if `filterDay` is set, only show clients whose `route_day` matches
+4. Show a count badge next to the filter indicating how many clients match
+
+This is a small, self-contained UI change -- no database or backend modifications needed.
+
