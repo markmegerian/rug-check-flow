@@ -50,7 +50,7 @@ export function useRouteStops() {
 
       const { data: itemsData, error: itemsError } = stopIds.length === 0
         ? { data: [], error: null }
-        : await supabaseExtended
+        : await (supabaseExtended as any)
             .from("route_stop_items")
             .select("*, rugs(tag, size_length, size_width)")
             .in("route_stop_id", stopIds)
