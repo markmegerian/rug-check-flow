@@ -107,7 +107,10 @@ export default function PortalPickupsTab() {
   const [supportsEstimateFields, setSupportsEstimateFields] = useState(true);
   const [draftHydratedPickupId, setDraftHydratedPickupId] = useState<string | null>(null);
 
-  const nextPendingPickup = useMemo(() => pickups.find((p) => p.status === "pending") ?? null, [pickups]);
+  const nextPendingPickup = useMemo(
+    () => pickups.find((p) => p.status === "pending" || p.status === "confirmed") ?? null,
+    [pickups],
+  );
   const pastPickups = useMemo(() => pickups.filter((p) => p.id !== nextPendingPickup?.id), [pickups, nextPendingPickup]);
   const pastPickupsPagination = usePaginatedList(pastPickups);
 

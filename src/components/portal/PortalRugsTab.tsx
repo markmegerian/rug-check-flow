@@ -8,7 +8,7 @@ import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
-import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
+import type { EstimateStatus } from "@/lib/workflow-guards";
 import { ChevronDown, ChevronRight, Search, Check, X } from "lucide-react";
 import type { Enums } from "@/integrations/supabase/types";
 
@@ -135,9 +135,13 @@ export default function PortalRugsTab() {
   // Expand / detail
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [estimatesByRugId, setEstimatesByRugId] = useState<Record<string, EstimateRow[]>>({});
+  const estimatesByRugIdRef = useRef(estimatesByRugId);
+  estimatesByRugIdRef.current = estimatesByRugId;
   const [lineItemsByEstimateId, setLineItemsByEstimateId] = useState<Record<string, EstimateItemRow[]>>({});
   const [loadingEstimates, setLoadingEstimates] = useState<string | null>(null);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
+  const updatingItemIdRef = useRef(updatingItemId);
+  updatingItemIdRef.current = updatingItemId;
 
   // ------ Debounced search ------
   useEffect(() => {
@@ -240,7 +244,7 @@ export default function PortalRugsTab() {
   // ------ Lazy-fetch estimates for a rug ------
   const fetchEstimatesForRug = useCallback(
     async (rug: RugRow) => {
-      if (estimatesByRugId[rug.id]) return; // already loaded
+      if (estimatesByRugIdRef.current[rug.id]) return; // already loaded
       setLoadingEstimates(rug.id);
 
       const { data: estData, error: estError } = await supabaseExtended
@@ -279,23 +283,26 @@ export default function PortalRugsTab() {
 
       setLoadingEstimates(null);
     },
-    [estimatesByRugId, toast],
+    [toast],
   );
 
   // ------ Toggle expand ------
   const toggleExpand = useCallback(
     (rug: RugRow) => {
-      const next = expandedRow === rug.id ? null : rug.id;
-      setExpandedRow(next);
-      if (next) fetchEstimatesForRug(rug);
+      setExpandedRow((prev) => {
+        const next = prev === rug.id ? null : rug.id;
+        if (next) fetchEstimatesForRug(rug);
+        return next;
+      });
     },
-    [expandedRow, fetchEstimatesForRug],
+    [fetchEstimatesForRug],
   );
 
   // ------ Line-item approve/reject ------
   const updateLineItemDecision = useCallback(
     async (item: EstimateItemRow, approved: boolean) => {
       if (item.client_approved !== null) return;
+      if (updatingItemIdRef.current) return; // prevent double-click
       setUpdatingItemId(item.id);
       const nowIso = new Date().toISOString();
 
