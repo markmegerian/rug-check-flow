@@ -93,7 +93,7 @@ export function usePortalClient() {
   }, []);
 
   const markOnboardingComplete = useCallback(async () => {
-    const { data, error } = await supabase.rpc("mark_portal_onboarding_complete");
+    const { data, error } = await supabase.rpc("mark_portal_onboarding_complete" as any);
     if (error || !data) {
       return false;
     }
