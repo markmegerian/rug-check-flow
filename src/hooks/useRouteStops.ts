@@ -30,7 +30,7 @@ export function useRouteStops() {
     setLoading(true);
 
     try {
-      const { data: stopsData, error: stopsError } = await supabaseExtended
+      const { data: stopsData, error: stopsError } = await (supabaseExtended as any)
         .from("route_stops")
         .select("*, clients(name, address)")
         .eq("assigned_driver_id", user.id)
