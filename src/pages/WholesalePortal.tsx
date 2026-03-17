@@ -119,85 +119,86 @@ export default function WholesalePortal() {
     <AppShell
       title="Wholesale Portal"
       subtitle={activeTabLabel}
-      contentClassName="bg-gradient-to-b from-muted/40 to-background overflow-auto"
+      contentClassName="overflow-auto"
     >
-      <div className="max-w-6xl mx-auto py-5">
-        <div className="px-4 sm:px-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <nav className="flex gap-1 p-1 rounded-xl bg-card border shadow-sm w-full sm:w-fit">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    activeTab === tab.key
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-            {clientId ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={openOnboarding}
-                disabled={!onboardingUnlocked}
-                title={!onboardingUnlocked ? "Change your password first to unlock the onboarding guide" : undefined}
+      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-4 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <nav className="flex gap-0.5 p-0.5 rounded-lg bg-muted w-full sm:w-fit overflow-x-auto scrollbar-hide">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                  activeTab === tab.key
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {onboardingCompletedAt
-                  ? "View onboarding guide"
-                  : onboardingUnlocked
-                    ? "Start onboarding guide"
-                    : "Onboarding guide (change password to unlock)"}
-              </Button>
-            ) : null}
-          </div>
-          <main className="rounded-xl border border-border bg-card p-3 md:p-4 shadow-sm">
-            {requiresPasswordReset ? (
-              <div className="max-w-md mx-auto space-y-4 py-4">
-                <h2 className="text-lg font-semibold">Change your password to continue</h2>
-                <p className="text-sm text-muted-foreground">
-                  For security, first-time portal sign in requires a password change before onboarding or workflow actions.
-                </p>
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New password</Label>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    minLength={8}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm new password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    minLength={8}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <Button onClick={handleChangePassword} disabled={changingPassword || !user}>
-                  {changingPassword ? "Updating..." : "Update password"}
-                </Button>
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+          {clientId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openOnboarding}
+              disabled={!onboardingUnlocked}
+              className="h-8 text-xs"
+            >
+              {onboardingCompletedAt
+                ? "View guide"
+                : onboardingUnlocked
+                  ? "Start onboarding"
+                  : "Change password to unlock"}
+            </Button>
+          ) : null}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card">
+          {requiresPasswordReset ? (
+            <div className="max-w-md mx-auto space-y-4 p-6">
+              <h2 className="text-base font-semibold">Change your password to continue</h2>
+              <p className="text-sm text-muted-foreground">
+                For security, first-time portal sign in requires a password change.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-password" className="text-xs">New password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="h-9"
+                />
               </div>
-            ) : (
-              <>
-                {activeTab === "rugs" && <PortalRugsTab />}
-                {activeTab === "pickups" && <PortalPickupsTab />}
-                {activeTab === "estimates" && <PortalEstimatesTab />}
-                {activeTab === "invoices" && <PortalInvoicesTab />}
-                {activeTab === "prices" && <PortalPricingTab />}
-              </>
-            )}
-          </main>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm-password" className="text-xs">Confirm new password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="h-9"
+                />
+              </div>
+              <Button onClick={handleChangePassword} disabled={changingPassword || !user} size="sm">
+                {changingPassword ? "Updating..." : "Update password"}
+              </Button>
+            </div>
+          ) : (
+            <div className="p-3 md:p-4">
+              {activeTab === "rugs" && <PortalRugsTab />}
+              {activeTab === "pickups" && <PortalPickupsTab />}
+              {activeTab === "estimates" && <PortalEstimatesTab />}
+              {activeTab === "invoices" && <PortalInvoicesTab />}
+              {activeTab === "prices" && <PortalPricingTab />}
+            </div>
+          )}
         </div>
       </div>
       <PortalOnboardingDialog

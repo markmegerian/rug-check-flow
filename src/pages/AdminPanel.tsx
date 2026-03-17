@@ -11,10 +11,10 @@ import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 
 const TABS = [
-  { id: "users", label: "Users", icon: Users, subtitle: "Directory and access management" },
-  { id: "clients", label: "Wholesale Accounts", icon: Store, subtitle: "Client + portal account management" },
-  { id: "roles", label: "Roles", icon: Shield, subtitle: "Permission distribution overview" },
-  { id: "audit", label: "Audit Log", icon: ScrollText, subtitle: "System activity timeline" },
+  { id: "users", label: "Users", icon: Users },
+  { id: "clients", label: "Accounts", icon: Store },
+  { id: "roles", label: "Roles", icon: Shield },
+  { id: "audit", label: "Audit Log", icon: ScrollText },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -28,30 +28,23 @@ export default function AdminPanel() {
 
   return (
     <AppShell
-      title="Admin Workspace"
-      subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
-      contentClassName="overflow-hidden"
+      title="Admin"
+      subtitle={activeTabMeta.label}
+      contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
       onSearchOpen={() => setSearchOpen(true)}
     >
-      <div className="h-full flex flex-col bg-muted/20">
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-          <WorkspaceTabs
-            tabs={TABS}
-            activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
-            desktopWidthClassName="md:w-52"
-            mobileLabelMode="desktop-only"
-            className="bg-muted/30"
-          />
+      <WorkspaceTabs
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+      />
 
-          <main className="flex-1 min-w-0 overflow-auto bg-background">
-            {activeTab === "users" && <UsersTab />}
-            {activeTab === "clients" && <ClientsTab />}
-            {activeTab === "roles" && <RolesTab />}
-            {activeTab === "audit" && <AuditLogTab />}
-          </main>
-        </div>
+      <div className="flex-1 min-w-0 min-h-0 overflow-auto">
+        {activeTab === "users" && <UsersTab />}
+        {activeTab === "clients" && <ClientsTab />}
+        {activeTab === "roles" && <RolesTab />}
+        {activeTab === "audit" && <AuditLogTab />}
       </div>
 
       <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />

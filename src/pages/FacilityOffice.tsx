@@ -16,14 +16,14 @@ import { ClientPricingDialog } from "@/components/pricing/ClientPricingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 const BASE_TABS = [
-  { id: "invoices", label: "Invoices", icon: FileText, subtitle: "Draft, send, and settle invoices" },
-  { id: "estimates", label: "Estimates", icon: ClipboardCheck, subtitle: "Create and send rug estimates" },
-  { id: "clients", label: "Clients", icon: Users, subtitle: "Client accounts and portal access" },
-  { id: "pickups", label: "Pickups", icon: CalendarCheck, subtitle: "Pickup request coordination" },
-  { id: "deliveries", label: "Deliveries", icon: Truck, subtitle: "Route planning and truck checkout" },
+  { id: "invoices", label: "Invoices", icon: FileText },
+  { id: "estimates", label: "Estimates", icon: ClipboardCheck },
+  { id: "clients", label: "Clients", icon: Users },
+  { id: "pickups", label: "Pickups", icon: CalendarCheck },
+  { id: "deliveries", label: "Deliveries", icon: Truck },
 ] as const;
 
-const ADMIN_PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign, subtitle: "Manage service rates" } as const;
+const ADMIN_PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign } as const;
 
 type TabId = "pricing" | (typeof BASE_TABS)[number]["id"];
 
@@ -59,33 +59,26 @@ export default function FacilityOffice() {
 
   return (
     <AppShell
-      title="Office Workspace"
-      subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
-      contentClassName="overflow-hidden"
+      title="Office"
+      subtitle={activeTabMeta.label}
+      contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
       onSearchOpen={() => setSearchOpen(true)}
       actions={<ClientPricingDialog triggerLabel="Price Lookup" />}
     >
-      <div className="h-full flex flex-col bg-muted/20">
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row m-3 mt-3 rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-          <WorkspaceTabs
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabChange={(tabId) => handleTabChange(tabId as TabId)}
-            desktopWidthClassName="md:w-52"
-            mobileLabelMode="desktop-only"
-            className="bg-muted/30"
-          />
+      <WorkspaceTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(tabId) => handleTabChange(tabId as TabId)}
+      />
 
-          <main className="flex-1 min-w-0 overflow-hidden bg-background">
-            {activeTab === "pricing" && canManagePricing && <PricingTab />}
-            {activeTab === "invoices" && <InvoicesTab />}
-            {activeTab === "estimates" && <EstimatesTab />}
-            {activeTab === "clients" && <ClientsTab />}
-            {activeTab === "pickups" && <PickupRequestsTab />}
-            {activeTab === "deliveries" && <DeliveriesTab />}
-          </main>
-        </div>
+      <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+        {activeTab === "pricing" && canManagePricing && <PricingTab />}
+        {activeTab === "invoices" && <InvoicesTab />}
+        {activeTab === "estimates" && <EstimatesTab />}
+        {activeTab === "clients" && <ClientsTab />}
+        {activeTab === "pickups" && <PickupRequestsTab />}
+        {activeTab === "deliveries" && <DeliveriesTab />}
       </div>
 
       <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />

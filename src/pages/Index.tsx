@@ -95,64 +95,58 @@ export default function Index() {
       showHomeLink={false}
       contentClassName="overflow-auto"
     >
-      <div className="max-w-6xl mx-auto w-full px-6 py-6 md:py-8 space-y-6">
-        <section className="rounded-xl border bg-card p-5 md:p-6">
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h2 className="text-2xl font-semibold mt-1">Focus on your top workflows first.</h2>
-          <p className="text-sm text-muted-foreground mt-2">
-            Use recommended actions to jump directly into today&apos;s operations.
+      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-6 space-y-6">
+        {/* Welcome header */}
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold text-foreground">Welcome back</h2>
+          <p className="text-sm text-muted-foreground">
+            Jump into today&apos;s operations with your recommended workflows.
           </p>
-          <div className="flex flex-wrap gap-2 mt-4">
+          <div className="flex flex-wrap items-center gap-1.5 pt-2">
             {orderedRoles.length > 0 ? (
               orderedRoles.map((role) => (
-                <Badge key={role} variant="secondary">
+                <Badge key={role} variant="secondary" className="text-[11px] h-5">
                   {ROLE_LABELS[role]}
                 </Badge>
               ))
             ) : (
-              <Badge variant="outline">Portal access</Badge>
+              <Badge variant="outline" className="text-[11px] h-5">Portal access</Badge>
             )}
-            {isSuperAdmin ? (
-              <Badge className="border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300">
+            {isSuperAdmin && (
+              <Badge variant="outline" className="text-[11px] h-5 border-destructive/30 text-destructive">
                 Superadmin
               </Badge>
-            ) : null}
-            {user?.email ? (
-              <Badge variant="outline" className="hidden sm:inline-flex">
-                {user.email}
-              </Badge>
-            ) : null}
+            )}
           </div>
-        </section>
+        </div>
 
         <OperationalRemindersPanel />
 
+        {/* Recommended actions */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Recommended next actions
-            </h3>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Quick actions
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {fallbackRecommendations.map((section) => {
               const Icon = section.icon;
               return (
                 <Link
                   key={`recommended-${section.to}`}
                   to={section.to}
-                  className="rounded-lg border bg-card p-4 hover:bg-accent transition-colors"
+                  className="group rounded-lg border border-border bg-card p-4 hover:border-primary/30 hover:shadow-sm transition-all"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-semibold">{section.label}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
-                    </div>
-                    <div className="p-2 rounded-md bg-primary/10">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-md bg-primary/8 group-hover:bg-primary/12 transition-colors">
                       <Icon className="h-4 w-4 text-primary" />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{section.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{section.description}</p>
+                    </div>
                   </div>
-                  <div className="pt-3 text-sm font-medium text-primary inline-flex items-center gap-1">
-                    Open workspace <ArrowRight className="h-3.5 w-3.5" />
+                  <div className="mt-3 text-xs font-medium text-primary inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Open <ArrowRight className="h-3 w-3" />
                   </div>
                 </Link>
               );
@@ -160,26 +154,26 @@ export default function Index() {
           </div>
         </section>
 
+        {/* All workspaces */}
         <section className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             All workspaces
           </h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {SECTIONS.map((s, i) => {
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {SECTIONS.map((s) => {
               const Icon = s.icon;
               return (
                 <Link
                   key={s.to}
                   to={s.to}
-                  className="flex items-start gap-4 rounded-lg border border-border bg-card p-5 shadow-card transition-all hover:shadow-medium hover:-translate-y-0.5 animate-fade-in-up"
-                  style={{ animationDelay: `${i * 50}ms`, opacity: 0 }}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/30 hover:shadow-sm transition-all"
                 >
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Icon className="h-5 w-5 text-primary" />
+                  <div className="p-1.5 rounded-md bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div>
-                    <div className="font-semibold text-foreground">{s.label}</div>
-                    <div className="text-sm text-muted-foreground mt-1">{s.description}</div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">{s.label}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.description}</div>
                   </div>
                 </Link>
               );
