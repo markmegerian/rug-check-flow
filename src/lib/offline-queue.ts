@@ -187,8 +187,7 @@ export async function markPhotoUploaded(photo_id: number, public_url: string): P
  */
 export async function getPendingPhotos(): Promise<PendingPhoto[]> {
   return await db.photos
-    .where("uploaded_at")
-    .equals(null)
+    .filter((photo) => photo.uploaded_at === null)
     .sortBy("created_at");
 }
 
