@@ -188,7 +188,25 @@ export function DeliveryPrepTab() {
     }
   };
 
-  const pagination = usePaginatedList(items);
+  const pagination = usePaginatedList(items, 50);
+
+  const confirmAllReady = async () => {
+    const unconfirmedReady = items.filter((i) => !i.confirmed_for_delivery && rugMap[i.rug_id]?.status === "ready");
+    if (unconfirmedReady.length === 0) return;
+    setUpdating("batch");
+    const ids = unconfirmedReady.map((i) => i.id);
+    const { error } = await supabase
+      .from("delivery_list_items")
+      .update({ confirmed_for_delivery: true })
+      .in("id", ids);
+    if (error) {
+      toast({ title: "Batch confirm failed", description: error.message, variant: "destructive" });
+    } else {
+      setItems((prev) => prev.map((i) => ids.includes(i.id) ? { ...i, confirmed_for_delivery: true } : i));
+      toast({ title: `${ids.length} rugs confirmed`, description: "All ready rugs confirmed for delivery." });
+    }
+    setUpdating(null);
+  };
 
   // Group items by route_day and client
   const itemsByRouteAndClient = useMemo(() => {
@@ -228,13 +246,35 @@ export function DeliveryPrepTab() {
 
   return (
     <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Delivery Prep — Tomorrow ({format(new Date(tomorrow + "T00:00:00"), "MMM d, yyyy")})</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totalItems} rugs ready · {confirmedCount} confirmed
-          </p>
+      <div className="flex items-center justify-between mb-4 gap-4">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-foreground">Delivery Prep — {format(new Date(tomorrow + "T00:00:00"), "MMM d")}</h2>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="text-sm text-muted-foreground">
+              {confirmedCount}/{totalItems} confirmed
+            </span>
+            {totalItems > 0 && (
+              <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-green-500 transition-all"
+                  style={{ width: `${(confirmedCount / totalItems) * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
         </div>
+        {totalItems > 0 && confirmedCount < totalItems && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 h-8 text-xs"
+            onClick={confirmAllReady}
+            disabled={updating === "batch"}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+            Confirm All Ready
+          </Button>
+        )}
       </div>
 
       {totalItems === 0 ? (

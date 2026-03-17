@@ -2,6 +2,7 @@ import { useCallback, useEffect, type ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppShellProps {
   title: string;
@@ -54,6 +55,7 @@ export function AppShell({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <NotificationBell />
               {actions}
             </div>
           </header>

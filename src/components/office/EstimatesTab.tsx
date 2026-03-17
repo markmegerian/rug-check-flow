@@ -20,6 +20,7 @@ import {
 } from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
 import type { Tables } from "@/integrations/supabase/types";
+import { generateDocNumber } from "@/lib/checkin-operations";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -158,7 +159,7 @@ export function EstimatesTab() {
     }
 
     const total = services.reduce((sum, service) => sum + Number(service.line_total ?? 0), 0);
-    const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
+    const estimateNumber = generateDocNumber("EST");
 
     const { data: insertedEstimate, error: estErr } = await supabaseExtended
       .from("estimates")

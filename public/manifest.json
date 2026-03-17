@@ -1,0 +1,16 @@
+{
+  "name": "RugBoost",
+  "short_name": "RugBoost",
+  "description": "Rug cleaning operations management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#18181b",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

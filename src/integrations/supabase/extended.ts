@@ -4,11 +4,48 @@ import type { Database, Json } from "@/integrations/supabase/types";
 
 type PickupRequestStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
 type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+type DisputeType = "refused_delivery" | "post_delivery_claim";
+type DisputeStatus = "open" | "investigating" | "resolved" | "credited" | "denied";
 type CommunicationChannel = "email" | "in_app_chat";
 type CommunicationDirection = "outbound" | "inbound";
 type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
 
+type NotificationType = string;
+
 type ExtendedTables = Database["public"]["Tables"] & {
+  notifications: {
+    Row: {
+      id: string;
+      user_id: string;
+      type: NotificationType;
+      title: string;
+      message: string;
+      metadata: Json;
+      read: boolean;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      user_id: string;
+      type: string;
+      title: string;
+      message: string;
+      metadata?: Json;
+      read?: boolean;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      user_id?: string;
+      type?: string;
+      title?: string;
+      message?: string;
+      metadata?: Json;
+      read?: boolean;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
   communication_events: {
     Row: {
       id: string;
@@ -258,6 +295,137 @@ type ExtendedTables = Database["public"]["Tables"] & {
     };
     Relationships: [];
   };
+  rug_photos: {
+    Row: {
+      id: string;
+      rug_id: string;
+      storage_path: string;
+      public_url: string;
+      display_order: number;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      rug_id: string;
+      storage_path: string;
+      public_url: string;
+      display_order?: number;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      rug_id?: string;
+      storage_path?: string;
+      public_url?: string;
+      display_order?: number;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
+  price_overrides: {
+    Row: {
+      id: string;
+      client_id: string | null;
+      inspection_id: string | null;
+      job_id: string | null;
+      service_id: string;
+      service_name: string;
+      original_price: number;
+      adjusted_price: number;
+      override_reason: string;
+      override_notes: string | null;
+      overridden_by: string;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      client_id?: string | null;
+      inspection_id?: string | null;
+      job_id?: string | null;
+      service_id: string;
+      service_name: string;
+      original_price: number;
+      adjusted_price: number;
+      override_reason: string;
+      override_notes?: string | null;
+      overridden_by: string;
+      created_at?: string;
+    };
+    Update: {
+      id?: string;
+      client_id?: string | null;
+      inspection_id?: string | null;
+      job_id?: string | null;
+      service_id?: string;
+      service_name?: string;
+      original_price?: number;
+      adjusted_price?: number;
+      override_reason?: string;
+      override_notes?: string | null;
+      overridden_by?: string;
+      created_at?: string;
+    };
+    Relationships: [];
+  };
+  disputes: {
+    Row: {
+      id: string;
+      rug_id: string;
+      client_id: string;
+      type: DisputeType;
+      status: DisputeStatus;
+      notes: string | null;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: {
+      id?: string;
+      rug_id: string;
+      client_id: string;
+      type: DisputeType;
+      status?: DisputeStatus;
+      notes?: string | null;
+      created_by?: string | null;
+    };
+    Update: {
+      id?: string;
+      rug_id?: string;
+      client_id?: string;
+      type?: DisputeType;
+      status?: DisputeStatus;
+      notes?: string | null;
+    };
+    Relationships: [];
+  };
+  qa_checks: {
+    Row: {
+      id: string;
+      rug_id: string;
+      stage: string;
+      passed: boolean;
+      notes: string | null;
+      checked_by: string | null;
+      created_at: string;
+    };
+    Insert: {
+      id?: string;
+      rug_id: string;
+      stage: string;
+      passed: boolean;
+      notes?: string | null;
+      checked_by?: string | null;
+    };
+    Update: {
+      id?: string;
+      rug_id?: string;
+      stage?: string;
+      passed?: boolean;
+      notes?: string | null;
+      checked_by?: string | null;
+    };
+    Relationships: [];
+  };
   pickup_requests: {
     Row: {
       id: string;
@@ -317,6 +485,8 @@ export type ExtendedDatabase = Omit<Database, "public"> & {
       estimate_status: EstimateStatus;
       payment_attempt_status: PaymentAttemptStatus;
       pickup_request_status: PickupRequestStatus;
+      dispute_type: DisputeType;
+      dispute_status: DisputeStatus;
     };
   };
 };

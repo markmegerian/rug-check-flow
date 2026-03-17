@@ -8,7 +8,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { OfflineQueueProvider } from "@/contexts/OfflineQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingState } from "@/components/states/PageState";
+import { useReminderEngine } from "@/hooks/useReminderEngine";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,9 +38,18 @@ const RouteLoadingFallback = () => (
   </div>
 );
 
+/** Headless component that runs the automated reminder engine within the auth context. */
+const ReminderRunner = () => {
+  useReminderEngine();
+  return null;
+};
+
+
 const App = () => (
+  <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <ReminderRunner />
       <OfflineQueueProvider>
         <TooltipProvider>
           <Toaster />
@@ -104,6 +115,7 @@ const App = () => (
       </OfflineQueueProvider>
     </AuthProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
