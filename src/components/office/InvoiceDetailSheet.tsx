@@ -13,7 +13,7 @@ import {
 import type { Tables } from "@/integrations/supabase/types";
 
 type InvoiceRow = Tables<"invoices"> & {
-  pdf_storage_path: string | null;
+  pdf_storage_path?: string | null;
   clients: { name: string } | null;
   invoice_items: Tables<"invoice_items">[];
 };

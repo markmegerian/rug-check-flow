@@ -90,7 +90,7 @@ export async function maybeAutoCreateEstimateDraft(
     return null;
   }
 
-  const rows = (serviceRows ?? []) as Array<{ id: string; name: string; requires_estimate: boolean | null }>;
+  const rows = (serviceRows ?? []) as unknown as Array<{ id: string; name: string; requires_estimate: boolean | null }>;
   const requiresEstimate = rows.some((row) => Boolean(row.requires_estimate));
   if (!requiresEstimate) return null;
 

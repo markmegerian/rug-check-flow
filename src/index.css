@@ -4,69 +4,51 @@
 
 @layer base {
   :root {
-    --background: 30 25% 97%;
-    --foreground: 20 15% 15%;
+    --background: 0 0% 98.5%;
+    --foreground: 240 10% 3.9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 20 15% 15%;
+    --card-foreground: 240 10% 3.9%;
 
-    --popover: 30 30% 99%;
-    --popover-foreground: 20 15% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
 
-    --primary: 210 70% 45%;
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 220 15% 25%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
 
-    --muted: 220 15% 94%;
-    --muted-foreground: 220 12% 40%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
 
-    --accent: 263 55% 58%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 70% 45%;
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    --info: 210 70% 45%;
+    --info: 239 84% 67%;
     --info-foreground: 0 0% 100%;
 
-    --border: 220 20% 88%;
-    --input: 220 20% 88%;
-    --ring: 210 70% 45%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 239 84% 67%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 220 25% 96%;
-    --sidebar-foreground: 220 15% 25%;
-    --sidebar-primary: 210 70% 45%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 6% 25%;
+    --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 92%;
-    --sidebar-accent-foreground: 220 15% 25%;
-    --sidebar-border: 220 20% 88%;
-    --sidebar-ring: 210 70% 45%;
-
-    /* Brand accent */
-    --brand-blue: 210 70% 45%;
-    --brand-blue-light: 210 65% 55%;
-    --brand-purple: 263 55% 58%;
-    --brand-purple-light: 263 50% 68%;
-    --cream: 220 30% 97%;
-    --cream-dark: 220 25% 92%;
-    --navy: 210 50% 25%;
-    --navy-light: 210 45% 35%;
-    --warm-gray: 220 10% 45%;
-
-    --gradient-warm: linear-gradient(135deg, hsl(210 70% 45%) 0%, hsl(263 55% 58%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220 30% 99%) 0%, hsl(220 25% 95%) 100%);
-
-    --shadow-soft: 0 4px 20px -4px hsl(20 15% 15% / 0.08);
-    --shadow-medium: 0 8px 30px -8px hsl(20 15% 15% / 0.12);
-    --shadow-card: 0 2px 12px -2px hsl(20 15% 15% / 0.06);
+    --sidebar-accent: 240 5% 96%;
+    --sidebar-accent-foreground: 240 6% 10%;
+    --sidebar-border: 240 6% 93%;
+    --sidebar-ring: 239 84% 67%;
 
     --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
@@ -86,22 +68,18 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-sans);
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 
   h1 {
-    font-weight: 800;
-    letter-spacing: -0.03em;
-  }
-
-  h2 {
     font-weight: 700;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.03em;
   }
 
   button, a, [role="button"] {
@@ -110,33 +88,6 @@
 }
 
 @layer utilities {
-  .text-gradient {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .gradient-warm {
-    background: var(--gradient-warm);
-  }
-
-  .gradient-subtle {
-    background: var(--gradient-subtle);
-  }
-
-  .shadow-soft {
-    box-shadow: var(--shadow-soft);
-  }
-
-  .shadow-medium {
-    box-shadow: var(--shadow-medium);
-  }
-
-  .shadow-card {
-    box-shadow: var(--shadow-card);
-  }
-
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;

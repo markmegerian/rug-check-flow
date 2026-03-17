@@ -279,7 +279,7 @@ export function CheckInLayout() {
         const intakeDate = new Date().toISOString();
 
         let jobId: string | null = null;
-        const { data: jobInsert, error: jobError } = await supabase
+        const { data: jobInsert, error: jobError } = await (supabase as any)
           .from("intake_jobs")
           .insert({
             job_code: jobCode,

@@ -25,7 +25,7 @@ const BASE_TABS = [
   { id: "disputes", label: "Disputes", icon: ShieldAlert, subtitle: "Review and resolve delivery disputes" },
 ] as const;
 
-const ADMIN_PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign, subtitle: "Manage service rates" } as const;
+const ADMIN_PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign } as const;
 
 type TabId = "pricing" | "disputes" | (typeof BASE_TABS)[number]["id"];
 
@@ -61,34 +61,27 @@ export default function FacilityOffice() {
 
   return (
     <AppShell
-      title="Office Workspace"
-      subtitle={`${activeTabMeta.label} · ${activeTabMeta.subtitle}`}
-      contentClassName="overflow-hidden"
+      title="Office"
+      subtitle={activeTabMeta.label}
+      contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
       onSearchOpen={() => setSearchOpen(true)}
       actions={<ClientPricingDialog triggerLabel="Price Lookup" />}
     >
-      <div className="h-full flex flex-col">
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row border-t border-border bg-card overflow-hidden">
-          <WorkspaceTabs
-            tabs={tabs}
-            activeTab={activeTab}
-            onTabChange={(tabId) => handleTabChange(tabId as TabId)}
-            desktopWidthClassName="md:w-52"
-            mobileLabelMode="desktop-only"
-            className="bg-muted/30"
-          />
+      <WorkspaceTabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(tabId) => handleTabChange(tabId as TabId)}
+      />
 
-          <main className="flex-1 min-w-0 overflow-hidden bg-background">
-            {activeTab === "pricing" && canManagePricing && <PricingTab />}
-            {activeTab === "invoices" && <InvoicesTab />}
-            {activeTab === "estimates" && <EstimatesTab />}
-            {activeTab === "clients" && <ClientsTab />}
-            {activeTab === "pickups" && <PickupRequestsTab />}
-            {activeTab === "deliveries" && <DeliveriesTab />}
-            {activeTab === "disputes" && <DisputesTab />}
-          </main>
-        </div>
+      <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+        {activeTab === "pricing" && canManagePricing && <PricingTab />}
+        {activeTab === "invoices" && <InvoicesTab />}
+        {activeTab === "estimates" && <EstimatesTab />}
+        {activeTab === "clients" && <ClientsTab />}
+        {activeTab === "pickups" && <PickupRequestsTab />}
+        {activeTab === "deliveries" && <DeliveriesTab />}
+        {activeTab === "disputes" && <DisputesTab />}
       </div>
 
       <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />

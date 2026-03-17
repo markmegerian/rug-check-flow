@@ -20,16 +20,13 @@ export function WorkspaceTabs<T extends string>({
   tabs,
   activeTab,
   onTabChange,
-  desktopWidthClassName = "md:w-48",
   className,
-  mobileLabelMode = "desktop-only",
 }: WorkspaceTabsProps<T>) {
   return (
     <nav
       className={cn(
-        "order-last md:order-first border-t md:border-t-0 md:border-r border-border/80 bg-card/70 backdrop-blur-sm flex md:flex-col shrink-0 z-20 p-1.5 md:p-2 gap-1",
-        desktopWidthClassName,
-        className
+        "flex items-center gap-1 px-3 md:px-4 py-2 border-b border-border bg-card overflow-x-auto scrollbar-hide shrink-0",
+        className,
       )}
     >
       {tabs.map((tab) => {
@@ -40,21 +37,14 @@ export function WorkspaceTabs<T extends string>({
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "flex-1 md:flex-none rounded-lg border flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 px-1.5 py-2 md:px-3 md:py-2.5 text-xs md:text-sm font-medium transition-all",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors shrink-0",
               active
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "text-muted-foreground border-transparent hover:text-foreground hover:bg-background/70"
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted",
             )}
           >
-            <Icon className="h-5 w-5 shrink-0" />
-            <span
-              className={cn(
-                "truncate",
-                mobileLabelMode === "desktop-only" ? "hidden md:inline" : "md:inline"
-              )}
-            >
-              {tab.label}
-            </span>
+            <Icon className="h-3.5 w-3.5" />
+            <span>{tab.label}</span>
           </button>
         );
       })}

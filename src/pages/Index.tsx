@@ -114,6 +114,11 @@ export default function Index() {
             ) : (
               <Badge variant="outline" className="text-[10px]">Portal</Badge>
             )}
+            {isSuperAdmin && (
+              <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
+                Superadmin
+              </Badge>
+            )}
           </div>
         </div>
 
