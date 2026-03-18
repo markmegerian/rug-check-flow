@@ -30,7 +30,9 @@ export function canTransitionPickupStatus(
   current: PickupRequestStatus,
   next: PickupRequestStatus
 ): boolean {
-  return PICKUP_TRANSITIONS[current].includes(next);
+  const allowed = PICKUP_TRANSITIONS[current];
+  if (!allowed) return false;
+  return allowed.includes(next);
 }
 
 export function canRoleTransitionPickupStatus(
@@ -61,7 +63,9 @@ export function canTransitionEstimateStatus(
   current: EstimateStatus,
   next: EstimateStatus
 ): boolean {
-  return ESTIMATE_TRANSITIONS[current].includes(next);
+  const allowed = ESTIMATE_TRANSITIONS[current];
+  if (!allowed) return false;
+  return allowed.includes(next);
 }
 
 export function canRoleTransitionEstimateStatus(

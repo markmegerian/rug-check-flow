@@ -120,6 +120,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Portal-linked logins are client-only accounts and should not land in internal workspaces
     // even if legacy role rows exist.
     const nextIsSuperAdmin = isSuperAdminEmail(nextUser.email);
+    if (portalLink?.client_id && nextIsSuperAdmin) {
+      console.warn(
+        "Super admin email is linked to a portal account. Admin roles preserved, but portal link exists. " +
+        "This may be unintentional — consider removing the portal_users row for this email."
+      );
+    }
     const effectiveRoles = portalLink?.client_id && !nextIsSuperAdmin ? [] : nextRoles;
 
     setRoles(effectiveRoles);
@@ -160,11 +166,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mustChangePassword = Boolean(user?.user_metadata?.must_change_password) || portalMustChangePassword;
 
   const signOut = async () => {
-    await supabase.auth.signOut();
     setRoles([]);
     setPortalClientId(null);
     setPortalOnboardingCompletedAt(null);
     setPortalMustChangePassword(false);
+    userIdRef.current = null;
+    await supabase.auth.signOut();
   };
 
   return (

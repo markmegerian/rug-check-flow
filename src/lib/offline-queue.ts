@@ -38,8 +38,21 @@ class OfflineQueueDB extends Dexie {
 
 const db = new OfflineQueueDB();
 
+/** Detect IndexedDB quota-exceeded errors across browsers. */
+function isQuotaExceededError(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    // Standard name and legacy code
+    return error.name === "QuotaExceededError" || error.code === 22;
+  }
+  if (error instanceof Error) {
+    return error.message.toLowerCase().includes("quota");
+  }
+  return false;
+}
+
 /**
- * Add an event to the offline queue
+ * Add an event to the offline queue.
+ * Wraps IndexedDB writes with quota-exceeded handling.
  */
 export async function addEvent(
   route_stop_id: string,
@@ -58,7 +71,18 @@ export async function addEvent(
     error_message: null,
   };
 
-  await db.events.add(event);
+  try {
+    await db.events.add(event);
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      // Attempt to free space by clearing old synced data, then retry once
+      await clearOldSyncedEvents();
+      await clearOldUploadedPhotos();
+      await db.events.add(event);
+    } else {
+      throw error;
+    }
+  }
   return offline_event_id;
 }
 
@@ -128,16 +152,22 @@ export async function getPendingEventCountForStop(route_stop_id: string): Promis
  * Clear old synced events (older than 7 days)
  */
 export async function clearOldSyncedEvents(): Promise<void> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // Delete events that are synced and older than 7 days
-  const oldEvents = await db.events
-    .where("synced_at")
-    .below(sevenDaysAgo.toISOString())
-    .toArray();
-  
-  await db.events.bulkDelete(oldEvents.map(e => e.id!));
+    const oldEvents = await db.events
+      .where("synced_at")
+      .below(sevenDaysAgo.toISOString())
+      .toArray();
+
+    const ids = oldEvents.map((e) => e.id).filter((id): id is number => id != null);
+    if (ids.length > 0) {
+      await db.events.bulkDelete(ids);
+    }
+  } catch (error) {
+    console.error("Failed to clear old synced events:", error);
+  }
 }
 
 /**
@@ -158,7 +188,16 @@ export async function addPendingPhoto(
     public_url: null,
   };
 
-  return await db.photos.add(photo) as number;
+  try {
+    return await db.photos.add(photo) as number;
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      await clearOldSyncedEvents();
+      await clearOldUploadedPhotos();
+      return await db.photos.add(photo) as number;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -195,14 +234,20 @@ export async function getPendingPhotos(): Promise<PendingPhoto[]> {
  * Clear old uploaded photos (older than 7 days)
  */
 export async function clearOldUploadedPhotos(): Promise<void> {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // Delete photos that are uploaded and older than 7 days
-  const oldPhotos = await db.photos
-    .where("uploaded_at")
-    .below(sevenDaysAgo.toISOString())
-    .toArray();
-  
-  await db.photos.bulkDelete(oldPhotos.map(p => p.id!));
+    const oldPhotos = await db.photos
+      .where("uploaded_at")
+      .below(sevenDaysAgo.toISOString())
+      .toArray();
+
+    const ids = oldPhotos.map((p) => p.id).filter((id): id is number => id != null);
+    if (ids.length > 0) {
+      await db.photos.bulkDelete(ids);
+    }
+  } catch (error) {
+    console.error("Failed to clear old uploaded photos:", error);
+  }
 }

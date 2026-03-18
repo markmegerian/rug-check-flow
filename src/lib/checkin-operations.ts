@@ -20,8 +20,8 @@ export async function uploadCheckinPhoto(rugId: string, file: File): Promise<{ p
 export async function persistRugPhotos(
   rugId: string,
   uploads: Array<{ publicUrl: string; storagePath: string }>,
-): Promise<void> {
-  if (uploads.length === 0) return;
+): Promise<{ detailTableFailed: boolean }> {
+  if (uploads.length === 0) return { detailTableFailed: false };
 
   // Always set first photo on the rugs row for backward compat
   await supabase.from("rugs").update({ photo_url: uploads[0].publicUrl }).eq("id", rugId);
@@ -34,11 +34,13 @@ export async function persistRugPhotos(
     display_order: i,
   }));
 
-  await supabaseExtended.from("rug_photos").insert(rows).then(({ error }) => {
-    if (error) {
-      console.error("rug_photos insert failed (table may not exist yet):", error.message);
-    }
-  });
+  const { error } = await supabaseExtended.from("rug_photos").insert(rows);
+  if (error) {
+    console.error("rug_photos insert failed (table may not exist yet):", error.message);
+    return { detailTableFailed: true };
+  }
+
+  return { detailTableFailed: false };
 }
 
 /** Generate a short random suffix from crypto.randomUUID for collision resistance. */

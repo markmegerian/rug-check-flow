@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 import type { AppRole } from "@/types/app-roles";
 
 interface Props {
@@ -40,7 +42,7 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   const hasAccess = allowedRoles.some((r) => roles.includes(r));
 
   if (!hasAccess && isPortalUser) {
-    return <Navigate to="/portal" replace />;
+    return <PortalRedirect />;
   }
 
   if (!hasAccess) {
@@ -57,4 +59,15 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   }
 
   return <>{children}</>;
+}
+
+/** Notify portal users when they are redirected away from an internal page. */
+function PortalRedirect() {
+  useEffect(() => {
+    toast({
+      title: "Redirected",
+      description: "Your account does not have access to that page.",
+    });
+  }, []);
+  return <Navigate to="/portal" replace />;
 }

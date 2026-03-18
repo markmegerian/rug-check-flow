@@ -15,11 +15,14 @@ export function useRouteStops() {
   const [loading, setLoading] = useState(true);
   const [activeStopId, setActiveStopId] = useState<string | null>(null);
 
-  const today = new Date();
-  const dateWindow = {
-    start: format(subDays(today, 1), "yyyy-MM-dd"),
-    end: format(addDays(today, 1), "yyyy-MM-dd"),
-  };
+  // Use a stable date window that doesn't change on every render
+  const dateWindow = useMemo(() => {
+    const today = new Date();
+    return {
+      start: format(subDays(today, 1), "yyyy-MM-dd"),
+      end: format(addDays(today, 2), "yyyy-MM-dd"), // +2 days to handle timezone edge cases
+    };
+  }, []);
 
   const fetchStops = useCallback(async () => {
     if (!user?.id) {
@@ -192,9 +195,11 @@ export function useRouteStops() {
 
           if (error) {
             console.error("Failed to mark item as loaded:", error);
+            toast({ title: "Warning", description: "Item verified but truck-load status failed to update", variant: "destructive" });
           }
         } catch (err) {
           console.error("Error marking item as loaded:", err);
+          toast({ title: "Warning", description: "Item verified but truck-load status failed to update", variant: "destructive" });
         }
       }
 

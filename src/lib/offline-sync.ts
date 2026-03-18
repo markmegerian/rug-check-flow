@@ -10,7 +10,10 @@ import {
 } from "./offline-queue";
 
 const BATCH_SIZE = 10; // Process events in batches
+const PHOTO_BATCH_SIZE = 5; // Process photos in batches
 const SYNC_INTERVAL_MS = 5000; // Sync every 5 seconds when online
+const MAX_PHOTO_RETRIES = 3;
+const PHOTO_RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays
 
 /**
  * Upload a photo to Supabase storage and return public URL
@@ -33,29 +36,64 @@ async function uploadPhoto(photo: PendingPhoto): Promise<string> {
 }
 
 /**
- * Sync pending photos
+ * Upload a photo with retry logic and exponential backoff.
+ */
+async function uploadPhotoWithRetry(photo: PendingPhoto): Promise<string> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= MAX_PHOTO_RETRIES; attempt++) {
+    try {
+      return await uploadPhoto(photo);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < MAX_PHOTO_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, PHOTO_RETRY_DELAYS[attempt]));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Sync pending photos in batches with retry logic.
  */
 export async function syncPendingPhotos(): Promise<{ uploaded: number; failed: number }> {
   const pendingPhotos = await getPendingPhotos();
   let uploaded = 0;
   let failed = 0;
 
-  for (const photo of pendingPhotos) {
-    try {
-      const publicUrl = await uploadPhoto(photo);
-      await markPhotoUploaded(photo.id!, publicUrl);
+  // Process photos in batches
+  for (let i = 0; i < pendingPhotos.length; i += PHOTO_BATCH_SIZE) {
+    const batch = pendingPhotos.slice(i, i + PHOTO_BATCH_SIZE);
 
-      // Emit PHOTO_ATTACHED event
-      const { addEvent } = await import("./offline-queue");
-      await addEvent(photo.route_stop_id, "PHOTO_ATTACHED", {
-        route_stop_item_id: photo.route_stop_item_id,
-        photo_url: publicUrl,
-      });
+    for (const photo of batch) {
+      if (photo.id == null) {
+        console.error("Skipping photo with missing id");
+        failed++;
+        continue;
+      }
 
-      uploaded++;
-    } catch (error) {
-      console.error(`Failed to upload photo ${photo.id}:`, error);
-      failed++;
+      try {
+        const publicUrl = await uploadPhotoWithRetry(photo);
+        await markPhotoUploaded(photo.id, publicUrl);
+
+        // Emit PHOTO_ATTACHED event — if this fails, the photo is still marked
+        // uploaded but the event won't be created. We catch and log so the photo
+        // upload is not lost.
+        try {
+          const { addEvent } = await import("./offline-queue");
+          await addEvent(photo.route_stop_id, "PHOTO_ATTACHED", {
+            route_stop_item_id: photo.route_stop_item_id,
+            photo_url: publicUrl,
+          });
+        } catch (eventError) {
+          console.error(`Photo ${photo.id} uploaded but PHOTO_ATTACHED event failed:`, eventError);
+        }
+
+        uploaded++;
+      } catch (error) {
+        console.error(`Failed to upload photo ${photo.id} after ${MAX_PHOTO_RETRIES} retries:`, error);
+        failed++;
+      }
     }
   }
 
