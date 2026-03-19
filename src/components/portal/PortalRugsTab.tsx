@@ -1,65 +1,45 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import type { Enums } from "@/integrations/supabase/types";
+import {
+  supabaseExtended,
+} from "@/integrations/supabase/extended";
+import {
+  type RugRow,
+  ACTIVE_STATUSES,
+} from "./portal-rug-types";
+import PortalRugCard from "./PortalRugCard";
+import PortalRugDetailPanel from "./PortalRugDetailPanel";
 
-type PortalStatus = "in_progress" | "ready" | "delivered";
-type Filter = "all" | PortalStatus;
-type RugStatus = Enums<"rug_status">;
-
-type RugRow = {
-  id: string;
-  tag: string;
-  description: string;
-  services: string[];
-  size_length: number | null;
-  size_width: number | null;
-  checked_in_at: string;
-  status: RugStatus;
-};
-
-type PortalRug = {
-  id: string;
-  rugNumber: string;
-  rugType: string;
-  services: string[];
-  status: PortalStatus;
-  length: number;
-  width: number;
-  checkedInDate: string;
-};
-
-const STATUS_LABELS: Record<PortalStatus, string> = {
-  in_progress: "In Progress",
-  ready: "Ready",
-  delivered: "Delivered",
-};
-
-const STATUS_VARIANTS: Record<PortalStatus, "default" | "secondary" | "outline"> = {
-  in_progress: "default",
-  ready: "secondary",
-  delivered: "outline",
-};
-
-const mapRugStatus = (status: RugStatus): PortalStatus => {
-  if (status === "ready") return "ready";
-  if (status === "picked_up") return "delivered";
-  return "in_progress";
+type PickupGroup = {
+  label: string;
+  date: string | null;
+  rugIds: Set<string>;
 };
 
 export default function PortalRugsTab() {
   const { toast } = useToast();
   const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
-  const [filter, setFilter] = useState<Filter>("all");
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [rugs, setRugs] = useState<PortalRug[]>([]);
+  const [rugs, setRugs] = useState<RugRow[]>([]);
+  const [selectedRug, setSelectedRug] = useState<RugRow | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pickupGroups, setPickupGroups] = useState<PickupGroup[]>([]);
 
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Load rugs
   useEffect(() => {
     if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
@@ -72,8 +52,9 @@ export default function PortalRugsTab() {
       setLoading(true);
       const { data, error } = await supabase
         .from("rugs")
-        .select("id, tag, description, services, size_length, size_width, checked_in_at, status")
+        .select("id, tag, description, services, size_length, size_width, checked_in_at, status, notes, photo_url")
         .eq("client_id", clientId)
+        .in("status", ACTIVE_STATUSES)
         .order("checked_in_at", { ascending: false })
         .limit(250)
         .returns<RugRow[]>();
@@ -83,40 +64,95 @@ export default function PortalRugsTab() {
         setRugs([]); setLoading(false); return;
       }
 
-      setRugs((data ?? []).map((rug) => ({
-        id: rug.id,
-        rugNumber: rug.tag,
-        rugType: rug.description || "Rug",
-        services: rug.services ?? [],
-        status: mapRugStatus(rug.status),
-        length: Number(rug.size_length ?? 0),
-        width: Number(rug.size_width ?? 0),
-        checkedInDate: rug.checked_in_at,
-      })));
+      const loadedRugs = data ?? [];
+      setRugs(loadedRugs);
+
+      // Load pickup grouping
+      await loadPickupGroups(clientId, loadedRugs);
       setLoading(false);
     };
 
     loadRugs();
   }, [clientId, errorMessage, portalClientLoading, toast]);
 
-  const counts = useMemo(() => ({
-    total: rugs.length,
-    in_progress: rugs.filter((r) => r.status === "in_progress").length,
-    ready: rugs.filter((r) => r.status === "ready").length,
-    delivered: rugs.filter((r) => r.status === "delivered").length,
-  }), [rugs]);
+  const loadPickupGroups = useCallback(async (activeClientId: string, activeRugs: RugRow[]) => {
+    const { data: pickupData } = await supabaseExtended
+      .from("pickup_requests")
+      .select("id, scheduled_date, status")
+      .eq("client_id", activeClientId)
+      .in("status", ["pending", "confirmed"])
+      .order("scheduled_date", { ascending: true })
+      .limit(10);
 
-  const filtered = filter === "all" ? rugs : rugs.filter((r) => r.status === filter);
-  const pagination = usePaginatedList(filtered);
-  const { resetPage } = pagination;
-  useEffect(() => { resetPage(); }, [filter, resetPage]);
+    if (!pickupData || pickupData.length === 0) {
+      setPickupGroups([]);
+      return;
+    }
 
-  const filters: { key: Filter; label: string; count: number }[] = [
-    { key: "all", label: "All", count: counts.total },
-    { key: "in_progress", label: "In Progress", count: counts.in_progress },
-    { key: "ready", label: "Ready", count: counts.ready },
-    { key: "delivered", label: "Delivered", count: counts.delivered },
-  ];
+    const pickupIds = pickupData.map((p) => p.id);
+    const { data: itemData } = await supabaseExtended
+      .from("pickup_request_items")
+      .select("pickup_request_id, rug_number")
+      .in("pickup_request_id", pickupIds);
+
+    const rugTagToId = new Map(activeRugs.map((r) => [r.tag, r.id]));
+    const groups: PickupGroup[] = [];
+
+    for (const pickup of pickupData) {
+      const items = (itemData ?? []).filter((i) => i.pickup_request_id === pickup.id);
+      const rugIds = new Set<string>();
+      for (const item of items) {
+        const id = rugTagToId.get(item.rug_number);
+        if (id) rugIds.add(id);
+      }
+      if (rugIds.size > 0) {
+        const d = new Date(`${pickup.scheduled_date}T12:00:00`);
+        const label = Number.isNaN(d.getTime())
+          ? "Upcoming pickup"
+          : d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+        groups.push({ label, date: pickup.scheduled_date, rugIds });
+      }
+    }
+
+    setPickupGroups(groups);
+  }, []);
+
+  // Filter rugs by search
+  const filteredRugs = useMemo(() => {
+    if (!debouncedSearch) return rugs;
+    const q = debouncedSearch.toLowerCase();
+    return rugs.filter((r) => r.tag.toLowerCase().includes(q));
+  }, [rugs, debouncedSearch]);
+
+  const pagination = usePaginatedList(filteredRugs);
+
+  // Build grouped view
+  const groupedView = useMemo(() => {
+    if (debouncedSearch) return null; // search mode: flat list
+
+    const assigned = new Set<string>();
+    const sections: { label: string; rugs: RugRow[] }[] = [];
+
+    for (const group of pickupGroups) {
+      const groupRugs = rugs.filter((r) => group.rugIds.has(r.id));
+      groupRugs.forEach((r) => assigned.add(r.id));
+      if (groupRugs.length > 0) {
+        sections.push({ label: group.label, rugs: groupRugs });
+      }
+    }
+
+    const other = rugs.filter((r) => !assigned.has(r.id));
+    if (other.length > 0) {
+      sections.push({ label: "Other active rugs", rugs: other });
+    }
+
+    return sections.length > 0 ? sections : null;
+  }, [rugs, pickupGroups, debouncedSearch]);
+
+  const handleCardClick = (rug: RugRow) => {
+    setSelectedRug(rug);
+    setPanelOpen(true);
+  };
 
   if (portalClientLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading rugs…</div>;
@@ -133,7 +169,7 @@ export default function PortalRugsTab() {
   if (rugs.length === 0) {
     return (
       <div className="text-sm text-muted-foreground space-y-1">
-        <p>No rugs available yet.</p>
+        <p>No active rugs right now.</p>
         <p>To schedule a pickup for new rugs, use the Pickups tab.</p>
       </div>
     );
@@ -141,73 +177,82 @@ export default function PortalRugsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1.5">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filter === f.key
-                ? "bg-foreground text-background"
-                : "bg-background border border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {f.label} · {f.count}
-          </button>
-        ))}
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by rug number…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
-      <div className="rounded-lg border bg-background divide-y">
-        {pagination.items.map((rug) => {
-          const isExpanded = expandedRow === rug.id;
-          return (
-            <div key={rug.id}>
-              <button
-                onClick={() => setExpandedRow(isExpanded ? null : rug.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-              >
-                <span className="text-muted-foreground">
-                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                </span>
-                <span className="text-sm font-medium w-20 shrink-0">{rug.rugNumber}</span>
-                <span className="text-sm text-muted-foreground w-20 shrink-0">{rug.rugType}</span>
-                <span className="text-sm text-muted-foreground flex-1 truncate hidden sm:block">
-                  {rug.services.join(", ")}
-                </span>
-                <Badge variant={STATUS_VARIANTS[rug.status]} className="text-[11px] shrink-0">
-                  {STATUS_LABELS[rug.status]}
-                </Badge>
-              </button>
-              {isExpanded && (
-                <div className="px-4 pb-3 pl-12 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm">
-                  <div>
-                    <span className="text-muted-foreground text-xs">Size</span>
-                    <p>{rug.length}' × {rug.width}'</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs">Checked in</span>
-                    <p>{new Date(rug.checkedInDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <span className="text-muted-foreground text-xs">Services</span>
-                    <p>{rug.services.join(", ")}</p>
-                  </div>
-                </div>
-              )}
+      {/* Search results (flat list) */}
+      {debouncedSearch ? (
+        <>
+          {pagination.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No rugs matching &ldquo;{debouncedSearch}&rdquo;</p>
+          ) : (
+            <div className="space-y-2">
+              {pagination.items.map((rug) => (
+                <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
+              ))}
             </div>
-          );
-        })}
-      </div>
+          )}
+          <PaginationControls
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            hasPrev={pagination.hasPrev}
+            hasNext={pagination.hasNext}
+            onPrev={pagination.prevPage}
+            onNext={pagination.nextPage}
+            label="rugs"
+          />
+        </>
+      ) : groupedView ? (
+        /* Grouped by pickup date */
+        <div className="space-y-6">
+          {groupedView.map((section) => (
+            <div key={section.label}>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                {section.label}
+              </h3>
+              <div className="space-y-2">
+                {section.rugs.map((rug) => (
+                  <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Flat list with pagination */
+        <>
+          <div className="space-y-2">
+            {pagination.items.map((rug) => (
+              <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
+            ))}
+          </div>
+          <PaginationControls
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            hasPrev={pagination.hasPrev}
+            hasNext={pagination.hasNext}
+            onPrev={pagination.prevPage}
+            onNext={pagination.nextPage}
+            label="rugs"
+          />
+        </>
+      )}
 
-      <PaginationControls
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        total={pagination.total}
-        hasPrev={pagination.hasPrev}
-        hasNext={pagination.hasNext}
-        onPrev={pagination.prevPage}
-        onNext={pagination.nextPage}
-        label="rugs"
+      {/* Detail side panel */}
+      <PortalRugDetailPanel
+        rug={selectedRug}
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
       />
     </div>
   );
