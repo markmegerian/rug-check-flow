@@ -381,7 +381,7 @@ export default function PortalPickupsTab() {
     const insertItems = draftRugs.map((rug) => ({
       pickup_request_id: nextPendingPickup.id,
       rug_number: rug.label.trim(),
-      rug_type: (rug.rugType ?? "").trim() || null,
+      rug_type: (rug.rugType ?? "").trim() || "",
       length: rug.length > 0 ? rug.length : null,
       width: rug.width > 0 ? rug.width : null,
       is_new: true,
