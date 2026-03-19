@@ -120,14 +120,17 @@ export default function PortalPickupsTab() {
   const pastPickupsPagination = usePaginatedList(pastPickups);
 
   const isLocked = nextPendingPickup?.status === "confirmed";
+  const [expandedRugId, setExpandedRugId] = useState<string | null>(null);
 
   /* ---- Draft rug CRUD ---- */
 
   const addDraftRug = useCallback(() => {
+    const newId = `nr-${Date.now()}`;
     setDraftRugs((prev) => [
       ...prev,
-      { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0, requestedServices: [], estimateRequested: false, estimateDetails: "" },
+      { id: newId, label: "", rugType: "", length: 0, width: 0, requestedServices: [], estimateRequested: false, estimateDetails: "" },
     ]);
+    setExpandedRugId(newId);
   }, []);
 
   const updateDraftRug = useCallback((id: string, field: keyof PickupRugEntry, value: string | number | boolean) => {
@@ -523,129 +526,166 @@ export default function PortalPickupsTab() {
                 <div className="space-y-4">
                   <h3 className="text-sm font-medium text-foreground">Which rugs are we picking up?</h3>
 
-                  <div className="space-y-3">
-                    {draftRugs.map((rug) => (
-                      <div key={rug.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                        {/* Card header with rug number and remove button */}
-                        <div className="flex items-center justify-between gap-2 bg-muted/40 px-4 py-2 border-b">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <label className="text-xs font-medium text-muted-foreground shrink-0">Rug #</label>
-                            <Input
-                              placeholder="e.g. 1234"
-                              value={rug.label}
-                              onChange={(e) => updateDraftRug(rug.id, "label", numericOnly(e.target.value))}
-                              className={`h-8 w-28 font-mono ${isDuplicateRugNumber(rug.id, rug.label) ? "border-destructive" : ""}`}
-                            />
-                            {isDuplicateRugNumber(rug.id, rug.label) && (
-                              <span className="text-xs text-destructive shrink-0">Duplicate</span>
+                  <div className="space-y-2">
+                    {draftRugs.map((rug) => {
+                      const isExpanded = expandedRugId === rug.id;
+                      const summaryParts: string[] = [];
+                      if (rug.rugType) summaryParts.push(rug.rugType);
+                      if (rug.length > 0 || rug.width > 0) summaryParts.push(`${rug.length || 0}' × ${rug.width || 0}'`);
+                      const serviceCount = (rug.requestedServices ?? []).length;
+
+                      return (
+                        <div key={rug.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                          {/* Collapsed / header row — always visible */}
+                          <div
+                            className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                            onClick={() => setExpandedRugId(isExpanded ? null : rug.id)}
+                          >
+                            <span className="text-muted-foreground shrink-0">
+                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            </span>
+                            <span className="text-sm font-semibold font-mono shrink-0">
+                              {rug.label ? `#${rug.label}` : "New rug"}
+                            </span>
+                            {!isExpanded && summaryParts.length > 0 && (
+                              <span className="text-xs text-muted-foreground truncate">
+                                {summaryParts.join(" · ")}
+                              </span>
                             )}
-                          </div>
-                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeDraftRug(rug.id)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="p-4 space-y-4">
-                          {/* Row 1: Rug type + dimensions */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                              <label className="text-xs text-muted-foreground block mb-1">Rug type</label>
-                              <Select
-                                value={rug.rugType || undefined}
-                                onValueChange={(v) => updateDraftRug(rug.id, "rugType", v)}
-                              >
-                                <SelectTrigger className="h-9">
-                                  <SelectValue placeholder="Select type…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {RUG_TYPES.map((t) => (
-                                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground block mb-1">Length (ft)</label>
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                placeholder="e.g. 9.10"
-                                value={rug.length > 0 ? rug.length : ""}
-                                onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="h-9"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-muted-foreground block mb-1">Width (ft)</label>
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                placeholder="e.g. 2.09"
-                                value={rug.width > 0 ? rug.width : ""}
-                                onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="h-9"
-                              />
-                            </div>
+                            {!isExpanded && serviceCount > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
+                                {serviceCount} service{serviceCount !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            <div className="flex-1" />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0"
+                              onClick={(e) => { e.stopPropagation(); removeDraftRug(rug.id); }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
                           </div>
 
-                          {/* Row 2: Requested services */}
-                          <div>
-                            <label className="text-xs text-muted-foreground block mb-1.5">Requested services</label>
-                            {SERVICE_CATEGORIES.map((cat) => {
-                              const catServices = SERVICES.filter((s) => s.category === cat);
-                              if (catServices.length === 0) return null;
-                              return (
-                                <div key={cat} className="mb-2">
-                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{cat}</span>
-                                  <div className="flex flex-wrap gap-1.5 mt-1">
-                                    {catServices.map((svc) => {
-                                      const selected = (rug.requestedServices ?? []).includes(svc.name);
-                                      return (
-                                        <button
-                                          key={svc.id}
-                                          type="button"
-                                          onClick={() => toggleDraftRugService(rug.id, svc.name)}
-                                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                                            selected
-                                              ? "bg-primary text-primary-foreground"
-                                              : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                          }`}
-                                        >
-                                          {svc.name}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
+                          {/* Expanded body */}
+                          {isExpanded && (
+                            <div className="border-t p-4 space-y-4">
+                              {/* Row 1: Rug number + type + dimensions */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="text-xs text-muted-foreground block mb-1">Rug #</label>
+                                  <Input
+                                    placeholder="e.g. 1234"
+                                    value={rug.label}
+                                    onChange={(e) => updateDraftRug(rug.id, "label", numericOnly(e.target.value))}
+                                    className={`h-9 font-mono ${isDuplicateRugNumber(rug.id, rug.label) ? "border-destructive" : ""}`}
+                                  />
+                                  {isDuplicateRugNumber(rug.id, rug.label) && (
+                                    <p className="text-xs text-destructive mt-0.5">Duplicate</p>
+                                  )}
                                 </div>
-                              );
-                            })}
-                          </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground block mb-1">Rug type</label>
+                                  <Select
+                                    value={rug.rugType || undefined}
+                                    onValueChange={(v) => updateDraftRug(rug.id, "rugType", v)}
+                                  >
+                                    <SelectTrigger className="h-9">
+                                      <SelectValue placeholder="Select type…" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {RUG_TYPES.map((t) => (
+                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground block mb-1">Length (ft)</label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    placeholder="e.g. 9.10"
+                                    value={rug.length > 0 ? rug.length : ""}
+                                    onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseFloat(e.target.value) || 0))}
+                                    className="h-9"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground block mb-1">Width (ft)</label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    placeholder="e.g. 2.09"
+                                    value={rug.width > 0 ? rug.width : ""}
+                                    onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseFloat(e.target.value) || 0))}
+                                    className="h-9"
+                                  />
+                                </div>
+                              </div>
 
-                          {/* Row 3: Estimate / additional notes */}
-                          {supportsEstimateFields && (
-                            <div>
-                              <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground mb-1.5">
-                                <Checkbox
-                                  checked={rug.estimateRequested ?? false}
-                                  onCheckedChange={(c) => updateDraftRug(rug.id, "estimateRequested", Boolean(c))}
-                                />
-                                <span>Request estimate for additional work</span>
-                              </label>
-                              {(rug.estimateRequested ?? false) && (
-                                <Input
-                                  placeholder="Describe what you need…"
-                                  value={rug.estimateDetails ?? ""}
-                                  onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
-                                  className="h-9 text-sm"
-                                />
+                              {/* Row 2: Requested services */}
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1.5">Requested services</label>
+                                {SERVICE_CATEGORIES.map((cat) => {
+                                  const catServices = SERVICES.filter((s) => s.category === cat);
+                                  if (catServices.length === 0) return null;
+                                  return (
+                                    <div key={cat} className="mb-2">
+                                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{cat}</span>
+                                      <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {catServices.map((svc) => {
+                                          const selected = (rug.requestedServices ?? []).includes(svc.name);
+                                          return (
+                                            <button
+                                              key={svc.id}
+                                              type="button"
+                                              onClick={() => toggleDraftRugService(rug.id, svc.name)}
+                                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                                selected
+                                                  ? "bg-primary text-primary-foreground"
+                                                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                              }`}
+                                            >
+                                              {svc.name}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Row 3: Estimate / additional notes */}
+                              {supportsEstimateFields && (
+                                <div>
+                                  <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground mb-1.5">
+                                    <Checkbox
+                                      checked={rug.estimateRequested ?? false}
+                                      onCheckedChange={(c) => updateDraftRug(rug.id, "estimateRequested", Boolean(c))}
+                                    />
+                                    <span>Request estimate for additional work</span>
+                                  </label>
+                                  {(rug.estimateRequested ?? false) && (
+                                    <Input
+                                      placeholder="Describe what you need…"
+                                      value={rug.estimateDetails ?? ""}
+                                      onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
+                                      className="h-9 text-sm"
+                                    />
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     <Button type="button" variant="outline" size="sm" onClick={addDraftRug} className="w-full sm:w-auto">
                       <Plus className="mr-1.5 h-3.5 w-3.5" />
