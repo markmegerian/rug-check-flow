@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
@@ -10,12 +9,11 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { Search } from "lucide-react";
 
 import { PortalRugDetailPanel } from "./PortalRugDetailPanel";
+import { PortalRugCard } from "./PortalRugCard";
 import {
   type RugRow,
   type EstimateRow,
   type EstimateItemRow,
-  STATUS_LABELS,
-  STATUS_VARIANTS,
   ACTIVE_STATUSES,
   formatDate,
 } from "./portal-rug-types";
@@ -328,25 +326,6 @@ export default function PortalRugsTab() {
   // ------ Build page set for grouped view ------
   const pageRugIds = new Set(pagination.items.map((r) => r.id));
 
-  // ------ Render helpers ------
-
-  const renderRugRow = (rug: RugRow) => (
-    <button
-      key={rug.id}
-      onClick={() => handleSelectRug(rug)}
-      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors cursor-pointer"
-    >
-      <span className="text-sm font-medium w-20 shrink-0">{rug.tag}</span>
-      <span className="text-sm text-muted-foreground w-24 shrink-0 truncate">{rug.description || "Rug"}</span>
-      <span className="text-sm text-muted-foreground flex-1 truncate hidden sm:block">
-        {rug.services.join(", ")}
-      </span>
-      <Badge variant={STATUS_VARIANTS[rug.status]} className="text-[11px] shrink-0">
-        {STATUS_LABELS[rug.status]}
-      </Badge>
-    </button>
-  );
-
   // ------ Main render ------
 
   return (
@@ -364,13 +343,15 @@ export default function PortalRugsTab() {
 
       {/* Results */}
       {isSearching ? (
-        // Search mode: flat list
+        // Search mode: flat card list
         searchResults.length === 0 ? (
           <p className="text-sm text-muted-foreground">No rugs matching "{debouncedSearch}".</p>
         ) : (
           <>
-            <div className="rounded-lg border bg-background divide-y">
-              {pagination.items.map(renderRugRow)}
+            <div className="space-y-2">
+              {pagination.items.map((rug) => (
+                <PortalRugCard key={rug.id} rug={rug} onClick={() => handleSelectRug(rug)} />
+              ))}
             </div>
             <PaginationControls
               page={pagination.page}
@@ -393,13 +374,13 @@ export default function PortalRugsTab() {
             const visibleRugs = group.rugs.filter((r) => pageRugIds.has(r.id));
             if (visibleRugs.length === 0) return null;
             return (
-              <div key={group.sortKey}>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">
+              <div key={group.sortKey} className="space-y-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
                   {group.label}
                 </h3>
-                <div className="rounded-lg border bg-background divide-y">
-                  {visibleRugs.map(renderRugRow)}
-                </div>
+                {visibleRugs.map((rug) => (
+                  <PortalRugCard key={rug.id} rug={rug} onClick={() => handleSelectRug(rug)} />
+                ))}
               </div>
             );
           })}
