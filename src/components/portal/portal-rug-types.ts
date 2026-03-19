@@ -60,6 +60,12 @@ export const STATUS_VARIANTS: Record<RugStatus, "default" | "secondary" | "outli
 
 export const ACTIVE_STATUSES: RugStatus[] = ["checked_in", "in_production", "ready"];
 
+export const PROGRESS_STEPS: { key: RugStatus; label: string }[] = [
+  { key: "checked_in", label: "Checked In" },
+  { key: "in_production", label: "In Production" },
+  { key: "ready", label: "Ready" },
+];
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
