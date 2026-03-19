@@ -17,6 +17,7 @@ export interface PickupRugEntry {
   rugType: string;
   length: number;
   width: number;
+  requestedServices?: string[];
   estimateRequested?: boolean;
   estimateDetails?: string;
 }

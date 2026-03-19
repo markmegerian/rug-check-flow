@@ -4,9 +4,17 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { type PortalPickup, type PickupRugEntry } from "@/types/portal";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, ChevronRight, Lock, Plus, Truck, X } from "lucide-react";
+import { RUG_TYPES, SERVICES, SERVICE_CATEGORIES } from "@/data/services";
 import {
   supabaseExtended,
   type ExtendedTableInsert,
@@ -118,7 +126,7 @@ export default function PortalPickupsTab() {
   const addDraftRug = useCallback(() => {
     setDraftRugs((prev) => [
       ...prev,
-      { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0, estimateRequested: false, estimateDetails: "" },
+      { id: `nr-${Date.now()}`, label: "", rugType: "", length: 0, width: 0, requestedServices: [], estimateRequested: false, estimateDetails: "" },
     ]);
   }, []);
 
@@ -128,6 +136,21 @@ export default function PortalPickupsTab() {
 
   const removeDraftRug = useCallback((id: string) => {
     setDraftRugs((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  const toggleDraftRugService = useCallback((rugId: string, serviceName: string) => {
+    setDraftRugs((prev) =>
+      prev.map((r) => {
+        if (r.id !== rugId) return r;
+        const services = r.requestedServices ?? [];
+        return {
+          ...r,
+          requestedServices: services.includes(serviceName)
+            ? services.filter((s) => s !== serviceName)
+            : [...services, serviceName],
+        };
+      }),
+    );
   }, []);
 
   /** Check for duplicate rug numbers among draft rugs (numeric comparison). */
@@ -152,6 +175,7 @@ export default function PortalPickupsTab() {
     setDraftRugs(
       nextPendingPickup.newRugs.map((r) => ({
         ...r,
+        requestedServices: r.requestedServices ?? [],
         estimateRequested: r.estimateRequested ?? false,
         estimateDetails: r.estimateDetails ?? "",
       })),
@@ -378,17 +402,27 @@ export default function PortalPickupsTab() {
     }
 
     // Insert fresh items
-    const insertItems = draftRugs.map((rug) => ({
-      pickup_request_id: nextPendingPickup.id,
-      rug_number: rug.label.trim(),
-      rug_type: (rug.rugType ?? "").trim() || "",
-      length: rug.length > 0 ? rug.length : null,
-      width: rug.width > 0 ? rug.width : null,
-      is_new: true,
-      ...(supportsEstimateFields
-        ? { estimate_requested: rug.estimateRequested ?? false, estimate_request_details: (rug.estimateDetails ?? "").trim() || null }
-        : {}),
-    }));
+    const insertItems = draftRugs.map((rug) => {
+      // Build details string: combine requested services and free-text details
+      const parts: string[] = [];
+      const services = rug.requestedServices ?? [];
+      if (services.length > 0) parts.push(`Services: ${services.join(", ")}`);
+      const details = (rug.estimateDetails ?? "").trim();
+      if (details) parts.push(details);
+      const combinedDetails = parts.join(" | ") || null;
+
+      return {
+        pickup_request_id: nextPendingPickup.id,
+        rug_number: rug.label.trim(),
+        rug_type: (rug.rugType ?? "").trim() || "",
+        length: rug.length > 0 ? rug.length : null,
+        width: rug.width > 0 ? rug.width : null,
+        is_new: true,
+        ...(supportsEstimateFields
+          ? { estimate_requested: (rug.estimateRequested ?? false) || services.length > 0, estimate_request_details: combinedDetails }
+          : {}),
+      };
+    });
 
     if (insertItems.length > 0) {
       const { error: insertErr } = await supabaseExtended.from("pickup_request_items").insert(insertItems);
@@ -486,70 +520,134 @@ export default function PortalPickupsTab() {
               </div>
 
               {!isLocked && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <h3 className="text-sm font-medium text-foreground">Which rugs are we picking up?</h3>
 
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {draftRugs.map((rug) => (
-                      <div key={rug.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
-                        <div className="flex flex-col gap-0.5 flex-1 min-w-[120px]">
-                          <Input
-                            placeholder="Rug number"
-                            value={rug.label}
-                            onChange={(e) => updateDraftRug(rug.id, "label", numericOnly(e.target.value))}
-                            className={isDuplicateRugNumber(rug.id, rug.label) ? "border-destructive" : ""}
-                          />
-                          {isDuplicateRugNumber(rug.id, rug.label) && (
-                            <p className="text-xs text-destructive">This rug is already on this pickup.</p>
+                      <div key={rug.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                        {/* Card header with rug number and remove button */}
+                        <div className="flex items-center justify-between gap-2 bg-muted/40 px-4 py-2 border-b">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <label className="text-xs font-medium text-muted-foreground shrink-0">Rug #</label>
+                            <Input
+                              placeholder="e.g. 1234"
+                              value={rug.label}
+                              onChange={(e) => updateDraftRug(rug.id, "label", numericOnly(e.target.value))}
+                              className={`h-8 w-28 font-mono ${isDuplicateRugNumber(rug.id, rug.label) ? "border-destructive" : ""}`}
+                            />
+                            {isDuplicateRugNumber(rug.id, rug.label) && (
+                              <span className="text-xs text-destructive shrink-0">Duplicate</span>
+                            )}
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeDraftRug(rug.id)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                          {/* Row 1: Rug type + dimensions */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-xs text-muted-foreground block mb-1">Rug type</label>
+                              <Select
+                                value={rug.rugType || undefined}
+                                onValueChange={(v) => updateDraftRug(rug.id, "rugType", v)}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue placeholder="Select type…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {RUG_TYPES.map((t) => (
+                                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground block mb-1">Length (ft)</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                placeholder="e.g. 9.10"
+                                value={rug.length > 0 ? rug.length : ""}
+                                onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-muted-foreground block mb-1">Width (ft)</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                placeholder="e.g. 2.09"
+                                value={rug.width > 0 ? rug.width : ""}
+                                onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="h-9"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 2: Requested services */}
+                          <div>
+                            <label className="text-xs text-muted-foreground block mb-1.5">Requested services</label>
+                            {SERVICE_CATEGORIES.map((cat) => {
+                              const catServices = SERVICES.filter((s) => s.category === cat);
+                              if (catServices.length === 0) return null;
+                              return (
+                                <div key={cat} className="mb-2">
+                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{cat}</span>
+                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                    {catServices.map((svc) => {
+                                      const selected = (rug.requestedServices ?? []).includes(svc.name);
+                                      return (
+                                        <button
+                                          key={svc.id}
+                                          type="button"
+                                          onClick={() => toggleDraftRugService(rug.id, svc.name)}
+                                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                            selected
+                                              ? "bg-primary text-primary-foreground"
+                                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                          }`}
+                                        >
+                                          {svc.name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Row 3: Estimate / additional notes */}
+                          {supportsEstimateFields && (
+                            <div>
+                              <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground mb-1.5">
+                                <Checkbox
+                                  checked={rug.estimateRequested ?? false}
+                                  onCheckedChange={(c) => updateDraftRug(rug.id, "estimateRequested", Boolean(c))}
+                                />
+                                <span>Request estimate for additional work</span>
+                              </label>
+                              {(rug.estimateRequested ?? false) && (
+                                <Input
+                                  placeholder="Describe what you need…"
+                                  value={rug.estimateDetails ?? ""}
+                                  onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
+                                  className="h-9 text-sm"
+                                />
+                              )}
+                            </div>
                           )}
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-muted-foreground">Length (ft)</label>
-                          <Input
-                            type="number"
-                            min={1}
-                            placeholder="—"
-                            value={rug.length > 0 ? rug.length : ""}
-                            onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseInt(e.target.value, 10) || 0))}
-                            className="h-9 w-20"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-muted-foreground">Width (ft)</label>
-                          <Input
-                            type="number"
-                            min={1}
-                            placeholder="—"
-                            value={rug.width > 0 ? rug.width : ""}
-                            onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseInt(e.target.value, 10) || 0))}
-                            className="h-9 w-20"
-                          />
-                        </div>
-                        {supportsEstimateFields && (
-                          <>
-                            <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground shrink-0">
-                              <Checkbox
-                                checked={rug.estimateRequested ?? false}
-                                onCheckedChange={(c) => updateDraftRug(rug.id, "estimateRequested", Boolean(c))}
-                              />
-                              <span>Estimate requested</span>
-                            </label>
-                            {(rug.estimateRequested ?? false) && (
-                              <Input
-                                placeholder="Details (optional)"
-                                value={rug.estimateDetails ?? ""}
-                                onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
-                                className="h-8 flex-1 min-w-[120px] text-sm"
-                              />
-                            )}
-                          </>
-                        )}
-                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeDraftRug(rug.id)}>
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
-                    <Button type="button" variant="outline" size="sm" onClick={addDraftRug}>
+
+                    <Button type="button" variant="outline" size="sm" onClick={addDraftRug} className="w-full sm:w-auto">
                       <Plus className="mr-1.5 h-3.5 w-3.5" />
                       Add a rug
                     </Button>
