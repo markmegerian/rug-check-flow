@@ -270,7 +270,8 @@ Deno.serve(async (req) => {
  * Apply the effect of an event to the database
  */
 async function applyEventEffect(
-  adminClient: ReturnType<typeof createClient>,
+  // deno-lint-ignore no-explicit-any
+  adminClient: any,
   event: StopEvent,
   userId: string
 ): Promise<void> {
