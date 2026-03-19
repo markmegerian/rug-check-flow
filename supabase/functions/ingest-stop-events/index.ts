@@ -270,8 +270,7 @@ Deno.serve(async (req) => {
  * Apply the effect of an event to the database
  */
 async function applyEventEffect(
-  // deno-lint-ignore no-explicit-any
-  adminClient: any,
+  adminClient: ReturnType<typeof createClient>,
   event: StopEvent,
   userId: string
 ): Promise<void> {
@@ -618,8 +617,7 @@ async function applyEventEffect(
  * This is used for idempotency when an event was inserted but effect application may have failed
  */
 async function verifyEventEffectApplied(
-  // deno-lint-ignore no-explicit-any
-  adminClient: any,
+  adminClient: ReturnType<typeof createClient>,
   event: StopEvent
 ): Promise<boolean> {
   const { route_stop_id, event_type, payload } = event;

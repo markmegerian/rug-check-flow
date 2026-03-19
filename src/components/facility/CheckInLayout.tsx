@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { uploadCheckinPhoto, persistRugPhotos, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
+import { uploadCheckinPhoto, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
 
 let walkInCounter = 100;
 
@@ -268,8 +268,10 @@ export function CheckInLayout() {
 
         if (data.photos.length > 0) {
           const uploadResults = await Promise.all(data.photos.map((file) => uploadCheckinPhoto(editingEntryId, file)));
-          const uploads = uploadResults.filter(Boolean) as Array<{ publicUrl: string; storagePath: string }>;
-          await persistRugPhotos(editingEntryId, uploads);
+          const firstUrl = uploadResults.find(Boolean);
+          if (firstUrl) {
+            await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", editingEntryId);
+          }
         }
 
         setEditingEntryId(null);
@@ -358,8 +360,10 @@ export function CheckInLayout() {
 
         if (data.photos.length > 0) {
           const uploadResults = await Promise.all(data.photos.map((file) => uploadCheckinPhoto(inserted.id, file)));
-          const uploads = uploadResults.filter(Boolean) as Array<{ publicUrl: string; storagePath: string }>;
-          await persistRugPhotos(inserted.id, uploads);
+          const firstUrl = uploadResults.find(Boolean);
+          if (firstUrl) {
+            await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", inserted.id);
+          }
         }
 
         if (data.rugId) {

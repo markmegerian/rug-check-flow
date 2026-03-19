@@ -67,7 +67,8 @@ export async function addEvent(
  */
 export async function getPendingEvents(): Promise<OfflineEvent[]> {
   return await db.events
-    .filter((event) => event.synced_at === null)
+    .where("synced_at")
+    .equals(null)
     .sortBy("created_at");
 }
 
@@ -109,8 +110,7 @@ export async function markEventFailed(offline_event_id: string, error_message: s
  * Get count of pending events
  */
 export async function getPendingEventCount(): Promise<number> {
-  const pending = await db.events.filter((e) => e.synced_at === null).toArray();
-  return pending.length;
+  return await db.events.where("synced_at").equals(null).count();
 }
 
 /**
@@ -187,7 +187,8 @@ export async function markPhotoUploaded(photo_id: number, public_url: string): P
  */
 export async function getPendingPhotos(): Promise<PendingPhoto[]> {
   return await db.photos
-    .filter((photo) => photo.uploaded_at === null)
+    .where("uploaded_at")
+    .equals(null)
     .sortBy("created_at");
 }
 

@@ -176,13 +176,12 @@ interface CheckInServiceSelectorProps {
   watchedWidth: number;
   tierLabel: string | null;
   error?: string;
-  loadError?: boolean;
 }
 
 export function CheckInServiceSelector({
   dbServices, watchedServices, toggleService, clearAll, setServices,
   getUnitPrice, getLineTotal, edgeSelections, setEdgeSelections,
-  flatPrices, setFlatPrices, watchedLength, watchedWidth, tierLabel, error, loadError,
+  flatPrices, setFlatPrices, watchedLength, watchedWidth, tierLabel, error,
 }: CheckInServiceSelectorProps) {
   const [serviceSearch, setServiceSearch] = useState("");
 
@@ -268,11 +267,8 @@ export function CheckInServiceSelector({
         </div>
       )}
 
-      {dbServices.length === 0 && !loadError && (
+      {dbServices.length === 0 && (
         <p className="text-sm text-muted-foreground italic">Loading services…</p>
-      )}
-      {loadError && (
-        <p className="text-sm text-destructive">Failed to load services. Check your connection and refresh.</p>
       )}
 
       <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md">

@@ -13,7 +13,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useClients } from "@/hooks/useClients";
-import { generateDocNumber } from "@/lib/checkin-operations";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface RugOption {
@@ -96,7 +95,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     if (!selectedClientId || selectedRugIds.size === 0) return;
     setCreating(true);
 
-    const invNum = generateDocNumber("INV");
+    const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
     const lineItems = computeLineItems();
     const total = lineItems.reduce((s, li) => s + li.total, 0);
 
@@ -121,10 +120,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     const rows = lineItems.map((li) => ({ ...li, invoice_id: inv.id }));
     const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
     if (itemsErr) {
-      await supabase.from("invoices").delete().eq("id", inv.id);
-      toast({ title: "Invoice creation failed", description: `Line items could not be saved. ${itemsErr.message}`, variant: "destructive" });
-      setCreating(false);
-      return;
+      toast({ title: "Error adding line items", description: itemsErr.message, variant: "destructive" });
     }
 
     toast({ title: `Draft ${invNum} created` });

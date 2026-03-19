@@ -1,7 +1,6 @@
 import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
-import { isSupabaseConfigured } from "@/integrations/supabase/client";
-import MissingConfigPage from "@/components/MissingConfigPage";
+
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -9,9 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { OfflineQueueProvider } from "@/contexts/OfflineQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingState } from "@/components/states/PageState";
-import { useReminderEngine } from "@/hooks/useReminderEngine";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,23 +36,9 @@ const RouteLoadingFallback = () => (
   </div>
 );
 
-/** Headless component that runs the automated reminder engine within the auth context. */
-const ReminderRunner = () => {
-  useReminderEngine();
-  return null;
-};
-
-
-const App = () => {
-  if (!isSupabaseConfigured) {
-    return <MissingConfigPage />;
-  }
-
-  return (
-  <ErrorBoundary>
+const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <ReminderRunner />
       <OfflineQueueProvider>
         <TooltipProvider>
           <Toaster />
@@ -121,8 +104,6 @@ const App = () => {
       </OfflineQueueProvider>
     </AuthProvider>
   </QueryClientProvider>
-  </ErrorBoundary>
-  );
-};
+);
 
 export default App;

@@ -85,8 +85,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     },
   });
 
-  const [serviceLoadError, setServiceLoadError] = useState(false);
-
   useEffect(() => {
     async function fetchServices() {
       const { data, error } = await supabase
@@ -94,12 +92,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         .select("id, name, unit, base_price, preferred_price, vip_price, category")
         .eq("active", true)
         .order("name");
-      if (error) {
-        setServiceLoadError(true);
-        toast({ title: "Failed to load services", description: error.message, variant: "destructive" });
-      } else if (data) {
+      if (!error && data) {
         setDbServices(data as DbService[]);
-        setServiceLoadError(false);
       }
     }
     fetchServices();
@@ -234,6 +228,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     const isEditing = !!editingEntry;
     const label = isEditing ? "updated" : "checked in";
 
+    console.log(`Check-in ${label}:`, { ...data, photos: photos.length, totalPrice });
     toast({ title: isEditing ? "Entry updated" : "Check-in complete", description: `Rug ${data.rugNumber} ${label}.` });
 
     if (onCheckInComplete) {
@@ -459,7 +454,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             watchedWidth={watchedWidth}
             tierLabel={tierLabel}
             error={form.formState.errors.selectedServices?.message}
-            loadError={serviceLoadError}
           />
         </div>
 

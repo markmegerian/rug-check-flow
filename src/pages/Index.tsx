@@ -4,9 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { OperationalRemindersPanel } from "@/components/dashboard/OperationalRemindersPanel";
-import { OperationalDashboard } from "@/components/dashboard/OperationalDashboard";
 import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
@@ -64,7 +62,7 @@ const SECTIONS: Array<{
 const ROLE_PRIORITY: AppRole[] = ["admin", "office", "checkin_staff", "driver"];
 
 export default function Index() {
-  const { user, roles, isSuperAdmin, hasRole } = useAuth();
+  const { user, roles, isSuperAdmin } = useAuth();
   const appRoles = roles.filter((role): role is AppRole => role in ROLE_LABELS);
   const orderedRoles = [...appRoles].sort(
     (a, b) => ROLE_PRIORITY.indexOf(a) - ROLE_PRIORITY.indexOf(b)
@@ -97,25 +95,25 @@ export default function Index() {
       showHomeLink={false}
       contentClassName="overflow-auto"
     >
-      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-4 md:py-6 space-y-4">
-        {/* Compact welcome + roles */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Welcome back</h2>
-            <p className="text-sm text-muted-foreground">Jump into today&apos;s operations.</p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-6 space-y-6">
+        {/* Welcome header */}
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold text-foreground">Welcome back</h2>
+          <p className="text-sm text-muted-foreground">
+            Jump into today&apos;s operations with your recommended workflows.
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5 pt-2">
             {orderedRoles.length > 0 ? (
               orderedRoles.map((role) => (
-                <Badge key={role} variant="secondary" className="text-[10px]">
+                <Badge key={role} variant="secondary" className="text-[11px] h-5">
                   {ROLE_LABELS[role]}
                 </Badge>
               ))
             ) : (
-              <Badge variant="outline" className="text-[10px]">Portal</Badge>
+              <Badge variant="outline" className="text-[11px] h-5">Portal access</Badge>
             )}
             {isSuperAdmin && (
-              <Badge variant="outline" className="text-[10px] border-destructive/30 text-destructive">
+              <Badge variant="outline" className="text-[11px] h-5 border-destructive/30 text-destructive">
                 Superadmin
               </Badge>
             )}
@@ -124,39 +122,64 @@ export default function Index() {
 
         <OperationalRemindersPanel />
 
-        {(hasRole("admin") || hasRole("office")) && <OperationalDashboard />}
+        {/* Recommended actions */}
+        <section className="space-y-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Quick actions
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {fallbackRecommendations.map((section) => {
+              const Icon = section.icon;
+              return (
+                <Link
+                  key={`recommended-${section.to}`}
+                  to={section.to}
+                  className="group rounded-lg border border-border bg-card p-4 hover:border-primary/30 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-md bg-primary/8 group-hover:bg-primary/12 transition-colors">
+                      <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{section.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{section.description}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs font-medium text-primary inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Open <ArrowRight className="h-3 w-3" />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
 
-        {/* Single workspace grid — recommended highlighted */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {SECTIONS.map((s) => {
-            const Icon = s.icon;
-            const isRecommended = fallbackRecommendations.some((r) => r.to === s.to);
-            return (
-              <Link
-                key={s.to}
-                to={s.to}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg border p-3.5 transition-all hover:shadow-md hover:-translate-y-0.5",
-                  isRecommended
-                    ? "border-primary/30 bg-primary/5 shadow-sm"
-                    : "border-border bg-card"
-                )}
-              >
-                <div className={cn(
-                  "p-2 rounded-lg shrink-0",
-                  isRecommended ? "bg-primary/15" : "bg-muted"
-                )}>
-                  <Icon className={cn("h-4 w-4", isRecommended ? "text-primary" : "text-muted-foreground")} />
-                </div>
-                <div className="min-w-0">
-                  <div className="font-semibold text-sm text-foreground">{s.label}</div>
-                  <div className="text-xs text-muted-foreground truncate">{s.description}</div>
-                </div>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0" />
-              </Link>
-            );
-          })}
-        </div>
+        {/* All workspaces */}
+        <section className="space-y-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            All workspaces
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {SECTIONS.map((s) => {
+              const Icon = s.icon;
+              return (
+                <Link
+                  key={s.to}
+                  to={s.to}
+                  className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/30 hover:shadow-sm transition-all"
+                >
+                  <div className="p-1.5 rounded-md bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-foreground">{s.label}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.description}</div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </AppShell>
   );

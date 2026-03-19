@@ -327,8 +327,6 @@ export type Database = {
       }
       rug_services: {
         Row: {
-          completed_at: string | null
-          completed_by: string | null
           created_at: string
           edges: string[]
           id: string
@@ -339,8 +337,6 @@ export type Database = {
           unit_price: number
         }
         Insert: {
-          completed_at?: string | null
-          completed_by?: string | null
           created_at?: string
           edges?: string[]
           id?: string
@@ -351,8 +347,6 @@ export type Database = {
           unit_price: number
         }
         Update: {
-          completed_at?: string | null
-          completed_by?: string | null
           created_at?: string
           edges?: string[]
           id?: string

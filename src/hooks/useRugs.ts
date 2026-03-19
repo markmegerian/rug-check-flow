@@ -24,7 +24,6 @@ export interface RugWithServices {
   client_name: string | null;
   photo_url: string | null;
   services: { name: string; line_total: number; edges?: string[] }[];
-  servicesCompletedCount: number;
 }
 
 const RUGS_KEY = ["rugs"] as const;
@@ -47,12 +46,11 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
 
   const { data: serviceData } = await supabase
     .from("rug_services")
-    .select("rug_id, line_total, service_name, edges, completed_at")
+    .select("rug_id, line_total, service_name, edges")
     .in("rug_id", rugIds);
 
   const serviceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
-  const completedCountMap = new Map<string, number>();
-  for (const row of (serviceData ?? []) as (RugServiceRow & { completed_at: string | null })[]) {
+  for (const row of (serviceData ?? []) as RugServiceRow[]) {
     const list = serviceMap.get(row.rug_id) ?? [];
     list.push({
       name: row.service_name || "Unknown",
@@ -60,9 +58,6 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
       edges: row.edges ?? [],
     });
     serviceMap.set(row.rug_id, list);
-    if (row.completed_at) {
-      completedCountMap.set(row.rug_id, (completedCountMap.get(row.rug_id) ?? 0) + 1);
-    }
   }
 
   return rugRows.map((rug) => ({
@@ -78,7 +73,6 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
     client_name: rug.clients?.name ?? null,
     photo_url: rug.photo_url,
     services: serviceMap.get(rug.id) ?? [],
-    servicesCompletedCount: completedCountMap.get(rug.id) ?? 0,
   }));
 }
 
@@ -128,16 +122,14 @@ export function useRug(id: string | null) {
 
       const { data: serviceData } = await supabase
         .from("rug_services")
-        .select("rug_id, line_total, service_name, edges, completed_at")
+        .select("rug_id, line_total, service_name, edges")
         .eq("rug_id", id);
 
-      const serviceRows = (serviceData ?? []) as (RugServiceRow & { completed_at: string | null })[];
-      const services = serviceRows.map((s) => ({
+      const services = ((serviceData ?? []) as RugServiceRow[]).map((s) => ({
         name: s.service_name || "Unknown",
         line_total: Number(s.line_total),
         edges: s.edges ?? [],
       }));
-      const servicesCompletedCount = serviceRows.filter((s) => s.completed_at !== null).length;
 
       return {
         id: row.id,
@@ -154,7 +146,6 @@ export function useRug(id: string | null) {
         client_name: row.clients?.name ?? null,
         photo_url: row.photo_url,
         services,
-        servicesCompletedCount,
       };
     },
     enabled: Boolean(id),

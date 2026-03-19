@@ -1,60 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 
-/** Upload a single check-in photo to storage. Returns { publicUrl, storagePath } or null on failure. */
-export async function uploadCheckinPhoto(rugId: string, file: File): Promise<{ publicUrl: string; storagePath: string } | null> {
+/** Upload a single check-in photo to storage. Returns the public URL or null on failure. */
+export async function uploadCheckinPhoto(rugId: string, file: File): Promise<string | null> {
   const path = `rugs/${rugId}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
   const { error: uploadError } = await supabase.storage
     .from("checkin-photos")
     .upload(path, file, { upsert: false });
   if (uploadError) return null;
   const { data: publicUrl } = supabase.storage.from("checkin-photos").getPublicUrl(path);
-  return { publicUrl: publicUrl.publicUrl, storagePath: path };
-}
-
-/**
- * Persist all uploaded photo URLs to the rug_photos table.
- * Falls back gracefully if the table hasn't been migrated yet.
- * Also sets the first photo as rugs.photo_url for backward compat.
- */
-export async function persistRugPhotos(
-  rugId: string,
-  uploads: Array<{ publicUrl: string; storagePath: string }>,
-): Promise<void> {
-  if (uploads.length === 0) return;
-
-  // Always set first photo on the rugs row for backward compat
-  await supabase.from("rugs").update({ photo_url: uploads[0].publicUrl }).eq("id", rugId);
-
-  // Persist all photos to rug_photos table
-  const rows = uploads.map((u, i) => ({
-    rug_id: rugId,
-    storage_path: u.storagePath,
-    public_url: u.publicUrl,
-    display_order: i,
-  }));
-
-  await supabaseExtended.from("rug_photos").insert(rows).then(({ error }) => {
-    if (error) {
-      console.error("rug_photos insert failed (table may not exist yet):", error.message);
-    }
-  });
-}
-
-/** Generate a short random suffix from crypto.randomUUID for collision resistance. */
-function shortUid(): string {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
-}
-
-/** Generate a unique document number with a date prefix. */
-export function generateDocNumber(prefix: string): string {
-  const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
-  return `${prefix}-${date}-${shortUid()}`;
+  return publicUrl.publicUrl;
 }
 
 /** Generate a unique job code for an intake job. */
 export function generateJobCode(): string {
-  return generateDocNumber("JOB");
+  return `JOB-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 interface ServiceSnapshot {
@@ -94,7 +54,7 @@ export async function maybeAutoCreateEstimateDraft(
   const requiresEstimate = rows.some((row) => Boolean(row.requires_estimate));
   if (!requiresEstimate) return null;
 
-  const estimateNumber = generateDocNumber("EST");
+  const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
   const total = serviceSnapshots.reduce((sum, s) => sum + Number(s.line_total ?? 0), 0);
 
   const { data: insertedEstimate, error: estimateError } = await supabaseExtended
