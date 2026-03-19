@@ -121,7 +121,7 @@ export default function WholesalePortal() {
       subtitle={activeTabLabel}
       contentClassName="overflow-auto"
     >
-      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-4 space-y-4">
+      <div className="w-full px-4 md:px-6 py-4 space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <nav className="flex gap-0.5 p-0.5 rounded-lg bg-muted w-full sm:w-fit overflow-x-auto scrollbar-hide">
             {TABS.map((tab) => (
