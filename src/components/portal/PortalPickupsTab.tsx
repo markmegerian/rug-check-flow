@@ -3,7 +3,6 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -480,7 +479,7 @@ export default function PortalPickupsTab() {
   const rugCount = draftRugs.filter((r) => r.label.trim()).length;
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-8">
       {/* One main card: request or edit current pickup */}
       <section className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="bg-muted/50 px-4 py-3 border-b">
@@ -661,26 +660,16 @@ export default function PortalPickupsTab() {
                                 })}
                               </div>
 
-                              {/* Row 3: Estimate / additional notes */}
-                              {supportsEstimateFields && (
-                                <div>
-                                  <label className="flex items-center gap-1.5 cursor-pointer text-sm text-muted-foreground mb-1.5">
-                                    <Checkbox
-                                      checked={rug.estimateRequested ?? false}
-                                      onCheckedChange={(c) => updateDraftRug(rug.id, "estimateRequested", Boolean(c))}
-                                    />
-                                    <span>Request estimate for additional work</span>
-                                  </label>
-                                  {(rug.estimateRequested ?? false) && (
-                                    <Input
-                                      placeholder="Describe what you need…"
-                                      value={rug.estimateDetails ?? ""}
-                                      onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
-                                      className="h-9 text-sm"
-                                    />
-                                  )}
-                                </div>
-                              )}
+                              {/* Row 3: Additional notes */}
+                              <div>
+                                <label className="text-xs text-muted-foreground block mb-1">Additional notes</label>
+                                <Input
+                                  placeholder="Anything else we should know about this rug…"
+                                  value={rug.estimateDetails ?? ""}
+                                  onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
+                                  className="h-9 text-sm"
+                                />
+                              </div>
                             </div>
                           )}
                         </div>

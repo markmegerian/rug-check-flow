@@ -99,6 +99,16 @@ export function CheckInLayout() {
     const mappedPending = pendingItems.map((item) => {
       const request = requestById.get(item.pickup_request_id);
       const clientName = request?.client_id ? clientNameById.get(request.client_id) ?? "Unknown client" : "Unknown client";
+
+      // Parse requested services from estimate_request_details
+      // Format: "Services: svc1, svc2 | free text notes"
+      let requestedServices: string[] = [];
+      const details = item.estimate_request_details ?? "";
+      const servicesMatch = details.match(/^Services:\s*(.+?)(?:\s*\||$)/);
+      if (servicesMatch) {
+        requestedServices = servicesMatch[1].split(",").map((s) => s.trim()).filter(Boolean);
+      }
+
       return {
         id: item.id,
         rugNumber: item.rug_number,
@@ -106,7 +116,7 @@ export function CheckInLayout() {
         rugType: item.rug_type ?? "",
         length: Number(item.length ?? 0) || undefined,
         width: Number(item.width ?? 0) || undefined,
-        requestedServices: [],
+        requestedServices,
         source: "pickup" as const,
         pickupRequestId: request?.id,
         pickupRequestItemId: item.id,

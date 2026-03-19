@@ -101,6 +101,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   useEffect(() => {
     if (selectedRug) {
+      // Match requested service names to DB service IDs for pre-selection
+      const preSelectedIds = (selectedRug.requestedServices ?? [])
+        .map((name) => dbServices.find((s) => s.name.toLowerCase() === name.toLowerCase())?.id)
+        .filter(Boolean) as string[];
+
       form.reset({
         rugNumber: selectedRug.rugNumber,
         clientName: selectedRug.clientName,
@@ -108,11 +113,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         length: selectedRug.length ?? undefined,
         width: selectedRug.width ?? undefined,
         conditionNotes: "",
-        selectedServices: [],
+        selectedServices: preSelectedIds,
       });
       setPhotos([]);
     }
-  }, [selectedRug, form]);
+  }, [selectedRug, form, dbServices]);
 
   useEffect(() => {
     if (editingEntry) {
