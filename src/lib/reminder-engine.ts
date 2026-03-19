@@ -18,7 +18,7 @@ async function isDuplicate(
 
   const { data } = await supabaseExtended
     .from("notifications")
-    .select("id")
+    .select("id, metadata")
     .eq("user_id", userId)
     .eq("type", type)
     .gte("created_at", twentyFourHoursAgo)
