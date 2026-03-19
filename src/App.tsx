@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
-
+import { isSupabaseConfigured } from "@/integrations/supabase/client";
+import MissingConfigPage from "@/components/MissingConfigPage";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -45,7 +46,12 @@ const ReminderRunner = () => {
 };
 
 
-const App = () => (
+const App = () => {
+  if (!isSupabaseConfigured) {
+    return <MissingConfigPage />;
+  }
+
+  return (
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -116,6 +122,7 @@ const App = () => (
     </AuthProvider>
   </QueryClientProvider>
   </ErrorBoundary>
-);
+  );
+};
 
 export default App;
