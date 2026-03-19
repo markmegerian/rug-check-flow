@@ -2,34 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
-import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
-import { ChevronDown, ChevronRight, Search, Check, X } from "lucide-react";
-import type { Enums } from "@/integrations/supabase/types";
+import { Search } from "lucide-react";
+
+import { PortalRugDetailPanel } from "./PortalRugDetailPanel";
+import {
+  type RugRow,
+  type EstimateRow,
+  type EstimateItemRow,
+  STATUS_LABELS,
+  STATUS_VARIANTS,
+  ACTIVE_STATUSES,
+  formatDate,
+} from "./portal-rug-types";
 
 // ---------------------------------------------------------------------------
-// Types
+// Local types (not shared)
 // ---------------------------------------------------------------------------
-
-type RugStatus = Enums<"rug_status">;
-
-type RugRow = {
-  id: string;
-  tag: string;
-  description: string;
-  services: string[];
-  size_length: number | null;
-  size_width: number | null;
-  checked_in_at: string;
-  status: RugStatus;
-  notes: string;
-  photo_url: string | null;
-};
 
 type PickupItemRow = {
   rug_number: string;
@@ -42,74 +35,11 @@ type PickupRequestRow = {
   scheduled_date: string;
 };
 
-type EstimateRow = {
-  id: string;
-  rug_id: string;
-  estimate_number: string;
-  status: EstimateStatus;
-  total: number;
-};
-
-type EstimateItemRow = {
-  id: string;
-  estimate_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-  client_approved: boolean | null;
-  client_decision_at: string | null;
-  service_category: string;
-};
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUS_LABELS: Record<RugStatus, string> = {
-  checked_in: "Checked In",
-  in_production: "In Production",
-  ready: "Ready for Pickup",
-  picked_up: "Delivered",
-};
-
-const STATUS_VARIANTS: Record<RugStatus, "default" | "secondary" | "outline"> = {
-  checked_in: "default",
-  in_production: "default",
-  ready: "secondary",
-  picked_up: "outline",
-};
-
-const ACTIVE_STATUSES: RugStatus[] = ["checked_in", "in_production", "ready"];
-
 const DEBOUNCE_MS = 250;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function isCleaningLineItem(item: EstimateItemRow): boolean {
-  return item.service_category?.toLowerCase() === "cleaning";
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-const estimateStatusBadge = (status: EstimateStatus) => {
-  if (status === "sent")
-    return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Pending approval</Badge>;
-  if (status === "approved")
-    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>;
-  if (status === "rejected")
-    return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Rejected</Badge>;
-  if (status === "expired") return <Badge variant="secondary">Expired</Badge>;
-  return <Badge variant="outline">Draft</Badge>;
-};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -132,8 +62,8 @@ export default function PortalRugsTab() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Expand / detail
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  // Side panel detail
+  const [selectedRug, setSelectedRug] = useState<RugRow | null>(null);
   const [estimatesByRugId, setEstimatesByRugId] = useState<Record<string, EstimateRow[]>>({});
   const [lineItemsByEstimateId, setLineItemsByEstimateId] = useState<Record<string, EstimateItemRow[]>>({});
   const [loadingEstimates, setLoadingEstimates] = useState<string | null>(null);
@@ -282,14 +212,13 @@ export default function PortalRugsTab() {
     [estimatesByRugId, toast],
   );
 
-  // ------ Toggle expand ------
-  const toggleExpand = useCallback(
+  // ------ Select rug (open side panel) ------
+  const handleSelectRug = useCallback(
     (rug: RugRow) => {
-      const next = expandedRow === rug.id ? null : rug.id;
-      setExpandedRow(next);
-      if (next) fetchEstimatesForRug(rug);
+      setSelectedRug(rug);
+      fetchEstimatesForRug(rug);
     },
-    [expandedRow, fetchEstimatesForRug],
+    [fetchEstimatesForRug],
   );
 
   // ------ Line-item approve/reject ------
@@ -397,186 +326,26 @@ export default function PortalRugsTab() {
   }
 
   // ------ Build page set for grouped view ------
-  // When not searching, we render groups. We still paginate the flat active list
-  // and figure out which groups/rugs fall on the current page.
   const pageRugIds = new Set(pagination.items.map((r) => r.id));
 
   // ------ Render helpers ------
 
-  const renderRugRow = (rug: RugRow) => {
-    const isExpanded = expandedRow === rug.id;
-    return (
-      <div key={rug.id}>
-        <button
-          onClick={() => toggleExpand(rug)}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-        >
-          <span className="text-muted-foreground">
-            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </span>
-          <span className="text-sm font-medium w-20 shrink-0">{rug.tag}</span>
-          <span className="text-sm text-muted-foreground w-24 shrink-0 truncate">{rug.description || "Rug"}</span>
-          <span className="text-sm text-muted-foreground flex-1 truncate hidden sm:block">
-            {rug.services.join(", ")}
-          </span>
-          <Badge variant={STATUS_VARIANTS[rug.status]} className="text-[11px] shrink-0">
-            {STATUS_LABELS[rug.status]}
-          </Badge>
-        </button>
-        {isExpanded && renderExpandedDetail(rug)}
-      </div>
-    );
-  };
-
-  const renderExpandedDetail = (rug: RugRow) => {
-    const estimates = estimatesByRugId[rug.id];
-    const isLoadingEst = loadingEstimates === rug.id;
-    const estimateRequested = estimateRequestedByTag[rug.tag] ?? false;
-
-    return (
-      <div className="px-4 pb-4 pl-12 space-y-4">
-        {/* Basic info */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
-          <div>
-            <span className="text-muted-foreground text-xs">Size</span>
-            <p>{Number(rug.size_length ?? 0)}' x {Number(rug.size_width ?? 0)}'</p>
-          </div>
-          <div>
-            <span className="text-muted-foreground text-xs">Description</span>
-            <p>{rug.description || "—"}</p>
-          </div>
-          <div>
-            <span className="text-muted-foreground text-xs">Status</span>
-            <p>{STATUS_LABELS[rug.status]}</p>
-          </div>
-          <div className="col-span-2 sm:col-span-3">
-            <span className="text-muted-foreground text-xs">Services</span>
-            <p>{rug.services.length > 0 ? rug.services.join(", ") : "—"}</p>
-          </div>
-        </div>
-
-        {/* Notes */}
-        {rug.notes && (
-          <div className="text-sm">
-            <span className="text-muted-foreground text-xs">Notes</span>
-            <p className="whitespace-pre-wrap">{rug.notes}</p>
-          </div>
-        )}
-
-        {/* Estimate requested */}
-        {estimateRequested && (
-          <div className="text-sm">
-            <Badge variant="outline" className="text-xs">Estimate requested</Badge>
-          </div>
-        )}
-
-        {/* Photo */}
-        {rug.photo_url && (
-          <div>
-            <span className="text-muted-foreground text-xs block mb-1">Photo</span>
-            <img
-              src={rug.photo_url}
-              alt={`Rug ${rug.tag}`}
-              className="max-w-xs rounded border"
-            />
-          </div>
-        )}
-
-        {/* Estimates */}
-        <div>
-          <span className="text-muted-foreground text-xs block mb-1">Estimates</span>
-          {isLoadingEst ? (
-            <p className="text-xs text-muted-foreground">Loading estimates...</p>
-          ) : !estimates || estimates.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No estimates for this rug.</p>
-          ) : (
-            <div className="space-y-3">
-              {estimates.map((est) => renderEstimate(est))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderEstimate = (est: EstimateRow) => {
-    const lineItems = lineItemsByEstimateId[est.id] ?? [];
-
-    return (
-      <div key={est.id} className="rounded-lg border bg-muted/30 p-3 space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="font-medium text-sm text-foreground">{est.estimate_number}</p>
-            <p className="text-xs text-muted-foreground">Total ${Number(est.total).toFixed(2)}</p>
-          </div>
-          {estimateStatusBadge(est.status)}
-        </div>
-
-        {est.status === "sent" && lineItems.length > 0 && (
-          <div className="rounded border bg-background p-3 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Line items</p>
-            <ul className="text-sm space-y-2">
-              {lineItems.map((item) => {
-                const isCleaning = isCleaningLineItem(item);
-                const decided = item.client_approved !== null;
-                const isUpdating = updatingItemId === item.id;
-                const qty = Number(item.quantity);
-                const unit = Number(item.unit_price);
-                const lineTotal = Number(item.total);
-
-                return (
-                  <li
-                    key={item.id}
-                    className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-border/60 last:border-0 last:pb-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-foreground font-medium">{item.description}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {qty} x ${unit.toFixed(2)} = ${lineTotal.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {isCleaning ? (
-                        <Badge variant="secondary" className="text-xs">Included</Badge>
-                      ) : decided ? (
-                        item.client_approved ? (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Rejected</Badge>
-                        )
-                      ) : (
-                        <>
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => updateLineItemDecision(item, true)}
-                            disabled={isUpdating}
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-7 text-xs"
-                            onClick={() => updateLineItemDecision(item, false)}
-                            disabled={isUpdating}
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const renderRugRow = (rug: RugRow) => (
+    <button
+      key={rug.id}
+      onClick={() => handleSelectRug(rug)}
+      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors cursor-pointer"
+    >
+      <span className="text-sm font-medium w-20 shrink-0">{rug.tag}</span>
+      <span className="text-sm text-muted-foreground w-24 shrink-0 truncate">{rug.description || "Rug"}</span>
+      <span className="text-sm text-muted-foreground flex-1 truncate hidden sm:block">
+        {rug.services.join(", ")}
+      </span>
+      <Badge variant={STATUS_VARIANTS[rug.status]} className="text-[11px] shrink-0">
+        {STATUS_LABELS[rug.status]}
+      </Badge>
+    </button>
+  );
 
   // ------ Main render ------
 
@@ -646,6 +415,21 @@ export default function PortalRugsTab() {
           />
         </>
       )}
+
+      {/* Side panel for rug details */}
+      <PortalRugDetailPanel
+        rug={selectedRug}
+        open={selectedRug !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedRug(null);
+        }}
+        estimates={selectedRug ? estimatesByRugId[selectedRug.id] : undefined}
+        lineItemsByEstimateId={lineItemsByEstimateId}
+        loadingEstimates={loadingEstimates === selectedRug?.id}
+        estimateRequested={selectedRug ? (estimateRequestedByTag[selectedRug.tag] ?? false) : false}
+        onLineItemDecision={updateLineItemDecision}
+        updatingItemId={updatingItemId}
+      />
     </div>
   );
 }
