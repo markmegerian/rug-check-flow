@@ -298,15 +298,16 @@ export function CheckInLayout() {
         const intakeDate = new Date().toISOString();
 
         let jobId: string | null = null;
-        const { data: jobInsert, error: jobError } = await (supabase as any)
-          .from("intake_jobs")
+        // intake_jobs table may not exist in all environments — graceful fallback below
+        const { data: jobInsert, error: jobError } = await supabase
+          .from("intake_jobs" as "rugs")
           .insert({
             job_code: jobCode,
             client_id: clientId,
             source,
             intake_date: intakeDate,
             checkin_date: intakeDate,
-          } as never)
+          } as Record<string, unknown> as never)
           .select("id")
           .single();
 
@@ -347,9 +348,10 @@ export function CheckInLayout() {
         let inserted: { id: string } | null = null;
         let error: { message: string } | null = null;
 
-        const extendedInsert = await supabase.from("rugs").insert(extendedRugPayload as never).select("id").single();
-        inserted = extendedInsert.data as { id: string } | null;
-        error = extendedInsert.error as { message: string } | null;
+        // Extended rug columns (job_id, intake_source, intake_date) may not exist — graceful fallback below
+        const extendedInsert = await supabase.from("rugs").insert(extendedRugPayload as Record<string, unknown> as never).select("id").single();
+        inserted = extendedInsert.data;
+        error = extendedInsert.error;
 
         if (error && /column .*job_id|column .*intake_source|column .*intake_date/i.test(error.message)) {
           const fallbackInsert = await supabase.from("rugs").insert(baseRugPayload).select("id").single();

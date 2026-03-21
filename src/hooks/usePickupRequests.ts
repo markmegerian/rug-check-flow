@@ -25,7 +25,7 @@ async function fetchPickupRequests(
     .order("scheduled_date", { ascending: true });
 
   if (statuses && statuses.length > 0) {
-    query = query.in("status", statuses as any);
+    query = query.in("status", statuses as ("pending" | "confirmed" | "assigned" | "completed" | "cancelled")[]);
   }
 
   const { data, error } = await query;
