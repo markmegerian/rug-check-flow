@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Camera, CheckCircle, AlertTriangle, ImageOff, Signature } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { cn } from "@/lib/utils";
+import type { ExtendedTableRow } from "@/integrations/supabase/extended";
 
 type ProofStop = {
   id: string;
@@ -23,21 +23,25 @@ type ProofItem = {
   photos: string[];
 };
 
-interface DeliveryProofBoardProps {
-  date?: string;
-}
+type RouteStopRow = ExtendedTableRow<"route_stops"> & {
+  clients?: { name: string } | null;
+};
 
-export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
+type RouteStopItemRow = ExtendedTableRow<"route_stop_items"> & {
+  rugs?: { tag: string } | null;
+};
+
+export function DeliveryProofBoard() {
   const [stops, setStops] = useState<ProofStop[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(
-    date ?? format(new Date(), "yyyy-MM-dd")
-  );
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [expandedStopId, setExpandedStopId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProofs = async () => {
       setLoading(true);
+      setError(null);
 
       const { data: stopsData, error: stopsError } = await supabaseExtended
         .from("route_stops")
@@ -45,30 +49,39 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
         .eq("route_date", selectedDate)
         .order("created_at", { ascending: true });
 
-      if (stopsError || !stopsData) {
+      if (stopsError) {
+        setError(stopsError.message);
         setLoading(false);
         return;
       }
 
-      const stopIds = (stopsData as unknown[]).map((s: any) => s.id);
-      let itemsData: unknown[] = [];
+      const stopsRows = (stopsData ?? []) as unknown as RouteStopRow[];
+      const stopIds = stopsRows.map((s) => s.id);
+
+      let itemRows: RouteStopItemRow[] = [];
       if (stopIds.length > 0) {
-        const { data } = await supabaseExtended
+        const { data, error: itemsError } = await supabaseExtended
           .from("route_stop_items")
           .select("*, rugs(tag)")
           .in("route_stop_id", stopIds);
-        itemsData = (data ?? []) as unknown[];
+
+        if (itemsError) {
+          setError(itemsError.message);
+          setLoading(false);
+          return;
+        }
+        itemRows = (data ?? []) as unknown as RouteStopItemRow[];
       }
 
-      const proofs: ProofStop[] = (stopsData as unknown[]).map((stop: any) => {
-        const stopItems = (itemsData as any[]).filter((i: any) => i.route_stop_id === stop.id);
+      const proofs: ProofStop[] = stopsRows.map((stop) => {
+        const stopItems = itemRows.filter((i) => i.route_stop_id === stop.id);
         return {
           id: stop.id,
           clientName: stop.clients?.name ?? "Unknown",
           routeDate: stop.route_date,
           status: stop.status,
           signatureUrl: stop.signature_data_url,
-          items: stopItems.map((item: any) => ({
+          items: stopItems.map((item) => ({
             id: item.id,
             rugTag: item.rugs?.tag ?? "—",
             phase: item.phase,
@@ -87,7 +100,10 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
 
   const totalPhotos = stops.reduce((sum, s) => sum + s.items.reduce((isum, i) => isum + i.photos.length, 0), 0);
   const stopsWithSignature = stops.filter((s) => s.signatureUrl).length;
-  const stopsWithoutPhotos = stops.filter((s) => s.items.some((i) => i.photos.length === 0 && i.status === "verified")).length;
+  const itemsMissingPhotos = stops.reduce(
+    (sum, s) => sum + s.items.filter((i) => i.photos.length === 0 && i.status === "verified").length,
+    0
+  );
 
   return (
     <div className="space-y-4 p-4">
@@ -95,7 +111,7 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
         <div>
           <h3 className="text-sm font-semibold">Delivery Proof Board</h3>
           <p className="text-xs text-muted-foreground">
-            Visual verification of delivery photos and signatures.
+            Photo and signature verification for completed deliveries.
           </p>
         </div>
         <input
@@ -121,14 +137,18 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
           <p className="text-xs text-muted-foreground">Signatures</p>
         </div>
         <div className="rounded-lg border bg-card p-3 text-center">
-          <p className={cn("text-lg font-bold", stopsWithoutPhotos > 0 ? "text-amber-600" : "text-green-600")}>
-            {stopsWithoutPhotos}
+          <p className={cn("text-lg font-bold", itemsMissingPhotos > 0 ? "text-amber-600" : "text-green-600")}>
+            {itemsMissingPhotos}
           </p>
-          <p className="text-xs text-muted-foreground">Missing Photos</p>
+          <p className="text-xs text-muted-foreground">Items w/o Photos</p>
         </div>
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load delivery proofs: {error}
+        </div>
+      ) : loading ? (
         <p className="text-sm text-muted-foreground">Loading delivery proofs...</p>
       ) : stops.length === 0 ? (
         <div className="rounded-lg border bg-muted/30 p-8 text-center">
@@ -169,7 +189,7 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
                             <Signature className="h-3 w-3" /> Signed
                           </span>
                         )}
-                        {!hasPhotos && (
+                        {!hasPhotos && stop.items.length > 0 && (
                           <span className="text-[10px] text-amber-600 flex items-center gap-0.5">
                             <AlertTriangle className="h-3 w-3" /> No photos
                           </span>
@@ -193,8 +213,13 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
                     {stop.signatureUrl && (
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-muted-foreground">Customer Signature</p>
-                        <div className="h-16 w-48 rounded border bg-white p-1">
-                          <img src={stop.signatureUrl} alt="Signature" className="h-full w-full object-contain" />
+                        <div className="h-16 w-48 rounded border bg-white dark:bg-white/10 p-1">
+                          <img
+                            src={stop.signatureUrl}
+                            alt="Signature"
+                            className="h-full w-full object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-xs text-muted-foreground p-2">Signature unavailable</p>'; }}
+                          />
                         </div>
                       </div>
                     )}
@@ -213,7 +238,12 @@ export function DeliveryProofBoard({ date }: DeliveryProofBoardProps) {
                           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                             {item.photos.map((url, idx) => (
                               <div key={idx} className="aspect-square rounded-md overflow-hidden bg-muted border">
-                                <img src={url} alt={`${item.rugTag} photo ${idx + 1}`} className="w-full h-full object-cover" />
+                                <img
+                                  src={url}
+                                  alt={`${item.rugTag} photo ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                />
                               </div>
                             ))}
                           </div>

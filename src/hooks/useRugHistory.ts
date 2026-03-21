@@ -13,13 +13,11 @@ export type HistoricalRug = {
 };
 
 async function fetchSimilarRugs(
-  clientId: string | null,
+  clientId: string,
   rugType: string,
   length: number,
   width: number
 ): Promise<HistoricalRug[]> {
-  if (!clientId) return [];
-
   const { data, error } = await supabase
     .from("rugs")
     .select("id, tag, description, size_length, size_width, services, checked_in_at, status")
@@ -29,25 +27,35 @@ async function fetchSimilarRugs(
 
   if (error || !data) return [];
 
-  // Score rugs by similarity
   const scored = (data as HistoricalRug[]).map((rug) => {
     let score = 0;
-    // Same rug type
-    if (rugType && rug.description?.toLowerCase() === rugType.toLowerCase()) score += 3;
-    // Similar dimensions (within 20%)
-    if (rug.size_length && length > 0) {
-      const lengthDiff = Math.abs(rug.size_length - length) / Math.max(rug.size_length, length);
+
+    // Same rug type (case-insensitive)
+    if (rugType && rug.description && rug.description.toLowerCase() === rugType.toLowerCase()) {
+      score += 3;
+    }
+
+    // Similar dimensions (within 20%) — guard against division by zero
+    const rugL = rug.size_length ?? 0;
+    const rugW = rug.size_width ?? 0;
+
+    if (rugL > 0 && length > 0) {
+      const maxL = Math.max(rugL, length);
+      const lengthDiff = Math.abs(rugL - length) / maxL;
       if (lengthDiff < 0.2) score += 2;
     }
-    if (rug.size_width && width > 0) {
-      const widthDiff = Math.abs(rug.size_width - width) / Math.max(rug.size_width, width);
+
+    if (rugW > 0 && width > 0) {
+      const maxW = Math.max(rugW, width);
+      const widthDiff = Math.abs(rugW - width) / maxW;
       if (widthDiff < 0.2) score += 2;
     }
+
     return { rug, score };
   });
 
   return scored
-    .filter((s) => s.score >= 2)
+    .filter((s) => s.score >= 3)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map((s) => s.rug);
@@ -62,8 +70,8 @@ export function useRugHistory(
   const enabled = Boolean(clientId) && (Boolean(rugType) || length > 0 || width > 0);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["rug-history", clientId, rugType, length, width],
-    queryFn: () => fetchSimilarRugs(clientId, rugType, length, width),
+    queryKey: ["rug-history", clientId, rugType, Math.round(length), Math.round(width)],
+    queryFn: () => fetchSimilarRugs(clientId!, rugType, length, width),
     staleTime: 30_000,
     enabled,
   });

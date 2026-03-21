@@ -38,12 +38,12 @@ export function RugHistoryCard({ similarRugs, onCopyServices }: RugHistoryCardPr
                 ))}
                 {(rug.services?.length ?? 0) > 3 && (
                   <span className="text-[10px] text-muted-foreground">
-                    +{rug.services.length - 3} more
+                    +{(rug.services?.length ?? 0) - 3} more
                   </span>
                 )}
               </div>
               <div className="text-[10px] text-muted-foreground mt-0.5">
-                {rug.size_length}&apos; x {rug.size_width}&apos; &middot;{" "}
+                {rug.size_length ?? 0}&apos; × {rug.size_width ?? 0}&apos; &middot;{" "}
                 {new Date(rug.checked_in_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               </div>
             </div>

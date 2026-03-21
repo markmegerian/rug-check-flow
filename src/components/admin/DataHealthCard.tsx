@@ -42,7 +42,7 @@ export function DataHealthCard() {
             </Badge>
           )}
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={refresh} disabled={loading}>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={refresh} disabled={loading} aria-label="Refresh data health">
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
         </Button>
       </div>
@@ -59,12 +59,7 @@ export function DataHealthCard() {
           {issues.map((issue) => {
             const SeverityIcon = SEVERITY_ICON[issue.severity];
             const content = (
-              <div
-                className={cn(
-                  "flex items-start gap-3 rounded-lg border p-3 transition-colors",
-                  issue.href && "hover:bg-accent cursor-pointer"
-                )}
-              >
+              <div className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-accent">
                 <div className={cn("p-1.5 rounded-md mt-0.5", SEVERITY_STYLES[issue.severity])}>
                   <SeverityIcon className="h-3.5 w-3.5" />
                 </div>

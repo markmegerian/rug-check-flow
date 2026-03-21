@@ -14,18 +14,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
-const SEVERITY_STYLE: Record<OperationalReminder["severity"], string> = {
-  default: "bg-muted text-muted-foreground",
-  warning: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
-};
-
-const SLA_BAND_STYLE: Record<string, string> = {
-  default: "bg-muted text-muted-foreground",
-  warning: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
-};
-
 function TrendDelta({ trend }: { trend: OperationalTrendSnapshot }) {
   if (trend.delta > 0) {
     return (
@@ -126,62 +114,27 @@ export function OperationalRemindersPanel() {
         </div>
       ) : null}
 
-      {trends.length > 0 ? (
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {trends.map((trend) => (
-            <div key={trend.id} className="rounded-md border bg-background px-3 py-2.5 space-y-1">
-              <p className="text-xs text-muted-foreground">{trend.label}</p>
-              <p className="text-sm font-semibold">{trend.current}</p>
-              <TrendDelta trend={trend} />
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <SlaHeatmap reminders={reminders} loading={loading} />
-
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading operational reminders…</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="space-y-2">
-            {reminders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No reminders available for your current scope.</p>
-            ) : (
-              reminders.map((reminder) => (
-                <Link
-                  key={reminder.id}
-                  to={reminder.href}
-                  className="flex items-start justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-accent"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">{reminder.label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{reminder.description}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {reminder.slaBands.map((band) => (
-                        <Badge
-                          key={`${reminder.id}-${band.label}`}
-                          variant="secondary"
-                          className={SLA_BAND_STYLE[band.tone]}
-                        >
-                          {band.label}: {band.count}
-                        </Badge>
-                      ))}
-                      <span className="text-[11px] text-muted-foreground">
-                        {reminder.deltaFromYesterday > 0
-                          ? `+${reminder.deltaFromYesterday} vs yesterday`
-                          : `${reminder.deltaFromYesterday} vs yesterday`}
-                      </span>
-                    </div>
-                  </div>
-                  <Badge className={SEVERITY_STYLE[reminder.severity]} variant="secondary">
-                    {reminder.count}
-                  </Badge>
-                </Link>
-              ))
-            )}
-          </div>
+        <div className="space-y-4">
+          {/* SLA Heatmap — the single source of truth for aging data */}
+          <SlaHeatmap reminders={reminders} loading={loading} />
 
+          {/* Trend sparklines below the heatmap */}
+          {trends.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {trends.map((trend) => (
+                <div key={trend.id} className="rounded-md border bg-background px-3 py-2.5 space-y-1">
+                  <p className="text-xs text-muted-foreground">{trend.label}</p>
+                  <p className="text-sm font-semibold">{trend.current}</p>
+                  <TrendDelta trend={trend} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recent client updates */}
           <div className="rounded-lg border p-3 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
               <BellRing className="h-3.5 w-3.5" />
