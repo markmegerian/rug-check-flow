@@ -9,8 +9,10 @@ import {
   type PendingPhoto,
 } from "./offline-queue";
 
-const BATCH_SIZE = 10; // Process events in batches
-const SYNC_INTERVAL_MS = 5000; // Sync every 5 seconds when online
+const BATCH_SIZE = 10;
+const BASE_SYNC_INTERVAL_MS = 5000;
+const MAX_SYNC_INTERVAL_MS = 60000;
+const BACKOFF_MULTIPLIER = 2;
 
 /**
  * Upload a photo to Supabase storage and return public URL
@@ -167,28 +169,40 @@ export function isOnline(): boolean {
 }
 
 /**
- * Start automatic sync (runs on interval and online event)
+ * Start automatic sync with exponential backoff on failures.
+ * Interval starts at 5s and doubles on consecutive failures up to 60s.
+ * Resets to base interval on any successful sync.
  */
 export function startAutoSync(
   onSyncComplete?: (result: Awaited<ReturnType<typeof performFullSync>>) => void
 ): () => void {
-  let intervalId: number | null = null;
+  let timeoutId: number | null = null;
+  let currentInterval = BASE_SYNC_INTERVAL_MS;
+  let stopped = false;
+
+  const scheduleNext = () => {
+    if (stopped) return;
+    timeoutId = window.setTimeout(sync, currentInterval);
+  };
 
   const sync = async () => {
-    if (!isOnline()) return;
+    if (!isOnline()) {
+      scheduleNext();
+      return;
+    }
     try {
       const result = await performFullSync();
+      currentInterval = BASE_SYNC_INTERVAL_MS;
       onSyncComplete?.(result);
     } catch (error) {
       console.error("Auto sync failed:", error);
+      currentInterval = Math.min(currentInterval * BACKOFF_MULTIPLIER, MAX_SYNC_INTERVAL_MS);
     }
+    scheduleNext();
   };
 
-  // Sync on interval
-  intervalId = window.setInterval(sync, SYNC_INTERVAL_MS);
-
-  // Sync on online event
   const handleOnline = () => {
+    currentInterval = BASE_SYNC_INTERVAL_MS;
     void sync();
   };
   window.addEventListener("online", handleOnline);
@@ -196,10 +210,10 @@ export function startAutoSync(
   // Initial sync
   void sync();
 
-  // Return cleanup function
   return () => {
-    if (intervalId !== null) {
-      clearInterval(intervalId);
+    stopped = true;
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
     }
     window.removeEventListener("online", handleOnline);
   };

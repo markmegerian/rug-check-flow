@@ -15,7 +15,14 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { uploadCheckinPhoto, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
 
-let walkInCounter = 100;
+function getNextWalkInCounter(): number {
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const storageKey = `walkInCounter-${dateKey}`;
+  const current = parseInt(localStorage.getItem(storageKey) ?? "100", 10);
+  const next = current + 1;
+  localStorage.setItem(storageKey, String(next));
+  return next;
+}
 
 type MobilePanel = "form" | "pending" | "log";
 
@@ -412,7 +419,7 @@ export function CheckInLayout() {
   }, [isMobile]);
 
   const handleAddWalkIn = useCallback((clientName: string, rugNumber: string) => {
-    const id = `walkin-${++walkInCounter}`;
+    const id = `walkin-${getNextWalkInCounter()}`;
     const newRug: PendingRug = {
       id,
       rugNumber,
