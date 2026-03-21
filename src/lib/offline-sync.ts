@@ -5,6 +5,8 @@ import {
   markEventFailed,
   getPendingPhotos,
   markPhotoUploaded,
+  clearOldSyncedEvents,
+  clearOldUploadedPhotos,
   type OfflineEvent,
   type PendingPhoto,
 } from "./offline-queue";
@@ -206,6 +208,10 @@ export function startAutoSync(
     void sync();
   };
   window.addEventListener("online", handleOnline);
+
+  // Cleanup old synced data on startup
+  void clearOldSyncedEvents().catch(() => {});
+  void clearOldUploadedPhotos().catch(() => {});
 
   // Initial sync
   void sync();

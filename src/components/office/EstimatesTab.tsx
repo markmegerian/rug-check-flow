@@ -244,6 +244,74 @@ export function EstimatesTab() {
     return !error;
   };
 
+  const reviseEstimate = async (estimate: EstimateRow) => {
+    if (estimate.status !== "rejected") return;
+    setCreating(true);
+
+    // Fetch original estimate items to copy
+    const { data: origItems } = await supabaseExtended
+      .from("estimate_items")
+      .select("description, quantity, unit_price, total, service_category, rug_service_id")
+      .eq("estimate_id", estimate.id);
+
+    if (!origItems || origItems.length === 0) {
+      toast({ title: "No items to revise", description: "Original estimate has no line items.", variant: "destructive" });
+      setCreating(false);
+      return;
+    }
+
+    const newVersion = (estimate.version ?? 1) + 1;
+    const newNumber = `${estimate.estimate_number}-R${newVersion}`;
+    const total = (origItems as Array<{ total: number }>).reduce((sum, i) => sum + Number(i.total), 0);
+
+    const { data: newEst, error: estErr } = await supabaseExtended
+      .from("estimates")
+      .insert({
+        rug_id: estimate.rug_id,
+        client_id: estimate.client_id,
+        estimate_number: newNumber,
+        status: "draft",
+        version: newVersion,
+        total,
+      })
+      .select("id")
+      .single();
+
+    if (estErr || !newEst) {
+      toast({ title: "Revision failed", description: estErr?.message, variant: "destructive" });
+      setCreating(false);
+      return;
+    }
+
+    const items = (origItems as Array<{
+      description: string; quantity: number; unit_price: number;
+      total: number; service_category: string; rug_service_id: string | null;
+    }>).map((item) => ({
+      estimate_id: newEst.id,
+      rug_service_id: item.rug_service_id,
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total: item.total,
+      service_category: item.service_category,
+    }));
+
+    await supabaseExtended.from("estimate_items").insert(items as ExtendedTableInsert<"estimate_items">[]);
+
+    await logCommunicationEvent({
+      ...estimate,
+      id: newEst.id,
+      estimate_number: newNumber,
+      status: "draft",
+      version: newVersion,
+      total,
+    } as EstimateRow, "estimate_revised", `${newNumber} revised from ${estimate.estimate_number}`, `Revised estimate created from rejected ${estimate.estimate_number}.`);
+
+    toast({ title: "Revision created", description: `${newNumber} is ready to edit and resend.` });
+    await fetchData();
+    setCreating(false);
+  };
+
   const sendEstimate = async (estimate: EstimateRow) => {
     if (estimate.status !== "draft") return;
 
@@ -461,6 +529,11 @@ export function EstimatesTab() {
                           Mark rejected
                         </Button>
                       </>
+                    )}
+                    {estimate.status === "rejected" && (
+                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => reviseEstimate(estimate)} disabled={creating}>
+                        {creating ? "Creating..." : "Revise & resend"}
+                      </Button>
                     )}
                     {(estimate.status === "draft" || estimate.status === "sent") && (
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "expired")}>

@@ -7,8 +7,9 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Camera, Check, X } from "lucide-react";
+import { Camera, Check, MessageSquare, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
   supabaseExtended,
 } from "@/integrations/supabase/extended";
@@ -22,6 +23,7 @@ import {
   formatDate,
 } from "./portal-rug-types";
 import { RugJourneyTimeline } from "./RugJourneyTimeline";
+import { RugContextPanel } from "@/components/shared/RugContextPanel";
 
 interface PortalRugDetailPanelProps {
   rug: RugRow | null;
@@ -31,6 +33,7 @@ interface PortalRugDetailPanelProps {
 
 export default function PortalRugDetailPanel({ rug, open, onOpenChange }: PortalRugDetailPanelProps) {
   const { toast } = useToast();
+  const [requestingUpdate, setRequestingUpdate] = useState(false);
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [lineItemsByEstimate, setLineItemsByEstimate] = useState<Record<string, EstimateItemRow[]>>({});
   const [loadingEstimates, setLoadingEstimates] = useState(false);
@@ -153,6 +156,9 @@ export default function PortalRugDetailPanel({ rug, open, onOpenChange }: Portal
             </div>
           )}
 
+          {/* Delivery & Invoice Info */}
+          <RugContextPanel rugId={rug.id} showDeliveryProofs />
+
           {/* Estimates */}
           <div>
             <span className="text-xs text-muted-foreground block mb-2">Estimates</span>
@@ -173,6 +179,38 @@ export default function PortalRugDetailPanel({ rug, open, onOpenChange }: Portal
               </div>
             )}
           </div>
+
+          {/* Request status update for stuck rugs */}
+          {(rug.status === "checked_in" || rug.status === "in_production") && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5"
+              disabled={requestingUpdate}
+              onClick={async () => {
+                setRequestingUpdate(true);
+                const { error } = await supabaseExtended
+                  .from("communication_events")
+                  .insert({
+                    rug_id: rug.id,
+                    event_type: "status_update_requested_by_client",
+                    channel: "in_app_chat",
+                    direction: "inbound",
+                    subject: `Status update requested for ${rug.tag}`,
+                    body: `Client requested a status update for rug ${rug.tag} (currently: ${rug.status}).`,
+                  });
+                setRequestingUpdate(false);
+                if (error) {
+                  toast({ title: "Request failed", description: error.message, variant: "destructive" });
+                } else {
+                  toast({ title: "Update requested", description: "The office has been notified about this rug." });
+                }
+              }}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              {requestingUpdate ? "Sending..." : "Request status update"}
+            </Button>
+          )}
 
           {/* Notes */}
           {rug.notes && (
