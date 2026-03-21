@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck } from "lucide-react";
+import { DollarSign, FileText, Users, Truck, CalendarCheck, ClipboardCheck, Camera, Map } from "lucide-react";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
 import { DeliveriesTab } from "@/components/office/DeliveriesTab";
+import { DeliveryProofBoard } from "@/components/office/DeliveryProofBoard";
+import { RouteBuilder } from "@/components/office/RouteBuilder";
 import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
@@ -21,6 +23,8 @@ const BASE_TABS = [
   { id: "clients", label: "Clients", icon: Users },
   { id: "pickups", label: "Pickups", icon: CalendarCheck },
   { id: "deliveries", label: "Deliveries", icon: Truck },
+  { id: "routes", label: "Routes", icon: Map },
+  { id: "proofs", label: "Proofs", icon: Camera },
 ] as const;
 
 const ADMIN_PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign } as const;
@@ -79,6 +83,8 @@ export default function FacilityOffice() {
         {activeTab === "clients" && <ClientsTab />}
         {activeTab === "pickups" && <PickupRequestsTab />}
         {activeTab === "deliveries" && <DeliveriesTab />}
+        {activeTab === "routes" && <RouteBuilder />}
+        {activeTab === "proofs" && <DeliveryProofBoard />}
       </div>
 
       <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />

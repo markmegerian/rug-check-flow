@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { Tables } from "@/integrations/supabase/types";
+import { ClientActivityFeed } from "./ClientActivityFeed";
 
 type PricingTier = "standard" | "preferred" | "vip";
 type PortalUser = Tables<"portal_users">;
@@ -138,6 +139,13 @@ export function ClientDetailSheet({
             <Label>Notes</Label>
             <Textarea value={form.notes} onChange={(e) => onUpdateField("notes", e.target.value)} rows={3} />
           </div>
+
+          {editingId && (
+            <>
+              <Separator />
+              <ClientActivityFeed clientId={editingId} />
+            </>
+          )}
 
           {editingId && (
             <>
