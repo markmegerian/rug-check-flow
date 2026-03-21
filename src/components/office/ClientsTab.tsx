@@ -86,6 +86,14 @@ const CSV_HEADER_SYNONYMS: Record<keyof ImportedClientRow, string[]> = {
   portal_email: ["portal_email", "portal_user_email", "portal_login_email"],
 };
 
+const sanitizeCsvCell = (value: string): string => {
+  const trimmed = value.trim();
+  if (/^[=+\-@\t\r]/.test(trimmed)) {
+    return trimmed.replace(/^[=+\-@\t\r]+/, "");
+  }
+  return trimmed;
+};
+
 const parseCsvRows = (rawCsv: string): string[][] => {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -99,10 +107,10 @@ const parseCsvRows = (rawCsv: string): string[][] => {
       else inQuotes = !inQuotes;
       continue;
     }
-    if (char === "," && !inQuotes) { row.push(cell.trim()); cell = ""; continue; }
+    if (char === "," && !inQuotes) { row.push(sanitizeCsvCell(cell)); cell = ""; continue; }
     if ((char === "\n" || char === "\r") && !inQuotes) {
       if (char === "\r" && rawCsv[idx + 1] === "\n") idx += 1;
-      row.push(cell.trim());
+      row.push(sanitizeCsvCell(cell));
       if (row.some((v) => v.length > 0)) rows.push(row);
       row = []; cell = "";
       continue;
@@ -110,7 +118,7 @@ const parseCsvRows = (rawCsv: string): string[][] => {
     cell += char;
   }
   if (cell.length > 0 || row.length > 0) {
-    row.push(cell.trim());
+    row.push(sanitizeCsvCell(cell));
     if (row.some((v) => v.length > 0)) rows.push(row);
   }
   return rows;

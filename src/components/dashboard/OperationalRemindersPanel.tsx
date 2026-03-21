@@ -9,6 +9,7 @@ import {
   type OperationalReminder,
   type OperationalTrendSnapshot,
 } from "@/hooks/useOperationalReminders";
+import { SlaHeatmap } from "@/components/dashboard/SlaHeatmap";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,6 +137,8 @@ export function OperationalRemindersPanel() {
           ))}
         </div>
       ) : null}
+
+      <SlaHeatmap reminders={reminders} loading={loading} />
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading operational reminders…</p>

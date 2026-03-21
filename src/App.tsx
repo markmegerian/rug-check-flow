@@ -9,6 +9,7 @@ import { OfflineQueueProvider } from "@/contexts/OfflineQueueContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PortalRoute } from "@/components/PortalRoute";
 import { LoadingState } from "@/components/states/PageState";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,73 +38,87 @@ const RouteLoadingFallback = () => (
 );
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <OfflineQueueProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Suspense fallback={<RouteLoadingFallback />}>
-            <BrowserRouter>
-              <Routes>
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/auth/reset-password" element={<ResetPassword />} />
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/facility/ops"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
-                      <FacilityOps />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/facility/office"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "office"]}>
-                      <FacilityOffice />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/portal"
-                  element={
-                    <PortalRoute>
-                      <WholesalePortal />
-                    </PortalRoute>
-                  }
-                />
-                <Route
-                  path="/driver"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "driver"]}>
-                      <StopPortal />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
-                      <AdminPanel />
-                    </ProtectedRoute>
-                  }
-                />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </Suspense>
-        </TooltipProvider>
-      </OfflineQueueProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <ErrorBoundary fallbackTitle="Application Error">
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <OfflineQueueProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/auth/reset-password" element={<ResetPassword />} />
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <ErrorBoundary fallbackTitle="Dashboard Error">
+                          <Index />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/facility/ops"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
+                        <ErrorBoundary fallbackTitle="Facility Ops Error">
+                          <FacilityOps />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/facility/office"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "office"]}>
+                        <ErrorBoundary fallbackTitle="Office Error">
+                          <FacilityOffice />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/portal"
+                    element={
+                      <PortalRoute>
+                        <ErrorBoundary fallbackTitle="Portal Error">
+                          <WholesalePortal />
+                        </ErrorBoundary>
+                      </PortalRoute>
+                    }
+                  />
+                  <Route
+                    path="/driver"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "driver"]}>
+                        <ErrorBoundary fallbackTitle="Driver Portal Error">
+                          <StopPortal />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/admin"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin"]}>
+                        <ErrorBoundary fallbackTitle="Admin Panel Error">
+                          <AdminPanel />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </Suspense>
+          </TooltipProvider>
+        </OfflineQueueProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

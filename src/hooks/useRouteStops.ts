@@ -30,7 +30,7 @@ export function useRouteStops() {
     setLoading(true);
 
     try {
-      const { data: stopsData, error: stopsError } = await (supabaseExtended as any)
+      const { data: stopsData, error: stopsError } = await supabaseExtended
         .from("route_stops")
         .select("*, clients(name, address)")
         .eq("assigned_driver_id", user.id)
@@ -50,7 +50,7 @@ export function useRouteStops() {
 
       const { data: itemsData, error: itemsError } = stopIds.length === 0
         ? { data: [], error: null }
-        : await (supabaseExtended as any)
+        : await supabaseExtended
             .from("route_stop_items")
             .select("*, rugs(tag, size_length, size_width)")
             .in("route_stop_id", stopIds)

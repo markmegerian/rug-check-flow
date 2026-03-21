@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 
 type PortalClientState = {
   clientId: string | null;
@@ -93,7 +94,7 @@ export function usePortalClient() {
   }, []);
 
   const markOnboardingComplete = useCallback(async () => {
-    const { data, error } = await supabase.rpc("mark_portal_onboarding_complete" as any);
+    const { data, error } = await supabaseExtended.rpc("mark_portal_onboarding_complete");
     if (error || !data) {
       return false;
     }
@@ -102,7 +103,7 @@ export function usePortalClient() {
   }, [resolve]);
 
   const markPasswordChangeComplete = useCallback(async () => {
-    const { data, error } = await supabase.rpc("mark_portal_password_changed" as any);
+    const { data, error } = await supabaseExtended.rpc("mark_portal_password_changed");
 
     if (error) {
       const missingRpc = error.message.toLowerCase().includes("mark_portal_password_changed")

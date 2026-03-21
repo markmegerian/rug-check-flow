@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,7 @@ export default function ResetPassword() {
     }
 
     if (isPortalUser) {
-      const { data, error: markError } = await supabase.rpc("mark_portal_password_changed" as any);
+      const { data, error: markError } = await supabaseExtended.rpc("mark_portal_password_changed");
       const markErrorMessage = markError?.message?.toLowerCase() ?? "";
       const missingRpc = Boolean(markError) && (
         markErrorMessage.includes("mark_portal_password_changed")

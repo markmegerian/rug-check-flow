@@ -32,6 +32,8 @@ import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
 
 import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
+import { RugHistoryCard } from "./RugHistoryCard";
+import { useRugHistory } from "@/hooks/useRugHistory";
 
 type PricingTier = "standard" | "preferred" | "vip";
 
@@ -71,6 +73,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
+  const [resolvedClientId, setResolvedClientId] = useState<string | null>(null);
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -142,19 +145,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   useEffect(() => {
     if (!watchedClient) {
       setClientTier("standard");
+      setResolvedClientId(null);
       return;
     }
     let cancelled = false;
     const lookup = async () => {
       const { data } = await supabase
         .from("clients")
-        .select("pricing_tier")
+        .select("id, pricing_tier")
         .ilike("name", watchedClient)
         .limit(1);
       if (!cancelled && data?.[0]) {
         setClientTier(data[0].pricing_tier as PricingTier);
+        setResolvedClientId(data[0].id);
       } else if (!cancelled) {
         setClientTier("standard");
+        setResolvedClientId(null);
       }
     };
     const timer = setTimeout(lookup, 300);
@@ -223,6 +229,24 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       : [...current, serviceId];
     form.setValue("selectedServices", next, { shouldValidate: true });
   };
+
+  const watchedRugType = form.watch("rugType");
+  const { similarRugs } = useRugHistory(
+    resolvedClientId,
+    watchedRugType,
+    Number(watchedLength) || 0,
+    Number(watchedWidth) || 0
+  );
+
+  const handleCopyServices = useCallback((services: string[]) => {
+    const matchedIds = services
+      .map((name) => dbServices.find((s) => s.name.toLowerCase() === name.toLowerCase())?.id)
+      .filter(Boolean) as string[];
+    if (matchedIds.length > 0) {
+      form.setValue("selectedServices", matchedIds, { shouldValidate: true });
+      toast({ title: "Services applied", description: `Copied ${matchedIds.length} service(s) from previous rug.` });
+    }
+  }, [dbServices, form, toast]);
 
   const onSubmit = (data: CheckInValues) => {
     if (!editingEntry && photos.length < 1) {
@@ -307,6 +331,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               </AlertDescription>
             </Alert>
           )}
+
+          <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
 
           {/* Identity row */}
           {isReadOnlyIdentity ? (

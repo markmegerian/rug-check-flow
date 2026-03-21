@@ -188,8 +188,9 @@ export function InvoicesTab() {
     const totalAllocated = Object.values(params.allocations).reduce((sum, v) => sum + (Number(v) || 0), 0);
     if (totalAllocated <= 0) return;
 
-    const { data: payment, error: paymentError } = await (supabase as any)
-      .from("payments")
+    // payments table may not be in auto-generated types
+    const { data: payment, error: paymentError } = await supabase
+      .from("payments" as "invoices")
       .insert({
         client_id: selected.client_id,
         amount: totalAllocated,
@@ -198,7 +199,7 @@ export function InvoicesTab() {
         received_at: `${params.receivedAt}T00:00:00.000Z`,
         status: "succeeded",
         job_id: null,
-      })
+      } as Record<string, unknown> as never)
       .select("id")
       .single();
 
@@ -211,7 +212,7 @@ export function InvoicesTab() {
       .map(([invoiceId, amount]) => ({ payment_id: payment.id, invoice_id: invoiceId, amount: Number(amount) || 0 }))
       .filter((row) => row.amount > 0);
 
-    const { error: allocationError } = await (supabase as any).from("payment_allocations").insert(rows);
+    const { error: allocationError } = await supabase.from("payment_allocations" as "invoices").insert(rows as never);
     if (allocationError) {
       toast({ title: "Allocation failed", description: allocationError.message, variant: "destructive" });
       return;
@@ -226,9 +227,9 @@ export function InvoicesTab() {
     const normalized = Math.abs(Number(amount) || 0);
     if (!reason.trim() || normalized <= 0) return;
 
-    const { data: memo, error: memoError } = await (supabase as any)
-      .from("credit_memos")
-      .insert({ invoice_id: selected.id, reason: reason.trim() })
+    const { data: memo, error: memoError } = await supabase
+      .from("credit_memos" as "invoices")
+      .insert({ invoice_id: selected.id, reason: reason.trim() } as Record<string, unknown> as never)
       .select("id")
       .single();
 
@@ -237,11 +238,11 @@ export function InvoicesTab() {
       return;
     }
 
-    const { error: lineError } = await (supabase as any).from("credit_memo_lines").insert({
+    const { error: lineError } = await supabase.from("credit_memo_lines" as "invoices").insert({
       credit_memo_id: memo.id,
       description: reason.trim(),
       amount: -normalized,
-    });
+    } as Record<string, unknown> as never);
     if (lineError) {
       toast({ title: "Credit line failed", description: lineError.message, variant: "destructive" });
       return;
