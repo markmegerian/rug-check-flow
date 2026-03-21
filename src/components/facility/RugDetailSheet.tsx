@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useRug, useInvalidateRugs } from "@/hooks/useRugs";
+import { RugContextPanel } from "@/components/shared/RugContextPanel";
 import { PRODUCTION_STAGES } from "@/data/production";
 import { RUG_TYPES } from "@/data/services";
 import { supabase } from "@/integrations/supabase/client";
@@ -483,6 +484,11 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
                 ))}
               </div>
             </div>
+
+            <Separator />
+
+            {/* Delivery & Invoice Context */}
+            <RugContextPanel rugId={rug.id} showDeliveryProofs />
 
             <Separator />
 
