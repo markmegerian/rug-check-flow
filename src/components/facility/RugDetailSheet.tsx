@@ -23,7 +23,7 @@ import { PRODUCTION_STAGES } from "@/data/production";
 import { RUG_TYPES } from "@/data/services";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Check, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Check, FileText, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 interface RugDetailSheetProps {
   rugId: string | null;
@@ -204,6 +204,51 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
       setServices((prev) => prev.filter((s) => s.id !== serviceRowId));
       invalidateRugs();
     }
+  };
+
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+
+  const handleGenerateInvoice = async () => {
+    if (!rug || services.length === 0) return;
+    setCreatingInvoice(true);
+
+    const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
+    const total = services.reduce((sum, s) => sum + Number(s.line_total), 0);
+
+    const { data: inv, error: invErr } = await supabase
+      .from("invoices")
+      .insert({
+        invoice_number: invNum,
+        client_id: rug.client_id,
+        status: "draft" as const,
+        total,
+        pdf_storage_path: `clients/${rug.client_id}/${invNum}.pdf`,
+      })
+      .select("id")
+      .single();
+
+    if (invErr || !inv) {
+      toast({ title: "Invoice creation failed", description: invErr?.message, variant: "destructive" });
+      setCreatingInvoice(false);
+      return;
+    }
+
+    const lineItems = services.map((s) => ({
+      invoice_id: inv.id,
+      rug_id: rug.id,
+      description: `${s.service_name} — ${rug.tag}`,
+      quantity: 1,
+      unit_price: Number(s.line_total),
+      total: Number(s.line_total),
+    }));
+
+    const { error: itemsErr } = await supabase.from("invoice_items").insert(lineItems);
+    if (itemsErr) {
+      toast({ title: "Line items failed", description: itemsErr.message, variant: "destructive" });
+    } else {
+      toast({ title: `Draft invoice ${invNum} created`, description: `$${total.toFixed(2)} from ${services.length} service(s)` });
+    }
+    setCreatingInvoice(false);
   };
 
   const stageIndex = rug ? PRODUCTION_STAGES.findIndex((s) => s.id === rug.status) : -1;
@@ -469,11 +514,24 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
             <Separator />
 
             {/* Actions */}
-            {!isLastStage && stageIndex >= 0 && (
-              <Button onClick={handleAdvanceStage} className="w-full">
-                Advance to {PRODUCTION_STAGES[stageIndex + 1]?.label}
-              </Button>
-            )}
+            <div className="space-y-2">
+              {!isLastStage && stageIndex >= 0 && (
+                <Button onClick={handleAdvanceStage} className="w-full">
+                  Advance to {PRODUCTION_STAGES[stageIndex + 1]?.label}
+                </Button>
+              )}
+              {rug.client_id && services.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handleGenerateInvoice}
+                  disabled={creatingInvoice}
+                  className="w-full gap-1.5"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  {creatingInvoice ? "Creating..." : `Generate Invoice · $${servicesTotal.toFixed(2)}`}
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </SheetContent>

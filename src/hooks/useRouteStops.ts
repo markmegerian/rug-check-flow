@@ -314,6 +314,30 @@ export function useRouteStops() {
             toast({ title: "Completion failed", description: error.error, variant: "destructive" });
           }
         }
+
+        // Auto-transition delivered rugs to "picked_up" status
+        const verifiedItemIds = stop.deliveryItems
+          .filter((i) => i.status === "verified")
+          .map((i) => i.id);
+
+        if (verifiedItemIds.length > 0) {
+          const { data: itemRows } = await supabaseExtended
+            .from("route_stop_items")
+            .select("rug_id")
+            .in("id", verifiedItemIds);
+
+          const rugIds = (itemRows ?? [])
+            .map((r: { rug_id: string | null }) => r.rug_id)
+            .filter(Boolean) as string[];
+
+          if (rugIds.length > 0) {
+            await supabase
+              .from("rugs")
+              .update({ status: "picked_up", picked_up_at: new Date().toISOString() })
+              .in("id", rugIds)
+              .eq("status", "ready");
+          }
+        }
       }
 
       await fetchStops();

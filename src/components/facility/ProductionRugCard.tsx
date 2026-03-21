@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PRODUCTION_STAGES } from "@/data/production";
@@ -9,9 +9,11 @@ interface Props {
   rug: DbRug;
   onAdvanceStage: (rugId: string) => void;
   onViewDetail?: (rugId: string) => void;
+  deliveryDate?: string;
+  deliveryStatus?: string;
 }
 
-export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail }: Props) {
+export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryDate, deliveryStatus }: Props) {
   const [expanded, setExpanded] = useState(false);
   const stageIndex = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
   const isLastStage = stageIndex === PRODUCTION_STAGES.length - 1;
@@ -52,6 +54,13 @@ export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail }: Props) 
                   </Badge>
                 );
               })}
+            </div>
+          )}
+          {deliveryDate && (
+            <div className="flex items-center gap-1 mt-1.5 text-[10px] text-green-700 dark:text-green-400">
+              <Truck className="h-3 w-3" />
+              Delivery {new Date(deliveryDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              {deliveryStatus === "confirmed" && " · Confirmed"}
             </div>
           )}
         </div>

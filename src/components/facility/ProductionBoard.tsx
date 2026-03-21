@@ -10,6 +10,7 @@ import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useRugs, useInvalidateRugs, type RugWithServices } from "@/hooks/useRugs";
+import { useDeliveryAllocations } from "@/hooks/useDeliveryAllocations";
 import { RugDetailSheet } from "./RugDetailSheet";
 
 export type DbRug = RugWithServices;
@@ -17,6 +18,7 @@ export type DbRug = RugWithServices;
 export function ProductionBoard() {
   const { data: rugs = [], isLoading: loading } = useRugs();
   const invalidateRugs = useInvalidateRugs();
+  const { data: deliveryAllocations } = useDeliveryAllocations();
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
@@ -115,7 +117,7 @@ export function ProductionBoard() {
           return (
             <div className="space-y-2">
               {stageRugs.map((rug) => (
-                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} onViewDetail={setDetailRugId} />
+                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} onViewDetail={setDetailRugId} deliveryDate={deliveryAllocations?.get(rug.id)?.target_date} deliveryStatus={deliveryAllocations?.get(rug.id)?.status} />
               ))}
               {stageRugs.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-6">No rugs</p>
