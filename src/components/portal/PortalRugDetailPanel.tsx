@@ -21,6 +21,7 @@ import {
   isCleaningLineItem,
   formatDate,
 } from "./portal-rug-types";
+import { RugJourneyTimeline } from "./RugJourneyTimeline";
 
 interface PortalRugDetailPanelProps {
   rug: RugRow | null;
@@ -111,14 +112,8 @@ export default function PortalRugDetailPanel({ rug, open, onOpenChange }: Portal
         </SheetHeader>
 
         <div className="space-y-5 mt-4">
-          {/* Photo */}
-          <div className="w-full aspect-video rounded-lg bg-muted flex items-center justify-center overflow-hidden">
-            {rug.photo_url ? (
-              <img src={rug.photo_url} alt={rug.tag} className="w-full h-full object-cover" />
-            ) : (
-              <Camera className="h-10 w-10 text-muted-foreground" />
-            )}
-          </div>
+          {/* Rug Journey Timeline */}
+          <RugJourneyTimeline rug={rug} />
 
           {/* Details grid */}
           <div className="grid grid-cols-2 gap-3 text-sm">
