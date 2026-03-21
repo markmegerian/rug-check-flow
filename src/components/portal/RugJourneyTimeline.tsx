@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Check, Circle, Clock, Package, Truck, Sparkles, Camera } from "lucide-react";
+import { Check, Package, Truck, Sparkles, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type RugRow, STATUS_LABELS, PROGRESS_STEPS, formatDate } from "./portal-rug-types";
 
@@ -14,33 +14,14 @@ type JourneyStep = {
   description: string;
   icon: typeof Check;
   state: "completed" | "active" | "upcoming";
-  timestamp?: string;
 };
 
-const STEP_ICONS = {
-  checked_in: Package,
-  in_production: Sparkles,
-  ready: Check,
-  picked_up: Truck,
+const STEP_META: Record<string, { icon: typeof Check; description: string }> = {
+  checked_in: { icon: Package, description: "Received at facility and tagged for processing" },
+  in_production: { icon: Sparkles, description: "Professional cleaning and treatment in progress" },
+  ready: { icon: Check, description: "Quality checked and ready for pickup or delivery" },
+  picked_up: { icon: Truck, description: "Delivered back to you" },
 };
-
-const STEP_DESCRIPTIONS: Record<string, string> = {
-  checked_in: "Rug received at facility and tagged for processing",
-  in_production: "Professional cleaning and treatment in progress",
-  ready: "Quality checked and ready for pickup or delivery",
-  picked_up: "Delivered back to you",
-};
-
-function estimateTimestamp(checkedInAt: string, stepIndex: number, currentStepIndex: number): string | undefined {
-  if (stepIndex > currentStepIndex) return undefined;
-  if (stepIndex === 0) return checkedInAt;
-  // Estimate intermediate timestamps based on typical processing times
-  const baseDate = new Date(checkedInAt);
-  const daysPerStep = 2;
-  const estimated = new Date(baseDate.getTime() + stepIndex * daysPerStep * 24 * 60 * 60 * 1000);
-  const now = new Date();
-  return estimated > now ? now.toISOString() : estimated.toISOString();
-}
 
 export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) {
   const allSteps = [...PROGRESS_STEPS, "picked_up" as const];
@@ -52,39 +33,39 @@ export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) 
       if (i < currentStepIndex) state = "completed";
       else if (i === currentStepIndex) state = "active";
 
+      const meta = STEP_META[stepId] ?? { icon: Clock, description: "" };
       return {
         id: stepId,
         label: STATUS_LABELS[stepId] ?? stepId,
-        description: STEP_DESCRIPTIONS[stepId] ?? "",
-        icon: STEP_ICONS[stepId as keyof typeof STEP_ICONS] ?? Circle,
+        description: meta.description,
+        icon: meta.icon,
         state,
-        timestamp: state !== "upcoming"
-          ? estimateTimestamp(rug.checked_in_at, i, currentStepIndex)
-          : undefined,
       };
     });
-  }, [rug.status, rug.checked_in_at, currentStepIndex]);
+  }, [rug.status, currentStepIndex]);
 
   return (
     <div className={cn("space-y-1", className)}>
-      <div className="flex items-center gap-2 mb-3">
-        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Rug Journey
-        </h4>
-      </div>
-
       {/* Photo banner */}
       {rug.photo_url && (
         <div className="relative h-32 rounded-lg overflow-hidden mb-4">
-          <img src={rug.photo_url} alt={rug.tag} className="w-full h-full object-cover" />
+          <img
+            src={rug.photo_url}
+            alt={rug.tag}
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-          <div className="absolute bottom-2 left-3 flex items-center gap-1.5">
-            <Camera className="h-3 w-3 text-white/80" />
-            <span className="text-xs font-medium text-white">{rug.tag}</span>
+          <div className="absolute bottom-2 left-3 text-xs font-medium text-white font-mono">
+            {rug.tag}
           </div>
         </div>
       )}
+
+      {/* Checked-in date as anchor */}
+      <p className="text-xs text-muted-foreground mb-3">
+        Checked in {formatDate(rug.checked_in_at)}
+      </p>
 
       {/* Timeline */}
       <div className="relative pl-6">
@@ -93,12 +74,12 @@ export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) 
           const isLast = i === steps.length - 1;
 
           return (
-            <div key={step.id} className="relative pb-6 last:pb-0">
+            <div key={step.id} className="relative pb-5 last:pb-0">
               {/* Connecting line */}
               {!isLast && (
                 <div
                   className={cn(
-                    "absolute left-0 top-6 w-0.5 h-[calc(100%-12px)]",
+                    "absolute left-0 top-6 w-0.5 h-[calc(100%-8px)]",
                     step.state === "completed" ? "bg-primary" : "bg-muted"
                   )}
                   style={{ transform: "translateX(-1px)" }}
@@ -108,7 +89,7 @@ export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) 
               {/* Node */}
               <div
                 className={cn(
-                  "absolute left-0 top-1 h-5 w-5 rounded-full flex items-center justify-center -translate-x-[10px]",
+                  "absolute left-0 top-0.5 h-5 w-5 rounded-full flex items-center justify-center -translate-x-[10px]",
                   step.state === "completed" && "bg-primary text-primary-foreground",
                   step.state === "active" && "bg-primary text-primary-foreground ring-4 ring-primary/20",
                   step.state === "upcoming" && "bg-muted text-muted-foreground border-2 border-border"
@@ -148,11 +129,6 @@ export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) 
                 )}>
                   {step.description}
                 </p>
-                {step.timestamp && (
-                  <p className="text-[11px] text-muted-foreground/80 mt-1">
-                    {formatDate(step.timestamp)}
-                  </p>
-                )}
               </div>
             </div>
           );
