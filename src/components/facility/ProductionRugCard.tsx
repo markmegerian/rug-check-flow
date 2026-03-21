@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Truck } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronUp, Square, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PRODUCTION_STAGES } from "@/data/production";
+import { cn } from "@/lib/utils";
 import type { DbRug } from "./ProductionBoard";
 
 interface Props {
@@ -11,21 +12,35 @@ interface Props {
   onViewDetail?: (rugId: string) => void;
   deliveryDate?: string;
   deliveryStatus?: string;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
-export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryDate, deliveryStatus }: Props) {
+export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryDate, deliveryStatus, selected, onToggleSelect }: Props) {
   const [expanded, setExpanded] = useState(false);
   const stageIndex = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
   const isLastStage = stageIndex === PRODUCTION_STAGES.length - 1;
 
   return (
-    <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+    <div className={cn("rounded-md border bg-card text-card-foreground shadow-sm", selected && "ring-2 ring-primary border-primary/50")}>
       <button
         className="w-full text-left px-3 py-2.5 flex items-start justify-between gap-2"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
+            {onToggleSelect && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                {selected
+                  ? <CheckSquare className="h-3.5 w-3.5 text-primary" />
+                  : <Square className="h-3.5 w-3.5" />
+                }
+              </button>
+            )}
             <span
               className={`font-mono font-bold text-sm ${onViewDetail ? "text-primary hover:underline cursor-pointer" : ""}`}
               onClick={onViewDetail ? (e) => { e.stopPropagation(); onViewDetail(rug.id); } : undefined}

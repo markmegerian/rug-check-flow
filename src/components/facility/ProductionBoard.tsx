@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { CheckSquare, Search, Square } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +22,8 @@ export function ProductionBoard() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
+  const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
+  const [bulkAdvancing, setBulkAdvancing] = useState(false);
 
   const filteredRugs = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -52,6 +54,55 @@ export function ProductionBoard() {
     invalidateRugs();
   };
 
+  const toggleSelection = (rugId: string) => {
+    setSelectedRugIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rugId)) next.delete(rugId);
+      else next.add(rugId);
+      return next;
+    });
+  };
+
+  const selectAllInStage = (stageId: string) => {
+    const stageRugIds = filteredRugs.filter((r) => r.status === stageId).map((r) => r.id);
+    setSelectedRugIds((prev) => {
+      const allSelected = stageRugIds.every((id) => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) {
+        stageRugIds.forEach((id) => next.delete(id));
+      } else {
+        stageRugIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkAdvance = async () => {
+    if (selectedRugIds.size === 0) return;
+    setBulkAdvancing(true);
+
+    const selected = rugs.filter((r) => selectedRugIds.has(r.id));
+    let advanced = 0;
+
+    for (const rug of selected) {
+      const idx = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
+      if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) continue;
+
+      const nextStage = PRODUCTION_STAGES[idx + 1].id;
+      const updates: Record<string, string> = { status: nextStage };
+      if (nextStage === "ready") updates.completed_at = new Date().toISOString();
+      if (nextStage === "picked_up") updates.picked_up_at = new Date().toISOString();
+
+      const { error } = await supabase.from("rugs").update(updates).eq("id", rug.id);
+      if (!error) advanced++;
+    }
+
+    setSelectedRugIds(new Set());
+    setBulkAdvancing(false);
+    invalidateRugs();
+    toast({ title: `Advanced ${advanced} rug(s)`, description: `${advanced} of ${selected.length} rugs moved to next stage.` });
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-3">
@@ -68,11 +119,32 @@ export function ProductionBoard() {
   // On mobile, show stage tabs; on desktop, show columns
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 shrink-0">
+      <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 shrink-0 flex-wrap">
         <h2 className="text-sm font-semibold">Production Board</h2>
         <Badge variant="outline" className="text-xs">
           {search ? `${filteredRugs.length} of ${rugs.length}` : `${rugs.length}`} rugs
         </Badge>
+        {selectedRugIds.size > 0 && (
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="text-xs">{selectedRugIds.size} selected</Badge>
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleBulkAdvance}
+              disabled={bulkAdvancing}
+            >
+              {bulkAdvancing ? "Advancing..." : "Advance selected"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={() => setSelectedRugIds(new Set())}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
         <div className="relative ml-auto">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -117,7 +189,7 @@ export function ProductionBoard() {
           return (
             <div className="space-y-2">
               {stageRugs.map((rug) => (
-                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} onViewDetail={setDetailRugId} deliveryDate={deliveryAllocations?.get(rug.id)?.target_date} deliveryStatus={deliveryAllocations?.get(rug.id)?.status} />
+                <ProductionRugCard key={rug.id} rug={rug} onAdvanceStage={handleAdvanceStage} onViewDetail={setDetailRugId} deliveryDate={deliveryAllocations?.get(rug.id)?.target_date} deliveryStatus={deliveryAllocations?.get(rug.id)?.status} selected={selectedRugIds.has(rug.id)} onToggleSelect={() => toggleSelection(rug.id)} />
               ))}
               {stageRugs.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-6">No rugs</p>
@@ -135,9 +207,22 @@ export function ProductionBoard() {
             return (
               <div key={stage.id} className="flex flex-col w-64 border-r last:border-r-0 shrink-0">
                 <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/20">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {stage.label}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => selectAllInStage(stage.id)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title={`Select all ${stage.label}`}
+                    >
+                      {stageRugs.length > 0 && stageRugs.every((r) => selectedRugIds.has(r.id))
+                        ? <CheckSquare className="h-3.5 w-3.5 text-primary" />
+                        : <Square className="h-3.5 w-3.5" />
+                      }
+                    </button>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {stage.label}
+                    </span>
+                  </div>
                   <Badge variant="secondary" className="text-xs h-5 min-w-5 justify-center">
                     {stageRugs.length}
                   </Badge>
