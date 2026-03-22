@@ -62,6 +62,7 @@ export const DraftRugCard = memo(function DraftRugCard({
           variant="ghost"
           size="icon"
           className="h-7 w-7 shrink-0"
+          aria-label={`Remove rug ${rug.label || "draft"}`}
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
         >
           <X className="h-4 w-4" />
