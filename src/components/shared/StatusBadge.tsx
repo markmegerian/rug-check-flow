@@ -51,3 +51,18 @@ export function RugStatusBadge({ status, className }: { status: string; classNam
   if (!style) return <Badge variant="secondary" className={className}>{status}</Badge>;
   return <Badge className={`${style.className} ${className ?? ""}`}>{style.label}</Badge>;
 }
+
+export type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+
+const INVOICE_STATUS_STYLES: Record<InvoiceStatus, { label: string; className: string }> = {
+  draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
+  sent: { label: "Sent", className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+  paid: { label: "Paid", className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  overdue: { label: "Overdue", className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+};
+
+export function InvoiceStatusBadge({ status }: { status: string }) {
+  const style = INVOICE_STATUS_STYLES[status as InvoiceStatus];
+  if (!style) return <Badge variant="secondary">{status}</Badge>;
+  return <Badge className={style.className} variant="secondary">{style.label}</Badge>;
+}

@@ -17,15 +17,8 @@ import { InvoiceDetailSheet } from "@/components/office/InvoiceDetailSheet";
 import { InvoiceCreateSheet } from "@/components/office/InvoiceCreateSheet";
 import { LoadingState } from "@/components/states/PageState";
 import { useInvoices, useInvalidateInvoices, type InvoiceRow } from "@/hooks/useInvoices";
-
-type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
-
-const STATUS_COLORS: Record<InvoiceStatus, string> = {
-  draft: "bg-muted text-muted-foreground",
-  sent: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  paid: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  overdue: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-};
+import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/shared/StatusBadge";
+import { MS_PER_DAY } from "@/lib/constants";
 
 const STATUSES: Array<{ value: string; label: string }> = [
   { value: "all", label: "All" },
@@ -36,7 +29,6 @@ const STATUSES: Array<{ value: string; label: string }> = [
 ];
 const STATUS_VALUES = new Set(STATUSES.map((status) => status.value));
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function InvoicesTab() {
   const [searchParams] = useSearchParams();
@@ -333,9 +325,7 @@ export function InvoicesTab() {
                   ${Number(inv.total).toFixed(2)}
                 </TableCell>
                 <TableCell>
-                  <Badge className={STATUS_COLORS[inv.status as InvoiceStatus]} variant="secondary">
-                    {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
-                  </Badge>
+                  <InvoiceStatusBadge status={inv.status} />
                 </TableCell>
                 <TableCell>
                   <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openInvoice(inv); }}>

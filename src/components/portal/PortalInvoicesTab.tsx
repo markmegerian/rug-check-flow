@@ -6,8 +6,7 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
-
-type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
+import { type InvoiceStatus } from "@/components/shared/StatusBadge";
 type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
 
 const PAGE_SIZE = 50;
