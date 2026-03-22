@@ -151,37 +151,60 @@ export function DeliveriesTab() {
       .eq("target_date", targetDate)
       .limit(1);
 
+    let listId: string;
+
     if (existing && existing.length > 0) {
-      toast({ title: "List already exists", description: `A delivery list for ${routeDay} ${targetDate} already exists.` });
-      setCompiling(false);
-      const { data: dl } = await supabase.from("delivery_lists").select("*").eq("id", existing[0].id).single();
-      if (dl) openDetail(dl as DeliveryList);
-      return;
+      listId = existing[0].id;
+    } else {
+      const { data: newList, error: listError } = await supabase
+        .from("delivery_lists")
+        .insert({ route_day: routeDay, target_date: targetDate })
+        .select()
+        .single();
+
+      if (listError || !newList) {
+        toast({ title: "Failed to create list", description: listError?.message, variant: "destructive" });
+        setCompiling(false);
+        return;
+      }
+      listId = newList.id;
     }
 
-    const { data: newList, error: listError } = await supabase
-      .from("delivery_lists")
-      .insert({ route_day: routeDay, target_date: targetDate })
-      .select()
-      .single();
+    // Fetch existing items to avoid duplicates
+    const { data: existingItems } = await supabase
+      .from("delivery_list_items")
+      .select("rug_id")
+      .eq("delivery_list_id", listId);
 
-    if (listError || !newList) {
-      toast({ title: "Failed to create list", description: listError?.message, variant: "destructive" });
-      setCompiling(false);
-      return;
+    const existingRugIds = new Set((existingItems ?? []).map((i) => i.rug_id));
+    // Deduplicate eligible rugs by id and exclude already-listed ones
+    const seen = new Set<string>();
+    const newRugs = eligibleRugs.filter((r) => {
+      if (seen.has(r.id) || existingRugIds.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+
+    if (newRugs.length > 0) {
+      const itemsToInsert = newRugs.map((r) => ({
+        delivery_list_id: listId,
+        rug_id: r.id,
+        client_id: r.client_id,
+      }));
+      await supabase.from("delivery_list_items").insert(itemsToInsert);
     }
 
-    const itemsToInsert = eligibleRugs.map((r) => ({
-      delivery_list_id: newList.id,
-      rug_id: r.id,
-      client_id: r.client_id,
-    }));
-
-    await supabase.from("delivery_list_items").insert(itemsToInsert);
-
-    toast({ title: "Delivery list compiled", description: `${eligibleRugs.length} rugs for ${routeDay}` });
+    const totalAdded = newRugs.length;
+    const totalExisting = existingRugIds.size;
+    toast({
+      title: existing && existing.length > 0 ? "List updated" : "Delivery list compiled",
+      description: totalAdded > 0
+        ? `${totalAdded} new rugs added (${totalExisting + totalAdded} total) for ${routeDay}`
+        : `${totalExisting} rugs already on list for ${routeDay}`,
+    });
     await fetchDeliveryLists();
-    openDetail(newList as DeliveryList);
+    const { data: dl } = await supabase.from("delivery_lists").select("*").eq("id", listId).single();
+    if (dl) openDetail(dl as DeliveryList);
     setCompiling(false);
   };
 

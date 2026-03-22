@@ -60,13 +60,15 @@ export function DeliveryPrepTab() {
   // Tracks previous rug status before confirming, so we can revert on uncheck
   const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
 
-  // Tomorrow's date and weekday
-  const tomorrowDate = addDays(new Date(), 1);
-  const tomorrow = format(tomorrowDate, "yyyy-MM-dd");
-  const tomorrowDayName = DAYS_OF_WEEK[tomorrowDate.getDay() === 0 ? 6 : tomorrowDate.getDay() - 1];
+  // Tomorrow's date and weekday — memoized to prevent infinite re-render loop
+  const tomorrow = useMemo(() => format(addDays(new Date(), 1), "yyyy-MM-dd"), []);
+  const tomorrowDayName = useMemo(() => {
+    const d = addDays(new Date(), 1);
+    return DAYS_OF_WEEK[d.getDay() === 0 ? 6 : d.getDay() - 1];
+  }, []);
 
-  // Cutoff: rugs must have been at facility for 1+ day
-  const oneDayAgo = subDays(new Date(), 1).toISOString();
+  // Cutoff: rugs must have been at facility for 1+ day — memoized to stable string
+  const oneDayAgo = useMemo(() => subDays(new Date(), 1).toISOString(), []);
 
   const fetchDeliveryPrepItems = useCallback(async () => {
     setLoading(true);
