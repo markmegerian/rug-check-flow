@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCheckInData } from "@/hooks/useCheckInData";
 import { uploadCheckinPhoto, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
+import { advanceRugStage } from "@/lib/rug-operations";
 
 type MobilePanel = "form" | "pending" | "log";
 
@@ -222,6 +223,9 @@ export function CheckInLayout() {
         }
 
         await maybeAutoCreateEstimateDraft(inserted.id, clientId, data.rugNumber, data.serviceSnapshots, toastError, toastSuccess);
+
+        // Auto-advance rug from checked_in → in_production
+        await advanceRugStage(inserted.id, "checked_in");
 
         if (data.rugId) {
           removePendingRug(data.rugId);

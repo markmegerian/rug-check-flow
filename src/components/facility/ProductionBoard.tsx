@@ -44,6 +44,9 @@ export function ProductionBoard() {
       toast({ title: "Update failed", description: result.error, variant: "destructive" });
       return;
     }
+    if (result.autoInvoice) {
+      toast({ title: "Invoice auto-created", description: `${result.autoInvoice} was generated for ${rug.tag}.` });
+    }
     invalidateRugs();
   };
 
