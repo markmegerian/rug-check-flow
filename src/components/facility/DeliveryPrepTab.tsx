@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
-import { PaginationControls } from "@/components/ui/pagination-controls";
 import { format, addDays, subDays } from "date-fns";
 import { Package, CheckCircle2, Calendar, AlertCircle, Clock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -291,18 +289,16 @@ export function DeliveryPrepTab() {
     }
   };
 
-  const pagination = usePaginatedList(items);
-
   // Group items by client
   const itemsByClient = useMemo(() => {
     const map: Record<string, DeliveryItem[]> = {};
-    pagination.items.forEach((item) => {
+    items.forEach((item) => {
       const clientId = item.client_id ?? "unknown";
       if (!map[clientId]) map[clientId] = [];
       map[clientId].push(item);
     });
     return map;
-  }, [pagination.items]);
+  }, [items]);
 
   const clientName = (clientId: string | null) => {
     if (!clientId) return "Unknown";
@@ -459,16 +455,6 @@ export function DeliveryPrepTab() {
               </div>
             );
           })}
-          <PaginationControls
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            hasPrev={pagination.hasPrev}
-            hasNext={pagination.hasNext}
-            onPrev={pagination.prevPage}
-            onNext={pagination.nextPage}
-            label="items"
-          />
         </div>
       )}
     </div>
