@@ -24,21 +24,8 @@ import { APP_NAME } from "@/lib/branding";
 
 type Client = Tables<"clients">;
 type PortalUser = Tables<"portal_users">;
-type PricingTier = "standard" | "preferred" | "vip";
-
-const TIER_LABELS: Record<PricingTier, string> = {
-  standard: "Standard",
-  preferred: "Preferred",
-  vip: "VIP",
-};
-
-const TIER_COLORS: Record<PricingTier, string> = {
-  standard: "bg-muted text-muted-foreground",
-  preferred: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  vip: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-};
-
-const ROUTE_DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+import { type PricingTier, TIER_LABELS, TIER_COLORS, ROUTE_DAYS } from "@/lib/constants";
+import { parseCsvRows, sanitizeCsvCell } from "@/lib/validation";
 
 type FormData = {
   name: string;
@@ -86,43 +73,6 @@ const CSV_HEADER_SYNONYMS: Record<keyof ImportedClientRow, string[]> = {
   portal_email: ["portal_email", "portal_user_email", "portal_login_email"],
 };
 
-const sanitizeCsvCell = (value: string): string => {
-  const trimmed = value.trim();
-  if (/^[=+\-@\t\r]/.test(trimmed)) {
-    return trimmed.replace(/^[=+\-@\t\r]+/, "");
-  }
-  return trimmed;
-};
-
-const parseCsvRows = (rawCsv: string): string[][] => {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let inQuotes = false;
-
-  for (let idx = 0; idx < rawCsv.length; idx += 1) {
-    const char = rawCsv[idx];
-    if (char === "\"") {
-      if (inQuotes && rawCsv[idx + 1] === "\"") { cell += "\""; idx += 1; }
-      else inQuotes = !inQuotes;
-      continue;
-    }
-    if (char === "," && !inQuotes) { row.push(sanitizeCsvCell(cell)); cell = ""; continue; }
-    if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && rawCsv[idx + 1] === "\n") idx += 1;
-      row.push(sanitizeCsvCell(cell));
-      if (row.some((v) => v.length > 0)) rows.push(row);
-      row = []; cell = "";
-      continue;
-    }
-    cell += char;
-  }
-  if (cell.length > 0 || row.length > 0) {
-    row.push(sanitizeCsvCell(cell));
-    if (row.some((v) => v.length > 0)) rows.push(row);
-  }
-  return rows;
-};
 
 const normalizeTier = (value: string): PricingTier => {
   if (value === "preferred" || value === "vip") return value;

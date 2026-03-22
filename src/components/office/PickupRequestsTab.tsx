@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
@@ -7,59 +7,46 @@ import { LoadingState } from "@/components/states/PageState";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabaseExtended } from "@/integrations/supabase/extended";
-import { canRoleTransitionPickupStatus } from "@/lib/workflow-guards";
-import type { Tables } from "@/integrations/supabase/types";
+import { canRoleTransitionPickupStatus, type PickupRequestStatus } from "@/lib/workflow-guards";
 import {
   usePickupRequests,
   usePickupItems,
   useInvalidatePickupRequests,
   type PickupRequestRow,
 } from "@/hooks/usePickupRequests";
+import { useDrivers } from "@/hooks/useDrivers";
+import { PickupStatusBadge } from "@/components/shared/StatusBadge";
+import { capitalize } from "@/lib/format-helpers";
+import { MS_PER_DAY } from "@/lib/constants";
 
-type PickupStatus = PickupRequestRow["status"];
-
-type DriverOption = {
-  id: string;
-  name: string;
-};
-
-type DriverRoleRow = Pick<Tables<"user_roles">, "user_id">;
-type DriverProfileRow = Pick<Tables<"profiles">, "user_id" | "full_name" | "email">;
-
-const STATUS_ORDER: PickupStatus[] = ["pending", "confirmed", "assigned", "completed", "cancelled"];
-const STATUS_SET = new Set<PickupStatus>(STATUS_ORDER);
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const STATUS_ORDER: PickupRequestStatus[] = ["pending", "confirmed", "assigned", "completed", "cancelled"];
+const STATUS_SET = new Set<PickupRequestStatus>(STATUS_ORDER);
 
 export function PickupRequestsTab() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [driverSelection, setDriverSelection] = useState<Record<string, string>>({});
-  const [quickFilter, setQuickFilter] = useState<PickupStatus | "all">("all");
+  const [quickFilter, setQuickFilter] = useState<PickupRequestStatus | "all">("all");
 
   const statusFilterParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
   const statusFilters = (statusFilterParam ?? "")
     .split(",")
     .map((status) => status.trim())
-    .filter((status): status is PickupStatus => STATUS_SET.has(status as PickupStatus));
+    .filter((status): status is PickupRequestStatus => STATUS_SET.has(status as PickupRequestStatus));
   const hasReminderFilter = statusFilters.length > 0 || minAgeDays > 0;
 
   const { data: requests = [], isLoading: loading } = usePickupRequests();
   const invalidatePickupRequests = useInvalidatePickupRequests();
+  const { data: drivers = [] } = useDrivers();
 
   const requestIds = useMemo(() => requests.map((r) => r.id), [requests]);
   const { data: items = [] } = usePickupItems(requestIds);
 
-  // Initialize driver selections when requests load
   useEffect(() => {
     const defaultSelections: Record<string, string> = {};
     requests.forEach((r) => {
@@ -67,37 +54,6 @@ export function PickupRequestsTab() {
     });
     setDriverSelection(defaultSelections);
   }, [requests]);
-
-  const fetchDrivers = useCallback(async () => {
-    const { data: roleRows } = await supabaseExtended
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "driver");
-
-    const typedRoles = (roleRows ?? []) as DriverRoleRow[];
-    const driverIds = [...new Set(typedRoles.map((r) => r.user_id))].filter(Boolean);
-    if (driverIds.length === 0) {
-      setDrivers([]);
-      return;
-    }
-
-    const { data: profiles } = await supabaseExtended
-      .from("profiles")
-      .select("user_id, full_name, email")
-      .in("user_id", driverIds);
-
-    const typedProfiles = (profiles ?? []) as DriverProfileRow[];
-    const mapped = typedProfiles.map((p) => ({
-      id: p.user_id,
-      name: p.full_name?.trim() || p.email || p.user_id,
-    }));
-
-    setDrivers(mapped);
-  }, []);
-
-  useEffect(() => {
-    fetchDrivers();
-  }, [fetchDrivers]);
 
   const filteredRequests = useMemo(() => {
     let filtered = [...requests];
@@ -147,7 +103,7 @@ export function PickupRequestsTab() {
     return counts;
   }, [items]);
 
-  const updateStatus = async (id: string, status: PickupStatus) => {
+  const updateStatus = async (id: string, status: PickupRequestStatus) => {
     const current = requests.find((request) => request.id === id);
     if (!current) return;
     if (!canRoleTransitionPickupStatus("office", current.status, status)) {
@@ -209,14 +165,6 @@ export function PickupRequestsTab() {
     invalidatePickupRequests();
   };
 
-  const statusBadge = (status: PickupStatus) => {
-    if (status === "pending") return <Badge variant="outline">Pending</Badge>;
-    if (status === "confirmed") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Confirmed</Badge>;
-    if (status === "assigned") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Assigned</Badge>;
-    if (status === "completed") return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Completed</Badge>;
-    return <Badge variant="secondary">Cancelled</Badge>;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -259,7 +207,7 @@ export function PickupRequestsTab() {
                       : "bg-muted/50 text-muted-foreground border-border hover:border-primary hover:text-foreground"
                   }`}
                 >
-                  {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)} ({count})
+                  {s === "all" ? "All" : capitalize(s)} ({count})
                 </button>
               );
             })}
@@ -286,7 +234,7 @@ export function PickupRequestsTab() {
                         {new Date(`${req.scheduled_date}T00:00:00`).toLocaleDateString()} · {counts.ready} ready rugs · {counts.newRugs} new rugs
                       </p>
                     </div>
-                    {statusBadge(req.status)}
+                    <PickupStatusBadge status={req.status} />
                   </div>
 
                   {req.notes && <p className="text-xs text-muted-foreground">Notes: {req.notes}</p>}

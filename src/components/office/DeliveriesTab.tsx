@@ -11,10 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays } from "date-fns";
 
-const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
-const DAY_INDEX: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
-  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
-};
+import { DAYS_OF_WEEK, DAY_INDEX } from "@/lib/constants";
+import { DeliveryStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
 
 type DeliveryList = {
   id: string;
@@ -366,24 +364,6 @@ export function DeliveriesTab() {
     setHistoryInvoices(invoiceMap);
   };
 
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "compiling":
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">Compiling</Badge>;
-      case "confirmed":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Confirmed</Badge>;
-      case "checked_out":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">Checked Out</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const rugStatusBadge = (status: string) => {
-    if (status === "ready") return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">Ready</Badge>;
-    if (status === "in_production") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-xs">In Production</Badge>;
-    return <Badge variant="secondary" className="text-xs">{status}</Badge>;
-  };
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading deliveries…</div>;
@@ -424,7 +404,7 @@ export function DeliveriesTab() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {statusBadge(dl.status)}
+                      <DeliveryStatusBadge status={dl.status} />
                       <Button size="sm" variant="ghost" onClick={() => openDetail(dl)}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
@@ -478,7 +458,7 @@ export function DeliveriesTab() {
           <div>
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
               {selectedList.route_day} — {format(new Date(selectedList.target_date + "T00:00:00"), "MMM d, yyyy")}
-              {statusBadge(selectedList.status)}
+              <DeliveryStatusBadge status={selectedList.status} />
             </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               {items.length} rugs · {Object.keys(itemsByClient).length} clients
@@ -567,7 +547,7 @@ export function DeliveriesTab() {
                           </span>
                         )}
                       </div>
-                      {rug && rugStatusBadge(rug.status)}
+                      {rug && <RugStatusBadge status={rug.status} className="text-xs" />}
                       {isInProduction && !isCheckedOut && (
                         <Tooltip>
                           <TooltipTrigger>
@@ -669,7 +649,7 @@ export function DeliveriesTab() {
                           {format(new Date(dl.target_date + "T00:00:00"), "MMM d")}
                         </span>
                         <div className="flex items-center gap-2">
-                          {statusBadge(dl.status)}
+                          <DeliveryStatusBadge status={dl.status} />
                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                         </div>
                       </button>

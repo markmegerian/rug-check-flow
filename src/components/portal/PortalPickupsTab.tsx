@@ -3,17 +3,9 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { type PortalPickup, type PickupRugEntry } from "@/types/portal";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronDown, ChevronRight, Lock, Plus, Truck, X } from "lucide-react";
-import { RUG_TYPES, SERVICES, SERVICE_CATEGORIES } from "@/data/services";
+import { Lock, Plus, Truck } from "lucide-react";
 import { autoAssignPickupToDriver } from "@/lib/pickup-automation";
 import {
   supabaseExtended,
@@ -27,42 +19,11 @@ import {
   normalizePortalPickupStatus,
 } from "@/lib/workflow-guards";
 import type { Tables } from "@/integrations/supabase/types";
-
-/* ------------------------------------------------------------------ */
-/*  Constants & helpers                                                */
-/* ------------------------------------------------------------------ */
-
-const DEFAULT_ROUTE_DAY = "Thursday";
-const DEFAULT_REGION = "Westchester";
-
-const DAY_INDEX: Record<string, number> = {
-  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
-};
-
-/** Returns ISO date string YYYY-MM-DD for the next occurrence of routeDay. */
-function getNextDateForRouteDay(routeDay: string): string {
-  const targetDay = DAY_INDEX[routeDay] ?? 4;
-  const today = new Date();
-  const diff = (targetDay - today.getDay() + 7) % 7 || 7;
-  const nextDate = new Date(today);
-  nextDate.setDate(today.getDate() + diff);
-  const y = nextDate.getFullYear();
-  const m = String(nextDate.getMonth() + 1).padStart(2, "0");
-  const d = String(nextDate.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-/** Format ISO date string for display; never returns "Invalid Date". */
-function formatPickupDate(isoDate: string): string {
-  const d = new Date(`${isoDate}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-}
-
-/** Strip all non-numeric characters from a string. */
-function numericOnly(value: string): string {
-  return value.replace(/[^0-9]/g, "");
-}
+import { DEFAULT_ROUTE_DAY, DEFAULT_REGION } from "@/lib/constants";
+import { getNextDateForRouteDay, formatPickupDate } from "@/lib/date-helpers";
+import { findDuplicateRugNumber } from "@/lib/validation";
+import { DraftRugCard } from "./DraftRugCard";
+import { PickupHistoryRow } from "./PickupHistoryRow";
 
 /* ------------------------------------------------------------------ */
 /*  Row types                                                          */
@@ -156,7 +117,6 @@ export default function PortalPickupsTab() {
     );
   }, []);
 
-  /** Check for duplicate rug numbers among draft rugs (numeric comparison). */
   const isDuplicateRugNumber = useCallback(
     (rugId: string, label: string) => {
       const key = label.trim();
@@ -174,7 +134,6 @@ export default function PortalPickupsTab() {
       return;
     }
     if (draftHydratedPickupId === nextPendingPickup.id) return;
-    // All items are stored as newRugs now
     setDraftRugs(
       nextPendingPickup.newRugs.map((r) => ({
         ...r,
@@ -344,7 +303,6 @@ export default function PortalPickupsTab() {
         toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
         return;
       }
-      // Auto-assign to the single driver account
       await autoAssignPickupToDriver(insertedPickup.id);
       await fetchPickups(clientId, region);
       toast({ title: "Pickup requested", description: `We'll pick up on ${formatPickupDate(scheduledDate)}. Add your rugs below and save.` });
@@ -363,30 +321,22 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    // Validate: every rug must have a non-empty numeric rug number
     const rugsWithErrors = draftRugs.filter((r) => !r.label.trim());
     if (rugsWithErrors.length > 0) {
       toast({ title: "Missing rug number", description: "Every rug must have a rug number.", variant: "destructive" });
       return;
     }
 
-    // Validate: no duplicate rug numbers
-    const allNumbers = draftRugs.map((r) => r.label.trim());
-    const seen = new Set<string>();
-    for (const num of allNumbers) {
-      if (seen.has(num)) {
-        toast({ title: "Duplicate rug number", description: `Rug number "${num}" appears more than once.`, variant: "destructive" });
-        return;
-      }
-      seen.add(num);
+    const duplicate = findDuplicateRugNumber(draftRugs.map((r) => r.label));
+    if (duplicate) {
+      toast({ title: "Duplicate rug number", description: `Rug number "${duplicate}" appears more than once.`, variant: "destructive" });
+      return;
     }
 
-    // Warn if no rugs (but don't block)
     if (draftRugs.length === 0) {
       toast({ title: "No rugs added", description: "You haven't added any rugs yet. Your pickup has been saved without rugs." });
     }
 
-    // Update notes on the request
     const { error: updateErr } = await supabaseExtended
       .from("pickup_requests")
       .update({ notes: draftNotes })
@@ -396,7 +346,6 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    // Clear existing items
     const { error: clearError } = await supabaseExtended
       .from("pickup_request_items")
       .delete()
@@ -406,9 +355,7 @@ export default function PortalPickupsTab() {
       return;
     }
 
-    // Insert fresh items
     const insertItems = draftRugs.map((rug) => {
-      // Build details string: combine requested services and free-text details
       const parts: string[] = [];
       const services = rug.requestedServices ?? [];
       if (services.length > 0) parts.push(`Services: ${services.join(", ")}`);
@@ -483,7 +430,6 @@ export default function PortalPickupsTab() {
 
   return (
     <div className="space-y-8">
-      {/* One main card: request or edit current pickup */}
       <section className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="bg-muted/50 px-4 py-3 border-b">
           <p className="text-sm text-muted-foreground">
@@ -529,155 +475,18 @@ export default function PortalPickupsTab() {
                   <h3 className="text-sm font-medium text-foreground">Which rugs are we picking up?</h3>
 
                   <div className="space-y-2">
-                    {draftRugs.map((rug) => {
-                      const isExpanded = expandedRugId === rug.id;
-                      const summaryParts: string[] = [];
-                      if (rug.rugType) summaryParts.push(rug.rugType);
-                      if (rug.length > 0 || rug.width > 0) summaryParts.push(`${rug.length || 0}' × ${rug.width || 0}'`);
-                      const serviceCount = (rug.requestedServices ?? []).length;
-
-                      return (
-                        <div key={rug.id} className="rounded-xl border bg-card shadow-sm overflow-hidden">
-                          {/* Collapsed / header row — always visible */}
-                          <div
-                            className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
-                            onClick={() => setExpandedRugId(isExpanded ? null : rug.id)}
-                          >
-                            <span className="text-muted-foreground shrink-0">
-                              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                            </span>
-                            <span className="text-sm font-semibold font-mono shrink-0">
-                              {rug.label ? `#${rug.label}` : "New rug"}
-                            </span>
-                            {!isExpanded && summaryParts.length > 0 && (
-                              <span className="text-xs text-muted-foreground truncate">
-                                {summaryParts.join(" · ")}
-                              </span>
-                            )}
-                            {!isExpanded && serviceCount > 0 && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary shrink-0">
-                                {serviceCount} service{serviceCount !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                            <div className="flex-1" />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 shrink-0"
-                              onClick={(e) => { e.stopPropagation(); removeDraftRug(rug.id); }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-
-                          {/* Expanded body */}
-                          {isExpanded && (
-                            <div className="border-t p-4 space-y-4">
-                              {/* Row 1: Rug number + type + dimensions */}
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <div>
-                                  <label className="text-xs text-muted-foreground block mb-1">Rug #</label>
-                                  <Input
-                                    placeholder="e.g. 1234"
-                                    value={rug.label}
-                                    onChange={(e) => updateDraftRug(rug.id, "label", numericOnly(e.target.value))}
-                                    className={`h-9 font-mono ${isDuplicateRugNumber(rug.id, rug.label) ? "border-destructive" : ""}`}
-                                  />
-                                  {isDuplicateRugNumber(rug.id, rug.label) && (
-                                    <p className="text-xs text-destructive mt-0.5">Duplicate</p>
-                                  )}
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground block mb-1">Rug type</label>
-                                  <Select
-                                    value={rug.rugType || undefined}
-                                    onValueChange={(v) => updateDraftRug(rug.id, "rugType", v)}
-                                  >
-                                    <SelectTrigger className="h-9">
-                                      <SelectValue placeholder="Select type…" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {RUG_TYPES.map((t) => (
-                                        <SelectItem key={t} value={t}>{t}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground block mb-1">Length (ft)</label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    placeholder="e.g. 9.10"
-                                    value={rug.length > 0 ? rug.length : ""}
-                                    onChange={(e) => updateDraftRug(rug.id, "length", Math.max(0, parseFloat(e.target.value) || 0))}
-                                    className="h-9"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-muted-foreground block mb-1">Width (ft)</label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    step={0.01}
-                                    placeholder="e.g. 2.09"
-                                    value={rug.width > 0 ? rug.width : ""}
-                                    onChange={(e) => updateDraftRug(rug.id, "width", Math.max(0, parseFloat(e.target.value) || 0))}
-                                    className="h-9"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Row 2: Requested services */}
-                              <div>
-                                <label className="text-xs text-muted-foreground block mb-1.5">Requested services</label>
-                                {SERVICE_CATEGORIES.map((cat) => {
-                                  const catServices = SERVICES.filter((s) => s.category === cat);
-                                  if (catServices.length === 0) return null;
-                                  return (
-                                    <div key={cat} className="mb-2">
-                                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{cat}</span>
-                                      <div className="flex flex-wrap gap-1.5 mt-1">
-                                        {catServices.map((svc) => {
-                                          const selected = (rug.requestedServices ?? []).includes(svc.name);
-                                          return (
-                                            <button
-                                              key={svc.id}
-                                              type="button"
-                                              onClick={() => toggleDraftRugService(rug.id, svc.name)}
-                                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                                                selected
-                                                  ? "bg-primary text-primary-foreground"
-                                                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-                                              }`}
-                                            >
-                                              {svc.name}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Row 3: Additional notes */}
-                              <div>
-                                <label className="text-xs text-muted-foreground block mb-1">Additional notes</label>
-                                <Input
-                                  placeholder="Anything else we should know about this rug…"
-                                  value={rug.estimateDetails ?? ""}
-                                  onChange={(e) => updateDraftRug(rug.id, "estimateDetails", e.target.value)}
-                                  className="h-9 text-sm"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {draftRugs.map((rug) => (
+                      <DraftRugCard
+                        key={rug.id}
+                        rug={rug}
+                        isExpanded={expandedRugId === rug.id}
+                        isDuplicate={isDuplicateRugNumber(rug.id, rug.label)}
+                        onToggleExpand={() => setExpandedRugId(expandedRugId === rug.id ? null : rug.id)}
+                        onUpdate={(field, value) => updateDraftRug(rug.id, field, value)}
+                        onRemove={() => removeDraftRug(rug.id)}
+                        onToggleService={(name) => toggleDraftRugService(rug.id, name)}
+                      />
+                    ))}
 
                     <Button type="button" variant="outline" size="sm" onClick={addDraftRug} className="w-full sm:w-auto">
                       <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -705,7 +514,6 @@ export default function PortalPickupsTab() {
         </div>
       </section>
 
-      {/* Past pickups: compact list */}
       {pastPickups.length > 0 && (
         <section>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Past pickups</h3>
@@ -725,49 +533,6 @@ export default function PortalPickupsTab() {
             label="pickups"
           />
         </section>
-      )}
-    </div>
-  );
-}
-
-function PickupHistoryRow({ pickup, onCancel }: { pickup: PortalPickup; onCancel: (id: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const locked = pickup.status === "confirmed";
-  const d = new Date(`${pickup.date}T12:00:00`);
-  const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const totalRugs = pickup.newRugs.length;
-
-  return (
-    <div className="rounded-lg border bg-card overflow-hidden">
-      <button
-        type="button"
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className="font-medium text-foreground">{dateStr}</span>
-        <span className="text-sm text-muted-foreground">
-          {totalRugs} rug{totalRugs !== 1 ? "s" : ""}
-        </span>
-        <span className="flex items-center gap-1">
-          {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="text-xs text-muted-foreground capitalize">{pickup.status}</span>
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </span>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 pt-0 border-t space-y-2">
-          <div className="text-sm text-muted-foreground pt-2">
-            {pickup.newRugs.length > 0 && (
-              <p><strong className="text-foreground">Rugs:</strong> {pickup.newRugs.map((r) => r.label || "Unnamed").join(", ")}</p>
-            )}
-            {pickup.notes && <p><strong className="text-foreground">Notes:</strong> {pickup.notes}</p>}
-          </div>
-          {!locked && (
-            <Button variant="outline" size="sm" onClick={() => onCancel(pickup.id)}>
-              Cancel this pickup
-            </Button>
-          )}
-        </div>
       )}
     </div>
   );
