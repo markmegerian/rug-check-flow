@@ -14,6 +14,7 @@ import { type PortalPickup, type PickupRugEntry } from "@/types/portal";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, ChevronRight, Lock, Plus, Truck, X } from "lucide-react";
 import { RUG_TYPES, SERVICES, SERVICE_CATEGORIES } from "@/data/services";
+import { autoAssignPickupToDriver } from "@/lib/pickup-automation";
 import {
   supabaseExtended,
   type ExtendedTableInsert,
@@ -338,11 +339,13 @@ export default function PortalPickupsTab() {
         status: "pending",
         notes: "",
       };
-      const { error } = await supabaseExtended.from("pickup_requests").insert(insertPayload);
-      if (error) {
-        toast({ title: "Request failed", description: error.message, variant: "destructive" });
+      const { data: insertedPickup, error } = await supabaseExtended.from("pickup_requests").insert(insertPayload).select("id").single();
+      if (error || !insertedPickup) {
+        toast({ title: "Request failed", description: error?.message ?? "Unknown error", variant: "destructive" });
         return;
       }
+      // Auto-assign to the single driver account
+      await autoAssignPickupToDriver(insertedPickup.id);
       await fetchPickups(clientId, region);
       toast({ title: "Pickup requested", description: `We'll pick up on ${formatPickupDate(scheduledDate)}. Add your rugs below and save.` });
     } finally {

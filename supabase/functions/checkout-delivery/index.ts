@@ -4,6 +4,10 @@ import {
   renderInvoicePdfBytes,
   resolveInvoicePdfStoragePath,
   uploadInvoicePdf,
+  type InvoicePdfPayload,
+  type CompanyInfo,
+  type RugSection,
+  type RugServiceLine,
 } from "../_shared/invoice-pdf.ts";
 
 const corsHeaders = {
@@ -101,42 +105,89 @@ Deno.serve(async (req) => {
 
     const invoiceIds: string[] = [];
 
+    // Fetch company branding for PDF header
+    const { data: brandingRow } = await supabase
+      .from("company_branding")
+      .select("business_name, business_address, business_phone, business_email")
+      .limit(1)
+      .maybeSingle();
+
+    const company: CompanyInfo = {
+      businessName: brandingRow?.business_name ?? "RugBoost",
+      businessAddress: brandingRow?.business_address ?? "",
+      businessPhone: brandingRow?.business_phone ?? "",
+      businessFax: "",
+    };
+
     // Create one invoice per client
     for (const [clientId, rugIds] of Object.entries(clientRugs)) {
       const { data: clientRow } = await supabase
         .from("clients")
-        .select("name, email")
+        .select("name, email, contact_name, phone, address")
         .eq("id", clientId)
         .maybeSingle();
 
       // Get rug_services for these rugs to build line items
       const { data: rugServices } = await supabase
         .from("rug_services")
-        .select("rug_id, service_name, unit_price, line_total")
+        .select("rug_id, service_name, unit_price, line_total, edges")
         .in("rug_id", rugIds);
 
-      // Get rug tags for descriptions
+      // Get rug details for PDF sections
       const { data: rugs } = await supabase
         .from("rugs")
-        .select("id, tag")
+        .select("id, tag, description, size_length, size_width, notes")
         .in("id", rugIds);
 
-      const rugTagMap: Record<string, string> = {};
-      (rugs ?? []).forEach((r) => { rugTagMap[r.id] = r.tag; });
+      const rugMap: Record<string, typeof rugs extends (infer R)[] | null ? R : never> = {};
+      (rugs ?? []).forEach((r) => { rugMap[r.id] = r; });
 
-      // Calculate total
+      // Group services by rug
+      const svcByRug: Record<string, typeof rugServices extends (infer R)[] | null ? R[] : never[]> = {};
+      for (const rs of rugServices ?? []) {
+        if (!svcByRug[rs.rug_id]) svcByRug[rs.rug_id] = [];
+        svcByRug[rs.rug_id].push(rs);
+      }
+
+      // Build rug sections and line items
       let invoiceTotal = 0;
       const lineItems: { description: string; quantity: number; unit_price: number; total: number; rug_id: string }[] = [];
+      const rugSections: RugSection[] = [];
 
-      for (const rs of rugServices ?? []) {
-        const lineTotal = Number(rs.line_total);
-        invoiceTotal += lineTotal;
-        lineItems.push({
-          description: `${rugTagMap[rs.rug_id] ?? rs.rug_id} — ${rs.service_name}`,
-          quantity: 1,
-          unit_price: Number(rs.unit_price),
-          total: lineTotal,
-          rug_id: rs.rug_id,
+      for (const rugId of rugIds) {
+        const rug = rugMap[rugId];
+        const services = svcByRug[rugId] ?? [];
+        const svcLines: RugServiceLine[] = [];
+
+        for (const rs of services) {
+          const lt = Number(rs.line_total);
+          const up = Number(rs.unit_price);
+          invoiceTotal += lt;
+          lineItems.push({
+            description: `${rug?.tag ?? rugId} — ${rs.service_name}`,
+            quantity: 1,
+            unit_price: up,
+            total: lt,
+            rug_id: rugId,
+          });
+          const qty = up > 0 ? Math.round((lt / up) * 100) / 100 : 1;
+          const qtyStr = qty === Math.floor(qty) ? String(Math.floor(qty)) : qty.toFixed(2);
+          svcLines.push({
+            name: rs.service_name,
+            pricingLabel: `${qtyStr}@${up}/unit`,
+            extPrice: lt,
+          });
+        }
+
+        const fmtDim = (n: number | null) => n == null ? 0 : n === Math.floor(n) ? String(n) : n.toFixed(2);
+        rugSections.push({
+          rugNumber: rug?.tag ?? rugId.slice(0, 8),
+          customerRugNumber: "|",
+          size: rug?.size_length || rug?.size_width ? `${fmtDim(rug?.size_length ?? null)} x ${fmtDim(rug?.size_width ?? null)}` : "",
+          rugType: rug?.description ?? "",
+          notes: rug?.notes ?? "",
+          services: svcLines,
+          subtotal: svcLines.reduce((s, l) => s + l.extPrice, 0),
         });
       }
 
@@ -181,20 +232,24 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Generate PDF with new structured layout
       try {
-        const pdfBytes = await renderInvoicePdfBytes({
-          invoiceNumber,
-          clientName: clientRow?.name ?? "Client",
-          issuedAt: new Date().toISOString(),
-          dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          totalAmount: invoiceTotal,
-          lineItems: lineItems.map((line) => ({
-            description: line.description,
-            quantity: line.quantity,
-            unitPrice: line.unit_price,
-            total: line.total,
-          })),
-        });
+        const payload: InvoicePdfPayload = {
+          documentType: "invoice",
+          documentNumber: invoiceNumber,
+          documentDate: new Date().toISOString(),
+          company,
+          client: {
+            name: clientRow?.name ?? "Client",
+            contactName: clientRow?.contact_name ?? "",
+            phone: clientRow?.phone ?? "",
+            address: clientRow?.address ?? "",
+          },
+          rugs: rugSections,
+          subtotal: invoiceTotal,
+          total: invoiceTotal,
+        };
+        const pdfBytes = await renderInvoicePdfBytes(payload);
         await uploadInvoicePdf(supabase, getInvoicePdfBucket(), pdfStoragePath, pdfBytes);
       } catch (pdfError) {
         console.error("Failed to generate invoice PDF", { invoiceId: invoice.id, error: pdfError });

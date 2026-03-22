@@ -1,6 +1,21 @@
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 
+/**
+ * Auto-send an estimate by calling the send-estimate-email edge function.
+ * This transitions draft → sent and emails the client if configured.
+ */
+async function autoSendEstimate(estimateId: string): Promise<void> {
+  try {
+    await supabase.functions.invoke("send-estimate-email", {
+      body: { estimate_id: estimateId },
+    });
+  } catch {
+    // Non-critical: estimate was created, sending is best-effort
+    console.warn("Auto-send estimate failed for", estimateId);
+  }
+}
+
 /** Upload a single check-in photo to storage. Returns the public URL or null on failure. */
 export async function uploadCheckinPhoto(rugId: string, file: File): Promise<string | null> {
   const path = `rugs/${rugId}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
@@ -110,6 +125,9 @@ export async function maybeAutoCreateEstimateDraft(
     body: `Estimate ${estimateNumber} was auto-created from check-in service selections.`,
   });
 
-  onSuccess("Estimate draft auto-created", `${estimateNumber} is ready for office review.`);
+  // Auto-send the estimate to the client
+  await autoSendEstimate(insertedEstimate.id);
+
+  onSuccess("Estimate auto-created & sent", `${estimateNumber} has been sent to the client.`);
   return estimateNumber;
 }
