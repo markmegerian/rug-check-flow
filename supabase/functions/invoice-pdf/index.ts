@@ -181,7 +181,7 @@ async function buildRugSections(
   }
 
   // Fetch rug_services for real pricing breakdown
-  let rugServicesMap = new Map<string, RugServiceRow[]>();
+  const rugServicesMap = new Map<string, RugServiceRow[]>();
   if (rugIds.length > 0) {
     const { data: svcData } = await adminClient
       .from("rug_services")
