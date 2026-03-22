@@ -18,10 +18,21 @@ describe("numericOnly", () => {
 });
 
 describe("formatCurrency", () => {
-  it("formats numbers as USD", () => {
+  it("formats positive numbers as USD", () => {
     expect(formatCurrency(0)).toBe("$0.00");
     expect(formatCurrency(1234.5)).toBe("$1234.50");
     expect(formatCurrency(99.999)).toBe("$100.00");
+  });
+
+  it("formats negative numbers with minus before dollar sign", () => {
+    expect(formatCurrency(-5)).toBe("-$5.00");
+    expect(formatCurrency(-1234.56)).toBe("-$1234.56");
+  });
+
+  it("handles NaN and Infinity gracefully", () => {
+    expect(formatCurrency(NaN)).toBe("$0.00");
+    expect(formatCurrency(Infinity)).toBe("$0.00");
+    expect(formatCurrency(-Infinity)).toBe("$0.00");
   });
 });
 

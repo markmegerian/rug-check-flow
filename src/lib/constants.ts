@@ -6,7 +6,8 @@ export const DAYS_OF_WEEK = [
 
 export type DayOfWeek = (typeof DAYS_OF_WEEK)[number];
 
-export const DAY_INDEX: Record<string, number> = {
+/** Maps day names to JS Date.getDay() values (Sunday=0). Use with caution — DAYS_OF_WEEK starts at Monday. */
+export const DAY_INDEX: Record<string, number | undefined> = {
   Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
 };
 

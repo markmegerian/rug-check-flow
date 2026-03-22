@@ -37,8 +37,12 @@ export const DraftRugCard = memo(function DraftRugCard({
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       {/* Collapsed / header row */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
         className="flex items-center gap-2 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
         onClick={onToggleExpand}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleExpand(); } }}
       >
         <span className="text-muted-foreground shrink-0">
           {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}

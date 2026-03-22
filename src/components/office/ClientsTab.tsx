@@ -22,10 +22,11 @@ import { ClientDetailSheet } from "@/components/office/ClientDetailSheet";
 import { LoadingState } from "@/components/states/PageState";
 import { APP_NAME } from "@/lib/branding";
 
+import { type PricingTier, TIER_LABELS, TIER_COLORS, ROUTE_DAYS } from "@/lib/constants";
+import { parseCsvRows } from "@/lib/validation";
+
 type Client = Tables<"clients">;
 type PortalUser = Tables<"portal_users">;
-import { type PricingTier, TIER_LABELS, TIER_COLORS, ROUTE_DAYS } from "@/lib/constants";
-import { parseCsvRows, sanitizeCsvCell } from "@/lib/validation";
 
 type FormData = {
   name: string;

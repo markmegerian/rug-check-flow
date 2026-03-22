@@ -124,4 +124,15 @@ describe("parseCsvRows", () => {
     expect(rows[1][0]).toBe("cmd()");
     expect(rows[1][1]).toBe("normal");
   });
+
+  it("strips UTF-8 BOM from Excel exports", () => {
+    const csv = "\uFEFFname,email\nAlice,alice@test.com";
+    const rows = parseCsvRows(csv);
+    expect(rows[0][0]).toBe("name");
+    expect(rows[1][0]).toBe("Alice");
+  });
+
+  it("handles empty string input", () => {
+    expect(parseCsvRows("")).toHaveLength(0);
+  });
 });

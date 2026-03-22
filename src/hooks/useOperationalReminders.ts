@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { isMissingRelationError } from "@/lib/supabase-helpers";
+import { MS_PER_DAY } from "@/lib/constants";
 
 type ReminderSeverity = "default" | "warning" | "critical";
 type SlaBandTone = "default" | "warning" | "critical";
@@ -42,7 +43,6 @@ type ReminderData = {
   errorMessage: string | null;
 };
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const RECENT_UPDATE_DAYS = 7;
 type UpdateReminderRow = { id: string; event_type: string; subject: string; created_at: string };
 const REMINDER_EVENT_TYPES = [

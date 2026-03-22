@@ -32,11 +32,13 @@ const RUG_STATUS_STYLES: Record<string, { label: string; className: string }> = 
 
 export function PickupStatusBadge({ status }: { status: PickupRequestStatus }) {
   const style = PICKUP_STATUS_STYLES[status];
+  if (!style) return <Badge variant="outline">{status}</Badge>;
   return <Badge variant={style.variant} className={style.className}>{style.label}</Badge>;
 }
 
 export function EstimateStatusBadge({ status }: { status: EstimateStatus }) {
   const style = ESTIMATE_STATUS_STYLES[status];
+  if (!style) return <Badge variant="outline">{status}</Badge>;
   return <Badge variant={style.variant} className={style.className}>{style.label}</Badge>;
 }
 

@@ -3,8 +3,10 @@ export function numericOnly(value: string): string {
   return value.replace(/[^0-9]/g, "");
 }
 
-/** Format a number as USD currency string. */
+/** Format a number as USD currency string. Handles negatives as -$X.XX. */
 export function formatCurrency(amount: number): string {
+  if (!Number.isFinite(amount)) return "$0.00";
+  if (amount < 0) return `-$${Math.abs(amount).toFixed(2)}`;
   return `$${amount.toFixed(2)}`;
 }
 

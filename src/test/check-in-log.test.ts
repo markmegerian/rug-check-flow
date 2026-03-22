@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { deriveUserRole, isEntryEditable, type CheckInEntry } from "@/data/check-in-log";
+
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 2, 18, 12, 0, 0)); });
+afterEach(() => { vi.useRealTimers(); });
 
 const makeEntry = (minutesAgo: number): CheckInEntry => ({
   id: "entry-test",

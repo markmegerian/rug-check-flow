@@ -8,14 +8,18 @@ export type MutationResult<T = void> =
  * Wraps a Supabase mutation with consistent error handling.
  * Returns a discriminated union so callers can handle success/failure cleanly.
  */
-export async function safeMutation<T>(
+/**
+ * Wraps a Supabase mutation with consistent error handling.
+ * For mutations that return data (INSERT/UPDATE with .select()), use safeMutation<YourType>.
+ * For mutations that don't return data (DELETE, UPDATE without .select()), use safeMutation<null>.
+ */
+export async function safeMutation<T = null>(
   fn: () => Promise<{ data: T | null; error: { message: string } | null }>
 ): Promise<MutationResult<T>> {
   try {
     const { data, error } = await fn();
     if (error) return { success: false, error: error.message };
-    if (data === null) return { success: false, error: "No data returned" };
-    return { success: true, data };
+    return { success: true, data: data as T };
   } catch (err) {
     return {
       success: false,

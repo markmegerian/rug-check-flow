@@ -34,23 +34,25 @@ export function sanitizeCsvCell(value: string): string {
   return trimmed;
 }
 
-/** Parse a CSV string into a 2D array of sanitized cells. */
+/** Parse a CSV string into a 2D array of sanitized cells. Strips UTF-8 BOM if present. */
 export function parseCsvRows(rawCsv: string): string[][] {
+  // Strip UTF-8 BOM that Excel often prepends
+  const csv = rawCsv.startsWith("\uFEFF") ? rawCsv.slice(1) : rawCsv;
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
   let inQuotes = false;
 
-  for (let idx = 0; idx < rawCsv.length; idx += 1) {
-    const char = rawCsv[idx];
+  for (let idx = 0; idx < csv.length; idx += 1) {
+    const char = csv[idx];
     if (char === "\"") {
-      if (inQuotes && rawCsv[idx + 1] === "\"") { cell += "\""; idx += 1; }
+      if (inQuotes && csv[idx + 1] === "\"") { cell += "\""; idx += 1; }
       else inQuotes = !inQuotes;
       continue;
     }
     if (char === "," && !inQuotes) { row.push(sanitizeCsvCell(cell)); cell = ""; continue; }
     if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && rawCsv[idx + 1] === "\n") idx += 1;
+      if (char === "\r" && csv[idx + 1] === "\n") idx += 1;
       row.push(sanitizeCsvCell(cell));
       if (row.some((v) => v.length > 0)) rows.push(row);
       row = []; cell = "";
