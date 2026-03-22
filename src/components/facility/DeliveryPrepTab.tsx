@@ -57,6 +57,8 @@ export function DeliveryPrepTab() {
   const [loading, setLoading] = useState(true);
   const [compiling, setCompiling] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
+  // Tracks previous rug status before confirming, so we can revert on uncheck
+  const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
 
   // Tomorrow's date and weekday
   const tomorrowDate = addDays(new Date(), 1);
@@ -206,8 +208,15 @@ export function DeliveryPrepTab() {
   };
 
   const toggleConfirmed = async (itemId: string, value: boolean) => {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const rug = rugMap[item.rug_id];
+    if (!rug) return;
+
     setUpdating(itemId);
     try {
+      // Update the delivery list item confirmation
       const { error } = await supabase
         .from("delivery_list_items")
         .update({ confirmed_for_delivery: value })
@@ -218,11 +227,68 @@ export function DeliveryPrepTab() {
         return;
       }
 
+      if (value && rug.status !== "ready") {
+        // Confirming a non-ready rug: save previous status, then advance to "ready"
+        setPreviousStatusMap((prev) => ({ ...prev, [rug.id]: rug.status }));
+
+        const { error: rugError } = await supabase
+          .from("rugs")
+          .update({ status: "ready", completed_at: new Date().toISOString() })
+          .eq("id", rug.id);
+
+        if (rugError) {
+          // Revert the confirmation if rug update fails
+          await supabase
+            .from("delivery_list_items")
+            .update({ confirmed_for_delivery: false })
+            .eq("id", itemId);
+          toast({ title: "Failed to update rug status", description: rugError.message, variant: "destructive" });
+          return;
+        }
+
+        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: "ready" } }));
+        toast({
+          title: "Rug confirmed & marked ready",
+          description: `${rug.tag} moved from ${statusLabel(rug.status)} to Ready`,
+        });
+      } else if (!value && previousStatusMap[rug.id]) {
+        // Unchecking: revert rug to its previous status
+        const prevStatus = previousStatusMap[rug.id];
+        const revertUpdates: Record<string, string | null> = { status: prevStatus };
+        // Clear completed_at if reverting away from "ready"
+        if (prevStatus !== "ready") {
+          revertUpdates.completed_at = null;
+        }
+
+        const { error: rugError } = await supabase
+          .from("rugs")
+          .update(revertUpdates)
+          .eq("id", rug.id);
+
+        if (rugError) {
+          toast({ title: "Failed to revert rug status", description: rugError.message, variant: "destructive" });
+          return;
+        }
+
+        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: prevStatus } }));
+        setPreviousStatusMap((prev) => {
+          const next = { ...prev };
+          delete next[rug.id];
+          return next;
+        });
+        toast({
+          title: "Confirmation removed & status reverted",
+          description: `${rug.tag} reverted to ${statusLabel(prevStatus)}`,
+        });
+      } else {
+        // Normal toggle (rug was already "ready", or no previous status to revert)
+        toast({
+          title: value ? "Rug confirmed" : "Confirmation removed",
+          description: value ? "Rug is confirmed for tomorrow's delivery" : "Rug confirmation removed",
+        });
+      }
+
       setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, confirmed_for_delivery: value } : i)));
-      toast({
-        title: value ? "Rug confirmed" : "Confirmation removed",
-        description: value ? "Rug is confirmed for tomorrow's delivery" : "Rug confirmation removed",
-      });
     } finally {
       setUpdating(null);
     }
