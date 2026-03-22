@@ -4,6 +4,14 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Provide fallback Supabase env vars for tests so the client module
+    // doesn't throw when real secrets aren't available (e.g. in CI).
+    "import.meta.env.VITE_SUPABASE_URL":
+      JSON.stringify(process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co"),
+    "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY":
+      JSON.stringify(process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-key"),
+  },
   test: {
     environment: "jsdom",
     globals: true,
