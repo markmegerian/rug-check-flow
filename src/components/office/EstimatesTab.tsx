@@ -20,6 +20,9 @@ import {
 } from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
 import type { Tables } from "@/integrations/supabase/types";
+import { EstimateStatusBadge } from "@/components/shared/StatusBadge";
+import { formatDateTime } from "@/lib/date-helpers";
+import { MS_PER_DAY } from "@/lib/constants";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -44,7 +47,6 @@ type RugOption = {
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
 type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_id" | "service_name" | "unit_price" | "line_total">;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "sent", "approved", "rejected", "expired"]);
 
 export function EstimatesTab() {
@@ -113,13 +115,6 @@ export function EstimatesTab() {
     fetchData();
   }, [fetchData]);
 
-  const statusBadge = (status: EstimateStatus) => {
-    if (status === "draft") return <Badge variant="outline">Draft</Badge>;
-    if (status === "sent") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Sent</Badge>;
-    if (status === "approved") return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>;
-    if (status === "rejected") return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Rejected</Badge>;
-    return <Badge variant="secondary">Expired</Badge>;
-  };
 
   const createEstimate = async () => {
     if (selectedRugId === "none") {
@@ -495,14 +490,14 @@ export function EstimatesTab() {
                         {estimate.clients?.name ?? "Unknown client"} · {estimate.rugs?.tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
                       </p>
                     </div>
-                    {statusBadge(estimate.status)}
+                    <EstimateStatusBadge status={estimate.status} />
                   </div>
 
                   {(estimate.status === "approved" || estimate.status === "rejected") && (
                     <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
                       <p className="text-muted-foreground font-medium">
-                        {estimate.status === "approved" && estimate.approved_at && `Client approved ${new Date(estimate.approved_at).toLocaleDateString()} at ${new Date(estimate.approved_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
-                        {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${new Date(estimate.rejected_at).toLocaleDateString()} at ${new Date(estimate.rejected_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+                        {estimate.status === "approved" && estimate.approved_at && `Client approved ${formatDateTime(estimate.approved_at)}`}
+                        {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${formatDateTime(estimate.rejected_at)}`}
                       </p>
                       {clientNote && <p className="text-foreground">Client note: {clientNote}</p>}
                     </div>
