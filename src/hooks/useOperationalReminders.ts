@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { isMissingRelationError } from "@/lib/supabase-helpers";
 
 type ReminderSeverity = "default" | "warning" | "critical";
 type SlaBandTone = "default" | "warning" | "critical";
@@ -50,12 +51,6 @@ const REMINDER_EVENT_TYPES = [
   "invoice_pdf_downloaded_by_client",
 ];
 
-function isMissingRelationError(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const maybe = error as { code?: string; message?: string };
-  if (maybe.code === "PGRST205" || maybe.code === "42P01") return true;
-  return (maybe.message ?? "").toLowerCase().includes("could not find the table");
-}
 
 function buildEventTitle(eventType: string, subject: string) {
   if (eventType === "estimate_approved_by_client") return `Estimate approved: ${subject}`;

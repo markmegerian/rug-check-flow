@@ -177,10 +177,8 @@ export function ClientsTab() {
   const { sort, toggleSort } = useSortableTable<ClientSortCol>("name");
 
   const getFunctionAuthHeaders = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token;
-    if (!accessToken) return null;
-    return { Authorization: `Bearer ${accessToken}` };
+    const { getAuthHeaders } = await import("@/lib/supabase-helpers");
+    return getAuthHeaders();
   }, []);
 
   const fetchPortalUsers = async (clientId: string) => {
