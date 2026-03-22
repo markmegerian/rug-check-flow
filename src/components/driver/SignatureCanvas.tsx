@@ -101,6 +101,8 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onSignatureChange, di
       <p className="text-sm font-medium">Signature</p>
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label="Signature pad — draw your signature here"
         className="w-full h-[150px] rounded-md border border-input bg-background touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -108,7 +110,7 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onSignatureChange, di
         onPointerLeave={onPointerUp}
       />
       {!disabled && (
-        <Button type="button" variant="outline" size="sm" onClick={clear}>
+        <Button type="button" variant="outline" size="sm" onClick={clear} aria-label="Clear signature">
           Clear
         </Button>
       )}

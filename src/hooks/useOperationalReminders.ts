@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { isMissingRelationError } from "@/lib/supabase-helpers";
+import { MS_PER_DAY } from "@/lib/constants";
 
 type ReminderSeverity = "default" | "warning" | "critical";
 type SlaBandTone = "default" | "warning" | "critical";
@@ -41,7 +43,6 @@ type ReminderData = {
   errorMessage: string | null;
 };
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const RECENT_UPDATE_DAYS = 7;
 type UpdateReminderRow = { id: string; event_type: string; subject: string; created_at: string };
 const REMINDER_EVENT_TYPES = [
@@ -50,12 +51,6 @@ const REMINDER_EVENT_TYPES = [
   "invoice_pdf_downloaded_by_client",
 ];
 
-function isMissingRelationError(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const maybe = error as { code?: string; message?: string };
-  if (maybe.code === "PGRST205" || maybe.code === "42P01") return true;
-  return (maybe.message ?? "").toLowerCase().includes("could not find the table");
-}
 
 function buildEventTitle(eventType: string, subject: string) {
   if (eventType === "estimate_approved_by_client") return `Estimate approved: ${subject}`;
@@ -92,6 +87,7 @@ function buildTrendSnapshot(id: string, label: string, current: number, previous
 
 async function countWithThreshold(
   table: "estimates" | "pickup_requests" | "invoices",
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase query builder chain
   filters: (q: any) => any,
   dateColumn: string,
   thresholdIso: string,
@@ -131,10 +127,11 @@ async function fetchReminderData(): Promise<ReminderData> {
   const updatesCurrentWindowIso = new Date(nowMs - MS_PER_DAY).toISOString();
   const updatesPreviousWindowIso = new Date(nowMs - 2 * MS_PER_DAY).toISOString();
 
-  const estimateFilter = (q: any) => q.eq("status", "sent");
-  const pickupFilter = (q: any) => q.in("status", ["pending", "confirmed", "assigned"]);
-  const overdueDueFilter = (q: any) => q.eq("status", "overdue").not("due_at", "is", null);
-  const overdueNoDueFilter = (q: any) => q.eq("status", "overdue").is("due_at", null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase query builder chain typing
+  const estimateFilter = <T extends { eq: (...args: any[]) => T }>(q: T) => q.eq("status", "sent");
+  const pickupFilter = <T extends { in: (...args: any[]) => T }>(q: T) => q.in("status", ["pending", "confirmed", "assigned"]);
+  const overdueDueFilter = <T extends { eq: (...args: any[]) => T; not: (...args: any[]) => T }>(q: T) => q.eq("status", "overdue").not("due_at", "is", null);
+  const overdueNoDueFilter = <T extends { eq: (...args: any[]) => T; is: (...args: any[]) => T }>(q: T) => q.eq("status", "overdue").is("due_at", null);
 
   const results = await Promise.allSettled([
     // Estimates: 3d, 4d, 5d, 7d

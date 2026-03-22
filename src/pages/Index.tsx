@@ -62,7 +62,7 @@ const SECTIONS: Array<{
 const ROLE_PRIORITY: AppRole[] = ["admin", "office", "checkin_staff", "driver"];
 
 export default function Index() {
-  const { user, roles, isSuperAdmin } = useAuth();
+  const { roles, isSuperAdmin } = useAuth();
   const appRoles = roles.filter((role): role is AppRole => role in ROLE_LABELS);
   const orderedRoles = [...appRoles].sort(
     (a, b) => ROLE_PRIORITY.indexOf(a) - ROLE_PRIORITY.indexOf(b)

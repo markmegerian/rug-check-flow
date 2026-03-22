@@ -1,18 +1,12 @@
 import { Truck, FileText, Camera, Signature, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useRugContext, type RugDeliveryInfo, type RugInvoiceInfo } from "@/hooks/useRugContext";
+import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
 
 interface RugContextPanelProps {
   rugId: string;
   showDeliveryProofs?: boolean;
 }
-
-const INVOICE_STATUS_STYLE: Record<string, string> = {
-  draft: "bg-muted text-muted-foreground",
-  sent: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  paid: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  overdue: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-};
 
 function DeliverySection({ delivery, showProofs }: { delivery: RugDeliveryInfo; showProofs?: boolean }) {
   const isDelivered = delivery.status === "checked_out";
@@ -98,9 +92,7 @@ function InvoicesSection({ invoices }: { invoices: RugInvoiceInfo[] }) {
             <span className="font-mono text-xs">{inv.invoiceNumber}</span>
             <div className="flex items-center gap-2">
               <span className="font-medium">${inv.total.toFixed(2)}</span>
-              <Badge variant="secondary" className={`text-[10px] ${INVOICE_STATUS_STYLE[inv.status] ?? ""}`}>
-                {inv.status}
-              </Badge>
+              <InvoiceStatusBadge status={inv.status} />
             </div>
           </div>
         ))}

@@ -9,7 +9,6 @@ import { useRouteStops } from "@/hooks/useRouteStops";
 const StopPortal: React.FC = () => {
   const {
     loading,
-    activeStopId,
     setActiveStopId,
     activeStop,
     queued,

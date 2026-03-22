@@ -98,6 +98,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                   variant="outline"
                   size="sm"
                   onClick={onSearchOpen}
+                  aria-label="Search rugs (Cmd+K)"
                   className="w-full justify-start gap-2 text-muted-foreground font-normal h-8 text-xs"
                 >
                   <Search className="h-3.5 w-3.5" />

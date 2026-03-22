@@ -83,12 +83,13 @@ export function StopItemCard({
                   <img src={photo} alt="Evidence" className="h-full w-full object-cover" />
                 </div>
               ))}
-              <label className="h-14 w-14 rounded border border-dashed flex items-center justify-center text-muted-foreground cursor-pointer hover:text-foreground hover:border-primary">
+              <label className="h-14 w-14 rounded border border-dashed flex items-center justify-center text-muted-foreground cursor-pointer hover:text-foreground hover:border-primary" aria-label="Add photo">
                 <Camera className="h-4 w-4" />
                 <input
                   type="file"
                   accept="image/*"
                   capture="environment"
+                  aria-label={`Add photo for ${item.rugTag}`}
                   className="hidden"
                   onChange={(event) => {
                     const file = event.target.files?.[0];

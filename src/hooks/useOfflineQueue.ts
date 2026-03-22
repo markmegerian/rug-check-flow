@@ -3,7 +3,6 @@ import {
   getPendingEventCount,
   getPendingEventCountForStop,
   addEvent as addEventToQueue,
-  type OfflineEvent,
 } from "@/lib/offline-queue";
 import { performFullSync, isOnline, startAutoSync } from "@/lib/offline-sync";
 
