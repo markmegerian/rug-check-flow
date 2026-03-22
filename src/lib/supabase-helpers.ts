@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseExtended } from "@/integrations/supabase/extended";
 
 export type MutationResult<T = void> =
   | { success: true; data: T }

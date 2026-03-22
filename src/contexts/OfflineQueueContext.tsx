@@ -1,5 +1,5 @@
 import React, { createContext, useContext, type ReactNode } from "react";
-import { useOfflineQueue, type OfflineQueueState } from "@/hooks/useOfflineQueue";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 
 type OfflineQueueContextValue = ReturnType<typeof useOfflineQueue>;
 

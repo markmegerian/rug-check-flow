@@ -29,7 +29,7 @@ export default function WholesalePortal() {
   const { toast } = useToast();
   const {
     clientId,
-    loading: portalClientLoading,
+    loading: _portalClientLoading,
     onboardingCompletedAt,
     markOnboardingComplete,
     markPasswordChangeComplete,
