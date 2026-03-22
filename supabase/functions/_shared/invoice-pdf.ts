@@ -1,20 +1,55 @@
-import { PDFDocument, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, StandardFonts, type PDFPage, type PDFFont } from "https://esm.sh/pdf-lib@1.17.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+export type CompanyInfo = {
+  businessName: string;
+  businessAddress: string;
+  businessPhone: string;
+  businessFax: string;
+};
+
+export type ClientInfo = {
+  name: string;
+  contactName: string;
+  phone: string;
+  address: string;
+};
+
+export type RugServiceLine = {
+  name: string;
+  pricingLabel: string;
+  extPrice: number;
+};
+
+export type RugSection = {
+  rugNumber: string;
+  customerRugNumber: string;
+  size: string;
+  rugType: string;
+  notes: string;
+  services: RugServiceLine[];
+  subtotal: number;
+};
+
+export type InvoicePdfPayload = {
+  documentType: "invoice" | "estimate";
+  documentNumber: string;
+  documentDate: string;
+  company: CompanyInfo;
+  client: ClientInfo;
+  rugs: RugSection[];
+  subtotal: number;
+  total: number;
+};
+
+// Keep old type alias for backward compatibility
 export type InvoicePdfLineItem = {
   description: string;
   quantity: number;
   unitPrice: number;
   total: number;
-};
-
-export type InvoicePdfPayload = {
-  invoiceNumber: string;
-  clientName: string;
-  issuedAt: string;
-  dueAt: string | null;
-  totalAmount: number;
-  lineItems: InvoicePdfLineItem[];
 };
 
 export const DEFAULT_INVOICE_PDF_BUCKET = "invoice-pdfs";
@@ -32,78 +67,288 @@ export function resolveInvoicePdfStoragePath(
   return `clients/${clientId}/${invoiceNumber}.pdf`;
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function currency(value: number) {
-  return `$${Number(value ?? 0).toFixed(2)}`;
+  return `$${Number(value ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function dateText(iso: string | null) {
+function formatDate(iso: string | null) {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toISOString().slice(0, 10);
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const y = date.getFullYear();
+  return `${m}-${d}-${y}`;
 }
 
-function clampText(value: string, maxLength = 88) {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1)}…`;
+// ─── Column positions (US Letter: 612 x 792) ───────────────────────────────
+
+const PAGE_W = 612;
+const PAGE_H = 792;
+const ML = 48;   // margin left
+const MR = 48;   // margin right
+const CONTENT_W = PAGE_W - ML - MR;
+const RIGHT_EDGE = PAGE_W - MR;
+
+// Column X positions for rug table
+const COL_RUG_NUM = ML;           // "Rug #" or "Megerian Rug #"
+const COL_CUST_NUM = ML + 80;     // "Customer Rug #"
+const COL_SIZE = ML + 160;        // "Size"
+const COL_RUG_TYPE = ML + 240;    // "Rug Type"
+const COL_EXT_PRICE = RIGHT_EDGE; // "Ext. Price" (right-aligned)
+
+// Service line indents
+const SVC_NAME_X = ML + 100;
+const SVC_PRICING_X = ML + 340;
+
+// ─── PDF Renderer ───────────────────────────────────────────────────────────
+
+class PdfBuilder {
+  private doc: typeof PDFDocument.prototype;
+  private regularFont!: PDFFont;
+  private boldFont!: PDFFont;
+  private page!: PDFPage;
+  private y = 0;
+
+  constructor(doc: typeof PDFDocument.prototype) {
+    this.doc = doc;
+  }
+
+  async init() {
+    this.regularFont = await this.doc.embedFont(StandardFonts.Helvetica);
+    this.boldFont = await this.doc.embedFont(StandardFonts.HelveticaBold);
+    this.newPage();
+  }
+
+  newPage() {
+    this.page = this.doc.addPage([PAGE_W, PAGE_H]);
+    this.y = PAGE_H - 48;
+  }
+
+  get currentY() { return this.y; }
+  set currentY(v: number) { this.y = v; }
+
+  textWidth(text: string, size: number, bold = false) {
+    const font = bold ? this.boldFont : this.regularFont;
+    return font.widthOfTextAtSize(text, size);
+  }
+
+  drawAt(text: string, x: number, size = 11, bold = false) {
+    this.page.drawText(text, {
+      x,
+      y: this.y,
+      size,
+      font: bold ? this.boldFont : this.regularFont,
+    });
+  }
+
+  drawRight(text: string, rightX: number, size = 11, bold = false) {
+    const w = this.textWidth(text, size, bold);
+    this.drawAt(text, rightX - w, size, bold);
+  }
+
+  advance(amount = 16) {
+    this.y -= amount;
+  }
+
+  ensureSpace(needed: number) {
+    if (this.y < needed + 48) {
+      this.newPage();
+    }
+  }
+
+  drawLine(fromX: number, toX: number, thickness = 0.5) {
+    this.page.drawLine({
+      start: { x: fromX, y: this.y },
+      end: { x: toX, y: this.y },
+      thickness,
+    });
+  }
+
+  // Word-wrap text to fit within maxWidth, returns lines
+  wrapText(text: string, size: number, maxWidth: number, bold = false): string[] {
+    const font = bold ? this.boldFont : this.regularFont;
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let current = "";
+
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(test, size) > maxWidth) {
+        if (current) lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
 }
 
 export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
-  const pdfDoc = await PDFDocument.create();
-  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const doc = await PDFDocument.create();
+  const b = new PdfBuilder(doc);
+  await b.init();
 
-  let page = pdfDoc.addPage([612, 792]);
-  const marginX = 48;
-  let y = 744;
-  const lineHeight = 18;
+  const isMultiRug = payload.rugs.length > 1;
+  const docLabel = payload.documentType === "estimate" ? "Estimate" : "Invoice";
 
-  const draw = (text: string, size = 11, bold = false) => {
-    page.drawText(text, {
-      x: marginX,
-      y,
-      size,
-      font: bold ? boldFont : regularFont,
-    });
-    y -= lineHeight;
+  // ─── Company Header ─────────────────────────────────────────────────────
+  b.drawAt(payload.company.businessName, ML, 14, true);
+  b.drawRight(`${docLabel} #: ${payload.documentNumber}`, RIGHT_EDGE, 11);
+  b.advance(16);
+
+  // Company address lines
+  const addrLines = payload.company.businessAddress.split("\n").filter(Boolean);
+  for (const line of addrLines) {
+    b.drawAt(line, ML, 10);
+    b.advance(14);
+  }
+
+  // Phone/fax
+  if (payload.company.businessPhone) {
+    b.drawAt(`Tel: ${payload.company.businessPhone}`, ML, 10);
+    b.drawRight(`${docLabel} Date: ${formatDate(payload.documentDate)}`, RIGHT_EDGE, 10);
+    b.advance(14);
+  }
+  if (payload.company.businessFax) {
+    b.drawAt(`Fax: ${payload.company.businessFax}`, ML, 10);
+    b.advance(14);
+  }
+
+  b.advance(24);
+
+  // ─── Address Blocks ─────────────────────────────────────────────────────
+  const shippingX = ML + 300;
+
+  b.drawAt("Billing Address:", ML, 10, true);
+  b.drawAt("Shipping Address:", shippingX, 10, true);
+  b.advance(14);
+
+  // Billing: just client address
+  const billingLines = payload.client.address.split("\n").filter(Boolean);
+  const shippingLines: string[] = [];
+  if (payload.client.contactName) shippingLines.push(payload.client.contactName);
+  if (payload.client.phone) shippingLines.push(payload.client.phone);
+  // Reuse same address for shipping
+  shippingLines.push(...billingLines);
+
+  const maxAddrLines = Math.max(billingLines.length, shippingLines.length);
+  for (let i = 0; i < maxAddrLines; i++) {
+    if (i < billingLines.length) {
+      b.drawAt(billingLines[i], ML, 10, i === 0);
+    }
+    if (i < shippingLines.length) {
+      b.drawAt(shippingLines[i], shippingX, 10, i === 0);
+    }
+    b.advance(14);
+  }
+
+  b.advance(20);
+
+  // ─── Column Headers ─────────────────────────────────────────────────────
+  const drawColumnHeaders = () => {
+    if (isMultiRug) {
+      b.drawAt("Megerian", COL_RUG_NUM, 9, true);
+      b.drawAt("Customer", COL_CUST_NUM, 9, true);
+      b.advance(12);
+      b.drawAt("Rug #", COL_RUG_NUM, 9, true);
+      b.drawAt("Rug #", COL_CUST_NUM, 9, true);
+    } else {
+      b.drawAt("Rug #", COL_RUG_NUM, 9, true);
+    }
+    b.drawAt("Size", COL_SIZE, 9, true);
+    b.drawAt("Rug Type", COL_RUG_TYPE, 9, true);
+    b.drawRight("Ext. Price", COL_EXT_PRICE, 9, true);
+    b.advance(16);
   };
 
-  draw("RugBoost Invoice", 20, true);
-  y -= 8;
-  draw(`Invoice: ${payload.invoiceNumber}`, 12, true);
-  draw(`Client: ${payload.clientName}`, 11);
-  draw(`Issued: ${dateText(payload.issuedAt)}   Due: ${dateText(payload.dueAt)}`, 11);
-  y -= 10;
-  draw("Line Items", 12, true);
-  y -= 4;
+  drawColumnHeaders();
 
-  for (const [index, item] of payload.lineItems.entries()) {
-    if (y < 92) {
-      page = pdfDoc.addPage([612, 792]);
-      y = 744;
-      draw(`Invoice ${payload.invoiceNumber} (continued)`, 12, true);
-      y -= 6;
+  // ─── Rug Sections ───────────────────────────────────────────────────────
+  for (const rug of payload.rugs) {
+    // Estimate space: rug header + services + notes + gap
+    const estimatedHeight = 20 + (rug.services.length * 16) + (rug.notes ? 40 : 0) + 20;
+    b.ensureSpace(estimatedHeight);
+
+    // Rug header row
+    b.drawAt(rug.rugNumber, COL_RUG_NUM, 10);
+    if (isMultiRug) {
+      b.drawAt(rug.customerRugNumber || "|", COL_CUST_NUM, 10);
+    }
+    b.drawAt(rug.size, COL_SIZE, 10);
+    b.drawAt(rug.rugType, COL_RUG_TYPE, 10);
+
+    // Per-rug subtotal on the header row (multi-rug invoices)
+    if (isMultiRug) {
+      const subLabel = `Sub total:   ${currency(rug.subtotal)}`;
+      b.drawRight(subLabel, COL_EXT_PRICE, 10);
     }
 
-    const lineLabel = `${index + 1}. ${clampText(item.description, 74)}`;
-    const lineValue = `${Number(item.quantity ?? 1)} × ${currency(item.unitPrice)} = ${currency(item.total)}`;
-    draw(lineLabel, 10.5);
-    draw(lineValue, 10.5);
-    y -= 4;
+    b.advance(18);
+
+    // Service lines
+    for (const svc of rug.services) {
+      b.ensureSpace(40);
+
+      // Service name (indented)
+      b.drawAt(svc.name, SVC_NAME_X, 10);
+
+      // Pricing label (e.g. "1@490/unit")
+      b.drawAt(svc.pricingLabel, SVC_PRICING_X, 10);
+
+      // Ext price (right-aligned)
+      b.drawRight(currency(svc.extPrice), COL_EXT_PRICE, 10);
+
+      b.advance(16);
+    }
+
+    // Rug Notes
+    if (rug.notes) {
+      b.advance(4);
+      b.ensureSpace(40);
+
+      // Word-wrap notes
+      const notePrefix = "Rug Notes: ";
+      const fullText = notePrefix + rug.notes;
+      const maxNoteWidth = CONTENT_W - (SVC_NAME_X - ML);
+      const noteLines = b.wrapText(fullText, 10, maxNoteWidth);
+
+      for (let i = 0; i < noteLines.length; i++) {
+        b.ensureSpace(20);
+        if (i === 0) {
+          // Draw "Rug Notes:" bold and rest regular
+          b.drawAt("Rug Notes:", SVC_NAME_X, 10, true);
+          const prefixW = b.textWidth("Rug Notes: ", 10, true);
+          const restText = noteLines[0].replace(/^Rug Notes:\s*/, "");
+          if (restText) {
+            b.drawAt(restText, SVC_NAME_X + prefixW, 10);
+          }
+        } else {
+          b.drawAt(noteLines[i], SVC_NAME_X, 10);
+        }
+        b.advance(14);
+      }
+    }
+
+    b.advance(12);
   }
 
-  if (y < 96) {
-    page = pdfDoc.addPage([612, 792]);
-    y = 744;
-  }
-  y -= 4;
-  draw(`Total: ${currency(payload.totalAmount)}`, 13, true);
-  y -= 4;
-  draw("Thank you for your business.", 10);
+  // ─── Totals ─────────────────────────────────────────────────────────────
+  b.ensureSpace(60);
+  b.advance(8);
 
-  return pdfDoc.save();
+  b.drawRight(`Subtotal: ${currency(payload.subtotal)}`, COL_EXT_PRICE, 11);
+  b.advance(16);
+  b.drawRight(`Total: ${currency(payload.total)}`, COL_EXT_PRICE, 11, true);
+
+  return doc.save();
 }
 
+// ─── Storage Utilities ──────────────────────────────────────────────────────
 
 export async function ensureInvoicePdfBucket(adminClient: SupabaseClient, bucket: string) {
   const { error } = await adminClient.storage.createBucket(bucket, { public: false });

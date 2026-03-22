@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
 import { CheckSquare, Search, Square } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTION_STAGES, ProductionStage } from "@/data/production";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { advanceRugStage } from "@/lib/rug-operations";
 import { useRugs, useInvalidateRugs, type RugWithServices } from "@/hooks/useRugs";
 import { useDeliveryAllocations } from "@/hooks/useDeliveryAllocations";
 import { RugDetailSheet } from "./RugDetailSheet";
@@ -37,20 +38,12 @@ export function ProductionBoard() {
   const handleAdvanceStage = async (rugId: string) => {
     const rug = rugs.find((r) => r.id === rugId);
     if (!rug) return;
-    const idx = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
-    if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) return;
-
-    const nextStage = PRODUCTION_STAGES[idx + 1].id;
-    const updates: Record<string, string> = { status: nextStage };
-    if (nextStage === "ready") updates.completed_at = new Date().toISOString();
-    if (nextStage === "picked_up") updates.picked_up_at = new Date().toISOString();
-
-    const { error } = await supabase.from("rugs").update(updates).eq("id", rugId);
-    if (error) {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    const result = await advanceRugStage(rugId, rug.status);
+    if (!result) return;
+    if (result.error) {
+      toast({ title: "Update failed", description: result.error, variant: "destructive" });
       return;
     }
-
     invalidateRugs();
   };
 
@@ -85,16 +78,8 @@ export function ProductionBoard() {
     let advanced = 0;
 
     for (const rug of selected) {
-      const idx = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
-      if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) continue;
-
-      const nextStage = PRODUCTION_STAGES[idx + 1].id;
-      const updates: Record<string, string> = { status: nextStage };
-      if (nextStage === "ready") updates.completed_at = new Date().toISOString();
-      if (nextStage === "picked_up") updates.picked_up_at = new Date().toISOString();
-
-      const { error } = await supabase.from("rugs").update(updates).eq("id", rug.id);
-      if (!error) advanced++;
+      const result = await advanceRugStage(rug.id, rug.status);
+      if (result && !result.error) advanced++;
     }
 
     setSelectedRugIds(new Set());

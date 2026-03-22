@@ -23,6 +23,7 @@ import { RugContextPanel } from "@/components/shared/RugContextPanel";
 import { PRODUCTION_STAGES } from "@/data/production";
 import { RUG_TYPES } from "@/data/services";
 import { supabase } from "@/integrations/supabase/client";
+import { advanceRugStage, createDraftInvoice } from "@/lib/rug-operations";
 import { toast } from "@/hooks/use-toast";
 import { Check, FileText, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
@@ -149,20 +150,15 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
 
   const handleAdvanceStage = async () => {
     if (!rug) return;
-    const idx = PRODUCTION_STAGES.findIndex((s) => s.id === rug.status);
-    if (idx < 0 || idx >= PRODUCTION_STAGES.length - 1) return;
-    const nextStage = PRODUCTION_STAGES[idx + 1].id;
-    const updates: Record<string, string> = { status: nextStage };
-    if (nextStage === "ready") updates.completed_at = new Date().toISOString();
-    if (nextStage === "picked_up") updates.picked_up_at = new Date().toISOString();
-
-    const { error } = await supabase.from("rugs").update(updates).eq("id", rug.id);
-    if (error) {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    const result = await advanceRugStage(rug.id, rug.status);
+    if (!result) return;
+    if (result.error) {
+      toast({ title: "Update failed", description: result.error, variant: "destructive" });
       return;
     }
     invalidateRugs();
-    toast({ title: `Advanced to ${PRODUCTION_STAGES[idx + 1].label}` });
+    const label = PRODUCTION_STAGES.find((s) => s.id === result.nextStage)?.label ?? result.nextStage;
+    toast({ title: `Advanced to ${label}` });
   };
 
   const handleAddService = async () => {
@@ -213,41 +209,17 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     if (!rug || services.length === 0) return;
     setCreatingInvoice(true);
 
-    const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
-    const total = services.reduce((sum, s) => sum + Number(s.line_total), 0);
+    const result = await createDraftInvoice({
+      clientId: rug.client_id!,
+      rugId: rug.id,
+      rugTag: rug.tag,
+      services: services.map((s) => ({ service_name: s.service_name, line_total: Number(s.line_total) })),
+    });
 
-    const { data: inv, error: invErr } = await supabase
-      .from("invoices")
-      .insert({
-        invoice_number: invNum,
-        client_id: rug.client_id,
-        status: "draft" as const,
-        total,
-        pdf_storage_path: `clients/${rug.client_id}/${invNum}.pdf`,
-      })
-      .select("id")
-      .single();
-
-    if (invErr || !inv) {
-      toast({ title: "Invoice creation failed", description: invErr?.message, variant: "destructive" });
-      setCreatingInvoice(false);
-      return;
-    }
-
-    const lineItems = services.map((s) => ({
-      invoice_id: inv.id,
-      rug_id: rug.id,
-      description: `${s.service_name} — ${rug.tag}`,
-      quantity: 1,
-      unit_price: Number(s.line_total),
-      total: Number(s.line_total),
-    }));
-
-    const { error: itemsErr } = await supabase.from("invoice_items").insert(lineItems);
-    if (itemsErr) {
-      toast({ title: "Line items failed", description: itemsErr.message, variant: "destructive" });
+    if (result.error) {
+      toast({ title: "Invoice creation failed", description: result.error, variant: "destructive" });
     } else {
-      toast({ title: `Draft invoice ${invNum} created`, description: `$${total.toFixed(2)} from ${services.length} service(s)` });
+      toast({ title: `Draft invoice ${result.invoiceNumber} created`, description: `$${result.total.toFixed(2)} from ${services.length} service(s)` });
     }
     setCreatingInvoice(false);
   };

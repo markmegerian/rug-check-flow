@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type InvoicePdfArtifact = {
-  invoiceId: string;
+  invoiceId?: string;
+  estimateId?: string;
   invoiceNumber: string;
   forceRegenerate?: boolean;
 };
@@ -9,7 +10,8 @@ export type InvoicePdfArtifact = {
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
   const { data: functionData, error: functionError } = await supabase.functions.invoke("invoice-pdf", {
     body: {
-      invoice_id: artifact.invoiceId,
+      invoice_id: artifact.invoiceId ?? "",
+      estimate_id: artifact.estimateId ?? "",
       force_regenerate: Boolean(artifact.forceRegenerate),
     },
   });
