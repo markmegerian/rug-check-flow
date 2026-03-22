@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
-import { PaginationControls } from "@/components/ui/pagination-controls";
+import { useState, useEffect, useMemo } from "react";
 import { format, addDays, subDays } from "date-fns";
 import { Package, CheckCircle2, Calendar, AlertCircle, Clock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,16 +55,18 @@ export function DeliveryPrepTab() {
   const [loading, setLoading] = useState(true);
   const [compiling, setCompiling] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
+  // Tracks previous rug status before confirming, so we can revert on uncheck
+  const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
 
-  // Tomorrow's date and weekday
-  const tomorrowDate = addDays(new Date(), 1);
-  const tomorrow = format(tomorrowDate, "yyyy-MM-dd");
-  const tomorrowDayName = DAYS_OF_WEEK[tomorrowDate.getDay() === 0 ? 6 : tomorrowDate.getDay() - 1];
+  // Compute dates once at mount — these won't change during the component's lifetime
+  const [tomorrow] = useState(() => format(addDays(new Date(), 1), "yyyy-MM-dd"));
+  const [tomorrowDayName] = useState(() => {
+    const d = addDays(new Date(), 1);
+    return DAYS_OF_WEEK[d.getDay() === 0 ? 6 : d.getDay() - 1];
+  });
+  const [oneDayAgo] = useState(() => subDays(new Date(), 1).toISOString());
 
-  // Cutoff: rugs must have been at facility for 1+ day
-  const oneDayAgo = subDays(new Date(), 1).toISOString();
-
-  const fetchDeliveryPrepItems = useCallback(async () => {
+  const fetchDeliveryPrepItems = async () => {
     setLoading(true);
     try {
       // 1. Fetch all clients on tomorrow's route day
@@ -77,7 +77,6 @@ export function DeliveryPrepTab() {
 
       if (clientsError) {
         toast({ title: "Failed to load clients", description: clientsError.message, variant: "destructive" });
-        setLoading(false);
         return;
       }
 
@@ -87,7 +86,6 @@ export function DeliveryPrepTab() {
         setClientMap({});
         setDeliveryListMap({});
         setRugMap({});
-        setLoading(false);
         return;
       }
 
@@ -108,7 +106,6 @@ export function DeliveryPrepTab() {
 
       if (rugsError) {
         toast({ title: "Failed to load rugs", description: rugsError.message, variant: "destructive" });
-        setLoading(false);
         return;
       }
 
@@ -120,12 +117,11 @@ export function DeliveryPrepTab() {
       if (eligibleRugs.length === 0) {
         setItems([]);
         setDeliveryListMap({});
-        setLoading(false);
         return;
       }
 
       // 3. Find or create delivery list for tomorrow
-      let { data: listsData } = await supabase
+      const { data: listsData } = await supabase
         .from("delivery_lists")
         .select("id, route_day, target_date, status")
         .eq("target_date", tomorrow)
@@ -147,7 +143,6 @@ export function DeliveryPrepTab() {
 
         if (createError || !newList) {
           toast({ title: "Failed to create delivery list", description: createError?.message, variant: "destructive" });
-          setLoading(false);
           return;
         }
         deliveryList = newList as DeliveryList;
@@ -171,7 +166,7 @@ export function DeliveryPrepTab() {
           rug_id: r.id,
           client_id: r.client_id,
         }));
-        await supabase.from("delivery_list_items").insert(itemsToInsert);
+        await supabase.from("delivery_list_items").upsert(itemsToInsert, { onConflict: "delivery_list_id,rug_id", ignoreDuplicates: true });
       }
 
       // 6. Re-fetch all items for this list
@@ -192,11 +187,13 @@ export function DeliveryPrepTab() {
     } finally {
       setLoading(false);
     }
-  }, [tomorrow, tomorrowDayName, oneDayAgo, toast]);
+  };
 
+  // Fetch once on mount — no dependencies, no re-triggers
   useEffect(() => {
-    void fetchDeliveryPrepItems();
-  }, [fetchDeliveryPrepItems]);
+    fetchDeliveryPrepItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRefresh = async () => {
     setCompiling(true);
@@ -206,8 +203,15 @@ export function DeliveryPrepTab() {
   };
 
   const toggleConfirmed = async (itemId: string, value: boolean) => {
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+
+    const rug = rugMap[item.rug_id];
+    if (!rug) return;
+
     setUpdating(itemId);
     try {
+      // Update the delivery list item confirmation
       const { error } = await supabase
         .from("delivery_list_items")
         .update({ confirmed_for_delivery: value })
@@ -218,28 +222,83 @@ export function DeliveryPrepTab() {
         return;
       }
 
+      if (value && rug.status !== "ready") {
+        // Confirming a non-ready rug: save previous status, then advance to "ready"
+        setPreviousStatusMap((prev) => ({ ...prev, [rug.id]: rug.status }));
+
+        const { error: rugError } = await supabase
+          .from("rugs")
+          .update({ status: "ready", completed_at: new Date().toISOString() })
+          .eq("id", rug.id);
+
+        if (rugError) {
+          // Revert the confirmation if rug update fails
+          await supabase
+            .from("delivery_list_items")
+            .update({ confirmed_for_delivery: false })
+            .eq("id", itemId);
+          toast({ title: "Failed to update rug status", description: rugError.message, variant: "destructive" });
+          return;
+        }
+
+        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: "ready" } }));
+        toast({
+          title: "Rug confirmed & marked ready",
+          description: `${rug.tag} moved from ${statusLabel(rug.status)} to Ready`,
+        });
+      } else if (!value && previousStatusMap[rug.id]) {
+        // Unchecking: revert rug to its previous status
+        const prevStatus = previousStatusMap[rug.id];
+        const revertUpdates: Record<string, string | null> = { status: prevStatus };
+        // Clear completed_at if reverting away from "ready"
+        if (prevStatus !== "ready") {
+          revertUpdates.completed_at = null;
+        }
+
+        const { error: rugError } = await supabase
+          .from("rugs")
+          .update(revertUpdates)
+          .eq("id", rug.id);
+
+        if (rugError) {
+          toast({ title: "Failed to revert rug status", description: rugError.message, variant: "destructive" });
+          return;
+        }
+
+        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: prevStatus } }));
+        setPreviousStatusMap((prev) => {
+          const next = { ...prev };
+          delete next[rug.id];
+          return next;
+        });
+        toast({
+          title: "Confirmation removed & status reverted",
+          description: `${rug.tag} reverted to ${statusLabel(prevStatus)}`,
+        });
+      } else {
+        // Normal toggle (rug was already "ready", or no previous status to revert)
+        toast({
+          title: value ? "Rug confirmed" : "Confirmation removed",
+          description: value ? "Rug is confirmed for tomorrow's delivery" : "Rug confirmation removed",
+        });
+      }
+
       setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, confirmed_for_delivery: value } : i)));
-      toast({
-        title: value ? "Rug confirmed" : "Confirmation removed",
-        description: value ? "Rug is confirmed for tomorrow's delivery" : "Rug confirmation removed",
-      });
     } finally {
       setUpdating(null);
     }
   };
 
-  const pagination = usePaginatedList(items);
-
   // Group items by client
   const itemsByClient = useMemo(() => {
     const map: Record<string, DeliveryItem[]> = {};
-    pagination.items.forEach((item) => {
+    items.forEach((item) => {
       const clientId = item.client_id ?? "unknown";
       if (!map[clientId]) map[clientId] = [];
       map[clientId].push(item);
     });
     return map;
-  }, [pagination.items]);
+  }, [items]);
 
   const clientName = (clientId: string | null) => {
     if (!clientId) return "Unknown";
@@ -396,16 +455,6 @@ export function DeliveryPrepTab() {
               </div>
             );
           })}
-          <PaginationControls
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            hasPrev={pagination.hasPrev}
-            hasNext={pagination.hasNext}
-            onPrev={pagination.prevPage}
-            onNext={pagination.nextPage}
-            label="items"
-          />
         </div>
       )}
     </div>
