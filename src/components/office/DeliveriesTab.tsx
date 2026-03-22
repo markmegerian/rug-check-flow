@@ -71,6 +71,7 @@ export function DeliveriesTab() {
   const [loading, setLoading] = useState(true);
   const [compiling, setCompiling] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [historyInvoices, setHistoryInvoices] = useState<Record<string, InvoiceInfo[]>>({});
 
   const fetchClients = useCallback(async () => {
@@ -191,7 +192,7 @@ export function DeliveriesTab() {
         rug_id: r.id,
         client_id: r.client_id,
       }));
-      await supabase.from("delivery_list_items").insert(itemsToInsert);
+      await supabase.from("delivery_list_items").upsert(itemsToInsert, { onConflict: "delivery_list_id,rug_id", ignoreDuplicates: true });
     }
 
     const totalAdded = newRugs.length;
@@ -243,7 +244,7 @@ export function DeliveriesTab() {
       client_id: r.client_id,
     }));
 
-    await supabase.from("delivery_list_items").insert(itemsToInsert);
+    await supabase.from("delivery_list_items").upsert(itemsToInsert, { onConflict: "delivery_list_id,rug_id", ignoreDuplicates: true });
     toast({ title: "List updated", description: `${newRugs.length} new rugs added.` });
     await openDetail(selectedList);
     setCompiling(false);
@@ -252,6 +253,7 @@ export function DeliveriesTab() {
   const openDetail = async (dl: DeliveryList) => {
     setSelectedList(dl);
     setViewMode("detail");
+    setSelectedItemIds(new Set());
 
     const { data: listItems } = await supabase
       .from("delivery_list_items")
@@ -302,7 +304,34 @@ export function DeliveriesTab() {
   const removeItem = async (itemId: string) => {
     await supabase.from("delivery_list_items").delete().eq("id", itemId);
     setItems((prev) => prev.filter((i) => i.id !== itemId));
+    setSelectedItemIds((prev) => { const next = new Set(prev); next.delete(itemId); return next; });
     toast({ title: "Rug removed from list" });
+  };
+
+  const toggleSelectItem = (itemId: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItemIds.size === items.length) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(items.map((i) => i.id)));
+    }
+  };
+
+  const removeSelected = async () => {
+    if (selectedItemIds.size === 0) return;
+    const ids = Array.from(selectedItemIds);
+    await supabase.from("delivery_list_items").delete().in("id", ids);
+    setItems((prev) => prev.filter((i) => !selectedItemIds.has(i.id)));
+    toast({ title: `${ids.length} rugs removed from list` });
+    setSelectedItemIds(new Set());
   };
 
   const confirmList = async () => {
@@ -510,6 +539,25 @@ export function DeliveriesTab() {
           </div>
         </div>
 
+        {isCompiling && items.length > 0 && (
+          <div className="flex items-center gap-3 mb-4">
+            <Checkbox
+              checked={selectedItemIds.size === items.length && items.length > 0}
+              onCheckedChange={toggleSelectAll}
+              aria-label="Select all"
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedItemIds.size > 0 ? `${selectedItemIds.size} selected` : "Select all"}
+            </span>
+            {selectedItemIds.size > 0 && (
+              <Button size="sm" variant="destructive" onClick={removeSelected}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Remove selected ({selectedItemIds.size})
+              </Button>
+            )}
+          </div>
+        )}
+
         <TooltipProvider delayDuration={300}>
         <div className="space-y-6">
           {Object.entries(itemsByClient).map(([cid, clientItems]) => (
@@ -528,7 +576,14 @@ export function DeliveriesTab() {
                   const rug = rugMap[item.rug_id];
                   const isInProduction = rug?.status === "in_production";
                   return (
-                    <div key={item.id} className={`px-4 py-2.5 flex items-center gap-3 ${isInProduction && !isCheckedOut ? "bg-amber-50/50 dark:bg-amber-950/20" : ""}`}>
+                    <div key={item.id} className={`px-4 py-2.5 flex items-center gap-3 ${isInProduction && !isCheckedOut ? "bg-amber-50/50 dark:bg-amber-950/20" : ""} ${selectedItemIds.has(item.id) ? "bg-primary/5" : ""}`}>
+                      {isCompiling && (
+                        <Checkbox
+                          checked={selectedItemIds.has(item.id)}
+                          onCheckedChange={() => toggleSelectItem(item.id)}
+                          aria-label="Select rug"
+                        />
+                      )}
                       {isCompiling && (
                         isInProduction ? (
                           <Tooltip>

@@ -168,7 +168,7 @@ export function DeliveryPrepTab() {
           rug_id: r.id,
           client_id: r.client_id,
         }));
-        await supabase.from("delivery_list_items").insert(itemsToInsert);
+        await supabase.from("delivery_list_items").upsert(itemsToInsert, { onConflict: "delivery_list_id,rug_id", ignoreDuplicates: true });
       }
 
       // 6. Re-fetch all items for this list
