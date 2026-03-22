@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { format, addDays, subDays } from "date-fns";
@@ -60,17 +60,15 @@ export function DeliveryPrepTab() {
   // Tracks previous rug status before confirming, so we can revert on uncheck
   const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
 
-  // Tomorrow's date and weekday — memoized to prevent infinite re-render loop
-  const tomorrow = useMemo(() => format(addDays(new Date(), 1), "yyyy-MM-dd"), []);
-  const tomorrowDayName = useMemo(() => {
+  // Compute dates once at mount — these won't change during the component's lifetime
+  const [tomorrow] = useState(() => format(addDays(new Date(), 1), "yyyy-MM-dd"));
+  const [tomorrowDayName] = useState(() => {
     const d = addDays(new Date(), 1);
     return DAYS_OF_WEEK[d.getDay() === 0 ? 6 : d.getDay() - 1];
-  }, []);
+  });
+  const [oneDayAgo] = useState(() => subDays(new Date(), 1).toISOString());
 
-  // Cutoff: rugs must have been at facility for 1+ day — memoized to stable string
-  const oneDayAgo = useMemo(() => subDays(new Date(), 1).toISOString(), []);
-
-  const fetchDeliveryPrepItems = useCallback(async () => {
+  const fetchDeliveryPrepItems = async () => {
     setLoading(true);
     try {
       // 1. Fetch all clients on tomorrow's route day
@@ -81,7 +79,6 @@ export function DeliveryPrepTab() {
 
       if (clientsError) {
         toast({ title: "Failed to load clients", description: clientsError.message, variant: "destructive" });
-        setLoading(false);
         return;
       }
 
@@ -91,7 +88,6 @@ export function DeliveryPrepTab() {
         setClientMap({});
         setDeliveryListMap({});
         setRugMap({});
-        setLoading(false);
         return;
       }
 
@@ -112,7 +108,6 @@ export function DeliveryPrepTab() {
 
       if (rugsError) {
         toast({ title: "Failed to load rugs", description: rugsError.message, variant: "destructive" });
-        setLoading(false);
         return;
       }
 
@@ -124,12 +119,11 @@ export function DeliveryPrepTab() {
       if (eligibleRugs.length === 0) {
         setItems([]);
         setDeliveryListMap({});
-        setLoading(false);
         return;
       }
 
       // 3. Find or create delivery list for tomorrow
-      let { data: listsData } = await supabase
+      const { data: listsData } = await supabase
         .from("delivery_lists")
         .select("id, route_day, target_date, status")
         .eq("target_date", tomorrow)
@@ -151,7 +145,6 @@ export function DeliveryPrepTab() {
 
         if (createError || !newList) {
           toast({ title: "Failed to create delivery list", description: createError?.message, variant: "destructive" });
-          setLoading(false);
           return;
         }
         deliveryList = newList as DeliveryList;
@@ -196,11 +189,13 @@ export function DeliveryPrepTab() {
     } finally {
       setLoading(false);
     }
-  }, [tomorrow, tomorrowDayName, oneDayAgo, toast]);
+  };
 
+  // Fetch once on mount — no dependencies, no re-triggers
   useEffect(() => {
-    void fetchDeliveryPrepItems();
-  }, [fetchDeliveryPrepItems]);
+    fetchDeliveryPrepItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRefresh = async () => {
     setCompiling(true);
