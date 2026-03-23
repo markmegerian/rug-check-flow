@@ -97,7 +97,7 @@ export function RouteBuilder() {
 
         // Fetch item counts
         const pickupIds = pickupData.map((p: PickupRow) => p.id);
-        let itemCountMap: Record<string, number> = {};
+        const itemCountMap: Record<string, number> = {};
 
         if (pickupIds.length > 0) {
           const { data: itemsData } = await supabaseExtended

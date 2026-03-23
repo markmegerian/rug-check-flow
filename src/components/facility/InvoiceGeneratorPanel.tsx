@@ -231,7 +231,7 @@ export function InvoiceGeneratorPanel() {
 
       // Refresh the list
       fetchUninvoicedRugs(selectedClientId);
-    } catch (error) {
+    } catch {
       toast({ title: "Failed to generate invoice", description: "An unexpected error occurred", variant: "destructive" });
     } finally {
       setGenerating(false);

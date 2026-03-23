@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { format, subDays } from "date-fns";
-import { Camera, CheckCircle, AlertTriangle, ImageOff, Signature, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { Camera, CheckCircle, AlertTriangle, ImageOff, Signature, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabaseExtended } from "@/integrations/supabase/extended";

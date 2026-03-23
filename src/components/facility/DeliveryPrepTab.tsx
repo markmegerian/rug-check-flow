@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { format, addDays, startOfWeek } from "date-fns";
+import { format, addDays } from "date-fns";
 import { Package, CheckCircle2, ChevronRight, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +70,7 @@ export function DeliveryPrepTab() {
   const [allRugs, setAllRugs] = useState<RugInfo[]>([]);
   const [rugMap, setRugMap] = useState<Record<string, RugInfo>>({});
   const [clientMap, setClientMap] = useState<Record<string, ClientInfo>>({});
-  const [deliveryList, setDeliveryList] = useState<DeliveryList | null>(null);
+  const [, setDeliveryList] = useState<DeliveryList | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
