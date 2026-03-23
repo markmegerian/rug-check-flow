@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { DAYS_OF_WEEK } from "@/lib/constants";
+
+function getRouteDay(dateStr: string): string {
+  const jsDay = new Date(dateStr + "T12:00:00").getDay(); // 0=Sun
+  return DAYS_OF_WEEK[(jsDay + 6) % 7]; // Mon-Sun
+}
 
 /**
  * After the truck is finalized, create route_stops for each client
@@ -14,6 +20,7 @@ export async function createDeliveryRouteStops(params: {
   routeDate: string;
 }): Promise<{ stopsCreated: number }> {
   const { deliveryListId, driverId, routeDate } = params;
+  const routeDay = getRouteDay(routeDate);
 
   // 1. Get all items that were on the truck (confirmed + loaded)
   const { data: items, error: itemsErr } = await supabase
@@ -67,6 +74,7 @@ export async function createDeliveryRouteStops(params: {
         .insert({
           client_id: clientId,
           route_date: routeDate,
+          route_day: routeDay,
           assigned_driver_id: driverId,
           delivery_list_id: deliveryListId,
           status: "queued",

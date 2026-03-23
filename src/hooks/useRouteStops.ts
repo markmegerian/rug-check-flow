@@ -400,6 +400,7 @@ export function useRouteStops() {
     isSyncing,
     sync,
     signOut,
+    fetchStops,
     startStop,
     toggleItemVerified,
     setItemNotes,

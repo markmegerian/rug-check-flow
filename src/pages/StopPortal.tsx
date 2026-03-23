@@ -30,6 +30,7 @@ const StopPortal: React.FC = () => {
     isSyncing,
     sync,
     signOut,
+    fetchStops,
     startStop,
     toggleItemVerified,
     setItemNotes,
@@ -147,7 +148,7 @@ const StopPortal: React.FC = () => {
         {activeTab === "truck" && (
           <TruckLoadingView
             isOnline={isOnline}
-            onTruckFinalized={() => setActiveTab("route")}
+            onTruckFinalized={() => { void fetchStops(); setActiveTab("route"); }}
           />
         )}
         {activeTab === "route" && (
