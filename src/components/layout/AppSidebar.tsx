@@ -2,7 +2,6 @@ import { useLocation } from "react-router-dom";
 import {
   Home,
   Factory,
-  Briefcase,
   Store,
   Truck,
   ShieldCheck,
@@ -30,8 +29,7 @@ import { APP_NAME } from "@/lib/branding";
 
 const NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home, end: true },
-  { title: "Facility Ops", url: "/facility/ops", icon: Factory },
-  { title: "Office", url: "/facility/office", icon: Briefcase },
+  { title: "Operations", url: "/ops", icon: Factory },
   { title: "Wholesale Portal", url: "/portal", icon: Store },
   { title: "Driver Portal", url: "/driver", icon: Truck },
   { title: "Admin", url: "/admin", icon: ShieldCheck },

@@ -76,7 +76,7 @@ async function checkDataIntegrity(): Promise<IntegrityIssue[]> {
         title: "Ghost rugs detected",
         description: `${ghostTotal} rug(s) stuck in processing for over 14 days without progress.`,
         count: ghostTotal,
-        href: "/facility/ops?tab=production",
+        href: "/ops?tab=production",
       });
     }
   }
@@ -103,7 +103,7 @@ async function checkDataIntegrity(): Promise<IntegrityIssue[]> {
       title: "High volume of overdue invoices",
       description: `${overdueCount} invoices are overdue. Consider bulk collections follow-up.`,
       count: overdueCount,
-      href: "/facility/office?tab=invoices&status=overdue",
+      href: "/ops?tab=invoices&status=overdue",
     });
   }
 
@@ -116,7 +116,7 @@ async function checkDataIntegrity(): Promise<IntegrityIssue[]> {
       title: "Abandoned estimates",
       description: `${staleEstimates} estimate(s) sent over 14 days ago with no client response.`,
       count: staleEstimates,
-      href: "/facility/office?tab=estimates",
+      href: "/ops?tab=estimates",
     });
   }
 

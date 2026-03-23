@@ -24,8 +24,7 @@ const queryClient = new QueryClient({
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const FacilityOps = lazy(() => import("./pages/FacilityOps"));
-const FacilityOffice = lazy(() => import("./pages/FacilityOffice"));
+const Operations = lazy(() => import("./pages/Operations"));
 const WholesalePortal = lazy(() => import("./pages/WholesalePortal"));
 const StopPortal = lazy(() => import("./pages/StopPortal"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
@@ -60,21 +59,11 @@ const App = () => (
                     }
                   />
                   <Route
-                    path="/facility/ops"
+                    path="/ops"
                     element={
                       <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
-                        <ErrorBoundary fallbackTitle="Facility Ops Error">
-                          <FacilityOps />
-                        </ErrorBoundary>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/facility/office"
-                    element={
-                      <ProtectedRoute allowedRoles={["admin", "office"]}>
-                        <ErrorBoundary fallbackTitle="Office Error">
-                          <FacilityOffice />
+                        <ErrorBoundary fallbackTitle="Operations Error">
+                          <Operations />
                         </ErrorBoundary>
                       </ProtectedRoute>
                     }

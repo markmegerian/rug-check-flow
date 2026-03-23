@@ -1,5 +1,5 @@
 import { Link, Navigate } from "react-router-dom";
-import { ArrowRight, Briefcase, Factory, ShieldCheck, Store, Truck } from "lucide-react";
+import { ArrowRight, Factory, ShieldCheck, Store, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
@@ -9,9 +9,9 @@ import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
 const ROLE_REDIRECTS: Record<AppRole, string> = {
-  checkin_staff: "/facility/ops",
+  checkin_staff: "/ops",
   driver: "/driver",
-  office: "/facility/office",
+  office: "/ops",
   admin: "/admin",
 };
 
@@ -23,18 +23,11 @@ const SECTIONS: Array<{
   roles: AppRole[];
 }> = [
   {
-    to: "/facility/ops",
+    to: "/ops",
     icon: Factory,
-    label: "Facility Ops",
-    description: "Check-in, production board, pending rugs",
+    label: "Operations",
+    description: "Floor ops, clients, invoices, production & more",
     roles: ["admin", "office", "checkin_staff"],
-  },
-  {
-    to: "/facility/office",
-    icon: Briefcase,
-    label: "Office",
-    description: "Clients, pricing, invoices",
-    roles: ["admin", "office"],
   },
   {
     to: "/portal",

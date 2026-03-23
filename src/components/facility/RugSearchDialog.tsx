@@ -68,7 +68,7 @@ export function RugSearchDialog({ open, onOpenChange, onSelectRug }: RugSearchDi
   const handleSelectClient = useCallback(
     (clientId: string) => {
       onOpenChange(false);
-      navigate(`/facility/office?tab=clients&search=${clientId}`);
+      navigate(`/ops?tab=clients&search=${clientId}`);
     },
     [onOpenChange, navigate]
   );
