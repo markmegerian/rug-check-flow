@@ -7,9 +7,8 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Camera, Check, MessageSquare, X } from "lucide-react";
+import { Check, MessageSquare, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import {
   supabaseExtended,
 } from "@/integrations/supabase/extended";

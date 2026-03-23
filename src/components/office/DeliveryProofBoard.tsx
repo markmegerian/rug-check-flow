@@ -288,10 +288,7 @@ export function DeliveryProofBoard() {
                                   src={stop.signatureUrl}
                                   alt="Signature"
                                   className="h-full w-full object-contain"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).parentElement!.innerHTML =
-                                      '<p class="text-xs text-muted-foreground p-2">Signature unavailable</p>';
-                                  }}
+                                  onError={(e) => { const el = e.target as HTMLImageElement; el.style.display = "none"; const p = document.createElement("p"); p.className = "text-xs text-muted-foreground p-2"; p.textContent = "Signature unavailable"; el.parentElement?.appendChild(p); }}
                                 />
                               </div>
                             </div>

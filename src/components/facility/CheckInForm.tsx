@@ -246,7 +246,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       form.setValue("selectedServices", matchedIds, { shouldValidate: true });
       toast({ title: "Services applied", description: `Copied ${matchedIds.length} service(s) from previous rug.` });
     }
-  }, [dbServices, form, toast]);
+  }, [dbServices, form]);
 
   const onSubmit = (data: CheckInValues) => {
     if (!editingEntry && photos.length < 1) {
@@ -257,7 +257,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     const isEditing = !!editingEntry;
     const label = isEditing ? "updated" : "checked in";
 
-    console.log(`Check-in ${label}:`, { ...data, photos: photos.length, totalPrice });
     toast({ title: isEditing ? "Entry updated" : "Check-in complete", description: `Rug ${data.rugNumber} ${label}.` });
 
     if (onCheckInComplete) {

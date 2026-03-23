@@ -84,19 +84,29 @@ export async function maybeAutoCreateInvoice(
     total: Number(s.line_total),
   }));
 
-  await supabase.from("invoice_items").insert(lineItems);
+  const { error: itemsErr } = await supabase.from("invoice_items").insert(lineItems);
+  if (itemsErr) {
+    console.warn("Auto-create invoice line items failed:", itemsErr.message);
+    // Clean up orphaned invoice
+    await supabase.from("invoices").delete().eq("id", invoice.id);
+    return null;
+  }
 
   // Log event
-  await supabaseExtended.from("communication_events").insert({
-    client_id: rug.client_id,
-    rug_id: rugId,
-    invoice_id: invoice.id,
-    channel: "in_app_chat",
-    direction: "outbound",
-    event_type: "invoice_auto_created",
-    subject: `${invoiceNumber} auto-created`,
-    body: `Invoice ${invoiceNumber} was auto-created when rug ${rug.tag} was marked ready.`,
-  });
+  try {
+    await supabaseExtended.from("communication_events").insert({
+      client_id: rug.client_id,
+      rug_id: rugId,
+      invoice_id: invoice.id,
+      channel: "in_app_chat",
+      direction: "outbound",
+      event_type: "invoice_auto_created",
+      subject: `${invoiceNumber} auto-created`,
+      body: `Invoice ${invoiceNumber} was auto-created when rug ${rug.tag} was marked ready.`,
+    });
+  } catch (e) {
+    console.warn("Failed to log invoice auto-creation event:", e);
+  }
 
   return { invoiceNumber, total };
 }

@@ -3,8 +3,7 @@ import { ClipboardList, FileText, Plus } from "lucide-react";
 import { PendingRugsPanel } from "./PendingRugsPanel";
 import { CheckInForm } from "./CheckInForm";
 import { CheckInLogPanel } from "./CheckInLogPanel";
-import { type PendingRug } from "@/types/pending-rug";
-import { type CheckInEntry, deriveUserRole } from "@/data/check-in-log";
+import { deriveUserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { useAuth } from "@/contexts/AuthContext";
@@ -91,9 +90,12 @@ export function CheckInLayout() {
           return;
         }
 
-        await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
+        const { error: delServicesErr } = await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
+        if (delServicesErr) {
+          toast({ title: "Failed to update services", description: delServicesErr.message, variant: "destructive" });
+        }
         if (data.serviceSnapshots.length > 0) {
-          await supabase.from("rug_services").insert(
+          const { error: insServicesErr } = await supabase.from("rug_services").insert(
             data.serviceSnapshots.map((s) => ({
               rug_id: editingEntryId,
               service_id: s.service_id,
@@ -103,6 +105,9 @@ export function CheckInLayout() {
               edges: s.edges,
             }))
           );
+          if (insServicesErr) {
+            toast({ title: "Failed to save services", description: insServicesErr.message, variant: "destructive" });
+          }
         }
 
         if (data.photos.length > 0) {
@@ -187,7 +192,7 @@ export function CheckInLayout() {
         }
 
         if (data.serviceSnapshots.length > 0) {
-          await supabase.from("rug_services").insert(
+          const { error: insServicesErr } = await supabase.from("rug_services").insert(
             data.serviceSnapshots.map((s) => ({
               rug_id: inserted.id,
               service_id: s.service_id,
@@ -197,6 +202,9 @@ export function CheckInLayout() {
               edges: s.edges,
             }))
           );
+          if (insServicesErr) {
+            toast({ title: "Failed to save services", description: insServicesErr.message, variant: "destructive" });
+          }
         }
 
         if (data.photos.length > 0) {

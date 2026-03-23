@@ -23,12 +23,13 @@ const STEP_META: Record<string, { icon: typeof Check; description: string }> = {
   picked_up: { icon: Truck, description: "Delivered back to you" },
 };
 
+const ALL_STEPS = [...PROGRESS_STEPS, "picked_up" as const];
+
 export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) {
-  const allSteps = [...PROGRESS_STEPS, "picked_up" as const];
-  const currentStepIndex = allSteps.indexOf(rug.status);
+  const currentStepIndex = ALL_STEPS.indexOf(rug.status);
 
   const steps: JourneyStep[] = useMemo(() => {
-    return allSteps.map((stepId, i) => {
+    return ALL_STEPS.map((stepId, i) => {
       let state: JourneyStep["state"] = "upcoming";
       if (i < currentStepIndex) state = "completed";
       else if (i === currentStepIndex) state = "active";
@@ -42,7 +43,7 @@ export function RugJourneyTimeline({ rug, className }: RugJourneyTimelineProps) 
         state,
       };
     });
-  }, [rug.status, currentStepIndex]);
+  }, [currentStepIndex]);
 
   return (
     <div className={cn("space-y-1", className)}>

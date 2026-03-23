@@ -224,7 +224,7 @@ async function buildRugSections(
     } else {
       // Fallback: use invoice_items data
       for (const item of rugItems) {
-        const qty = item.unit_price > 0 ? item.total / item.unit_price : item.quantity;
+        const _qty = item.unit_price > 0 ? item.total / item.unit_price : item.quantity;
         serviceLines.push({
           name: item.description.replace(/\s*—\s*.*$/, ""), // Remove " — RUG-TAG" suffix
           pricingLabel: buildPricingLabel(

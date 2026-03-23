@@ -39,42 +39,6 @@ export default function PortalRugsTab() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Load rugs
-  useEffect(() => {
-    if (portalClientLoading) { setLoading(true); return; }
-    if (errorMessage) {
-      toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
-      setLoading(false); setRugs([]); return;
-    }
-    if (!clientId) { setLoading(false); return; }
-
-    const loadRugs = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("rugs")
-        .select("id, tag, description, services, size_length, size_width, checked_in_at, status, notes, photo_url")
-        .eq("client_id", clientId)
-        .in("status", ACTIVE_STATUSES)
-        .order("checked_in_at", { ascending: false })
-        .limit(250)
-        .returns<RugRow[]>();
-
-      if (error) {
-        toast({ title: "Failed to load rugs", description: error.message, variant: "destructive" });
-        setRugs([]); setLoading(false); return;
-      }
-
-      const loadedRugs = data ?? [];
-      setRugs(loadedRugs);
-
-      // Load pickup grouping
-      await loadPickupGroups(clientId, loadedRugs);
-      setLoading(false);
-    };
-
-    loadRugs();
-  }, [clientId, errorMessage, portalClientLoading, toast]);
-
   const loadPickupGroups = useCallback(async (activeClientId: string, activeRugs: RugRow[]) => {
     const { data: pickupData } = await supabaseExtended
       .from("pickup_requests")
@@ -116,6 +80,42 @@ export default function PortalRugsTab() {
 
     setPickupGroups(groups);
   }, []);
+
+  // Load rugs
+  useEffect(() => {
+    if (portalClientLoading) { setLoading(true); return; }
+    if (errorMessage) {
+      toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
+      setLoading(false); setRugs([]); return;
+    }
+    if (!clientId) { setLoading(false); return; }
+
+    const loadRugs = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("rugs")
+        .select("id, tag, description, services, size_length, size_width, checked_in_at, status, notes, photo_url")
+        .eq("client_id", clientId)
+        .in("status", ACTIVE_STATUSES)
+        .order("checked_in_at", { ascending: false })
+        .limit(250)
+        .returns<RugRow[]>();
+
+      if (error) {
+        toast({ title: "Failed to load rugs", description: error.message, variant: "destructive" });
+        setRugs([]); setLoading(false); return;
+      }
+
+      const loadedRugs = data ?? [];
+      setRugs(loadedRugs);
+
+      // Load pickup grouping
+      await loadPickupGroups(clientId, loadedRugs);
+      setLoading(false);
+    };
+
+    loadRugs();
+  }, [clientId, errorMessage, portalClientLoading, toast, loadPickupGroups]);
 
   // Filter rugs by search
   const filteredRugs = useMemo(() => {

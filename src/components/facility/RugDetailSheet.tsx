@@ -25,7 +25,7 @@ import { RUG_TYPES } from "@/data/services";
 import { supabase } from "@/integrations/supabase/client";
 import { advanceRugStage, createDraftInvoice } from "@/lib/rug-operations";
 import { toast } from "@/hooks/use-toast";
-import { Check, FileText, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { FileText, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 interface RugDetailSheetProps {
   rugId: string | null;

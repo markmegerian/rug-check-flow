@@ -87,8 +87,7 @@ function buildTrendSnapshot(id: string, label: string, current: number, previous
 
 async function countWithThreshold(
   table: "estimates" | "pickup_requests" | "invoices",
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase query builder chain
-  filters: (q: any) => any,
+  filters: <T>(q: T) => T,
   dateColumn: string,
   thresholdIso: string,
 ): Promise<number> {
@@ -127,11 +126,10 @@ async function fetchReminderData(): Promise<ReminderData> {
   const updatesCurrentWindowIso = new Date(nowMs - MS_PER_DAY).toISOString();
   const updatesPreviousWindowIso = new Date(nowMs - 2 * MS_PER_DAY).toISOString();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase query builder chain typing
-  const estimateFilter = <T extends { eq: (...args: any[]) => T }>(q: T) => q.eq("status", "sent");
-  const pickupFilter = <T extends { in: (...args: any[]) => T }>(q: T) => q.in("status", ["pending", "confirmed", "assigned"]);
-  const overdueDueFilter = <T extends { eq: (...args: any[]) => T; not: (...args: any[]) => T }>(q: T) => q.eq("status", "overdue").not("due_at", "is", null);
-  const overdueNoDueFilter = <T extends { eq: (...args: any[]) => T; is: (...args: any[]) => T }>(q: T) => q.eq("status", "overdue").is("due_at", null);
+  const estimateFilter = <T extends { eq: (...args: [string, string]) => T }>(q: T) => q.eq("status", "sent");
+  const pickupFilter = <T extends { in: (...args: [string, string[]]) => T }>(q: T) => q.in("status", ["pending", "confirmed", "assigned"]);
+  const overdueDueFilter = <T extends { eq: (...args: [string, string]) => T; not: (...args: [string, string, null]) => T }>(q: T) => q.eq("status", "overdue").not("due_at", "is", null);
+  const overdueNoDueFilter = <T extends { eq: (...args: [string, string]) => T; is: (...args: [string, null]) => T }>(q: T) => q.eq("status", "overdue").is("due_at", null);
 
   const results = await Promise.allSettled([
     // Estimates: 3d, 4d, 5d, 7d

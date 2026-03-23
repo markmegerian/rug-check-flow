@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PRODUCTION_STAGES, ProductionStage } from "@/data/production";
+import { PRODUCTION_STAGES } from "@/data/production";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";

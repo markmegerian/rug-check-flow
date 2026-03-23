@@ -1,12 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { BellRing, RefreshCw, Send, TrendingDown, TrendingUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   useOperationalReminders,
-  type OperationalReminder,
   type OperationalTrendSnapshot,
 } from "@/hooks/useOperationalReminders";
 import { SlaHeatmap } from "@/components/dashboard/SlaHeatmap";

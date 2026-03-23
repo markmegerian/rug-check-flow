@@ -196,13 +196,13 @@ export default function PortalEstimatesTab() {
         ? `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.\n\nClient note: ${decisionNote}`
         : `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
     };
-    const { error: eventError } = await supabaseExtended.from("communication_events").insert(eventPayload);
-    if (eventError) {
-      toast({
-        title: "Estimate updated with warning",
-        description: `Activity log update failed: ${eventError.message}`,
-        variant: "destructive",
-      });
+    try {
+      const { error: eventError } = await supabaseExtended.from("communication_events").insert(eventPayload);
+      if (eventError) {
+        console.warn("Communication event insert failed (non-blocking):", eventError.message);
+      }
+    } catch (eventErr) {
+      console.warn("Communication event insert threw (non-blocking):", eventErr);
     }
 
     setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));

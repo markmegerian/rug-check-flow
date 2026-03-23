@@ -206,8 +206,19 @@ export function useRouteStops() {
     await fetchStops();
   };
 
-  const setItemNotes = async (_stopId: string, _itemId: string, _notes: string) => {
-    toast({ title: "Notes saved locally", description: "Notes will be included with next action" });
+  const setItemNotes = async (_stopId: string, itemId: string, notes: string) => {
+    const { error } = await supabaseExtended
+      .from("route_stop_items")
+      .update({ notes })
+      .eq("id", itemId);
+
+    if (error) {
+      toast({ title: "Notes save failed", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Notes saved" });
+    await fetchStops();
   };
 
   const addItemPhoto = async (stopId: string, itemId: string, file: File) => {

@@ -50,10 +50,13 @@ export async function ensureRouteStopForPickup(pickupRequestId: string): Promise
   if (existingClientStop && existingClientStop.length > 0) {
     // Update existing stop to also reference this pickup request
     stopId = existingClientStop[0].id;
-    await supabaseExtended
+    const { error: updateError } = await supabaseExtended
       .from("route_stops")
       .update({ pickup_request_id: pickupRequestId })
       .eq("id", stopId);
+    if (updateError) {
+      console.warn("Failed to update route stop:", updateError.message);
+    }
   } else {
     // Create a new route_stop
     const { data: newStop, error: createError } = await supabaseExtended
@@ -111,9 +114,12 @@ export async function ensureRouteStopForPickup(pickupRequestId: string): Promise
       }));
 
     if (newStopItems.length > 0) {
-      await supabaseExtended
+      const { error: itemsError } = await supabaseExtended
         .from("route_stop_items")
         .insert(newStopItems);
+      if (itemsError) {
+        console.warn("Failed to create route stop items:", itemsError.message);
+      }
     }
   }
 

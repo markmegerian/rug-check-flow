@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { FileText, Package, Truck, ClipboardCheck, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
+import { Package, Truck, ClipboardCheck, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
