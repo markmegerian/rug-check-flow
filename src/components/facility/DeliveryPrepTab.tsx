@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
-import { format, addDays, subDays } from "date-fns";
-import { Package, CheckCircle2, Calendar, AlertCircle, Clock, RefreshCw } from "lucide-react";
+import { format, addDays } from "date-fns";
+import { Package, CheckCircle2, ChevronRight, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { RugStatusBadge } from "@/components/shared/StatusBadge";
+import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { DAYS_OF_WEEK, DAY_INDEX } from "@/lib/constants";
+import { DAYS_OF_WEEK } from "@/lib/constants";
 
 type DeliveryItem = {
   id: string;
@@ -32,10 +32,10 @@ type DeliveryList = {
 type RugInfo = {
   id: string;
   tag: string;
+  description: string;
   status: string;
   size_length: number | null;
   size_width: number | null;
-  checked_in_at: string;
   client_id: string | null;
 };
 
@@ -51,25 +51,25 @@ export function DeliveryPrepTab() {
   const [items, setItems] = useState<DeliveryItem[]>([]);
   const [rugMap, setRugMap] = useState<Record<string, RugInfo>>({});
   const [clientMap, setClientMap] = useState<Record<string, ClientInfo>>({});
-  const [deliveryListMap, setDeliveryListMap] = useState<Record<string, DeliveryList>>({});
+  const [deliveryList, setDeliveryList] = useState<DeliveryList | null>(null);
   const [loading, setLoading] = useState(true);
-  const [compiling, setCompiling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
-  // Tracks previous rug status before confirming, so we can revert on uncheck
   const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
+  const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Compute dates once at mount — these won't change during the component's lifetime
+  // Tomorrow is the delivery day; today is the prep day
   const [tomorrow] = useState(() => format(addDays(new Date(), 1), "yyyy-MM-dd"));
   const [tomorrowDayName] = useState(() => {
     const d = addDays(new Date(), 1);
     return DAYS_OF_WEEK[d.getDay() === 0 ? 6 : d.getDay() - 1];
   });
-  const [oneDayAgo] = useState(() => subDays(new Date(), 1).toISOString());
 
-  const fetchDeliveryPrepItems = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch all clients on tomorrow's route day
+      // 1. Fetch clients on tomorrow's route day
       const { data: clientsData, error: clientsError } = await supabase
         .from("clients")
         .select("id, name, route_day, address")
@@ -84,8 +84,9 @@ export function DeliveryPrepTab() {
       if (clients.length === 0) {
         setItems([]);
         setClientMap({});
-        setDeliveryListMap({});
+        setDeliveryList(null);
         setRugMap({});
+        setLoading(false);
         return;
       }
 
@@ -95,14 +96,13 @@ export function DeliveryPrepTab() {
 
       const clientIds = clients.map((c) => c.id);
 
-      // 2. Fetch ALL rugs for these clients that are NOT delivered (picked_up)
-      //    and have been at the facility for 1+ day
+      // 2. Fetch ALL undelivered rugs for these clients — no time filter
       const { data: rugsData, error: rugsError } = await supabase
         .from("rugs")
-        .select("id, tag, status, size_length, size_width, checked_in_at, client_id")
+        .select("id, tag, description, status, size_length, size_width, client_id")
         .in("client_id", clientIds)
         .in("status", ["checked_in", "in_production", "ready"])
-        .lte("checked_in_at", oneDayAgo);
+        .order("tag");
 
       if (rugsError) {
         toast({ title: "Failed to load rugs", description: rugsError.message, variant: "destructive" });
@@ -116,7 +116,8 @@ export function DeliveryPrepTab() {
 
       if (eligibleRugs.length === 0) {
         setItems([]);
-        setDeliveryListMap({});
+        setDeliveryList(null);
+        setLoading(false);
         return;
       }
 
@@ -129,12 +130,11 @@ export function DeliveryPrepTab() {
         .in("status", ["compiling", "confirmed"])
         .limit(1);
 
-      let deliveryList: DeliveryList;
+      let list: DeliveryList;
 
       if (listsData && listsData.length > 0) {
-        deliveryList = listsData[0] as DeliveryList;
+        list = listsData[0] as DeliveryList;
       } else {
-        // Auto-create a delivery list for tomorrow
         const { data: newList, error: createError } = await supabase
           .from("delivery_lists")
           .insert({ route_day: tomorrowDayName, target_date: tomorrow })
@@ -145,16 +145,16 @@ export function DeliveryPrepTab() {
           toast({ title: "Failed to create delivery list", description: createError?.message, variant: "destructive" });
           return;
         }
-        deliveryList = newList as DeliveryList;
+        list = newList as DeliveryList;
       }
 
-      setDeliveryListMap({ [deliveryList.id]: deliveryList });
+      setDeliveryList(list);
 
       // 4. Fetch existing delivery list items
       const { data: existingItems } = await supabase
         .from("delivery_list_items")
         .select("*")
-        .eq("delivery_list_id", deliveryList.id);
+        .eq("delivery_list_id", list.id);
 
       const existingRugIds = new Set((existingItems ?? []).map((i: DeliveryItem) => i.rug_id));
 
@@ -162,7 +162,7 @@ export function DeliveryPrepTab() {
       const newRugs = eligibleRugs.filter((r) => !existingRugIds.has(r.id));
       if (newRugs.length > 0) {
         const itemsToInsert = newRugs.map((r) => ({
-          delivery_list_id: deliveryList.id,
+          delivery_list_id: list.id,
           rug_id: r.id,
           client_id: r.client_id,
         }));
@@ -173,14 +173,13 @@ export function DeliveryPrepTab() {
       const { data: allItems } = await supabase
         .from("delivery_list_items")
         .select("*")
-        .eq("delivery_list_id", deliveryList.id);
+        .eq("delivery_list_id", list.id);
 
       const typedItems = (allItems ?? []) as DeliveryItem[];
 
-      // Filter to only items whose rugs are still eligible (not delivered, still at facility)
+      // Only keep items whose rugs are still eligible
       const eligibleRugIds = new Set(eligibleRugs.map((r) => r.id));
-      const filteredItems = typedItems.filter((i) => eligibleRugIds.has(i.rug_id));
-      setItems(filteredItems);
+      setItems(typedItems.filter((i) => eligibleRugIds.has(i.rug_id)));
     } catch (error) {
       console.error("Failed to fetch delivery prep items:", error);
       toast({ title: "Failed to load items", description: "An unexpected error occurred", variant: "destructive" });
@@ -189,20 +188,20 @@ export function DeliveryPrepTab() {
     }
   };
 
-  // Fetch once on mount — no dependencies, no re-triggers
   useEffect(() => {
-    fetchDeliveryPrepItems();
+    fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = async () => {
-    setCompiling(true);
-    await fetchDeliveryPrepItems();
-    setCompiling(false);
-    toast({ title: "List refreshed", description: "Delivery prep list has been updated with latest rugs." });
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+    toast({ title: "List refreshed" });
   };
 
-  const toggleConfirmed = async (itemId: string, value: boolean) => {
+  const toggleConfirmed = async (e: React.MouseEvent, itemId: string, value: boolean) => {
+    e.stopPropagation(); // Don't open the detail sheet
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
 
@@ -211,7 +210,6 @@ export function DeliveryPrepTab() {
 
     setUpdating(itemId);
     try {
-      // Update the delivery list item confirmation
       const { error } = await supabase
         .from("delivery_list_items")
         .update({ confirmed_for_delivery: value })
@@ -223,7 +221,7 @@ export function DeliveryPrepTab() {
       }
 
       if (value && rug.status !== "ready") {
-        // Confirming a non-ready rug: save previous status, then advance to "ready"
+        // Confirming a non-ready rug: save previous status, advance to ready
         setPreviousStatusMap((prev) => ({ ...prev, [rug.id]: rug.status }));
 
         const { error: rugError } = await supabase
@@ -232,7 +230,6 @@ export function DeliveryPrepTab() {
           .eq("id", rug.id);
 
         if (rugError) {
-          // Revert the confirmation if rug update fails
           await supabase
             .from("delivery_list_items")
             .update({ confirmed_for_delivery: false })
@@ -247,10 +244,9 @@ export function DeliveryPrepTab() {
           description: `${rug.tag} moved from ${statusLabel(rug.status)} to Ready`,
         });
       } else if (!value && previousStatusMap[rug.id]) {
-        // Unchecking: revert rug to its previous status
+        // Unchecking: revert to previous status
         const prevStatus = previousStatusMap[rug.id];
         const revertUpdates: Record<string, string | null> = { status: prevStatus };
-        // Clear completed_at if reverting away from "ready"
         if (prevStatus !== "ready") {
           revertUpdates.completed_at = null;
         }
@@ -272,14 +268,12 @@ export function DeliveryPrepTab() {
           return next;
         });
         toast({
-          title: "Confirmation removed & status reverted",
+          title: "Confirmation removed",
           description: `${rug.tag} reverted to ${statusLabel(prevStatus)}`,
         });
       } else {
-        // Normal toggle (rug was already "ready", or no previous status to revert)
         toast({
           title: value ? "Rug confirmed" : "Confirmation removed",
-          description: value ? "Rug is confirmed for tomorrow's delivery" : "Rug confirmation removed",
         });
       }
 
@@ -297,18 +291,13 @@ export function DeliveryPrepTab() {
       if (!map[clientId]) map[clientId] = [];
       map[clientId].push(item);
     });
-    return map;
-  }, [items]);
-
-  const clientName = (clientId: string | null) => {
-    if (!clientId) return "Unknown";
-    return clientMap[clientId]?.name ?? "Unknown";
-  };
-
-  const clientAddress = (clientId: string | null) => {
-    if (!clientId) return "";
-    return clientMap[clientId]?.address ?? "";
-  };
+    // Sort by client name
+    return Object.entries(map).sort(([a], [b]) => {
+      const nameA = clientMap[a]?.name ?? "";
+      const nameB = clientMap[b]?.name ?? "";
+      return nameA.localeCompare(nameB);
+    });
+  }, [items, clientMap]);
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -319,10 +308,15 @@ export function DeliveryPrepTab() {
     }
   };
 
+  const openRug = (rugId: string) => {
+    setSelectedRugId(rugId);
+    setSheetOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        Loading delivery prep items…
+        Loading delivery prep…
       </div>
     );
   }
@@ -341,11 +335,11 @@ export function DeliveryPrepTab() {
             Delivery Prep — {tomorrowDayName} ({format(new Date(tomorrow + "T00:00:00"), "MMM d, yyyy")})
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalItems} rugs total · {readyCount} ready · {inProductionCount} in production · {checkedInCount} checked in · {confirmedCount} confirmed
+            {totalItems} rugs · {readyCount} ready · {inProductionCount} in production · {checkedInCount} checked in · {confirmedCount} confirmed
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={handleRefresh} disabled={compiling}>
-          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${compiling ? "animate-spin" : ""}`} />
+        <Button size="sm" variant="outline" onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
         </Button>
       </div>
@@ -353,21 +347,20 @@ export function DeliveryPrepTab() {
       {totalItems === 0 ? (
         <div className="text-center py-12">
           <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-sm text-muted-foreground">No rugs scheduled for {tomorrowDayName}'s delivery route.</p>
-          <p className="text-xs text-muted-foreground mt-1">Rugs must be at the facility for at least 1 day to appear here.</p>
+          <p className="text-sm text-muted-foreground">No rugs to prep for {tomorrowDayName}'s delivery route.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(itemsByClient).map(([clientId, clientItems]) => {
+        <div className="space-y-4">
+          {itemsByClient.map(([clientId, clientItems]) => {
+            const client = clientMap[clientId];
             const clientConfirmed = clientItems.filter((i) => i.confirmed_for_delivery).length;
-            const clientReady = clientItems.filter((i) => rugMap[i.rug_id]?.status === "ready").length;
 
             return (
               <div key={clientId} className="border border-border rounded-lg overflow-hidden bg-card">
                 <div className="bg-muted/50 px-4 py-3 flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm text-foreground">{clientName(clientId)}</p>
-                    <p className="text-xs text-muted-foreground">{clientAddress(clientId)}</p>
+                    <p className="font-medium text-sm text-foreground">{client?.name ?? "Unknown"}</p>
+                    <p className="text-xs text-muted-foreground">{client?.address || "No address"}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className="text-xs">{clientItems.length} rugs</Badge>
@@ -377,7 +370,7 @@ export function DeliveryPrepTab() {
                   </div>
                 </div>
 
-                <div className="space-y-1 p-3">
+                <div className="divide-y divide-border">
                   {clientItems.map((item) => {
                     const rug = rugMap[item.rug_id];
                     const isReady = rug?.status === "ready";
@@ -386,21 +379,30 @@ export function DeliveryPrepTab() {
                     return (
                       <div
                         key={item.id}
-                        className={`flex items-center gap-3 p-2 rounded border ${
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openRug(item.rug_id)}
+                        onKeyDown={(e) => { if (e.key === "Enter") openRug(item.rug_id); }}
+                        className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors ${
                           isConfirmed
-                            ? "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                            ? "bg-green-50/50 dark:bg-green-950/20"
                             : !isReady
-                              ? "bg-amber-50/30 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/50"
-                              : "bg-background"
+                              ? "bg-amber-50/30 dark:bg-amber-950/10"
+                              : ""
                         }`}
                       >
                         <TooltipProvider delayDuration={300}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span>
+                              <span onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
                                   checked={isConfirmed}
-                                  onCheckedChange={(v) => toggleConfirmed(item.id, !!v)}
+                                  onCheckedChange={(v) => toggleConfirmed(
+                                    // Create a synthetic event for stopPropagation
+                                    { stopPropagation: () => {} } as React.MouseEvent,
+                                    item.id,
+                                    !!v,
+                                  )}
                                   disabled={updating === item.id}
                                 />
                               </span>
@@ -409,30 +411,35 @@ export function DeliveryPrepTab() {
                               {isConfirmed ? (
                                 <p>Confirmed for delivery — click to unconfirm</p>
                               ) : !isReady ? (
-                                <p>Rug is {statusLabel(rug?.status ?? "unknown")} — you can still confirm if it will be ready by tomorrow</p>
+                                <p>Rug is {statusLabel(rug?.status ?? "unknown")} — confirming will mark it Ready</p>
                               ) : (
-                                <p>Click to confirm this rug is physically ready for delivery</p>
+                                <p>Click to confirm this rug for tomorrow's delivery</p>
                               )}
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono text-sm font-medium">{rug?.tag ?? item.rug_id.slice(0, 8)}</span>
+                            {rug?.description && (
+                              <span className="text-xs text-muted-foreground">{rug.description}</span>
+                            )}
                             {rug?.size_length && rug?.size_width && (
                               <span className="text-xs text-muted-foreground">
                                 {rug.size_length}×{rug.size_width} ft
                               </span>
                             )}
-                            {rug && <RugStatusBadge status={rug.status} className="text-xs" />}
-                            {isConfirmed && (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                            )}
                           </div>
                         </div>
 
-                        {!isReady && (
+                        <RugStatusBadge status={rug?.status ?? "checked_in"} className="text-xs shrink-0" />
+
+                        {isConfirmed && (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                        )}
+
+                        {!isReady && !isConfirmed && (
                           <TooltipProvider delayDuration={300}>
                             <Tooltip>
                               <TooltipTrigger>
@@ -448,6 +455,8 @@ export function DeliveryPrepTab() {
                             </Tooltip>
                           </TooltipProvider>
                         )}
+
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
                     );
                   })}
@@ -457,6 +466,18 @@ export function DeliveryPrepTab() {
           })}
         </div>
       )}
+
+      <RugDetailSheet
+        rugId={selectedRugId}
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) {
+            setSelectedRugId(null);
+            fetchData();
+          }
+        }}
+      />
     </div>
   );
 }

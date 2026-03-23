@@ -175,8 +175,8 @@ office_token="$(login_and_get_token "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD"
 driver_token="$(login_and_get_token "$DRIVER_USER_EMAIL" "$DRIVER_USER_PASSWORD")"
 
 echo "==> Portal scope checks"
-portal_invoices_file="$(query_rest "$portal_token" "invoices?select=id,client_id,status&limit=25")"
-portal_invoice_items_file="$(query_rest "$portal_token" "invoice_items?select=id,invoice_id&limit=50")"
+portal_invoices_file="$(query_rest "$portal_token" "invoices?select=id,client_id,status&limit=200")"
+portal_invoice_items_file="$(query_rest "$portal_token" "invoice_items?select=id,invoice_id&limit=200")"
 portal_payment_attempts_file="$(query_rest "$portal_token" "payment_attempts?select=id,client_id,status&limit=25")"
 portal_pickups_file="$(query_rest "$portal_token" "pickup_requests?select=id,client_id,status&limit=25")"
 portal_users_file="$(query_rest "$portal_token" "portal_users?select=id,client_id,email,status&limit=10")"
@@ -193,8 +193,8 @@ if [[ -n "${EXPECTED_PORTAL_CLIENT_ID:-}" ]]; then
 fi
 
 echo "==> Office scope checks"
-office_invoices_file="$(query_rest "$office_token" "invoices?select=id,client_id,status&limit=25")"
-office_invoice_items_file="$(query_rest "$office_token" "invoice_items?select=id,invoice_id&limit=50")"
+office_invoices_file="$(query_rest "$office_token" "invoices?select=id,client_id,status&limit=200")"
+office_invoice_items_file="$(query_rest "$office_token" "invoice_items?select=id,invoice_id&limit=200")"
 office_payment_attempts_file="$(query_rest "$office_token" "payment_attempts?select=id,client_id,status&limit=25")"
 office_pickups_file="$(query_rest "$office_token" "pickup_requests?select=id,client_id,status&limit=25")"
 office_portal_users_file="$(query_rest "$office_token" "portal_users?select=id,client_id,email,status&limit=10")"
