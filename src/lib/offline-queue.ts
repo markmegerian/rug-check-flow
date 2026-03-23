@@ -67,8 +67,7 @@ export async function addEvent(
  */
 export async function getPendingEvents(): Promise<OfflineEvent[]> {
   return await db.events
-    .where("synced_at")
-    .equals(null)
+    .filter((e) => e.synced_at === null)
     .sortBy("created_at");
 }
 
@@ -110,7 +109,7 @@ export async function markEventFailed(offline_event_id: string, error_message: s
  * Get count of pending events
  */
 export async function getPendingEventCount(): Promise<number> {
-  return await db.events.where("synced_at").equals(null).count();
+  return await db.events.filter((e) => e.synced_at === null).count();
 }
 
 /**
@@ -133,11 +132,11 @@ export async function clearOldSyncedEvents(): Promise<void> {
 
   // Delete events that are synced and older than 7 days
   const oldEvents = await db.events
-    .where("synced_at")
-    .below(sevenDaysAgo.toISOString())
+    .filter((e) => e.synced_at !== null && e.synced_at < sevenDaysAgo.toISOString())
     .toArray();
-  
-  await db.events.bulkDelete(oldEvents.map(e => e.id!));
+
+  const idsToDelete = oldEvents.map(e => e.id).filter((id): id is number => id != null);
+  if (idsToDelete.length > 0) await db.events.bulkDelete(idsToDelete);
 }
 
 /**
@@ -187,8 +186,7 @@ export async function markPhotoUploaded(photo_id: number, public_url: string): P
  */
 export async function getPendingPhotos(): Promise<PendingPhoto[]> {
   return await db.photos
-    .where("uploaded_at")
-    .equals(null)
+    .filter((p) => p.uploaded_at === null)
     .sortBy("created_at");
 }
 
@@ -201,9 +199,9 @@ export async function clearOldUploadedPhotos(): Promise<void> {
 
   // Delete photos that are uploaded and older than 7 days
   const oldPhotos = await db.photos
-    .where("uploaded_at")
-    .below(sevenDaysAgo.toISOString())
+    .filter((p) => p.uploaded_at !== null && p.uploaded_at < sevenDaysAgo.toISOString())
     .toArray();
-  
-  await db.photos.bulkDelete(oldPhotos.map(p => p.id!));
+
+  const idsToDelete = oldPhotos.map(p => p.id).filter((id): id is number => id != null);
+  if (idsToDelete.length > 0) await db.photos.bulkDelete(idsToDelete);
 }
