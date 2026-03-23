@@ -207,7 +207,9 @@ export function CheckInLayout() {
           }
         }
 
-        if (data.rugId) {
+        // Only link to pickup_request_items for real pickup IDs (UUIDs), not walk-in IDs
+        const isWalkIn = data.rugId?.startsWith("walkin-");
+        if (data.rugId && !isWalkIn) {
           const { error: pickupItemUpdateError } = await supabaseExtended
             .from("pickup_request_items")
             .update({ checked_in_rug_id: inserted.id })
