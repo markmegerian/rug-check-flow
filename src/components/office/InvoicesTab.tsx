@@ -21,6 +21,7 @@ import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/shared/Stat
 import { MS_PER_DAY } from "@/lib/constants";
 
 const STATUSES: Array<{ value: string; label: string }> = [
+  { value: "outstanding", label: "Outstanding" },
   { value: "all", label: "All" },
   { value: "draft", label: "Draft" },
   { value: "sent", label: "Sent" },
@@ -46,7 +47,7 @@ export function InvoicesTab() {
     [infiniteData],
   );
 
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("outstanding");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
@@ -64,12 +65,20 @@ export function InvoicesTab() {
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: invoices.length };
+    counts.outstanding = invoices.filter((inv) => ["draft", "sent", "overdue"].includes(inv.status)).length;
     for (const inv of invoices) counts[inv.status] = (counts[inv.status] || 0) + 1;
     return counts;
   }, [invoices]);
 
   const filtered = useMemo(() => {
-    let list = activeTab === "all" ? invoices : invoices.filter((inv) => inv.status === activeTab);
+    let list: typeof invoices;
+    if (activeTab === "outstanding") {
+      list = invoices.filter((inv) => ["draft", "sent", "overdue"].includes(inv.status));
+    } else if (activeTab === "all") {
+      list = invoices;
+    } else {
+      list = invoices.filter((inv) => inv.status === activeTab);
+    }
     if (minAgeDays > 0) {
       list = list.filter((inv) => {
         const ageMs = Date.now() - Date.parse(inv.due_at ?? inv.created_at);
@@ -87,6 +96,10 @@ export function InvoicesTab() {
     if (clientSearch.trim()) {
       const q = clientSearch.toLowerCase();
       list = list.filter((inv) => (inv.clients?.name ?? "").toLowerCase().includes(q));
+    }
+    // Outstanding/overdue: oldest first. Otherwise: newest first.
+    if (activeTab === "outstanding" || activeTab === "overdue") {
+      return [...list].sort((a, b) => a.created_at.localeCompare(b.created_at));
     }
     return [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
   }, [invoices, activeTab, dateFrom, dateTo, clientSearch, minAgeDays]);

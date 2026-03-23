@@ -1,8 +1,10 @@
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { ensureRouteStopForPickup } from "@/lib/pickup-auto-schedule";
 
 /**
  * Auto-assign a pickup request to the single driver account.
- * Finds the first user with "driver" role and assigns + confirms the pickup.
+ * Finds the first user with "driver" role, assigns + confirms the pickup,
+ * and auto-creates a route stop so it appears in the driver's route.
  * Returns the driver name on success, null if no driver found.
  */
 export async function autoAssignPickupToDriver(
@@ -43,6 +45,9 @@ export async function autoAssignPickupToDriver(
     console.warn("Auto-assign pickup failed:", error.message);
     return null;
   }
+
+  // Auto-create route stop for the driver's schedule
+  await ensureRouteStopForPickup(pickupRequestId);
 
   return { driverName };
 }

@@ -8,13 +8,13 @@ import {
   DollarSign,
   FileText,
   Users,
-  CalendarCheck,
   Camera,
   Map,
+  Receipt,
 } from "lucide-react";
 import { CheckInLayout } from "@/components/facility/CheckInLayout";
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
-import { PendingPickupsPanel } from "@/components/facility/PendingPickupsPanel";
+import { InvoiceGeneratorPanel } from "@/components/facility/InvoiceGeneratorPanel";
 import { DeliveryPrepTab } from "@/components/facility/DeliveryPrepTab";
 import { PricingTab } from "@/components/office/PricingTab";
 import { InvoicesTab } from "@/components/office/InvoicesTab";
@@ -22,7 +22,6 @@ import { ClientsTab } from "@/components/office/ClientsTab";
 import { DeliveriesTab } from "@/components/office/DeliveriesTab";
 import { DeliveryProofBoard } from "@/components/office/DeliveryProofBoard";
 import { RouteBuilder } from "@/components/office/RouteBuilder";
-import { PickupRequestsTab } from "@/components/office/PickupRequestsTab";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
@@ -36,14 +35,13 @@ const FLOOR_TABS = [
   { id: "checkin", label: "Check-In", icon: ClipboardCheck },
   { id: "production", label: "Production", icon: Factory },
   { id: "delivery-prep", label: "Delivery Prep", icon: Package },
-  { id: "floor-pickups", label: "Pickups", icon: Truck },
+  { id: "invoice-generator", label: "Invoice", icon: Receipt },
 ] as const;
 
 const BUSINESS_TABS_BASE = [
-  { id: "invoices", label: "Invoices", icon: FileText },
+  { id: "accounts-receivable", label: "Accounts Receivable", icon: FileText },
   { id: "estimates", label: "Estimates", icon: ClipboardCheck },
   { id: "clients", label: "Clients", icon: Users },
-  { id: "pickups", label: "Pickups", icon: CalendarCheck },
   { id: "deliveries", label: "Deliveries", icon: Truck },
   { id: "routes", label: "Routes", icon: Map },
   { id: "proofs", label: "Proofs", icon: Camera },
@@ -132,14 +130,13 @@ export default function Operations() {
         {activeTab === "checkin" && <CheckInLayout />}
         {activeTab === "production" && <ProductionBoard />}
         {activeTab === "delivery-prep" && <DeliveryPrepTab />}
-        {activeTab === "floor-pickups" && <PendingPickupsPanel />}
+        {activeTab === "invoice-generator" && <InvoiceGeneratorPanel />}
 
         {/* Business tabs */}
         {activeTab === "pricing" && canManagePricing && <PricingTab />}
-        {activeTab === "invoices" && <InvoicesTab />}
+        {activeTab === "accounts-receivable" && <InvoicesTab />}
         {activeTab === "estimates" && <EstimatesTab />}
         {activeTab === "clients" && <ClientsTab />}
-        {activeTab === "pickups" && <PickupRequestsTab />}
         {activeTab === "deliveries" && <DeliveriesTab />}
         {activeTab === "routes" && <RouteBuilder />}
         {activeTab === "proofs" && <DeliveryProofBoard />}
