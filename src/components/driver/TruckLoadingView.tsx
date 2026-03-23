@@ -418,7 +418,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
   }
 
   return (
-    <div className="min-h-screen bg-background pb-28">
+    <div className="min-h-screen bg-background pb-44">
       {/* ---- Header ---- */}
       <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4">
         <div className="flex items-center justify-between gap-2 max-w-lg mx-auto">
@@ -528,7 +528,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       </main>
 
       {/* ---- Bottom action bar ---- */}
-      <div className="fixed bottom-0 inset-x-0 bg-background border-t p-4 z-10">
+      <div className="fixed bottom-14 inset-x-0 bg-background border-t p-4 z-10">
         <div className="max-w-lg mx-auto space-y-2">
           <p className="text-sm text-center text-muted-foreground">
             {loadedCount} of {activeRugs.length} loaded
