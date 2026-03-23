@@ -1,14 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL ||
+  "https://toitgmaeuscrdwbpntda.supabase.co";
 
-if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  throw new Error(
-    "Missing Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY environment variables. Copy .env.example to .env to get started."
-  );
-}
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvaXRnbWFldXNjcmR3YnBudGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjMzOTksImV4cCI6MjA4Njc5OTM5OX0.HmWokm-8GjME-2tBoE9JXyvaIoJwiOJlsdiDkp6Qa6M";
 
 export { SUPABASE_URL };
 
