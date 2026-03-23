@@ -2,10 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { CheckCircle2, Package, Plus, Truck, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { DAYS_OF_WEEK } from "@/lib/constants";
-import { createDeliveryRouteStops } from "@/lib/delivery-route-stops";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -74,7 +72,6 @@ function statusVariant(status: string): "default" | "secondary" | "outline" {
 // ---------------------------------------------------------------------------
 
 export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingViewProps) {
-  const { user } = useAuth();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -386,16 +383,6 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       setInvoiceCount(count);
       setSubmitted(true);
 
-      // 4. Create route stops for each delivery client so they appear on the Route tab
-      if (user?.id) {
-        const today = format(new Date(), "yyyy-MM-dd");
-        await createDeliveryRouteStops({
-          deliveryListId,
-          driverId: user.id,
-          routeDate: today,
-        });
-      }
-
       toast({
         title: "Truck submitted",
         description: `${count} invoice${count === 1 ? "" : "s"} created. Drive safe!`,
@@ -408,7 +395,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
     } finally {
       setSubmitting(false);
     }
-  }, [deliveryListId, loadedSet, rugs, user?.id, toast, onTruckFinalized]);
+  }, [deliveryListId, loadedSet, rugs, toast, onTruckFinalized]);
 
   // -----------------------------------------------------------------------
   // Render

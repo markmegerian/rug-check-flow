@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     // Get confirmed items that are loaded on truck
     const { data: items, error: itemsError } = await supabase
       .from("delivery_list_items")
-      .select("rug_id, client_id")
+      .select("id, rug_id, client_id")
       .eq("delivery_list_id", delivery_list_id)
       .eq("confirmed_for_delivery", true)
       .eq("loaded_on_truck", true);
@@ -283,11 +283,92 @@ Deno.serve(async (req) => {
       })
       .eq("id", delivery_list_id);
 
+    // ---------------------------------------------------------------
+    // Create route_stops + route_stop_items for each delivery client
+    // so they appear on the driver's Route tab immediately.
+    // ---------------------------------------------------------------
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const routeDate = new Date().toISOString().slice(0, 10); // yyyy-MM-dd
+    const routeDay = DAYS[new Date().getDay()];
+
+    // Build a map of clientId → delivery_list_item rows for route_stop_items
+    const clientItems: Record<string, { id: string; rug_id: string }[]> = {};
+    for (const item of items!) {
+      if (!item.client_id) continue;
+      if (!clientItems[item.client_id]) clientItems[item.client_id] = [];
+      clientItems[item.client_id].push({ id: item.id, rug_id: item.rug_id });
+    }
+
+    // Check for existing stops for these clients today (e.g. pickup stops)
+    const clientIds = Object.keys(clientItems);
+    const { data: existingStops } = await supabase
+      .from("route_stops")
+      .select("id, client_id")
+      .in("client_id", clientIds)
+      .eq("route_date", routeDate)
+      .eq("assigned_driver_id", user.id);
+
+    const existingByClient: Record<string, string> = {};
+    for (const s of existingStops ?? []) {
+      if (s.client_id) existingByClient[s.client_id] = s.id;
+    }
+
+    let routeStopsCreated = 0;
+    for (const clientId of clientIds) {
+      let stopId = existingByClient[clientId];
+
+      if (!stopId) {
+        const { data: newStop, error: stopErr } = await supabase
+          .from("route_stops")
+          .insert({
+            client_id: clientId,
+            route_date: routeDate,
+            route_day: routeDay,
+            assigned_driver_id: user.id,
+            delivery_list_id: delivery_list_id,
+            status: "queued",
+          })
+          .select("id")
+          .single();
+
+        if (stopErr || !newStop) {
+          console.error("Failed to create route stop for client", clientId, stopErr);
+          continue;
+        }
+        stopId = newStop.id;
+        routeStopsCreated++;
+      } else {
+        // Existing stop (e.g. pickup) — link the delivery list
+        await supabase
+          .from("route_stops")
+          .update({ delivery_list_id: delivery_list_id })
+          .eq("id", stopId);
+      }
+
+      // Create route_stop_items for each rug
+      const stopItems = clientItems[clientId].map((di) => ({
+        route_stop_id: stopId,
+        phase: "delivery",
+        status: "pending",
+        rug_id: di.rug_id,
+        delivery_list_item_id: di.id,
+      }));
+
+      const { error: itemsInsertErr } = await supabase
+        .from("route_stop_items")
+        .insert(stopItems);
+
+      if (itemsInsertErr) {
+        console.error("Failed to create route stop items for client", clientId, itemsInsertErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         invoices_created: invoiceIds.length,
-        rugs_delivered: items.length,
+        rugs_delivered: items!.length,
+        route_stops_created: routeStopsCreated,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
