@@ -352,13 +352,34 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
     if (!deliveryListId) return;
     setSubmitting(true);
     try {
+      // 1. Mark all loaded rugs as confirmed_for_delivery + loaded_on_truck
+      const loadedRugIds = Array.from(loadedSet);
+      const loadedItems = rugs.filter((r) => loadedRugIds.includes(r.rugId) && r.deliveryListItemId);
+      if (loadedItems.length > 0) {
+        const itemIds = loadedItems.map((r) => r.deliveryListItemId).filter(Boolean) as string[];
+        const { error: updateItemsErr } = await supabase
+          .from("delivery_list_items")
+          .update({ confirmed_for_delivery: true, loaded_on_truck: true })
+          .in("id", itemIds);
+        if (updateItemsErr) throw new Error(updateItemsErr.message);
+      }
+
+      // 2. Set delivery list status to "confirmed" (required by checkout-delivery)
+      const { error: confirmErr } = await supabase
+        .from("delivery_lists")
+        .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+        .eq("id", deliveryListId);
+      if (confirmErr) throw new Error(confirmErr.message);
+
+      // 3. Call checkout-delivery edge function
       const { data, error } = await supabase.functions.invoke("checkout-delivery", {
         body: { delivery_list_id: deliveryListId },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      const count = (data as { invoice_count?: number })?.invoice_count ?? 0;
+      const count = (data as { invoices_created?: number })?.invoices_created ?? 0;
       setInvoiceCount(count);
       setSubmitted(true);
 
@@ -374,7 +395,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
     } finally {
       setSubmitting(false);
     }
-  }, [deliveryListId, toast, onTruckFinalized]);
+  }, [deliveryListId, loadedSet, rugs, toast, onTruckFinalized]);
 
   // -----------------------------------------------------------------------
   // Render
