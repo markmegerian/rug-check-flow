@@ -146,7 +146,7 @@ function SortableHead({
   return (
     <TableHead className={className}>
       <button
-        className="flex items-center gap-1 hover:text-foreground transition-colors -ml-1 px-1"
+        className="-ml-1 flex items-center gap-1 rounded-lg px-1 py-1 text-left transition-colors hover:bg-muted/60 hover:text-foreground"
         onClick={() => onToggle(col)}
       >
         {children}

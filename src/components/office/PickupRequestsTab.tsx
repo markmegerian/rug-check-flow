@@ -167,7 +167,7 @@ export function PickupRequestsTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="app-page flex h-full items-center justify-center">
         <LoadingState title="Loading pickup requests" description="Fetching request records..." />
       </div>
     );
@@ -175,14 +175,14 @@ export function PickupRequestsTab() {
 
   if (filteredRequests.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
+      <div className="app-page flex h-full items-center justify-center text-muted-foreground">
         {hasReminderFilter ? "No pickup requests match the active reminder filter." : "No pickup requests yet."}
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 overflow-auto h-full space-y-5 animate-fade-in-up">
+    <div className="app-page h-full overflow-auto space-y-5 animate-fade-in-up">
       {hasReminderFilter ? (
         <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Reminder filter active:
@@ -190,7 +190,8 @@ export function PickupRequestsTab() {
           {minAgeDays > 0 ? ` · min age ${minAgeDays} days` : ""}
         </div>
       ) : null}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <section className="app-section">
+        <div className="app-section-header gap-2">
         <h2 className="text-lg font-semibold text-foreground">Pickup Requests</h2>
         {!hasReminderFilter && (
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -213,11 +214,12 @@ export function PickupRequestsTab() {
             })}
           </div>
         )}
-      </div>
+        </div>
+      </section>
 
       {Object.entries(requestsByRoute).map(([routeDay, list]) => (
-        <section key={routeDay} className="border rounded-lg bg-card overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between">
+        <section key={routeDay} className="overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-4">
             <h3 className="font-medium text-sm">{routeDay}</h3>
             <Badge variant="secondary" className="text-xs">{list.length}</Badge>
           </div>
@@ -226,7 +228,7 @@ export function PickupRequestsTab() {
             {list.map((req) => {
               const counts = itemCounts[req.id] ?? { ready: 0, newRugs: 0 };
               return (
-                <div key={req.id} className="px-4 py-3 space-y-2">
+                <div key={req.id} className="space-y-3 px-4 py-4">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div>
                       <p className="text-sm font-medium">{req.clients?.name ?? "Unknown client"}</p>
@@ -241,7 +243,7 @@ export function PickupRequestsTab() {
 
                   <div className="flex items-center gap-2 flex-wrap">
                     <Select value={driverSelection[req.id] ?? "none"} onValueChange={(v) => setDriverSelection((prev) => ({ ...prev, [req.id]: v }))}>
-                      <SelectTrigger className="w-[200px] h-8">
+                      <SelectTrigger className="h-10 w-full rounded-xl border-border/70 bg-background/90 sm:w-[220px]">
                         <SelectValue placeholder="Assign driver" />
                       </SelectTrigger>
                       <SelectContent>
@@ -251,7 +253,7 @@ export function PickupRequestsTab() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => assignDriver(req.id)}>
+                    <Button size="sm" variant="outline" className="h-10 rounded-xl px-4 text-xs" onClick={() => assignDriver(req.id)}>
                       Assign Driver
                     </Button>
                   </div>

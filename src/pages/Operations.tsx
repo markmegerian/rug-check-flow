@@ -125,7 +125,7 @@ export default function Operations() {
         onTabChange={(tabId) => handleTabChange(tabId as TabId)}
       />
 
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-t-3xl border border-border/70 bg-white/70 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.45)] backdrop-blur-sm md:mx-4">
         {/* Floor tabs */}
         {activeTab === "checkin" && <CheckInLayout />}
         {activeTab === "production" && <ProductionBoard />}
