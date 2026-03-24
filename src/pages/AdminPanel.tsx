@@ -1,11 +1,14 @@
 import { useCallback, useState } from "react";
-import { Users, Shield, ScrollText, Store, Activity, LayoutDashboard } from "lucide-react";
+import { Users, Shield, ScrollText, Store, Activity, LayoutDashboard, BellRing, Receipt, TriangleAlert } from "lucide-react";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { RolesTab } from "@/components/admin/RolesTab";
 import { AuditLogTab } from "@/components/admin/AuditLogTab";
 import { DataHealthCard } from "@/components/admin/DataHealthCard";
 import { ClientsTab } from "@/components/office/ClientsTab";
 import { SuperAdminOverview } from "@/components/admin/SuperAdminOverview";
+import { ClientResponsesTab } from "@/components/admin/ClientResponsesTab";
+import { CollectionsTab } from "@/components/admin/CollectionsTab";
+import { AttentionQueueTab } from "@/components/admin/AttentionQueueTab";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
@@ -14,6 +17,9 @@ import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "responses", label: "Responses", icon: BellRing },
+  { id: "collections", label: "Collections", icon: Receipt },
+  { id: "attention", label: "Attention", icon: TriangleAlert },
   { id: "users", label: "Users", icon: Users },
   { id: "clients", label: "Accounts", icon: Store },
   { id: "health", label: "Data Health", icon: Activity },
@@ -45,7 +51,10 @@ export default function AdminPanel() {
       />
 
       <div className="flex-1 min-w-0 min-h-0 overflow-auto">
-        {activeTab === "overview" && <SuperAdminOverview onOpenRug={handleRugSelect} />}
+        {activeTab === "overview" && <SuperAdminOverview onOpenRug={handleRugSelect} onSelectTab={(tab) => setActiveTab(tab as TabId)} />}
+        {activeTab === "responses" && <ClientResponsesTab />}
+        {activeTab === "collections" && <CollectionsTab />}
+        {activeTab === "attention" && <AttentionQueueTab onOpenRug={handleRugSelect} />}
         {activeTab === "users" && <UsersTab />}
         {activeTab === "clients" && <ClientsTab />}
         {activeTab === "health" && (
