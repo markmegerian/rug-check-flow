@@ -52,9 +52,9 @@ export function SuperAdminOverview({
       icon: Clock3,
     },
     {
-      label: "Rugs needing attention",
+      label: "Attention items",
       value: data?.totals.attentionRugs ?? 0,
-      subtext: `Stale rugs + note-flagged rugs (${STALE_RUG_DAYS}d rule)`,
+      subtext: `Route exceptions + stale rugs (${STALE_RUG_DAYS}d stale rule)`,
       icon: TriangleAlert,
     },
   ], [data]);
@@ -157,20 +157,21 @@ export function SuperAdminOverview({
 
         <div className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm xl:col-span-1">
           <SectionHeader
-            title="Rugs needing attention"
-            description="Combined stale-rug and note-flag queue until first-class exceptions land."
+            title="Attention queue"
+            description="Route exceptions first, then stale and note-flagged rugs."
             action={<Button variant="outline" size="sm" onClick={() => onSelectTab("attention")}>Open queue</Button>}
           />
           <div className="mt-4 space-y-3">
             {data.attentionItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No stale or note-flagged rugs currently need review.</p>
+              <p className="text-sm text-muted-foreground">No route exceptions or stale rugs currently need review.</p>
             ) : data.attentionItems.slice(0, 6).map((item) => (
               <div key={item.id} className="rounded-xl border border-border/70 bg-background/80 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-semibold text-foreground">{item.rugNumber}</span>
-                      <RugStatusBadge status={item.status} />
+                      <Badge variant="secondary">{item.kind === "route_exception" ? "Exception" : "Stale rug"}</Badge>
+                      {item.status ? <RugStatusBadge status={item.status} /> : null}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{item.clientName}</p>
                     <p className="mt-1 text-sm text-foreground">{item.reason}</p>

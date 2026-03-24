@@ -1,5 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/states/PageState";
 import { RugStatusBadge } from "@/components/shared/StatusBadge";
 import { useSuperAdminQueues } from "@/hooks/useSuperAdminQueues";
@@ -23,19 +24,20 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
     <div className="app-page h-full overflow-auto space-y-4 animate-fade-in-up">
       <div className="app-section-header">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Rugs Needing Attention</h2>
-          <p className="text-sm text-muted-foreground">Combined stale-rug and note-flagged queue until first-class exceptions land.</p>
+          <h2 className="text-lg font-semibold text-foreground">Attention Queue</h2>
+          <p className="text-sm text-muted-foreground">Route exceptions first, then stale and note-flagged rugs.</p>
         </div>
       </div>
       {query.data.attentionItems.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-card/70 p-8 text-center text-muted-foreground">No rugs currently need attention.</div>
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card/70 p-8 text-center text-muted-foreground">No route exceptions or stale rugs currently need attention.</div>
       ) : query.data.attentionItems.map((item) => (
         <div key={item.id} className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-semibold text-foreground">{item.rugNumber}</span>
-                <RugStatusBadge status={item.status} />
+                <Badge variant="secondary">{item.kind === "route_exception" ? "Exception" : "Stale rug"}</Badge>
+                {item.status ? <RugStatusBadge status={item.status} /> : null}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{item.clientName}</p>
               <p className="mt-1 text-sm text-foreground">{item.reason}</p>
