@@ -64,7 +64,7 @@ const StopPortal: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+      <div className="app-page flex min-h-screen items-center justify-center">
         <LoadingState title="Loading" description="Preparing your route..." className="w-full max-w-lg" />
       </div>
     );
@@ -115,9 +115,9 @@ const StopPortal: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background/70 flex flex-col">
       {/* Top Header */}
-      <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4 shrink-0">
+      <header className="sticky top-0 z-10 mx-2 mt-2 rounded-3xl border border-white/20 bg-primary/95 p-4 text-primary-foreground shadow-[0_20px_45px_-30px_rgba(15,23,42,0.7)] backdrop-blur-xl shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
@@ -131,12 +131,12 @@ const StopPortal: React.FC = () => {
               </div>
             )}
             {pendingCount > 0 && (
-              <Button variant="secondary" size="sm" onClick={() => void sync()}>
+              <Button variant="secondary" size="sm" className="rounded-xl" onClick={() => void sync()}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
                 Sync ({pendingCount})
               </Button>
             )}
-            <Button variant="secondary" size="sm" onClick={() => void signOut()}>
+            <Button variant="secondary" size="sm" className="rounded-xl" onClick={() => void signOut()}>
               Sign Out
             </Button>
           </div>
@@ -144,7 +144,7 @@ const StopPortal: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto px-2 pb-2 pt-3">
         {activeTab === "truck" && (
           <TruckLoadingView
             isOnline={isOnline}
@@ -161,7 +161,7 @@ const StopPortal: React.FC = () => {
       </div>
 
       {/* Bottom Tab Navigation */}
-      <nav className="sticky bottom-0 z-10 bg-card border-t border-border shrink-0 safe-area-bottom">
+      <nav className="sticky bottom-0 z-10 mx-2 mb-2 overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.45)] backdrop-blur-xl shrink-0 safe-area-bottom">
         <div className="flex">
           {([
             { id: "truck" as DriverTab, label: "Load Truck", icon: Truck },

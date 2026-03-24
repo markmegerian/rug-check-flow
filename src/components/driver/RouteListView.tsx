@@ -56,7 +56,7 @@ export function RouteListView({
 
   if (stops.length === 0) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="app-page max-w-2xl">
         <EmptyState
           className="border-dashed"
           title="No stops today"
@@ -67,9 +67,9 @@ export function RouteListView({
   }
 
   return (
-    <div className="p-4 space-y-4 max-w-lg mx-auto">
+    <div className="app-page max-w-2xl space-y-4">
       {/* Section header */}
-      <div className="space-y-2">
+      <section className="app-hero space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Today's Route</h2>
           <span className="text-sm text-muted-foreground">
@@ -84,7 +84,7 @@ export function RouteListView({
             style={{ width: `${progressPct}%` }}
           />
         </div>
-      </div>
+      </section>
 
       {/* Stop cards */}
       <div className="space-y-3">
@@ -95,7 +95,7 @@ export function RouteListView({
           return (
             <div
               key={stop.id}
-              className={`rounded-lg border bg-card p-4 space-y-3 shadow-card animate-fade-in-up ${
+              className={`rounded-2xl border border-border/70 bg-card/95 p-4 space-y-3 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.55)] animate-fade-in-up ${
                 completed ? "opacity-60" : ""
               } ${completed ? "cursor-pointer" : ""}`}
               style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}
@@ -150,7 +150,7 @@ export function RouteListView({
               {inProgress && (
                 <div className="pl-6">
                   <Button
-                    className="w-full min-h-[44px]"
+                    className="w-full min-h-[48px] rounded-xl"
                     onClick={() => onSelectStop(stop.id)}
                   >
                     Continue
@@ -162,7 +162,7 @@ export function RouteListView({
               {stop.status === "queued" && (
                 <div className="pl-6">
                   <Button
-                    className="w-full min-h-[44px]"
+                    className="w-full min-h-[48px] rounded-xl"
                     variant="outline"
                     onClick={() => {
                       onStartStop(stop.id);

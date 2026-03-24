@@ -35,8 +35,8 @@ export function StopListView({
   onSelectStop,
 }: StopListViewProps) {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4">
+    <div className="min-h-screen bg-background/70">
+      <header className="sticky top-0 z-10 mx-2 mt-2 rounded-3xl border border-white/20 bg-primary/95 p-4 text-primary-foreground shadow-[0_20px_45px_-30px_rgba(15,23,42,0.7)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
@@ -50,18 +50,18 @@ export function StopListView({
               </div>
             )}
             {pendingCount > 0 && (
-              <Button variant="secondary" size="sm" onClick={onSync}>
+              <Button variant="secondary" size="sm" className="rounded-xl" onClick={onSync}>
                 <RefreshCw className={`h-4 w-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
                 Sync ({pendingCount})
               </Button>
             )}
-            <Button variant="secondary" size="sm" onClick={onSignOut}>
+            <Button variant="secondary" size="sm" className="rounded-xl" onClick={onSignOut}>
               Sign Out
             </Button>
           </div>
         </div>
       </header>
-      <main className="p-4 space-y-6 max-w-lg mx-auto">
+      <main className="app-page max-w-2xl space-y-6">
         {inProgress.length > 0 && (
           <section>
             <h2 className="text-base font-semibold mb-3">In Progress ({inProgress.length})</h2>
@@ -69,7 +69,7 @@ export function StopListView({
               {inProgress.map((stop, i) => (
                 <div
                   key={stop.id}
-                  className="rounded-lg border bg-card p-4 space-y-2 shadow-card animate-fade-in-up"
+                  className="rounded-2xl border border-border/70 bg-card/95 p-4 space-y-2 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.55)] animate-fade-in-up"
                   style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}
                 >
                   <div className="flex items-center justify-between">
@@ -87,7 +87,7 @@ export function StopListView({
                       </div>
                     )}
                   </div>
-                  <Button className="w-full min-h-[44px]" onClick={() => onSelectStop(stop.id)}>
+                  <Button className="w-full min-h-[48px] rounded-xl" onClick={() => onSelectStop(stop.id)}>
                     Continue <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>
                 </div>
@@ -103,7 +103,7 @@ export function StopListView({
               {queued.map((stop, i) => (
                 <div
                   key={stop.id}
-                  className="rounded-lg border bg-card p-4 space-y-2 shadow-card animate-fade-in-up"
+                  className="rounded-2xl border border-border/70 bg-card/95 p-4 space-y-2 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.55)] animate-fade-in-up"
                   style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}
                 >
                   <p className="font-medium text-base">{stop.clientName}</p>
@@ -111,7 +111,7 @@ export function StopListView({
                   <p className="text-sm text-muted-foreground">
                     {format(new Date(`${stop.date}T00:00:00`), "MMM d")} — {stop.deliveryItems.length} delivery, {stop.pickupItems.length} pickup
                   </p>
-                  <Button className="w-full min-h-[44px]" onClick={() => onSelectStop(stop.id)}>
+                  <Button className="w-full min-h-[48px] rounded-xl" onClick={() => onSelectStop(stop.id)}>
                     Start Stop <ArrowRight className="ml-1 h-4 w-4" />
                   </Button>
                 </div>
@@ -127,7 +127,7 @@ export function StopListView({
               {completed.map((stop) => (
                 <div
                   key={stop.id}
-                  className="rounded-lg border bg-muted/50 p-4 space-y-1 cursor-pointer"
+                  className="cursor-pointer rounded-2xl border border-border/70 bg-muted/50 p-4 space-y-1"
                   onClick={() => onSelectStop(stop.id)}
                 >
                   <div className="flex items-center justify-between">
