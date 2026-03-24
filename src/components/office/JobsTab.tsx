@@ -158,7 +158,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         .filter((value): value is string => Boolean(value));
 
       let rugMap = new Map<string, RugLookup>();
-      let serviceMap = new Map<string, string[]>();
+      const serviceMap = new Map<string, string[]>();
 
       if (checkedInRugIds.length > 0) {
         const { data: rugData, error: rugError } = await supabase
