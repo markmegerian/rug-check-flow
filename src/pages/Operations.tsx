@@ -11,6 +11,7 @@ import {
   Camera,
   Map,
   Receipt,
+  FolderOpen,
 } from "lucide-react";
 import { CheckInLayout } from "@/components/facility/CheckInLayout";
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
@@ -21,6 +22,7 @@ import { InvoicesTab } from "@/components/office/InvoicesTab";
 import { ClientsTab } from "@/components/office/ClientsTab";
 import { DeliveriesTab } from "@/components/office/DeliveriesTab";
 import { DeliveryProofBoard } from "@/components/office/DeliveryProofBoard";
+import { JobsTab } from "@/components/office/JobsTab";
 import { RouteBuilder } from "@/components/office/RouteBuilder";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
@@ -42,6 +44,7 @@ const BUSINESS_TABS_BASE = [
   { id: "accounts-receivable", label: "Accounts Receivable", icon: FileText },
   { id: "estimates", label: "Estimates", icon: ClipboardCheck },
   { id: "clients", label: "Clients", icon: Users },
+  { id: "jobs", label: "Jobs", icon: FolderOpen },
   { id: "deliveries", label: "Deliveries", icon: Truck },
   { id: "routes", label: "Routes", icon: Map },
   { id: "proofs", label: "Proofs", icon: Camera },
@@ -137,6 +140,7 @@ export default function Operations() {
         {activeTab === "accounts-receivable" && <InvoicesTab />}
         {activeTab === "estimates" && <EstimatesTab />}
         {activeTab === "clients" && <ClientsTab />}
+        {activeTab === "jobs" && <JobsTab onOpenRug={handleRugSelect} />}
         {activeTab === "deliveries" && <DeliveriesTab />}
         {activeTab === "routes" && <RouteBuilder />}
         {activeTab === "proofs" && <DeliveryProofBoard />}
