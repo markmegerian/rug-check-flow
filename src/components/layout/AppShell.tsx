@@ -37,32 +37,29 @@ export function AppShell({
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <AppSidebar onSearchOpen={onSearchOpen} />
+      <div className="min-h-screen w-full bg-transparent">
+        <div className="flex min-h-screen w-full bg-transparent">
+          <AppSidebar onSearchOpen={onSearchOpen} />
 
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Top header bar */}
-          <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-sm px-3 md:px-4 h-12 flex items-center gap-3 shrink-0">
-            <SidebarTrigger className="-ml-1" />
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <h1 className="text-sm font-semibold text-foreground truncate">{title}</h1>
-              {subtitle && (
-                <>
-                  <span className="text-muted-foreground/40 hidden sm:inline">/</span>
-                  <span className="text-xs text-muted-foreground truncate hidden sm:inline">{subtitle}</span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {actions}
-            </div>
-          </header>
+          <div className="flex-1 flex min-w-0 flex-col">
+            <header className="sticky top-0 z-40 mx-2 mt-2 flex min-h-14 items-center gap-3 rounded-2xl border border-white/60 bg-card/85 px-3 py-2 shadow-[0_10px_40px_-24px_rgba(15,23,42,0.45)] backdrop-blur-xl md:mx-4 md:px-4">
+              <SidebarTrigger className="-ml-1 touch-target rounded-xl" />
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <h1 className="truncate text-sm font-semibold text-foreground sm:text-base">{title}</h1>
+                {subtitle && (
+                  <>
+                    <span className="hidden text-muted-foreground/40 sm:inline">/</span>
+                    <span className="hidden truncate text-xs text-muted-foreground sm:inline">{subtitle}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2 empty:hidden">{actions}</div>
+            </header>
 
-          {statusBar}
+            {statusBar}
 
-          <main className={cn("flex-1 min-h-0", contentClassName)}>
-            {children}
-          </main>
+            <main className={cn("flex-1 min-h-0 pb-6", contentClassName)}>{children}</main>
+          </div>
         </div>
       </div>
     </SidebarProvider>

@@ -61,7 +61,6 @@ export default function Index() {
     (a, b) => ROLE_PRIORITY.indexOf(a) - ROLE_PRIORITY.indexOf(b)
   );
 
-  // Auto-redirect single-role non-admin users to their primary section
   if (orderedRoles.length === 1 && !orderedRoles.includes("admin")) {
     const primaryRole = orderedRoles[0];
     const redirect = ROLE_REDIRECTS[primaryRole];
@@ -88,57 +87,64 @@ export default function Index() {
       showHomeLink={false}
       contentClassName="overflow-auto"
     >
-      <div className="max-w-5xl mx-auto w-full px-4 md:px-6 py-6 space-y-6">
-        {/* Welcome header */}
-        <div className="space-y-1">
-          <h2 className="text-xl font-semibold text-foreground">Welcome back</h2>
-          <p className="text-sm text-muted-foreground">
-            Jump into today&apos;s operations with your recommended workflows.
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5 pt-2">
+      <div className="app-page space-y-6">
+        <section className="app-hero space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <p className="app-chip">Today&apos;s workspace</p>
+              <h2 className="text-balance text-2xl font-semibold text-foreground sm:text-3xl">Welcome back</h2>
+              <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+                Jump into today&apos;s operations with your recommended workflows.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground shadow-sm">
+              <div className="font-medium text-foreground">Premium mobile pass</div>
+              <div className="mt-1 text-xs sm:text-sm">Faster entry points, cleaner cards, better touch targets.</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             {orderedRoles.length > 0 ? (
               orderedRoles.map((role) => (
-                <Badge key={role} variant="secondary" className="text-[11px] h-5">
+                <Badge key={role} variant="secondary" className="h-6 rounded-full px-2.5 text-[11px]">
                   {ROLE_LABELS[role]}
                 </Badge>
               ))
             ) : (
-              <Badge variant="outline" className="text-[11px] h-5">Portal access</Badge>
+              <Badge variant="outline" className="h-6 rounded-full px-2.5 text-[11px]">Portal access</Badge>
             )}
             {isSuperAdmin && (
-              <Badge variant="outline" className="text-[11px] h-5 border-destructive/30 text-destructive">
+              <Badge variant="outline" className="h-6 rounded-full border-destructive/30 px-2.5 text-[11px] text-destructive">
                 Superadmin
               </Badge>
             )}
           </div>
-        </div>
+        </section>
 
         <OperationalRemindersPanel />
 
-        {/* Recommended actions */}
         <section className="space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Quick actions
           </h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {fallbackRecommendations.map((section) => {
               const Icon = section.icon;
               return (
                 <Link
                   key={`recommended-${section.to}`}
                   to={section.to}
-                  className="group rounded-lg border border-border bg-card p-4 hover:border-primary/30 hover:shadow-sm transition-all"
+                  className="group rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_50px_-30px_rgba(99,102,241,0.55)] sm:p-5"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-md bg-primary/8 group-hover:bg-primary/12 transition-colors">
-                      <Icon className="h-4 w-4 text-primary" />
+                    <div className="rounded-2xl bg-primary/10 p-2.5 text-primary transition-colors group-hover:bg-primary/15">
+                      <Icon className="h-4 w-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">{section.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{section.description}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground sm:text-base">{section.label}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground sm:text-sm">{section.description}</p>
                     </div>
                   </div>
-                  <div className="mt-3 text-xs font-medium text-primary inline-flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-primary opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
                     Open <ArrowRight className="h-3 w-3" />
                   </div>
                 </Link>
@@ -147,26 +153,25 @@ export default function Index() {
           </div>
         </section>
 
-        {/* All workspaces */}
         <section className="space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             All workspaces
           </h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {SECTIONS.map((s) => {
               const Icon = s.icon;
               return (
                 <Link
                   key={s.to}
                   to={s.to}
-                  className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 hover:border-primary/30 hover:shadow-sm transition-all"
+                  className="flex min-h-[88px] items-center gap-3 rounded-2xl border border-border/70 bg-card/90 px-4 py-3 shadow-sm transition-all hover:border-primary/30 hover:shadow-[0_18px_40px_-32px_rgba(15,23,42,0.55)]"
                 >
-                  <div className="p-1.5 rounded-md bg-muted">
+                  <div className="rounded-xl bg-muted p-2">
                     <Icon className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-foreground">{s.label}</div>
-                    <div className="text-xs text-muted-foreground truncate">{s.description}</div>
+                    <div className="truncate text-xs text-muted-foreground">{s.description}</div>
                   </div>
                 </Link>
               );
