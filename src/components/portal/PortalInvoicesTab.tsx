@@ -245,15 +245,15 @@ export default function PortalInvoicesTab() {
   const emptyState = useMemo(() => !loading && invoices.length === 0, [loading, invoices.length]);
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading invoices…</div>;
+    return <div className="rounded-2xl border border-border/70 bg-card/90 px-4 py-5 text-sm text-muted-foreground">Loading invoices…</div>;
   }
 
   if (emptyState) {
-    return <div className="text-sm text-muted-foreground">No invoices available yet.</div>;
+    return <div className="rounded-2xl border border-dashed border-border/70 bg-card/70 px-4 py-5 text-sm text-muted-foreground">No invoices available yet.</div>;
   }
 
   return (
-    <div className="rounded-lg border bg-background divide-y">
+    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/90 shadow-sm divide-y">
       <div className="hidden sm:grid grid-cols-[1fr_90px_70px_90px_80px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
         <span>Invoice</span>
         <span>Date</span>

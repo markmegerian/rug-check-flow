@@ -155,12 +155,12 @@ export default function PortalRugsTab() {
   };
 
   if (portalClientLoading || loading) {
-    return <div className="text-sm text-muted-foreground">Loading rugs…</div>;
+    return <div className="rounded-2xl border border-border/70 bg-card/90 px-4 py-5 text-sm text-muted-foreground">Loading rugs…</div>;
   }
 
   if (!clientId) {
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border/70 bg-card/90 px-4 py-5 text-sm text-muted-foreground">
         {errorMessage ?? "This login is not linked to an active wholesale portal account."}
       </div>
     );
@@ -168,7 +168,7 @@ export default function PortalRugsTab() {
 
   if (rugs.length === 0) {
     return (
-      <div className="text-sm text-muted-foreground space-y-1">
+      <div className="space-y-1 rounded-2xl border border-dashed border-border/70 bg-card/70 px-4 py-5 text-sm text-muted-foreground">
         <p>No active rugs right now.</p>
         <p>To schedule a pickup for new rugs, use the Pickups tab.</p>
       </div>
@@ -184,7 +184,7 @@ export default function PortalRugsTab() {
           placeholder="Search by rug number…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="h-11 rounded-2xl border-border/70 bg-background/90 pl-9"
         />
       </div>
 
@@ -194,7 +194,7 @@ export default function PortalRugsTab() {
           {pagination.items.length === 0 ? (
             <p className="text-sm text-muted-foreground">No rugs matching &ldquo;{debouncedSearch}&rdquo;</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {pagination.items.map((rug) => (
                 <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
               ))}
@@ -216,10 +216,10 @@ export default function PortalRugsTab() {
         <div className="space-y-6">
           {groupedView.map((section) => (
             <div key={section.label}>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 {section.label}
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {section.rugs.map((rug) => (
                   <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
                 ))}

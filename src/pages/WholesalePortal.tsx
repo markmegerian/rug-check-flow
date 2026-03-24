@@ -121,14 +121,15 @@ export default function WholesalePortal() {
       subtitle={activeTabLabel}
       contentClassName="overflow-auto"
     >
-      <div className="w-full px-4 md:px-6 py-4 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <nav className="flex gap-0.5 p-0.5 rounded-lg bg-muted w-full sm:w-fit overflow-x-auto scrollbar-hide">
+      <div className="app-page space-y-4">
+        <section className="app-hero space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <nav className="flex w-full gap-1 overflow-x-auto rounded-2xl border border-border/70 bg-card/90 p-1 scrollbar-hide sm:w-fit">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ${
                   activeTab === tab.key
                     ? "bg-card text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -142,6 +143,7 @@ export default function WholesalePortal() {
             <Button
               variant="outline"
               size="sm"
+              className="h-10 rounded-xl px-4"
               onClick={openOnboarding}
               disabled={!onboardingUnlocked}
               className="h-8 text-xs"
@@ -153,11 +155,12 @@ export default function WholesalePortal() {
                   : "Change password to unlock"}
             </Button>
           ) : null}
-        </div>
+          </div>
+        </section>
 
-        <div className="rounded-lg border border-border bg-card">
+        <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.45)]">
           {requiresPasswordReset ? (
-            <div className="max-w-md mx-auto space-y-4 p-6">
+            <div className="mx-auto max-w-md space-y-4 p-6 sm:p-8">
               <h2 className="text-base font-semibold">Change your password to continue</h2>
               <p className="text-sm text-muted-foreground">
                 For security, first-time portal sign in requires a password change.
@@ -171,7 +174,7 @@ export default function WholesalePortal() {
                   onChange={(event) => setNewPassword(event.target.value)}
                   minLength={8}
                   autoComplete="new-password"
-                  className="h-9"
+                  className="h-11 rounded-2xl"
                 />
               </div>
               <div className="space-y-1.5">
@@ -183,15 +186,15 @@ export default function WholesalePortal() {
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   minLength={8}
                   autoComplete="new-password"
-                  className="h-9"
+                  className="h-11 rounded-2xl"
                 />
               </div>
-              <Button onClick={handleChangePassword} disabled={changingPassword || !user} size="sm">
+              <Button onClick={handleChangePassword} disabled={changingPassword || !user} size="sm" className="h-11 rounded-2xl px-4">
                 {changingPassword ? "Updating..." : "Update password"}
               </Button>
             </div>
           ) : (
-            <div className="p-3 md:p-4">
+            <div className="p-4 md:p-6">
               {activeTab === "rugs" && <PortalRugsTab />}
               {activeTab === "pickups" && <PortalPickupsTab />}
               {activeTab === "estimates" && <PortalEstimatesTab />}

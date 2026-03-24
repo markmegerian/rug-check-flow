@@ -500,7 +500,7 @@ export default function PortalPickupsTab() {
                       placeholder="Optional notes…"
                       value={draftNotes}
                       onChange={(e) => setDraftNotes(e.target.value)}
-                      className="h-9"
+                      className="h-11 rounded-2xl"
                     />
                   </div>
 
