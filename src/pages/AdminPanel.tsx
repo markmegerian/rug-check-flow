@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
-import { Users, Shield, ScrollText, Store, Activity } from "lucide-react";
+import { Users, Shield, ScrollText, Store, Activity, LayoutDashboard } from "lucide-react";
 import { UsersTab } from "@/components/admin/UsersTab";
 import { RolesTab } from "@/components/admin/RolesTab";
 import { AuditLogTab } from "@/components/admin/AuditLogTab";
 import { DataHealthCard } from "@/components/admin/DataHealthCard";
 import { ClientsTab } from "@/components/office/ClientsTab";
+import { SuperAdminOverview } from "@/components/admin/SuperAdminOverview";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
@@ -12,6 +13,7 @@ import { WorkspaceTabs } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 
 const TABS = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "users", label: "Users", icon: Users },
   { id: "clients", label: "Accounts", icon: Store },
   { id: "health", label: "Data Health", icon: Activity },
@@ -22,7 +24,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<TabId>("users");
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
@@ -43,6 +45,7 @@ export default function AdminPanel() {
       />
 
       <div className="flex-1 min-w-0 min-h-0 overflow-auto">
+        {activeTab === "overview" && <SuperAdminOverview onOpenRug={handleRugSelect} />}
         {activeTab === "users" && <UsersTab />}
         {activeTab === "clients" && <ClientsTab />}
         {activeTab === "health" && (
