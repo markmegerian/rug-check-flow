@@ -143,10 +143,9 @@ export default function WholesalePortal() {
             <Button
               variant="outline"
               size="sm"
-              className="h-10 rounded-xl px-4"
+              className="h-10 rounded-xl px-4 text-xs"
               onClick={openOnboarding}
               disabled={!onboardingUnlocked}
-              className="h-8 text-xs"
             >
               {onboardingCompletedAt
                 ? "View guide"
