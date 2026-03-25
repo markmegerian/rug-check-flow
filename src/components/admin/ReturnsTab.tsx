@@ -4,7 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/states/PageState";
-import { RugStatusBadge } from "@/components/shared/StatusBadge";
+import { InvoiceStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
 import type { Tables } from "@/integrations/supabase/types";
@@ -17,6 +17,14 @@ type ReturnEventRow = Pick<
 
 type RugLookup = Pick<Tables<"rugs">, "id" | "tag" | "status" | "photo_url">;
 type ClientLookup = Pick<Tables<"clients">, "id" | "name">;
+type InvoiceLookup = Pick<Tables<"invoices">, "id" | "invoice_number" | "status" | "issued_at" | "created_at">;
+type InvoiceItemLookup = { rug_id: string | null; invoices: InvoiceLookup | InvoiceLookup[] | null };
+
+type JobLookupRow = {
+  checked_in_rug_id: string | null;
+  pickup_request_id: string;
+  pickup_requests: { scheduled_date: string; route_day: string | null } | null;
+};
 
 type ReturnQueueItem = {
   rugId: string;
@@ -28,7 +36,10 @@ type ReturnQueueItem = {
   state: "open" | "resolved";
   eventAt: string;
   summary: string;
+  approvedWork: string | null;
   resolution: string | null;
+  latestJob: { scheduledDate: string; routeDay: string | null } | null;
+  latestInvoice: InvoiceLookup | null;
 };
 
 async function fetchReturnQueue(): Promise<ReturnQueueItem[]> {
@@ -47,6 +58,8 @@ async function fetchReturnQueue(): Promise<ReturnQueueItem[]> {
 
   let rugMap = new Map<string, RugLookup>();
   let clientMap = new Map<string, string>();
+  const jobMap = new Map<string, { scheduledDate: string; routeDay: string | null }>();
+  const invoiceMap = new Map<string, InvoiceLookup>();
 
   if (rugIds.length > 0) {
     const { data: rugs, error: rugError } = await supabase
@@ -64,6 +77,36 @@ async function fetchReturnQueue(): Promise<ReturnQueueItem[]> {
       .in("id", clientIds);
     if (clientError) throw clientError;
     clientMap = new Map(((clients ?? []) as ClientLookup[]).map((client) => [client.id, client.name]));
+  }
+
+  if (rugIds.length > 0) {
+    const { data: invoiceRows, error: invoiceError } = await supabase
+      .from("invoice_items")
+      .select("rug_id, invoices(id, invoice_number, status, issued_at, created_at)")
+      .in("rug_id", rugIds);
+    if (invoiceError) throw invoiceError;
+    for (const row of (invoiceRows ?? []) as InvoiceItemLookup[]) {
+      if (!row.rug_id || invoiceMap.has(row.rug_id) || !row.invoices) continue;
+      const invoice = Array.isArray(row.invoices) ? row.invoices[0] ?? null : row.invoices;
+      if (!invoice) continue;
+      invoiceMap.set(row.rug_id, invoice);
+    }
+
+    const { data: jobRows, error: jobError } = await supabaseExtended
+      .from("pickup_request_items")
+      .select("checked_in_rug_id, pickup_request_id, pickup_requests(scheduled_date, route_day)")
+      .in("checked_in_rug_id", rugIds);
+    if (jobError) throw jobError;
+    const rows = ((jobRows ?? []) as unknown as JobLookupRow[])
+      .filter((row) => row.checked_in_rug_id && row.pickup_requests?.scheduled_date)
+      .sort((a, b) => Date.parse(`${b.pickup_requests?.scheduled_date}T12:00:00`) - Date.parse(`${a.pickup_requests?.scheduled_date}T12:00:00`));
+    for (const row of rows) {
+      if (!row.checked_in_rug_id || jobMap.has(row.checked_in_rug_id) || !row.pickup_requests) continue;
+      jobMap.set(row.checked_in_rug_id, {
+        scheduledDate: row.pickup_requests.scheduled_date,
+        routeDay: row.pickup_requests.route_day,
+      });
+    }
   }
 
   const grouped = new Map<string, ReturnEventRow[]>();
@@ -84,6 +127,7 @@ async function fetchReturnQueue(): Promise<ReturnQueueItem[]> {
     const activeEvent = latestReturn ?? latest;
     const state: ReturnQueueItem["state"] = latest.event_type === "rug_return_resolved" ? "resolved" : "open";
     const category: ReturnQueueItem["category"] = activeEvent.event_type === "rug_immediate_return_logged" ? "immediate_return" : "reentry";
+    const approvedWorkLine = (activeEvent.body || "").split("\n").find((line) => line.toLowerCase().startsWith("approved work:")) ?? null;
     items.push({
       rugId,
       rugNumber: rug?.tag ?? activeEvent.subject,
@@ -94,7 +138,10 @@ async function fetchReturnQueue(): Promise<ReturnQueueItem[]> {
       state,
       eventAt: activeEvent.created_at,
       summary: activeEvent.body || activeEvent.subject,
+      approvedWork: approvedWorkLine ? approvedWorkLine.replace(/^Approved work:\s*/i, "") : null,
       resolution: latestResolved?.body ?? null,
+      latestJob: jobMap.get(rugId) ?? null,
+      latestInvoice: invoiceMap.get(rugId) ?? null,
     });
   }
 
@@ -159,6 +206,24 @@ export function ReturnsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }
                 </div>
                 <p className="text-sm text-muted-foreground">{item.clientName}</p>
                 <p className="text-sm text-foreground whitespace-pre-line">{item.summary}</p>
+                {item.latestJob ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">Job {new Date(`${item.latestJob.scheduledDate}T12:00:00`).toLocaleDateString()}</Badge>
+                    {item.latestJob.routeDay ? <Badge variant="outline">{item.latestJob.routeDay}</Badge> : null}
+                  </div>
+                ) : null}
+                {item.latestInvoice ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{item.latestInvoice.invoice_number}</Badge>
+                    <InvoiceStatusBadge status={item.latestInvoice.status} />
+                  </div>
+                ) : null}
+                {item.approvedWork ? (
+                  <div className="rounded-xl border border-indigo-200/40 bg-indigo-50/60 p-3 text-sm text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-100">
+                    <span className="font-medium">Approved work</span>
+                    <div className="mt-1">{item.approvedWork}</div>
+                  </div>
+                ) : null}
                 {item.resolution ? (
                   <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground whitespace-pre-line">
                     <span className="font-medium text-foreground">Resolution</span>
