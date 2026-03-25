@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    --background: 220 23% 97%;
-    --foreground: 240 10% 3.9%;
+    --background: 228 22% 96%;
+    --foreground: 228 24% 12%;
 
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
@@ -13,17 +13,17 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
 
-    --primary: 239 84% 67%;
+    --primary: 231 43% 28%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 24% 95%;
+    --secondary: 220 18% 93%;
     --secondary-foreground: 240 6% 10%;
 
-    --muted: 220 24% 95%;
-    --muted-foreground: 240 4% 46%;
+    --muted: 220 18% 93%;
+    --muted-foreground: 225 10% 40%;
 
-    --accent: 220 24% 95%;
-    --accent-foreground: 240 6% 10%;
+    --accent: 38 36% 92%;
+    --accent-foreground: 228 24% 18%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -35,19 +35,19 @@
     --info: 239 84% 67%;
     --info-foreground: 0 0% 100%;
 
-    --border: 220 18% 88%;
+    --border: 222 18% 84%;
     --input: 220 18% 88%;
-    --ring: 239 84% 67%;
+    --ring: 38 42% 56%;
 
-    --radius: 0.5rem;
+    --radius: 0.9rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 6% 25%;
-    --sidebar-primary: 239 84% 67%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 5% 96%;
-    --sidebar-accent-foreground: 240 6% 10%;
-    --sidebar-border: 240 6% 93%;
+    --sidebar-background: 226 26% 14%;
+    --sidebar-foreground: 220 20% 92%;
+    --sidebar-primary: 38 42% 56%;
+    --sidebar-primary-foreground: 228 24% 12%;
+    --sidebar-accent: 228 21% 20%;
+    --sidebar-accent-foreground: 220 20% 96%;
+    --sidebar-border: 226 18% 22%;
     --sidebar-ring: 239 84% 67%;
 
     --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
@@ -70,8 +70,9 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     background-image:
-      radial-gradient(circle at top, hsl(239 84% 67% / 0.08), transparent 32%),
-      linear-gradient(180deg, hsl(0 0% 100% / 0.88), hsl(var(--background)));
+      radial-gradient(circle at top left, hsl(231 43% 28% / 0.10), transparent 34%),
+      radial-gradient(circle at top right, hsl(38 42% 56% / 0.10), transparent 28%),
+      linear-gradient(180deg, hsl(0 0% 100% / 0.92), hsl(var(--background)));
     min-height: 100vh;
   }
 
@@ -101,11 +102,11 @@
   }
 
   .app-hero {
-    @apply rounded-3xl border border-white/60 bg-white/85 p-5 shadow-[0_20px_60px_-30px_rgba(99,102,241,0.45)] backdrop-blur-xl sm:p-6;
+    @apply rounded-[1.75rem] border border-white/60 bg-white p-5 shadow-[0_28px_80px_-38px_rgba(15,23,42,0.38)] backdrop-blur-xl sm:p-6;
   }
 
   .app-section {
-    @apply rounded-2xl border border-border/70 bg-card/90 shadow-sm;
+    @apply rounded-[1.35rem] border border-border/70 bg-card/90 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.28)];
   }
 
   .app-section-header {
@@ -113,7 +114,7 @@
   }
 
   .app-chip {
-    @apply inline-flex items-center rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground;
+    @apply inline-flex items-center rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-sm;
   }
 }
 

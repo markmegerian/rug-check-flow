@@ -45,14 +45,14 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
     end ? location.pathname === url : location.pathname.startsWith(url);
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">
       <SidebarHeader className="p-3">
         <div className="flex items-center gap-2 px-1">
-          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center shrink-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-[0_10px_25px_-18px_rgba(212,180,106,0.65)]">
             <span className="text-xs font-bold text-primary-foreground">R</span>
           </div>
           {!collapsed && (
-            <span className="text-sm font-semibold text-foreground tracking-tight">{APP_NAME}</span>
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">{APP_NAME}</span>
           )}
         </div>
       </SidebarHeader>
@@ -73,8 +73,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                       <NavLink
                         to={item.url}
                         end={item.end}
-                        className="flex items-center gap-2.5 text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-md px-2.5 py-1.5 transition-colors"
-                        activeClassName="bg-sidebar-accent text-sidebar-foreground font-medium"
+                        className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        activeClassName="bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span>{item.title}</span>}
@@ -97,11 +97,11 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                   size="sm"
                   onClick={onSearchOpen}
                   aria-label="Search rugs (Cmd+K)"
-                  className="w-full justify-start gap-2 text-muted-foreground font-normal h-8 text-xs"
+                  className="h-9 w-full justify-start gap-2 border-sidebar-border/80 bg-sidebar-accent/40 text-sidebar-foreground/78 hover:bg-sidebar-accent hover:text-sidebar-foreground text-xs font-normal"
                 >
                   <Search className="h-3.5 w-3.5" />
                   <span>Search</span>
-                  <kbd className="ml-auto inline-flex h-4 items-center rounded border bg-muted px-1 text-[10px] font-medium text-muted-foreground">
+                  <kbd className="ml-auto inline-flex h-4 items-center rounded border border-sidebar-border/80 bg-sidebar-background/30 px-1 text-[10px] font-medium text-sidebar-foreground/60">
                     ⌘K
                   </kbd>
                 </Button>
@@ -115,18 +115,18 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         {!collapsed && (
           <div className="space-y-2">
             {isSuperAdmin && (
-              <Badge variant="outline" className="w-full justify-center text-[10px] border-destructive/30 text-destructive">
+              <Badge variant="outline" className="w-full justify-center border-amber-200/20 bg-amber-300/10 text-[10px] text-amber-100">
                 Superadmin
               </Badge>
             )}
-            <p className="text-[11px] text-muted-foreground truncate px-1">
+            <p className="truncate px-1 text-[11px] text-sidebar-foreground/56">
               {user?.email}
             </p>
             <Button
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="w-full justify-start gap-2 text-muted-foreground h-8 text-xs"
+              className="h-8 w-full justify-start gap-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sign out
@@ -138,7 +138,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
             variant="ghost"
             size="icon"
             onClick={signOut}
-            className="h-8 w-8 text-muted-foreground"
+            className="h-8 w-8 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
