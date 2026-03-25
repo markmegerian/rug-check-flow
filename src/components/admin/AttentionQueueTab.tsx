@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/states/PageState";
 import { RugStatusBadge } from "@/components/shared/StatusBadge";
 import { useSuperAdminQueues } from "@/hooks/useSuperAdminQueues";
+import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -17,6 +18,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type AttentionActionState = {
   id: string;
@@ -26,12 +34,29 @@ type AttentionActionState = {
   reason: string;
 };
 
+const RETURN_TARGET_STATES = [
+  { value: "picked_up", label: "Picked up" },
+  { value: "checked_in", label: "Checked in" },
+  { value: "in_production", label: "In production" },
+  { value: "ready", label: "Ready for delivery" },
+] as const;
+
 export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const query = useSuperAdminQueues();
   const { toast } = useToast();
   const [handlingId, setHandlingId] = useState<string | null>(null);
   const [actionItem, setActionItem] = useState<AttentionActionState | null>(null);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [returnTargetState, setReturnTargetState] =
+    useState<(typeof RETURN_TARGET_STATES)[number]["value"]>("checked_in");
+  const [returningId, setReturningId] = useState<string | null>(null);
+
+  const closeDialog = () => {
+    if (handlingId || returningId) return;
+    setActionItem(null);
+    setResolutionNote("");
+    setReturnTargetState("checked_in");
+  };
 
   const handleMarkHandled = async () => {
     if (!actionItem) return;
@@ -48,14 +73,81 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
     });
 
     if (error) {
-      toast({ title: "Failed to mark handled", description: error.message, variant: "destructive" });
+      toast({
+        title: "Failed to mark handled",
+        description: error.message,
+        variant: "destructive",
+      });
     } else {
       toast({ title: "Attention item handled" });
-      setActionItem(null);
-      setResolutionNote("");
+      closeDialog();
       await query.refetch();
     }
     setHandlingId(null);
+  };
+
+  const handleReturnToWorkflow = async () => {
+    if (!actionItem?.rugId) return;
+    setReturningId(actionItem.id);
+    const now = new Date().toISOString();
+    const updates: Record<string, string | null> = { status: returnTargetState };
+
+    if (resolutionNote.trim()) {
+      const { data: rugRow } = await supabase
+        .from("rugs")
+        .select("notes")
+        .eq("id", actionItem.rugId)
+        .maybeSingle();
+      updates.notes = [
+        rugRow?.notes?.trim(),
+        `[${new Date(now).toLocaleString()}] Returned to ${returnTargetState}: ${resolutionNote.trim()}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+
+    if (returnTargetState === "picked_up") updates.picked_up_at = now;
+    if (returnTargetState === "checked_in") updates.checked_in_at = now;
+    if (returnTargetState === "ready") updates.completed_at = now;
+    if (returnTargetState !== "ready") updates.completed_at = null;
+
+    const { error: rugError } = await supabase
+      .from("rugs")
+      .update(updates)
+      .eq("id", actionItem.rugId);
+
+    if (rugError) {
+      toast({
+        title: "Workflow return failed",
+        description: rugError.message,
+        variant: "destructive",
+      });
+      setReturningId(null);
+      return;
+    }
+
+    const { error: eventError } = await supabaseExtended.from("communication_events").insert({
+      client_id: null,
+      rug_id: actionItem.rugId,
+      channel: "in_app_chat",
+      direction: "outbound",
+      event_type: "attention_item_handled",
+      subject: actionItem.id,
+      body: `Returned to workflow as ${returnTargetState}${resolutionNote.trim() ? `\n\n${resolutionNote.trim()}` : ""}`,
+    });
+
+    if (eventError) {
+      toast({
+        title: "Workflow note failed",
+        description: eventError.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `Moved to ${returnTargetState}` });
+      closeDialog();
+      await query.refetch();
+    }
+    setReturningId(null);
   };
 
   if (query.isLoading) {
@@ -79,53 +171,78 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
         </div>
       </div>
       {query.data.attentionItems.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-card/70 p-8 text-center text-muted-foreground">No route exceptions or stale rugs currently need attention.</div>
-      ) : query.data.attentionItems.map((item) => (
-        <div key={item.id} className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-foreground">{item.rugNumber}</span>
-                <Badge variant="secondary">{item.kind === "route_exception" ? "Exception" : item.kind === "reentry_event" ? "Re-entry" : "Stale rug"}</Badge>
-                {item.status ? <RugStatusBadge status={item.status} /> : null}
+        <div className="rounded-2xl border border-dashed border-border/70 bg-card/70 p-8 text-center text-muted-foreground">
+          No route exceptions or stale rugs currently need attention.
+        </div>
+      ) : (
+        query.data.attentionItems.map((item) => (
+          <div key={item.id} className="rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground">{item.rugNumber}</span>
+                  <Badge variant="secondary">
+                    {item.kind === "route_exception"
+                      ? "Exception"
+                      : item.kind === "reentry_event"
+                        ? "Re-entry"
+                        : "Stale rug"}
+                  </Badge>
+                  {item.status ? <RugStatusBadge status={item.status} /> : null}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{item.clientName}</p>
+                <p className="mt-1 text-sm text-foreground">{item.reason}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {item.checkedInAt
+                    ? `Checked in ${formatDistanceToNow(new Date(item.checkedInAt), { addSuffix: true })}`
+                    : `Logged ${formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}`}
+                </p>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{item.clientName}</p>
-              <p className="mt-1 text-sm text-foreground">{item.reason}</p>
-              <p className="mt-2 text-xs text-muted-foreground">{item.checkedInAt ? `Checked in ${formatDistanceToNow(new Date(item.checkedInAt), { addSuffix: true })}` : `Logged ${formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}`}</p>
-            </div>
-            <div className="flex items-start gap-2">
-              {item.photoUrl ? <img src={item.photoUrl} alt={`Rug ${item.rugNumber}`} className="h-16 w-16 rounded-lg border object-cover" /> : null}
-              <div className="flex flex-col gap-2">
-                {item.rugId ? <Button size="sm" variant="outline" onClick={() => onOpenRug(item.rugId!)}>Open rug</Button> : null}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setActionItem({
-                      id: item.id,
-                      clientName: item.clientName,
-                      rugId: item.rugId,
-                      rugNumber: item.rugNumber,
-                      reason: item.reason,
-                    });
-                    setResolutionNote("");
-                  }}
-                  disabled={handlingId === item.id}
-                >
-                  {handlingId === item.id ? "Handling..." : "Mark handled"}
-                </Button>
+              <div className="flex items-start gap-2">
+                {item.photoUrl ? (
+                  <img
+                    src={item.photoUrl}
+                    alt={`Rug ${item.rugNumber}`}
+                    className="h-16 w-16 rounded-lg border object-cover"
+                  />
+                ) : null}
+                <div className="flex flex-col gap-2">
+                  {item.rugId ? (
+                    <Button size="sm" variant="outline" onClick={() => onOpenRug(item.rugId!)}>
+                      Open rug
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setActionItem({
+                        id: item.id,
+                        clientName: item.clientName,
+                        rugId: item.rugId,
+                        rugNumber: item.rugNumber,
+                        reason: item.reason,
+                      });
+                      setResolutionNote("");
+                      setReturnTargetState(item.kind === "stale_rug" ? "ready" : "checked_in");
+                    }}
+                    disabled={handlingId === item.id || returningId === item.id}
+                  >
+                    {handlingId === item.id || returningId === item.id ? "Working..." : "Take action"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
 
-      <Dialog open={Boolean(actionItem)} onOpenChange={(open) => { if (!open && !handlingId) { setActionItem(null); setResolutionNote(""); } }}>
+      <Dialog open={Boolean(actionItem)} onOpenChange={(open) => (!open ? closeDialog() : undefined)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Resolve attention item</DialogTitle>
             <DialogDescription>
-              Mark this item handled and save a resolution note to the activity log.
+              Mark this item handled or push the rug back into the correct workflow state.
             </DialogDescription>
           </DialogHeader>
           {actionItem ? (
@@ -135,6 +252,28 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
                 <div className="mt-1 text-muted-foreground">{actionItem.clientName}</div>
                 <div className="mt-2 text-foreground">{actionItem.reason}</div>
               </div>
+              {actionItem.rugId ? (
+                <div className="space-y-2">
+                  <Label htmlFor="attention-target-state">Return to workflow state</Label>
+                  <Select
+                    value={returnTargetState}
+                    onValueChange={(value) =>
+                      setReturnTargetState(value as (typeof RETURN_TARGET_STATES)[number]["value"])
+                    }
+                  >
+                    <SelectTrigger id="attention-target-state">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RETURN_TARGET_STATES.map((state) => (
+                        <SelectItem key={state.value} value={state.value}>
+                          {state.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="attention-resolution-note">Resolution note</Label>
                 <Textarea
@@ -148,8 +287,17 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
             </div>
           ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setActionItem(null); setResolutionNote(""); }} disabled={Boolean(handlingId)}>Cancel</Button>
-            <Button onClick={() => void handleMarkHandled()} disabled={Boolean(handlingId)}>{handlingId ? "Saving..." : "Mark handled"}</Button>
+            <Button variant="outline" onClick={closeDialog} disabled={Boolean(handlingId || returningId)}>
+              Cancel
+            </Button>
+            {actionItem?.rugId ? (
+              <Button variant="outline" onClick={() => void handleReturnToWorkflow()} disabled={Boolean(handlingId || returningId)}>
+                {returningId ? "Returning..." : "Return to workflow"}
+              </Button>
+            ) : null}
+            <Button onClick={() => void handleMarkHandled()} disabled={Boolean(handlingId || returningId)}>
+              {handlingId ? "Saving..." : "Mark handled"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
