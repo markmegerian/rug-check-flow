@@ -22,6 +22,7 @@ export type OverdueInvoiceItem = Pick<
 export type AttentionItem = {
   id: string;
   kind: "stale_rug" | "route_exception" | "reentry_event";
+  category: "immediate_return" | "reentry" | "route_dispute" | "unable_to_complete" | "stale_rug" | "note_flag" | "route_exception";
   rugId: string | null;
   rugNumber: string;
   clientName: string;
@@ -272,6 +273,7 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
       return {
         id: `reentry-${row.id}`,
         kind: "reentry_event" as const,
+        category: row.event_type === "rug_immediate_return_logged" ? "immediate_return" as const : "reentry" as const,
         rugId: row.rug_id,
         rugNumber: rug?.tag ?? row.subject,
         clientName: row.client_id ? clientNameMap.get(row.client_id) ?? "Unknown client" : "Unknown client",
@@ -298,6 +300,7 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
       return {
         id: `stale-${rug.id}`,
         kind: "stale_rug" as const,
+        category: noteFlag && !staleFlag ? "note_flag" as const : "stale_rug" as const,
         rugId: rug.id,
         rugNumber: rug.tag,
         clientName: rug.clients?.name ?? "Unknown client",
@@ -320,6 +323,7 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
     return {
       id: `route-item-${item.id}`,
       kind: "route_exception" as const,
+      category: item.status === "disputed" ? "route_dispute" as const : (item.exception_code === "immediate_return" ? "immediate_return" as const : "route_exception" as const),
       rugId: item.rug_id,
       rugNumber: rug?.tag ?? pickupItem?.rug_number ?? `Stop item ${item.id.slice(0, 8)}`,
       clientName: stop?.client_id ? clientNameMap.get(stop.client_id) ?? "Unknown client" : "Unknown client",
@@ -339,6 +343,7 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
     .map((stop) => ({
       id: `route-stop-${stop.id}`,
       kind: "route_exception" as const,
+      category: item.status === "disputed" ? "route_dispute" as const : (item.exception_code === "immediate_return" ? "immediate_return" as const : "route_exception" as const),
       rugId: null,
       rugNumber: `Stop ${stop.route_day} ${stop.route_date}`,
       clientName: clientNameMap.get(stop.client_id) ?? "Unknown client",

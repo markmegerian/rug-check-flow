@@ -34,6 +34,16 @@ type AttentionActionState = {
   reason: string;
 };
 
+const CATEGORY_META: Record<string, { label: string; tone: string }> = {
+  immediate_return: { label: "Immediate return", tone: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
+  reentry: { label: "Re-entry", tone: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
+  route_dispute: { label: "Route dispute", tone: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  unable_to_complete: { label: "Unable to complete", tone: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  stale_rug: { label: "Stale rug", tone: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100" },
+  note_flag: { label: "Special note", tone: "bg-stone-100 text-stone-800 dark:bg-stone-800 dark:text-stone-100" },
+  route_exception: { label: "Route exception", tone: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+};
+
 const RETURN_TARGET_STATES = [
   { value: "picked_up", label: "Picked up" },
   { value: "checked_in", label: "Checked in" },
@@ -181,12 +191,8 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-semibold text-foreground">{item.rugNumber}</span>
-                  <Badge variant="secondary">
-                    {item.kind === "route_exception"
-                      ? "Exception"
-                      : item.kind === "reentry_event"
-                        ? "Re-entry"
-                        : "Stale rug"}
+                  <Badge variant="secondary" className={CATEGORY_META[item.category].tone}>
+                    {CATEGORY_META[item.category].label}
                   </Badge>
                   {item.status ? <RugStatusBadge status={item.status} /> : null}
                 </div>
@@ -251,6 +257,11 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
                 <div className="font-medium text-foreground">{actionItem.rugNumber}</div>
                 <div className="mt-1 text-muted-foreground">{actionItem.clientName}</div>
                 <div className="mt-2 text-foreground">{actionItem.reason}</div>
+                <div className="mt-2">
+                  <Badge variant="secondary" className={CATEGORY_META[(query.data?.attentionItems.find((item) => item.id === actionItem.id)?.category ?? "route_exception")].tone}>
+                    {CATEGORY_META[(query.data?.attentionItems.find((item) => item.id === actionItem.id)?.category ?? "route_exception")].label}
+                  </Badge>
+                </div>
               </div>
               {actionItem.rugId ? (
                 <div className="space-y-2">
