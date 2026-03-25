@@ -21,7 +21,7 @@ export type OverdueInvoiceItem = Pick<
 
 export type AttentionItem = {
   id: string;
-  kind: "stale_rug" | "route_exception";
+  kind: "stale_rug" | "route_exception" | "reentry_event";
   rugId: string | null;
   rugNumber: string;
   clientName: string;
@@ -66,6 +66,12 @@ const CLIENT_RESPONSE_EVENTS = [
   "estimate_rejected_by_client",
   "invoice_pdf_downloaded_by_client",
 ];
+
+const RETURN_EVENT_TYPES = [
+  "rug_immediate_return_logged",
+  "rug_reentry_logged",
+  "rug_return_resolved",
+] as const;
 
 export const STALE_RUG_DAYS = 7;
 
@@ -122,7 +128,7 @@ function buildRouteExceptionReason(item: RouteStopItemRow, stop: RouteStopRow | 
 }
 
 async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
-  const [responsesResult, overdueResult, rugsResult, routeStopItemsResult, routeStopsStatusResult] = await Promise.all([
+  const [responsesResult, overdueResult, rugsResult, routeStopItemsResult, routeStopsStatusResult, returnEventsResult] = await Promise.all([
     supabaseExtended
       .from("communication_events")
       .select("id, client_id, event_type, subject, created_at")
@@ -152,6 +158,12 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
       .in("status", ["completed_with_exceptions", "unable_to_complete"])
       .order("completed_at", { ascending: false, nullsFirst: false })
       .limit(50),
+    supabaseExtended
+      .from("communication_events")
+      .select("id, client_id, rug_id, event_type, subject, body, created_at")
+      .in("event_type", [...RETURN_EVENT_TYPES])
+      .order("created_at", { ascending: false })
+      .limit(200),
   ]);
 
   if (responsesResult.error) throw responsesResult.error;
@@ -159,6 +171,7 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
   if (rugsResult.error) throw rugsResult.error;
   if (routeStopItemsResult.error) throw routeStopItemsResult.error;
   if (routeStopsStatusResult.error) throw routeStopsStatusResult.error;
+  if (returnEventsResult.error) throw returnEventsResult.error;
 
   const responseRows = (responsesResult.data ?? []) as ClientResponseRow[];
   const responseClientIds = Array.from(new Set(responseRows.map((row) => row.client_id).filter((value): value is string => Boolean(value))));
@@ -166,6 +179,7 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
   const staleRugRows = (rugsResult.data ?? []) as unknown as AttentionRugRow[];
   const routeStopItems = (routeStopItemsResult.data ?? []) as RouteStopItemRow[];
   const routeStopsFromStatus = (routeStopsStatusResult.data ?? []) as RouteStopRow[];
+  const returnEventRows = (returnEventsResult.data ?? []) as ClientResponseRow[];
 
   const routeStopIds = Array.from(new Set([...routeStopItems.map((item) => item.route_stop_id), ...routeStopsFromStatus.map((stop) => stop.id)]));
   let routeStops = routeStopsFromStatus;
@@ -181,8 +195,11 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
     }
   }
 
+  const returnEventClientIds = Array.from(new Set(returnEventRows.map((row) => row.client_id).filter((value): value is string => Boolean(value))));
+
   const clientIds = Array.from(new Set([
     ...responseClientIds,
+    ...returnEventClientIds,
     ...routeStops.map((stop) => stop.client_id).filter(Boolean),
   ]));
 
@@ -196,7 +213,10 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
     clientNameMap = new Map(((clientRows ?? []) as ClientLookup[]).map((row) => [row.id, row.name]));
   }
 
-  const rugIds = Array.from(new Set(routeStopItems.map((item) => item.rug_id).filter((value): value is string => Boolean(value))));
+  const rugIds = Array.from(new Set([
+    ...routeStopItems.map((item) => item.rug_id).filter((value): value is string => Boolean(value)),
+    ...returnEventRows.map((row) => row.rug_id).filter((value): value is string => Boolean(value)),
+  ]));
   let routeItemRugMap = new Map<string, RugLookup>();
   if (rugIds.length > 0) {
     const { data: rugRows, error: rugError } = await supabase
@@ -228,6 +248,33 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
     createdAt: row.created_at,
     tone: responseTone(row.event_type),
   }));
+
+  const latestReturnEventByRug = new Map<string, ClientResponseRow>();
+  for (const row of returnEventRows) {
+    if (!row.rug_id || latestReturnEventByRug.has(row.rug_id)) continue;
+    latestReturnEventByRug.set(row.rug_id, row);
+  }
+
+  const reentryAttentionItems = Array.from(latestReturnEventByRug.values())
+    .filter((row) => row.event_type !== "rug_return_resolved")
+    .map((row) => {
+      const rug = row.rug_id ? routeItemRugMap.get(row.rug_id) ?? null : null;
+      return {
+        id: `reentry-${row.id}`,
+        kind: "reentry_event" as const,
+        rugId: row.rug_id,
+        rugNumber: rug?.tag ?? row.subject,
+        clientName: row.client_id ? clientNameMap.get(row.client_id) ?? "Unknown client" : "Unknown client",
+        status: rug?.status ?? null,
+        photoUrl: rug?.photo_url ?? null,
+        ageDays: Math.max(0, differenceInCalendarDays(new Date(), new Date(row.created_at))),
+        reason: row.body || row.subject,
+        createdAt: row.created_at,
+        checkedInAt: null,
+        phase: null,
+        exceptionCode: row.event_type === "rug_immediate_return_logged" ? "immediate_return" : "reentry_for_approved_work",
+      } satisfies AttentionItem;
+    });
 
   const overdueInvoices = (overdueResult.data ?? []) as unknown as OverdueInvoiceItem[];
   const overdueBalance = overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0);
@@ -297,12 +344,13 @@ async function fetchSuperAdminQueues(): Promise<SuperAdminQueuesData> {
       exceptionCode: stop.exception_code,
     }) satisfies AttentionItem[]);
 
-  const attentionItems = [...routeExceptionItems, ...stopLevelExceptionItems, ...staleAttentionItems].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === "route_exception" ? -1 : 1;
-    if (a.kind === "route_exception" && b.kind === "route_exception") {
-      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+  const attentionItems = [...reentryAttentionItems, ...routeExceptionItems, ...stopLevelExceptionItems, ...staleAttentionItems].sort((a, b) => {
+    const priority = { reentry_event: 0, route_exception: 1, stale_rug: 2 } as const;
+    if (a.kind !== b.kind) return priority[a.kind] - priority[b.kind];
+    if (a.kind === "stale_rug" && b.kind === "stale_rug") {
+      return staleAttentionPriority(b) - staleAttentionPriority(a);
     }
-    return staleAttentionPriority(b) - staleAttentionPriority(a);
+    return Date.parse(b.createdAt) - Date.parse(a.createdAt);
   });
 
   return {

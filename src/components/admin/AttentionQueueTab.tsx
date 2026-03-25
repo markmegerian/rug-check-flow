@@ -36,7 +36,7 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-semibold text-foreground">{item.rugNumber}</span>
-                <Badge variant="secondary">{item.kind === "route_exception" ? "Exception" : "Stale rug"}</Badge>
+                <Badge variant="secondary">{item.kind === "route_exception" ? "Exception" : item.kind === "reentry_event" ? "Re-entry" : "Stale rug"}</Badge>
                 {item.status ? <RugStatusBadge status={item.status} /> : null}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{item.clientName}</p>

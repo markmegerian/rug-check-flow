@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +19,14 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useRug, useInvalidateRugs } from "@/hooks/useRugs";
+import { useInvalidateRugReturnEvents, useRugReturnEvents } from "@/hooks/useRugReturnEvents";
 import { RugContextPanel } from "@/components/shared/RugContextPanel";
 import { PRODUCTION_STAGES } from "@/data/production";
 import { RUG_TYPES } from "@/data/services";
 import { supabase } from "@/integrations/supabase/client";
 import { advanceRugStage, createDraftInvoice } from "@/lib/rug-operations";
 import { toast } from "@/hooks/use-toast";
-import { FileText, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { FileText, Loader2, Pencil, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 
 interface RugDetailSheetProps {
   rugId: string | null;
@@ -67,6 +68,8 @@ type EditableFields = {
 export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProps) {
   const { data: rug, isLoading } = useRug(open ? rugId : null);
   const invalidateRugs = useInvalidateRugs();
+  const invalidateReturnEvents = useInvalidateRugReturnEvents();
+  const { data: returnEvents = [], isLoading: returnEventsLoading } = useRugReturnEvents(open ? rugId : null);
 
   // Editable fields
   const [editing, setEditing] = useState(false);
@@ -80,6 +83,13 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
   const [addingServiceId, setAddingServiceId] = useState<string>("none");
   const [addingService, setAddingService] = useState(false);
 
+  const [returnEventType, setReturnEventType] = useState<"immediate_return" | "reentry_for_approved_work">("immediate_return");
+  const [returnReason, setReturnReason] = useState("");
+  const [returnApprovedWork, setReturnApprovedWork] = useState("");
+  const [returnNotes, setReturnNotes] = useState("");
+  const [loggingReturnEvent, setLoggingReturnEvent] = useState(false);
+  const [resolvingReturnEventId, setResolvingReturnEventId] = useState<string | null>(null);
+
   // Load rug data into editable fields
   useEffect(() => {
     if (rug) {
@@ -92,6 +102,16 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
       setEditing(false);
     }
   }, [rug]);
+
+  useEffect(() => {
+    if (!open) {
+      setReturnEventType("immediate_return");
+      setReturnReason("");
+      setReturnApprovedWork("");
+      setReturnNotes("");
+      setResolvingReturnEventId(null);
+    }
+  }, [open]);
 
   // Fetch rug_services rows
   const fetchServices = useCallback(async () => {
@@ -237,6 +257,93 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     : [];
 
   const servicesTotal = services.reduce((sum, s) => sum + Number(s.line_total), 0);
+
+  const openReturnEvent = useMemo(() => returnEvents.find((event) => event.event_type !== "rug_return_resolved") ?? null, [returnEvents]);
+
+  const resetReturnForm = () => {
+    setReturnEventType("immediate_return");
+    setReturnReason("");
+    setReturnApprovedWork("");
+    setReturnNotes("");
+  };
+
+  const handleLogReturnEvent = async () => {
+    if (!rug) return;
+    const reason = returnReason.trim();
+    if (!reason) {
+      toast({ title: "Reason required", description: "Add a reason for the return / re-entry.", variant: "destructive" });
+      return;
+    }
+
+    setLoggingReturnEvent(true);
+    const now = new Date().toISOString();
+    const eventType = returnEventType === "immediate_return" ? "rug_immediate_return_logged" : "rug_reentry_logged";
+    const subject = returnEventType === "immediate_return" ? `${rug.tag} returned immediately` : `${rug.tag} re-entered for approved work`;
+    const bodyParts = [reason];
+    if (returnApprovedWork.trim()) bodyParts.push(`Approved work: ${returnApprovedWork.trim()}`);
+    if (returnNotes.trim()) bodyParts.push(`Notes: ${returnNotes.trim()}`);
+    const body = bodyParts.join("\n");
+
+    const { error: eventError } = await supabaseExtended.from("communication_events").insert({
+      client_id: rug.client_id,
+      rug_id: rug.id,
+      channel: "in_app_chat",
+      direction: "outbound",
+      event_type: eventType,
+      subject,
+      body,
+    });
+
+    if (eventError) {
+      toast({ title: "Return logging failed", description: eventError.message, variant: "destructive" });
+      setLoggingReturnEvent(false);
+      return;
+    }
+
+    const mergedNotes = [
+      rug.notes?.trim(),
+      `[${new Date(now).toLocaleString()}] ${subject}: ${reason}${returnApprovedWork.trim() ? ` | Approved work: ${returnApprovedWork.trim()}` : ""}${returnNotes.trim() ? ` | ${returnNotes.trim()}` : ""}`,
+    ].filter(Boolean).join("\n\n");
+
+    const { error: rugError } = await supabase
+      .from("rugs")
+      .update({ status: "checked_in", checked_in_at: now, completed_at: null, picked_up_at: null, notes: mergedNotes })
+      .eq("id", rug.id);
+
+    if (rugError) {
+      toast({ title: "Rug update failed", description: rugError.message, variant: "destructive" });
+      setLoggingReturnEvent(false);
+      return;
+    }
+
+    toast({ title: returnEventType === "immediate_return" ? "Immediate return logged" : "Re-entry logged", description: "Rug moved back into the check-in flow." });
+    resetReturnForm();
+    invalidateRugs();
+    invalidateReturnEvents(rug.id);
+    setLoggingReturnEvent(false);
+  };
+
+  const handleResolveReturnEvent = async (eventId: string) => {
+    if (!rug) return;
+    setResolvingReturnEventId(eventId);
+    const { error } = await supabaseExtended.from("communication_events").insert({
+      client_id: rug.client_id,
+      rug_id: rug.id,
+      channel: "in_app_chat",
+      direction: "outbound",
+      event_type: "rug_return_resolved",
+      subject: `Resolved return / re-entry for ${rug.tag}`,
+      body: `Resolved against event ${eventId}`,
+    });
+
+    if (error) {
+      toast({ title: "Resolve failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Return / re-entry resolved" });
+      invalidateReturnEvents(rug.id);
+    }
+    setResolvingReturnEventId(null);
+  };
 
   // Filter out services already added to this rug
   const addableServices = availableServices.filter(
@@ -487,6 +594,75 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
                   />
                 </>
               )}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Returns / Re-entry</h4>
+                {openReturnEvent ? <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Open event</Badge> : null}
+              </div>
+
+              <div className="grid gap-3 rounded-lg border p-3">
+                <div>
+                  <Label className="text-xs">Event type</Label>
+                  <Select value={returnEventType} onValueChange={(value: "immediate_return" | "reentry_for_approved_work") => setReturnEventType(value)}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="immediate_return">Immediate return from delivery</SelectItem>
+                      <SelectItem value="reentry_for_approved_work">Re-entry for newly approved work</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Reason</Label>
+                  <Textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} rows={2} placeholder="Why is the rug returning?" />
+                </div>
+                <div>
+                  <Label className="text-xs">Approved work / follow-up work</Label>
+                  <Input value={returnApprovedWork} onChange={(e) => setReturnApprovedWork(e.target.value)} placeholder="Repair, touch-up, approved service, etc." />
+                </div>
+                <div>
+                  <Label className="text-xs">Notes</Label>
+                  <Textarea value={returnNotes} onChange={(e) => setReturnNotes(e.target.value)} rows={2} placeholder="Any office or check-in context" />
+                </div>
+                <Button className="w-full gap-1.5" onClick={handleLogReturnEvent} disabled={loggingReturnEvent}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {loggingReturnEvent ? "Logging..." : "Log return / re-entry and move back to check-in"}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">History</h5>
+                {returnEventsLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading return events...</p>
+                ) : returnEvents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No return or re-entry events yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {returnEvents.map((event) => {
+                      const isResolved = event.event_type === "rug_return_resolved";
+                      const isOpen = !isResolved && openReturnEvent?.id === event.id;
+                      return (
+                        <div key={event.id} className="rounded-md border px-3 py-2 text-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium text-foreground">{event.subject}</span>
+                                {isResolved ? <Badge variant="secondary">Resolved</Badge> : isOpen ? <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Open</Badge> : <Badge variant="outline">Historical</Badge>}
+                              </div>
+                              <p className="whitespace-pre-line text-muted-foreground">{event.body}</p>
+                              <p className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>
+                            </div>
+                            {!isResolved && isOpen ? <Button size="sm" variant="outline" onClick={() => handleResolveReturnEvent(event.id)} disabled={resolvingReturnEventId === event.id}>{resolvingReturnEventId === event.id ? "Resolving..." : "Resolve"}</Button> : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <Separator />
