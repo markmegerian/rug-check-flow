@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { LoadingState } from "@/components/states/PageState";
-import { PickupStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
+import { InvoiceStatusBadge, PickupStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,11 +62,41 @@ type RugLookup = {
 type RugServiceLookup = {
   rug_id: string;
   service_name: string | null;
+  line_total: number | null;
+};
+
+type EstimateResponseLookup = {
+  rug_id: string | null;
+  event_type: string;
+  subject: string | null;
+  created_at: string;
+};
+
+type InvoiceLookup = {
+  id: string;
+  invoice_number: string;
+  status: string;
+  created_at: string;
+  issued_at: string | null;
+};
+
+type InvoiceItemLookup = {
+  rug_id: string | null;
+  invoices: InvoiceLookup | InvoiceLookup[] | null;
+};
+
+type LatestEstimateResponse = {
+  status: "approved" | "rejected";
+  subject: string | null;
+  createdAt: string;
 };
 
 type JobItemView = PickupItemRow & {
   linkedRug: RugLookup | null;
   linkedServices: string[];
+  linkedServiceTotal: number;
+  latestEstimateResponse: LatestEstimateResponse | null;
+  linkedInvoice: InvoiceLookup | null;
 };
 
 type JobView = {
@@ -159,29 +189,61 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
 
       let rugMap = new Map<string, RugLookup>();
       const serviceMap = new Map<string, string[]>();
+      const serviceTotalMap = new Map<string, number>();
+      const estimateResponseMap = new Map<string, LatestEstimateResponse>();
+      const invoiceMap = new Map<string, InvoiceLookup>();
 
       if (checkedInRugIds.length > 0) {
-        const { data: rugData, error: rugError } = await supabase
-          .from("rugs")
-          .select("id, tag, status, photo_url, size_length, size_width")
-          .in("id", checkedInRugIds);
+        const [rugResult, serviceResult, responseResult, invoiceResult] = await Promise.all([
+          supabase
+            .from("rugs")
+            .select("id, tag, status, photo_url, size_length, size_width")
+            .in("id", checkedInRugIds),
+          supabase
+            .from("rug_services")
+            .select("rug_id, service_name, line_total")
+            .in("rug_id", checkedInRugIds),
+          supabaseExtended
+            .from("communication_events")
+            .select("rug_id, event_type, subject, created_at")
+            .in("rug_id", checkedInRugIds)
+            .in("event_type", ["estimate_approved_by_client", "estimate_rejected_by_client"])
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("invoice_items")
+            .select("rug_id, invoices(id, invoice_number, status, created_at, issued_at)")
+            .in("rug_id", checkedInRugIds),
+        ]);
 
-        if (rugError) throw rugError;
+        if (rugResult.error) throw rugResult.error;
+        if (serviceResult.error) throw serviceResult.error;
+        if (responseResult.error) throw responseResult.error;
+        if (invoiceResult.error) throw invoiceResult.error;
 
-        rugMap = new Map(((rugData ?? []) as RugLookup[]).map((rug) => [rug.id, rug]));
+        rugMap = new Map(((rugResult.data ?? []) as RugLookup[]).map((rug) => [rug.id, rug]));
 
-        const { data: serviceData, error: serviceError } = await supabase
-          .from("rug_services")
-          .select("rug_id, service_name")
-          .in("rug_id", checkedInRugIds);
-
-        if (serviceError) throw serviceError;
-
-        for (const row of (serviceData ?? []) as RugServiceLookup[]) {
+        for (const row of (serviceResult.data ?? []) as RugServiceLookup[]) {
           const current = serviceMap.get(row.rug_id) ?? [];
           const name = row.service_name?.trim();
           if (name && !current.includes(name)) current.push(name);
           serviceMap.set(row.rug_id, current);
+          serviceTotalMap.set(row.rug_id, (serviceTotalMap.get(row.rug_id) ?? 0) + Number(row.line_total ?? 0));
+        }
+
+        for (const row of (responseResult.data ?? []) as EstimateResponseLookup[]) {
+          if (!row.rug_id || estimateResponseMap.has(row.rug_id)) continue;
+          estimateResponseMap.set(row.rug_id, {
+            status: row.event_type === "estimate_approved_by_client" ? "approved" : "rejected",
+            subject: row.subject,
+            createdAt: row.created_at,
+          });
+        }
+
+        for (const row of (invoiceResult.data ?? []) as InvoiceItemLookup[]) {
+          if (!row.rug_id || invoiceMap.has(row.rug_id) || !row.invoices) continue;
+          const invoice = Array.isArray(row.invoices) ? row.invoices[0] ?? null : row.invoices;
+          if (!invoice) continue;
+          invoiceMap.set(row.rug_id, invoice);
         }
       }
 
@@ -223,7 +285,10 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         if (!job) continue;
         const linkedRug = item.checked_in_rug_id ? rugMap.get(item.checked_in_rug_id) ?? null : null;
         const linkedServices = item.checked_in_rug_id ? serviceMap.get(item.checked_in_rug_id) ?? [] : [];
-        job.items.push({ ...item, linkedRug, linkedServices });
+        const linkedServiceTotal = item.checked_in_rug_id ? serviceTotalMap.get(item.checked_in_rug_id) ?? 0 : 0;
+        const latestEstimateResponse = item.checked_in_rug_id ? estimateResponseMap.get(item.checked_in_rug_id) ?? null : null;
+        const linkedInvoice = item.checked_in_rug_id ? invoiceMap.get(item.checked_in_rug_id) ?? null : null;
+        job.items.push({ ...item, linkedRug, linkedServices, linkedServiceTotal, latestEstimateResponse, linkedInvoice });
       }
 
       const nextJobs = Array.from(grouped.values())
@@ -445,6 +510,8 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
           const estimateCount = job.items.filter((item) => item.estimate_requested).length;
           const verifiedCount = job.items.filter((item) => item.verified).length;
           const statusSet = [...job.statuses].sort();
+          const invoicedCount = job.items.filter((item) => item.linkedInvoice).length;
+          const estimateRespondedCount = job.items.filter((item) => item.latestEstimateResponse).length;
 
           return (
             <section key={job.key} className="overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-sm">
@@ -467,6 +534,8 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                     <Badge variant="secondary">{checkedInCount} checked in</Badge>
                     <Badge variant="secondary">{verifiedCount} truck-confirmed</Badge>
                     {estimateCount > 0 ? <Badge variant="secondary">{estimateCount} estimate request{estimateCount === 1 ? "" : "s"}</Badge> : null}
+                    {estimateRespondedCount > 0 ? <Badge variant="secondary">{estimateRespondedCount} response{estimateRespondedCount === 1 ? "" : "s"}</Badge> : null}
+                    {invoicedCount > 0 ? <Badge variant="secondary">{invoicedCount} invoiced</Badge> : null}
                     {statusSet.map((status) => (
                       <PickupStatusBadge key={`${job.key}-${status}`} status={status} />
                     ))}
@@ -512,11 +581,30 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                               <span>{formatSize(item.length, item.width)}</span>
                             </div>
                             {item.estimate_request_details ? <p className="text-sm text-muted-foreground">Estimate note: {item.estimate_request_details}</p> : null}
+                            {item.latestEstimateResponse ? (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <Badge className={item.latestEstimateResponse.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"}>
+                                  Estimate {item.latestEstimateResponse.status}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{new Date(item.latestEstimateResponse.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            ) : null}
+                            {item.linkedInvoice ? (
+                              <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <Badge variant="outline">{item.linkedInvoice.invoice_number}</Badge>
+                                <InvoiceStatusBadge status={item.linkedInvoice.status} />
+                              </div>
+                            ) : null}
                             {item.linkedServices.length > 0 ? (
                               <div className="flex flex-wrap gap-2 pt-1">
                                 {item.linkedServices.map((service) => (
                                   <Badge key={`${item.id}-${service}`} variant="secondary">{service}</Badge>
                                 ))}
+                                {item.linkedServiceTotal > 0 ? <Badge variant="outline">${item.linkedServiceTotal.toFixed(2)} services</Badge> : null}
+                              </div>
+                            ) : item.linkedServiceTotal > 0 ? (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                <Badge variant="outline">${item.linkedServiceTotal.toFixed(2)} services</Badge>
                               </div>
                             ) : null}
                           </div>
