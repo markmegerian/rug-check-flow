@@ -1,12 +1,39 @@
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/states/PageState";
 import { RugStatusBadge } from "@/components/shared/StatusBadge";
 import { useSuperAdminQueues } from "@/hooks/useSuperAdminQueues";
+import { supabaseExtended } from "@/integrations/supabase/extended";
+import { useToast } from "@/hooks/use-toast";
 
 export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const query = useSuperAdminQueues();
+  const { toast } = useToast();
+  const [handlingId, setHandlingId] = useState<string | null>(null);
+
+  const handleMarkHandled = async (itemId: string, clientName: string, rugId: string | null) => {
+    const note = window.prompt(`Mark this attention item handled for ${clientName}. Optional note:`) ?? "";
+    setHandlingId(itemId);
+    const { error } = await supabaseExtended.from("communication_events").insert({
+      client_id: null,
+      rug_id: rugId,
+      channel: "in_app_chat",
+      direction: "outbound",
+      event_type: "attention_item_handled",
+      subject: itemId,
+      body: note.trim() || `Handled from admin attention queue for ${clientName}` ,
+    });
+
+    if (error) {
+      toast({ title: "Failed to mark handled", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Attention item handled" });
+      await query.refetch();
+    }
+    setHandlingId(null);
+  };
 
   if (query.isLoading) {
     return (
@@ -41,11 +68,16 @@ export function AttentionQueueTab({ onOpenRug }: { onOpenRug: (rugId: string) =>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{item.clientName}</p>
               <p className="mt-1 text-sm text-foreground">{item.reason}</p>
-              <p className="mt-2 text-xs text-muted-foreground">Checked in {formatDistanceToNow(new Date(item.checkedInAt), { addSuffix: true })}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{item.checkedInAt ? `Checked in ${formatDistanceToNow(new Date(item.checkedInAt), { addSuffix: true })}` : `Logged ${formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}`}</p>
             </div>
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2">
               {item.photoUrl ? <img src={item.photoUrl} alt={`Rug ${item.rugNumber}`} className="h-16 w-16 rounded-lg border object-cover" /> : null}
-              <Button size="sm" variant="outline" onClick={() => onOpenRug(item.rugId)}>Open rug</Button>
+              <div className="flex flex-col gap-2">
+                {item.rugId ? <Button size="sm" variant="outline" onClick={() => onOpenRug(item.rugId!)}>Open rug</Button> : null}
+                <Button size="sm" variant="secondary" onClick={() => void handleMarkHandled(item.id, item.clientName, item.rugId)} disabled={handlingId === item.id}>
+                  {handlingId === item.id ? "Handling..." : "Mark handled"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
