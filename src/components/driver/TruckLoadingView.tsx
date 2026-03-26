@@ -39,6 +39,15 @@ interface ClientGroup {
   rugs: RugOnTruck[];
 }
 
+interface DeliveryListSummary {
+  id: string;
+  routeDay: string;
+  targetDate: string;
+  status: string;
+  confirmedAt: string | null;
+  updatedAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -80,6 +89,8 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
   const [invoiceCount, setInvoiceCount] = useState(0);
 
   const [deliveryListId, setDeliveryListId] = useState<string | null>(null);
+  const [deliveryListSummary, setDeliveryListSummary] = useState<DeliveryListSummary | null>(null);
+  const [matchingListCount, setMatchingListCount] = useState(0);
   const [rugs, setRugs] = useState<RugOnTruck[]>([]);
 
   // Track which rugs the driver has toggled as loaded (keyed by rugId)
@@ -97,25 +108,45 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       const todayStr = format(new Date(), "yyyy-MM-dd");
       const routeDay = getTodayRouteDay();
 
-      // 1. Fetch today's delivery list
+      // 1. Fetch today's delivery lists for the route day and deterministically choose the active one
       const { data: lists, error: listErr } = await supabase
         .from("delivery_lists")
-        .select("*")
+        .select("id, route_day, target_date, status, confirmed_at, updated_at")
         .eq("target_date", todayStr)
-        .in("status", ["compiling", "confirmed"])
-        .limit(1);
+        .eq("route_day", routeDay)
+        .in("status", ["compiling", "confirmed"]);
 
       if (listErr) throw listErr;
 
-      if (!lists || lists.length === 0) {
+      const rankedLists = [...(lists ?? [])].sort((a, b) => {
+        const rank = (status: string) => (status === "confirmed" ? 0 : 1);
+        const rankDiff = rank(a.status) - rank(b.status);
+        if (rankDiff !== 0) return rankDiff;
+        const aStamp = Date.parse(a.confirmed_at ?? a.updated_at);
+        const bStamp = Date.parse(b.confirmed_at ?? b.updated_at);
+        return bStamp - aStamp;
+      });
+
+      if (rankedLists.length === 0) {
         setDeliveryListId(null);
+        setDeliveryListSummary(null);
+        setMatchingListCount(0);
         setRugs([]);
         setLoading(false);
         return;
       }
 
-      const list = lists[0];
+      const list = rankedLists[0];
       setDeliveryListId(list.id);
+      setMatchingListCount(rankedLists.length);
+      setDeliveryListSummary({
+        id: list.id,
+        routeDay: list.route_day,
+        targetDate: list.target_date,
+        status: list.status,
+        confirmedAt: list.confirmed_at,
+        updatedAt: list.updated_at,
+      });
 
       // If already checked out, show submitted state
       if (list.status === "checked_out") {
@@ -462,6 +493,13 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
             {totalCount} rug{totalCount === 1 ? "" : "s"} &middot; {activeRugs.length} confirmed
           </span>
         </div>
+        {deliveryListSummary ? (
+          <div className="max-w-lg mx-auto mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="secondary">{deliveryListSummary.routeDay}</Badge>
+            <Badge variant="outline">List {deliveryListSummary.status}</Badge>
+            {matchingListCount > 1 ? <Badge variant="outline">Using latest of {matchingListCount} lists</Badge> : null}
+          </div>
+        ) : null}
       </header>
 
       {/* ---- Main list grouped by client ---- */}
