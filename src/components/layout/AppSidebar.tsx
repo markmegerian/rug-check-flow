@@ -81,32 +81,34 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
   const isOffice = hasRole("admin") || hasRole("office");
   const canManagePricing = hasRole("admin");
 
-  const navItems = isSuperAdmin
+  const topLevelNavItems = isSuperAdmin
     ? SUPERADMIN_NAV_ITEMS.map((item) => ({
         title: item.title,
         url: item.url,
         icon: item.icon,
         active: item.active(location.pathname),
       }))
-    : location.pathname.startsWith("/portal") && isPortalUser
-      ? PORTAL_ITEMS.map((item) => ({
-          title: item.label,
-          url: `/portal?tab=${item.id}`,
-          icon: item.icon,
-          active: location.pathname.startsWith("/portal") && (currentTab ?? "rugs") === item.id,
-        }))
-      : [
-          ...OPS_FLOOR_ITEMS,
-          ...(isOffice ? [
-            ...(canManagePricing ? [PRICING_ITEM] : []),
-            ...OPS_BUSINESS_ITEMS,
-          ] : []),
-        ].map((item) => ({
-          title: item.label,
-          url: `/ops?tab=${item.id}`,
-          icon: item.icon,
-          active: location.pathname.startsWith("/ops") && (currentTab ?? "checkin") === item.id,
-        }));
+    : [];
+
+  const contextualTabItems = location.pathname.startsWith("/portal") && isPortalUser
+    ? PORTAL_ITEMS.map((item) => ({
+        title: item.label,
+        url: `/portal?tab=${item.id}`,
+        icon: item.icon,
+        active: location.pathname.startsWith("/portal") && (currentTab ?? "rugs") === item.id,
+      }))
+    : [
+        ...OPS_FLOOR_ITEMS,
+        ...(isOffice ? [
+          ...(canManagePricing ? [PRICING_ITEM] : []),
+          ...OPS_BUSINESS_ITEMS,
+        ] : []),
+      ].map((item) => ({
+        title: item.label,
+        url: `/ops?tab=${item.id}`,
+        icon: item.icon,
+        active: location.pathname.startsWith("/ops") && (currentTab ?? "checkin") === item.id,
+      }));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">
@@ -145,32 +147,65 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={item.active}
-                    tooltip={collapsed ? item.title : undefined}
-                  >
-                    <Link
-                      to={item.url}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                        item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
-                      )}
+        {topLevelNavItems.length > 0 ? (
+          <SidebarGroup>
+            {!collapsed ? <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/45">Navigate</div> : null}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {topLevelNavItems.map((item) => (
+                  <SidebarMenuItem key={`top-${item.title}`}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={item.active}
+                      tooltip={collapsed ? item.title : undefined}
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                      <Link
+                        to={item.url}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {contextualTabItems.length > 0 ? (
+          <SidebarGroup>
+            {!collapsed ? <div className="px-3 pb-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/45">Workspace</div> : null}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {contextualTabItems.map((item) => (
+                  <SidebarMenuItem key={`ctx-${item.title}`}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={item.active}
+                      tooltip={collapsed ? item.title : undefined}
+                    >
+                      <Link
+                        to={item.url}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
 
       <SidebarFooter className="p-3">
