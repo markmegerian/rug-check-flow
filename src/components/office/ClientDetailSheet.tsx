@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { ClientActivityFeed } from "./ClientActivityFeed";
+import { ClientBillingSummary } from "./ClientBillingSummary";
 import { type BillingReminderPreference, formatInvoiceTermsLabel } from "@/lib/billing";
 
 type PricingTier = "standard" | "preferred" | "vip";
@@ -188,6 +189,12 @@ export function ClientDetailSheet({
           {editingId && (
             <>
               <Separator />
+              <ClientBillingSummary
+                clientId={editingId}
+                invoiceTermsDays={form.invoice_terms_days}
+                billingReminderPreference={form.billing_reminder_preference}
+                billingNotes={form.billing_notes}
+              />
               <ClientActivityFeed clientId={editingId} />
             </>
           )}

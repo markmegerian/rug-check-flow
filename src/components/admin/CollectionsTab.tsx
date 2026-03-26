@@ -10,67 +10,14 @@ import { LoadingState } from "@/components/states/PageState";
 import { InvoiceStatusBadge } from "@/components/shared/StatusBadge";
 import { useSuperAdminQueues, type OverdueInvoiceItem } from "@/hooks/useSuperAdminQueues";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { COLLECTION_ACTION_META, formatInvoiceTermsLabel, formatReminderPreferenceLabel, type BillingReminderPreference, type CollectionsActionType } from "@/lib/billing";
 
 type CollectionsActionEvent = Pick<
   ExtendedTableRow<"communication_events">,
   "id" | "client_id" | "invoice_id" | "event_type" | "subject" | "body" | "created_at"
 >;
-
-type CollectionsActionType =
-  | "collections_reminder_sent"
-  | "collections_account_handled"
-  | "collections_account_on_hold"
-  | "collections_account_disputed";
-
-type ActionDraft = {
-  clientId: string;
-  clientName: string;
-  eventType: CollectionsActionType;
-  note: string;
-  primaryInvoiceId: string | null;
-  invoiceNumbers: string[];
-  overdueTotal: number;
-};
-
-type ClientCollectionGroup = {
-  clientId: string;
-  clientName: string;
-  invoices: OverdueInvoiceItem[];
-  overdueTotal: number;
-  oldestAgeDays: number;
-  latestAction: CollectionsActionEvent | null;
-  nextAction: {
-    label: string;
-    tone: "warning" | "success" | "danger" | "neutral";
-  };
-};
-
-const COLLECTION_ACTION_META: Record<
-  CollectionsActionType,
-  { label: string; description: string; channel: "email" | "in_app_chat" }
-> = {
-  collections_reminder_sent: {
-    label: "Reminder sent",
-    description: "Log that collections follow-up went out to this client account.",
-    channel: "email",
-  },
-  collections_account_handled: {
-    label: "Marked handled",
-    description: "Log that this account has an owner and a current follow-up plan.",
-    channel: "in_app_chat",
-  },
-  collections_account_on_hold: {
-    label: "Placed on hold",
-    description: "Log that the account is intentionally paused from normal collections follow-up.",
-    channel: "in_app_chat",
-  },
-  collections_account_disputed: {
-    label: "Marked disputed",
-    description: "Log that the overdue balance is under review or being challenged.",
-    channel: "in_app_chat",
-  },
-};
 
 function getInvoiceAgeDays(invoice: OverdueInvoiceItem) {
   const dueBase = invoice.due_at ?? invoice.created_at;
@@ -127,6 +74,28 @@ function nextActionToneClass(tone: ClientCollectionGroup["nextAction"]["tone"]) 
   return "border-border/70 bg-muted/40 text-foreground";
 }
 
+async function fetchClientBillingProfiles(clientIds: string[]) {
+  if (clientIds.length === 0) return new Map<string, ClientBillingProfile>();
+
+  const { data, error } = await supabase
+    .from("clients")
+    .select("id, invoice_terms_days, billing_reminder_preference, billing_notes")
+    .in("id", clientIds);
+
+  if (error) throw error;
+
+  return new Map(
+    (data ?? []).map((row) => [
+      row.id,
+      {
+        invoice_terms_days: row.invoice_terms_days,
+        billing_reminder_preference: row.billing_reminder_preference as BillingReminderPreference,
+        billing_notes: row.billing_notes,
+      },
+    ]),
+  );
+}
+
 async function fetchCollectionsActions(clientIds: string[]) {
   if (clientIds.length === 0) return [] as CollectionsActionEvent[];
 
@@ -160,6 +129,13 @@ export function CollectionsTab() {
     staleTime: 60_000,
   });
 
+  const profilesQuery = useQuery({
+    queryKey: ["collections-client-billing-profiles", clientIds.slice().sort().join(",")],
+    queryFn: () => fetchClientBillingProfiles(clientIds),
+    enabled: clientIds.length > 0,
+    staleTime: 60_000,
+  });
+
   const groupedClients = useMemo(() => {
     const latestActions = getLatestActions(actionsQuery.data ?? []);
     const grouped = new Map<string, Omit<ClientCollectionGroup, "nextAction">>();
@@ -173,6 +149,7 @@ export function CollectionsTab() {
         overdueTotal: 0,
         oldestAgeDays: 0,
         latestAction: clientId.startsWith("unknown-") ? null : latestActions.get(clientId) ?? null,
+        billingProfile: clientId.startsWith("unknown-") ? null : profilesQuery.data?.get(clientId) ?? null,
       };
 
       existing.invoices.push(invoice);
@@ -191,7 +168,7 @@ export function CollectionsTab() {
         if (b.oldestAgeDays !== a.oldestAgeDays) return b.oldestAgeDays - a.oldestAgeDays;
         return b.overdueTotal - a.overdueTotal;
       });
-  }, [actionsQuery.data, query.data?.overdueInvoices]);
+  }, [actionsQuery.data, profilesQuery.data, query.data?.overdueInvoices]);
 
   const openActionDialog = (group: ClientCollectionGroup, eventType: CollectionsActionType) => {
     setActionDraft({
@@ -264,9 +241,9 @@ export function CollectionsTab() {
               ${query.data.totals.overdueBalance.toFixed(2)} overdue across {query.data.totals.overdueInvoices} invoice(s) · {groupedClients.length} client account{groupedClients.length === 1 ? "" : "s"}
             </p>
           </div>
-          {actionsQuery.isFetching ? (
+          {actionsQuery.isFetching || profilesQuery.isFetching ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Refreshing actions
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Refreshing account context
             </div>
           ) : null}
         </div>
@@ -292,6 +269,8 @@ export function CollectionsTab() {
                   ) : (
                     <Badge variant="outline">No collections action logged yet</Badge>
                   )}
+                  {group.billingProfile ? <Badge variant="outline">{formatInvoiceTermsLabel(group.billingProfile.invoice_terms_days)}</Badge> : null}
+                  {group.billingProfile ? <Badge variant="outline">Reminder: {formatReminderPreferenceLabel(group.billingProfile.billing_reminder_preference)}</Badge> : null}
                 </div>
               </div>
 
@@ -307,6 +286,13 @@ export function CollectionsTab() {
               <div className="font-medium">Next action</div>
               <div className="mt-1">{group.nextAction.label}</div>
             </div>
+
+            {group.billingProfile?.billing_notes?.trim() ? (
+              <div className="rounded-xl border border-border/70 bg-background/70 p-3 text-sm text-muted-foreground whitespace-pre-line">
+                <span className="font-medium text-foreground">Billing notes</span>
+                <div className="mt-1">{group.billingProfile.billing_notes}</div>
+              </div>
+            ) : null}
 
             {group.latestAction?.body ? (
               <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground whitespace-pre-line">

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BILLING_REMINDER_PREFERENCES,
+  COLLECTION_ACTION_META,
+  COLLECTION_ACTION_TYPES,
   DEFAULT_INVOICE_TERMS_DAYS,
   calculateInvoiceDueDate,
   formatInvoiceTermsLabel,
+  formatReminderPreferenceLabel,
   normalizeInvoiceTermsDays,
 } from "@/lib/billing";
 
@@ -30,4 +33,16 @@ describe("billing helpers", () => {
   it("keeps reminder preferences explicit", () => {
     expect(BILLING_REMINDER_PREFERENCES).toEqual(["email", "phone", "manual"]);
   });
+
+  it("formats reminder preferences for UI", () => {
+    expect(formatReminderPreferenceLabel("email")).toBe("Email");
+    expect(formatReminderPreferenceLabel("phone")).toBe("Phone");
+    expect(formatReminderPreferenceLabel("manual")).toBe("Manual only");
+  });
+
+  it("keeps collections actions centralized", () => {
+    expect(COLLECTION_ACTION_TYPES).toContain("collections_account_disputed");
+    expect(COLLECTION_ACTION_META.collections_reminder_sent.label).toBe("Reminder sent");
+  });
+
 });
