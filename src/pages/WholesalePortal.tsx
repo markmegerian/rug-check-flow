@@ -60,11 +60,7 @@ export default function WholesalePortal() {
 
   useEffect(() => {
     setMountedTabs((current) => current[activeTab] ? current : { ...current, [activeTab]: true });
-    if (searchParams.get("tab") === activeTab) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", activeTab);
-    setSearchParams(next, { replace: true });
-  }, [activeTab, searchParams, setSearchParams]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!clientId || portalClientLoading || requiresPasswordReset) return;
@@ -73,6 +69,14 @@ export default function WholesalePortal() {
     }, 450);
     return () => window.clearTimeout(timer);
   }, [clientId, portalClientLoading, requiresPasswordReset]);
+
+  const changeTab = (nextTab: Tab) => {
+    setActiveTab(nextTab);
+    if (searchParams.get("tab") === nextTab) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", nextTab);
+    setSearchParams(next, { replace: true });
+  };
 
   const openOnboarding = () => {
     if (requiresPasswordReset) {
@@ -84,7 +88,7 @@ export default function WholesalePortal() {
       return;
     }
     setOnboardingStep(0);
-    setActiveTab("rugs");
+    changeTab("rugs");
     setOnboardingOpen(true);
   };
 
@@ -207,7 +211,7 @@ export default function WholesalePortal() {
             </div>
           ) : (
             <div className="p-4 md:p-6 space-y-4">
-              {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={setActiveTab} /> : null}
+              {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={changeTab} /> : null}
 
               {mountedTabs.rugs ? (
                 <div className={activeTab === "rugs" ? "block" : "hidden"}>
@@ -244,7 +248,7 @@ export default function WholesalePortal() {
         completing={onboardingSaving}
         onOpenChange={setOnboardingOpen}
         onStepChange={setOnboardingStep}
-        onFocusTab={(tab) => setActiveTab(tab)}
+        onFocusTab={(tab) => changeTab(tab)}
         onComplete={completeOnboarding}
       />
     </AppShell>
