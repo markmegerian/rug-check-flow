@@ -88,7 +88,12 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         icon: item.icon,
         active: item.active(location.pathname),
       }))
-    : [];
+    : [{
+        title: "Mission Control",
+        url: "/",
+        icon: Home,
+        active: location.pathname === "/",
+      }];
 
   const contextualTabItems = location.pathname.startsWith("/portal") && isPortalUser
     ? PORTAL_ITEMS.map((item) => ({
