@@ -48,6 +48,8 @@ export default function WholesalePortal() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const requiresPasswordReset = Boolean(clientId) && portalMustChangePassword;
+  const onboardingUnlocked = Boolean(clientId) && !portalMustChangePassword;
   const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
 
   useEffect(() => {
@@ -71,8 +73,6 @@ export default function WholesalePortal() {
     }, 450);
     return () => window.clearTimeout(timer);
   }, [clientId, portalClientLoading, requiresPasswordReset]);
-  const requiresPasswordReset = Boolean(clientId) && portalMustChangePassword;
-  const onboardingUnlocked = Boolean(clientId) && !portalMustChangePassword;
 
   const openOnboarding = () => {
     if (requiresPasswordReset) {
