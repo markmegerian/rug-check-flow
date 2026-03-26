@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { usePortalClient } from "@/hooks/usePortalClient";
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import type { PortalTabProps } from "./portal-tab-props";
 
 type PricingTier = "standard" | "preferred" | "vip";
 
@@ -17,8 +17,7 @@ type ClientPricing = { pricing_tier: PricingTier; name: string };
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
-export default function PortalPricingTab() {
-  const { clientId, loading, errorMessage } = usePortalClient();
+export default function PortalPricingTab({ clientId, loading, errorMessage }: PortalTabProps) {
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [clientPricing, setClientPricing] = useState<ClientPricing | null>(null);
   const [isLoading, setIsLoading] = useState(false);

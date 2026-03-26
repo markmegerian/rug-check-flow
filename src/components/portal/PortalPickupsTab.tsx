@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type PortalPickup, type PickupRugEntry } from "@/types/portal";
 import { useToast } from "@/hooks/use-toast";
+import type { PortalTabProps } from "./portal-tab-props";
 import { Lock, Plus, Truck } from "lucide-react";
 import { autoAssignPickupToDriver } from "@/lib/pickup-automation";
 import {
@@ -12,7 +13,6 @@ import {
   type ExtendedTableInsert,
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
-import { usePortalClient } from "@/hooks/usePortalClient";
 import {
   canPortalEditPickup,
   canRoleTransitionPickupStatus,
@@ -60,9 +60,8 @@ type ClientLookupRow = {
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export default function PortalPickupsTab() {
+export default function PortalPickupsTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
-  const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
 
   const [pickups, setPickups] = useState<PortalPickup[]>([]);
   const [loading, setLoading] = useState(true);

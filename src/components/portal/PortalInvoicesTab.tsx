@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import type { PortalTabProps } from "./portal-tab-props";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
-import { usePortalClient } from "@/hooks/usePortalClient";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 import { getCollectionsStateBadgeClass, getPortalBillingState, type CollectionsStateTone } from "@/lib/billing";
 import { type InvoiceStatus } from "@/components/shared/StatusBadge";
@@ -82,9 +82,8 @@ const PAYMENT_STATUS_STYLE: Record<PaymentAttemptStatus, string> = {
   failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
-export default function PortalInvoicesTab() {
+export default function PortalInvoicesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
-  const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);

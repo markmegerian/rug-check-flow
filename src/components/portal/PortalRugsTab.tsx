@@ -3,8 +3,8 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { usePortalClient } from "@/hooks/usePortalClient";
 import { useToast } from "@/hooks/use-toast";
+import type { PortalTabProps } from "./portal-tab-props";
 import { supabase } from "@/integrations/supabase/client";
 import {
   supabaseExtended,
@@ -24,9 +24,8 @@ type PickupGroup = {
   rugIds: Set<string>;
 };
 
-export default function PortalRugsTab() {
+export default function PortalRugsTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
-  const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
   const [loading, setLoading] = useState(true);
   const [rugs, setRugs] = useState<RugRow[]>([]);
   const [selectedRug, setSelectedRug] = useState<RugRow | null>(null);

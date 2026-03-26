@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { usePortalClient } from "@/hooks/usePortalClient";
+import type { PortalTabProps } from "./portal-tab-props";
 import { Check, FileText, X } from "lucide-react";
 import {
   supabaseExtended,
@@ -54,9 +54,8 @@ const statusBadge = (status: EstimateStatus) => {
   return <Badge variant="outline">Draft</Badge>;
 };
 
-export default function PortalEstimatesTab() {
+export default function PortalEstimatesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
-  const { clientId, loading: portalClientLoading, errorMessage } = usePortalClient();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [lineItemsByEstimateId, setLineItemsByEstimateId] = useState<Record<string, EstimateItemRow[]>>({});
   const [loading, setLoading] = useState(false);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PortalRugsTab from "@/components/portal/PortalRugsTab";
 import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePortalClient } from "@/hooks/usePortalClient";
+import { useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,13 +31,17 @@ export default function WholesalePortal() {
   const { toast } = useToast();
   const {
     clientId,
-    loading: _portalClientLoading,
+    loading: portalClientLoading,
+    errorMessage,
     onboardingCompletedAt,
     markOnboardingComplete,
     markPasswordChangeComplete,
     mustChangePassword: portalMustChangePassword,
   } = usePortalClient();
-  const [activeTab, setActiveTab] = useState<Tab>("rugs");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<Tab>(requestedTab && TABS.some((tab) => tab.key === requestedTab) ? requestedTab as Tab : "rugs");
+  const [mountedTabs, setMountedTabs] = useState<Record<Tab, boolean>>({ rugs: true, pickups: false, estimates: false, invoices: false, prices: false });
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -44,6 +49,28 @@ export default function WholesalePortal() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
+
+  useEffect(() => {
+    if (requestedTab && TABS.some((tab) => tab.key === requestedTab)) {
+      setActiveTab((current) => current === requestedTab ? current : requestedTab as Tab);
+    }
+  }, [requestedTab]);
+
+  useEffect(() => {
+    setMountedTabs((current) => current[activeTab] ? current : { ...current, [activeTab]: true });
+    if (searchParams.get("tab") === activeTab) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", activeTab);
+    setSearchParams(next, { replace: true });
+  }, [activeTab, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!clientId || portalClientLoading || requiresPasswordReset) return;
+    const timer = window.setTimeout(() => {
+      setMountedTabs({ rugs: true, pickups: true, estimates: true, invoices: true, prices: true });
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [clientId, portalClientLoading, requiresPasswordReset]);
   const requiresPasswordReset = Boolean(clientId) && portalMustChangePassword;
   const onboardingUnlocked = Boolean(clientId) && !portalMustChangePassword;
 
@@ -196,11 +223,32 @@ export default function WholesalePortal() {
           ) : (
             <div className="p-4 md:p-6 space-y-4">
               {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={setActiveTab} /> : null}
-              {activeTab === "rugs" && <PortalRugsTab />}
-              {activeTab === "pickups" && <PortalPickupsTab />}
-              {activeTab === "estimates" && <PortalEstimatesTab />}
-              {activeTab === "invoices" && <PortalInvoicesTab />}
-              {activeTab === "prices" && <PortalPricingTab />}
+
+              {mountedTabs.rugs ? (
+                <div className={activeTab === "rugs" ? "block" : "hidden"}>
+                  <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                </div>
+              ) : null}
+              {mountedTabs.pickups ? (
+                <div className={activeTab === "pickups" ? "block" : "hidden"}>
+                  <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                </div>
+              ) : null}
+              {mountedTabs.estimates ? (
+                <div className={activeTab === "estimates" ? "block" : "hidden"}>
+                  <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                </div>
+              ) : null}
+              {mountedTabs.invoices ? (
+                <div className={activeTab === "invoices" ? "block" : "hidden"}>
+                  <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                </div>
+              ) : null}
+              {mountedTabs.prices ? (
+                <div className={activeTab === "prices" ? "block" : "hidden"}>
+                  <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                </div>
+              ) : null}
             </div>
           )}
         </div>
