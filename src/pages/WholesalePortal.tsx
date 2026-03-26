@@ -195,7 +195,7 @@ export default function WholesalePortal() {
             </div>
           ) : (
             <div className="p-4 md:p-6 space-y-4">
-              {clientId ? <PortalAccountSnapshot clientId={clientId} /> : null}
+              {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={setActiveTab} /> : null}
               {activeTab === "rugs" && <PortalRugsTab />}
               {activeTab === "pickups" && <PortalPickupsTab />}
               {activeTab === "estimates" && <PortalEstimatesTab />}

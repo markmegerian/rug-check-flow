@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ACTIVE_STATUSES } from "./portal-rug-types";
 import { getCollectionsStateBadgeClass, getPortalBillingState } from "@/lib/billing";
 
+type PortalSnapshotTab = "rugs" | "estimates" | "invoices";
+
 type PortalAccountSnapshotProps = {
   clientId: string;
+  onFocusTab?: (tab: PortalSnapshotTab) => void;
 };
 
 type SnapshotState = {
   activeRugs: number;
+  inProductionRugs: number;
+  readyRugs: number;
   pendingEstimates: number;
   openBalance: number;
   overdueBalance: number;
@@ -20,7 +26,7 @@ type SnapshotState = {
   oldestOverdueAgeDays: number | null;
 };
 
-export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) {
+export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSnapshotProps) {
   const [summary, setSummary] = useState<SnapshotState | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +38,7 @@ export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) 
       const [rugsResult, estimatesResult, invoicesResult] = await Promise.all([
         supabase
           .from("rugs")
-          .select("id", { count: "exact", head: true })
+          .select("id, status")
           .eq("client_id", clientId)
           .in("status", ACTIVE_STATUSES),
         supabaseExtended
@@ -50,6 +56,7 @@ export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) 
 
       if (cancelled) return;
 
+      const activeRugRows = rugsResult.data ?? [];
       const invoices = invoicesResult.data ?? [];
       const openInvoices = invoices.filter((invoice) => ["sent", "overdue"].includes(invoice.status));
       const overdueInvoices = invoices.filter((invoice) => invoice.status === "overdue");
@@ -62,7 +69,9 @@ export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) 
         : null;
 
       setSummary({
-        activeRugs: rugsResult.count ?? 0,
+        activeRugs: activeRugRows.length,
+        inProductionRugs: activeRugRows.filter((rug) => rug.status === "in_production").length,
+        readyRugs: activeRugRows.filter((rug) => rug.status === "ready").length,
         pendingEstimates: estimatesResult.data?.length ?? 0,
         openBalance: openInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
         overdueBalance: overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
@@ -92,6 +101,43 @@ export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) 
     if (summary.activeRugs > 0) return "Your current rugs and billing activity are summarized below.";
     return "Your account is currently quiet.";
   }, [summary]);
+  const attentionItems = useMemo(() => {
+    if (!summary) return [] as Array<{ key: string; title: string; detail: string; tab: PortalSnapshotTab }>;
+    const items: Array<{ key: string; title: string; detail: string; tab: PortalSnapshotTab }> = [];
+    if (summary.overdueInvoices > 0) {
+      items.push({
+        key: "overdue-invoices",
+        title: `${summary.overdueInvoices} overdue invoice${summary.overdueInvoices === 1 ? "" : "s"}`,
+        detail: `Review payment details for $${summary.overdueBalance.toFixed(2)} overdue.`,
+        tab: "invoices",
+      });
+    } else if (summary.openInvoices > 0) {
+      items.push({
+        key: "open-invoices",
+        title: `${summary.openInvoices} open invoice${summary.openInvoices === 1 ? "" : "s"}`,
+        detail: `Check the current balance of $${summary.openBalance.toFixed(2)}.`,
+        tab: "invoices",
+      });
+    }
+    if (summary.pendingEstimates > 0) {
+      items.push({
+        key: "pending-estimates",
+        title: `${summary.pendingEstimates} estimate${summary.pendingEstimates === 1 ? "" : "s"} awaiting review`,
+        detail: "Approve or reject proposed work from the Estimates tab.",
+        tab: "estimates",
+      });
+    }
+    if (summary.readyRugs > 0 || summary.inProductionRugs > 0) {
+      items.push({
+        key: "active-rugs",
+        title: `${summary.readyRugs} ready · ${summary.inProductionRugs} in production`,
+        detail: "Review current rug progress and pickup readiness.",
+        tab: "rugs",
+      });
+    }
+    return items;
+  }, [summary]);
+
 
   if (loading || !summary) {
     return <div className="rounded-2xl border border-border/70 bg-card/90 px-4 py-5 text-sm text-muted-foreground">Loading account snapshot…</div>;
@@ -109,18 +155,22 @@ export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) 
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
           <div className="text-xs text-muted-foreground">Active rugs</div>
           <div className="mt-1 text-lg font-semibold text-foreground">{summary.activeRugs}</div>
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-          <div className="text-xs text-muted-foreground">Pending estimates</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">{summary.pendingEstimates}</div>
+          <div className="text-xs text-muted-foreground">In production</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{summary.inProductionRugs}</div>
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-          <div className="text-xs text-muted-foreground">Open balance</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">${summary.openBalance.toFixed(2)}</div>
+          <div className="text-xs text-muted-foreground">Ready rugs</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{summary.readyRugs}</div>
+        </div>
+        <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+          <div className="text-xs text-muted-foreground">Pending estimates</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">{summary.pendingEstimates}</div>
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
           <div className="text-xs text-muted-foreground">Overdue balance</div>
@@ -130,9 +180,32 @@ export function PortalAccountSnapshot({ clientId }: PortalAccountSnapshotProps) 
 
       <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
         <Badge variant="outline">Open invoices: {summary.openInvoices}</Badge>
+        <Badge variant="outline">Open balance: ${summary.openBalance.toFixed(2)}</Badge>
         <Badge variant="outline">Overdue invoices: {summary.overdueInvoices}</Badge>
         <Badge variant="outline">Next due: {summary.nextDueAt ? new Date(summary.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</Badge>
       </div>
+
+      {attentionItems.length > 0 ? (
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">What needs attention</h3>
+            <p className="text-sm text-muted-foreground">Jump straight to the part of the portal that matters right now.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {attentionItems.map((item) => (
+              <div key={item.key} className="rounded-xl border border-border/70 bg-background/80 p-3 space-y-3">
+                <div>
+                  <div className="text-sm font-medium text-foreground">{item.title}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{item.detail}</div>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => onFocusTab?.(item.tab)}>
+                  Open {item.tab}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
