@@ -4,6 +4,7 @@ import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
 import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
 import PortalPricingTab from "@/components/portal/PortalPricingTab";
+import { PortalAccountSnapshot } from "@/components/portal/PortalAccountSnapshot";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,7 +194,8 @@ export default function WholesalePortal() {
               </Button>
             </div>
           ) : (
-            <div className="p-4 md:p-6">
+            <div className="p-4 md:p-6 space-y-4">
+              {clientId ? <PortalAccountSnapshot clientId={clientId} /> : null}
               {activeTab === "rugs" && <PortalRugsTab />}
               {activeTab === "pickups" && <PortalPickupsTab />}
               {activeTab === "estimates" && <PortalEstimatesTab />}
