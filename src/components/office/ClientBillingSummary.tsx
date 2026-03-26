@@ -10,6 +10,9 @@ import {
   COLLECTION_ACTION_TYPES,
   formatInvoiceTermsLabel,
   formatReminderPreferenceLabel,
+  getCollectionsAccountState,
+  getCollectionsNextAction,
+  getCollectionsStateBadgeClass,
   type BillingReminderPreference,
   type CollectionsActionType,
 } from "@/lib/billing";
@@ -41,15 +44,8 @@ type BillingSummaryData = {
   overdueInvoices: number;
   oldestOverdueAgeDays: number | null;
   latestCollectionsAction: CollectionsActionEvent | null;
+  collectionsActions: CollectionsActionEvent[];
 };
-
-function getCollectionsStateTone(eventType: string | null) {
-  if (eventType === "collections_account_on_hold") return "bg-muted text-muted-foreground";
-  if (eventType === "collections_account_disputed") return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200";
-  if (eventType === "collections_account_handled") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200";
-  if (eventType === "collections_reminder_sent") return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200";
-  return "bg-muted text-muted-foreground";
-}
 
 async function fetchBillingSummary(clientId: string): Promise<BillingSummaryData> {
   const [invoiceResult, actionsResult] = await Promise.all([
@@ -91,6 +87,7 @@ async function fetchBillingSummary(clientId: string): Promise<BillingSummaryData
     overdueInvoices: overdueInvoices.length,
     oldestOverdueAgeDays,
     latestCollectionsAction: actions[0] ?? null,
+    collectionsActions: actions,
   };
 }
 
@@ -126,6 +123,16 @@ export function ClientBillingSummary({
   }
 
   const summary = summaryQuery.data;
+  const accountState = getCollectionsAccountState({
+    oldestOverdueAgeDays: summary.oldestOverdueAgeDays,
+    latestActionType: summary.latestCollectionsAction?.event_type as CollectionsActionType | undefined,
+    latestActionCreatedAt: summary.latestCollectionsAction?.created_at,
+  });
+  const nextAction = getCollectionsNextAction({
+    oldestOverdueAgeDays: summary.oldestOverdueAgeDays,
+    latestActionType: summary.latestCollectionsAction?.event_type as CollectionsActionType | undefined,
+    latestActionCreatedAt: summary.latestCollectionsAction?.created_at,
+  });
 
   return (
     <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-4">
@@ -134,9 +141,12 @@ export function ClientBillingSummary({
           <h3 className="text-sm font-semibold text-foreground">Account billing summary</h3>
           <p className="text-xs text-muted-foreground">Commercial posture for this client account, not just one invoice.</p>
         </div>
-        <Badge className={getCollectionsStateTone(summary.latestCollectionsAction?.event_type ?? null)} variant="secondary">
-          {collectionsLabel}
-        </Badge>
+        <div className="flex flex-wrap gap-2">
+          <Badge className={getCollectionsStateBadgeClass(accountState.tone)} variant="secondary">
+            {accountState.label}
+          </Badge>
+          <Badge variant="outline">{collectionsLabel}</Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -158,6 +168,12 @@ export function ClientBillingSummary({
         </div>
       </div>
 
+      <div className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
+        <div className="font-medium text-foreground">Collections posture</div>
+        <p className="mt-2 text-muted-foreground">{accountState.detail}</p>
+        <p className="mt-2 text-xs font-medium text-foreground">Next: {nextAction.label}</p>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
           <div className="font-medium text-foreground">Billing profile</div>
@@ -170,14 +186,19 @@ export function ClientBillingSummary({
         </div>
 
         <div className="rounded-lg border border-border/70 bg-background/80 p-3 text-sm">
-          <div className="font-medium text-foreground">Latest collections context</div>
-          {summary.latestCollectionsAction ? (
-            <>
-              <p className="mt-2 text-muted-foreground whitespace-pre-line">{summary.latestCollectionsAction.body || summary.latestCollectionsAction.subject}</p>
-              <p className="mt-2 text-xs text-muted-foreground/80">
-                {formatDistanceToNow(new Date(summary.latestCollectionsAction.created_at), { addSuffix: true })}
-              </p>
-            </>
+          <div className="font-medium text-foreground">Recent collections history</div>
+          {summary.collectionsActions.length > 0 ? (
+            <div className="mt-2 space-y-2">
+              {summary.collectionsActions.slice(0, 3).map((action) => (
+                <div key={action.id} className="rounded-md border border-border/60 bg-muted/20 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-foreground">{COLLECTION_ACTION_META[action.event_type as CollectionsActionType]?.label ?? action.subject}</span>
+                    <span className="text-xs text-muted-foreground/80">{formatDistanceToNow(new Date(action.created_at), { addSuffix: true })}</span>
+                  </div>
+                  <p className="mt-1 text-muted-foreground whitespace-pre-line">{action.body || action.subject}</p>
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="mt-2 text-muted-foreground">No reminder/handled/hold/dispute action has been logged for this account yet.</p>
           )}

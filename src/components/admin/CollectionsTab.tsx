@@ -12,12 +12,50 @@ import { useSuperAdminQueues, type OverdueInvoiceItem } from "@/hooks/useSuperAd
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
-import { COLLECTION_ACTION_META, formatInvoiceTermsLabel, formatReminderPreferenceLabel, type BillingReminderPreference, type CollectionsActionType } from "@/lib/billing";
+import {
+  COLLECTION_ACTION_META,
+  formatInvoiceTermsLabel,
+  formatReminderPreferenceLabel,
+  getCollectionsAccountState,
+  getCollectionsNextAction,
+  getCollectionsStateBadgeClass,
+  type BillingReminderPreference,
+  type CollectionsActionType,
+} from "@/lib/billing";
 
 type CollectionsActionEvent = Pick<
   ExtendedTableRow<"communication_events">,
   "id" | "client_id" | "invoice_id" | "event_type" | "subject" | "body" | "created_at"
 >;
+
+type ActionDraft = {
+  clientId: string;
+  clientName: string;
+  eventType: CollectionsActionType;
+  note: string;
+  primaryInvoiceId: string | null;
+  invoiceNumbers: string[];
+  overdueTotal: number;
+};
+
+type ClientBillingProfile = {
+  invoice_terms_days: number;
+  billing_reminder_preference: BillingReminderPreference;
+  billing_notes: string;
+};
+
+type ClientCollectionGroup = {
+  clientId: string;
+  clientName: string;
+  invoices: OverdueInvoiceItem[];
+  overdueTotal: number;
+  oldestAgeDays: number;
+  latestAction: CollectionsActionEvent | null;
+  recentActions: CollectionsActionEvent[];
+  billingProfile: ClientBillingProfile | null;
+  accountState: ReturnType<typeof getCollectionsAccountState>;
+  nextAction: ReturnType<typeof getCollectionsNextAction>;
+};
 
 function getInvoiceAgeDays(invoice: OverdueInvoiceItem) {
   const dueBase = invoice.due_at ?? invoice.created_at;
@@ -33,38 +71,15 @@ function getLatestActions(events: CollectionsActionEvent[]) {
   return byClient;
 }
 
-function getNextCollectionsAction(
-  latestAction: CollectionsActionEvent | null,
-  oldestAgeDays: number,
-): ClientCollectionGroup["nextAction"] {
-  if (!latestAction) {
-    if (oldestAgeDays >= 14) return { label: "Escalate collections follow-up now", tone: "danger" };
-    if (oldestAgeDays >= 7) return { label: "Reminder is due", tone: "warning" };
-    return { label: "Monitor and prep reminder cadence", tone: "neutral" };
+function buildActionHistory(events: CollectionsActionEvent[]) {
+  const byClient = new Map<string, CollectionsActionEvent[]>();
+  for (const event of events) {
+    if (!event.client_id) continue;
+    const existing = byClient.get(event.client_id) ?? [];
+    existing.push(event);
+    byClient.set(event.client_id, existing);
   }
-
-  if (latestAction.event_type === "collections_account_on_hold") {
-    return { label: "Account on hold — wait for manual release", tone: "neutral" };
-  }
-
-  if (latestAction.event_type === "collections_account_disputed") {
-    return { label: "Dispute open — resolve before further collections", tone: "warning" };
-  }
-
-  if (latestAction.event_type === "collections_account_handled") {
-    return oldestAgeDays >= 14
-      ? { label: "Handled, but aging still high — verify next step", tone: "warning" }
-      : { label: "Handled — monitor for payment or reply", tone: "success" };
-  }
-
-  const daysSinceAction = Math.max(0, differenceInCalendarDays(new Date(), new Date(latestAction.created_at)));
-  if (daysSinceAction >= 3 && oldestAgeDays >= 14) {
-    return { label: "Reminder aged out — escalate account", tone: "danger" };
-  }
-  if (daysSinceAction >= 3) {
-    return { label: "Follow-up reminder window reopened", tone: "warning" };
-  }
-  return { label: "Recently reminded — wait for response", tone: "success" };
+  return byClient;
 }
 
 function nextActionToneClass(tone: ClientCollectionGroup["nextAction"]["tone"]) {
@@ -138,7 +153,8 @@ export function CollectionsTab() {
 
   const groupedClients = useMemo(() => {
     const latestActions = getLatestActions(actionsQuery.data ?? []);
-    const grouped = new Map<string, Omit<ClientCollectionGroup, "nextAction">>();
+    const actionHistory = buildActionHistory(actionsQuery.data ?? []);
+    const grouped = new Map<string, Omit<ClientCollectionGroup, "nextAction" | "accountState">>();
 
     for (const invoice of query.data?.overdueInvoices ?? []) {
       const clientId = invoice.client_id ?? `unknown-${invoice.id}`;
@@ -149,6 +165,7 @@ export function CollectionsTab() {
         overdueTotal: 0,
         oldestAgeDays: 0,
         latestAction: clientId.startsWith("unknown-") ? null : latestActions.get(clientId) ?? null,
+        recentActions: clientId.startsWith("unknown-") ? [] : actionHistory.get(clientId) ?? [],
         billingProfile: clientId.startsWith("unknown-") ? null : profilesQuery.data?.get(clientId) ?? null,
       };
 
@@ -162,7 +179,16 @@ export function CollectionsTab() {
       .map((group) => ({
         ...group,
         invoices: [...group.invoices].sort((a, b) => Date.parse(a.due_at ?? a.created_at) - Date.parse(b.due_at ?? b.created_at)),
-        nextAction: getNextCollectionsAction(group.latestAction, group.oldestAgeDays),
+        accountState: getCollectionsAccountState({
+          oldestOverdueAgeDays: group.oldestAgeDays,
+          latestActionType: group.latestAction?.event_type as CollectionsActionType | undefined,
+          latestActionCreatedAt: group.latestAction?.created_at,
+        }),
+        nextAction: getCollectionsNextAction({
+          oldestOverdueAgeDays: group.oldestAgeDays,
+          latestActionType: group.latestAction?.event_type as CollectionsActionType | undefined,
+          latestActionCreatedAt: group.latestAction?.created_at,
+        }),
       }))
       .sort((a, b) => {
         if (b.oldestAgeDays !== a.oldestAgeDays) return b.oldestAgeDays - a.oldestAgeDays;
@@ -261,6 +287,7 @@ export function CollectionsTab() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Badge className={getCollectionsStateBadgeClass(group.accountState.tone)} variant="secondary">{group.accountState.label}</Badge>
                   <Badge variant="secondary">Oldest {group.oldestAgeDays} day{group.oldestAgeDays === 1 ? "" : "s"} late</Badge>
                   {group.latestAction ? (
                     <Badge variant="outline">
@@ -285,6 +312,7 @@ export function CollectionsTab() {
             <div className={`rounded-xl border p-3 text-sm ${nextActionToneClass(group.nextAction.tone)}`}>
               <div className="font-medium">Next action</div>
               <div className="mt-1">{group.nextAction.label}</div>
+              <div className="mt-1 text-xs opacity-80">{group.accountState.detail}</div>
             </div>
 
             {group.billingProfile?.billing_notes?.trim() ? (
@@ -294,10 +322,20 @@ export function CollectionsTab() {
               </div>
             ) : null}
 
-            {group.latestAction?.body ? (
-              <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground whitespace-pre-line">
-                <span className="font-medium text-foreground">Last logged action</span>
-                <div className="mt-1">{group.latestAction.body}</div>
+            {group.recentActions.length > 0 ? (
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-sm">
+                <span className="font-medium text-foreground">Recent collections history</span>
+                <div className="mt-3 space-y-2">
+                  {group.recentActions.slice(0, 3).map((action) => (
+                    <div key={action.id} className="rounded-lg border border-border/60 bg-background/70 p-3 text-muted-foreground whitespace-pre-line">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">{COLLECTION_ACTION_META[action.event_type as CollectionsActionType]?.label ?? action.subject}</span>
+                        <span className="text-xs text-muted-foreground/80">{formatDistanceToNow(new Date(action.created_at), { addSuffix: true })}</span>
+                      </div>
+                      <div className="mt-1">{action.body || action.subject}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
 

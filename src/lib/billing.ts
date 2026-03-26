@@ -35,6 +35,134 @@ export const COLLECTION_ACTION_META: Record<CollectionsActionType, { label: stri
   },
 };
 
+export type CollectionsStateTone = "neutral" | "success" | "warning" | "danger";
+
+export type CollectionsAccountState = {
+  label: string;
+  tone: CollectionsStateTone;
+  detail: string;
+};
+
+export function getCollectionsAccountState(params: {
+  oldestOverdueAgeDays: number | null;
+  latestActionType?: CollectionsActionType | null;
+  latestActionCreatedAt?: string | null;
+}): CollectionsAccountState {
+  const { oldestOverdueAgeDays, latestActionType, latestActionCreatedAt } = params;
+  const ageDays = oldestOverdueAgeDays ?? 0;
+  const daysSinceAction = latestActionCreatedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(latestActionCreatedAt).getTime()) / 86_400_000))
+    : null;
+
+  if (latestActionType === "collections_account_on_hold") {
+    return {
+      label: "On hold",
+      tone: "neutral",
+      detail: "Collections follow-up is intentionally paused for this account.",
+    };
+  }
+
+  if (latestActionType === "collections_account_disputed") {
+    return {
+      label: "Disputed",
+      tone: "warning",
+      detail: "Resolve the dispute before resuming normal collections pressure.",
+    };
+  }
+
+  if (ageDays <= 0) {
+    return {
+      label: "Current",
+      tone: "success",
+      detail: "No overdue pressure is active on this account right now.",
+    };
+  }
+
+  if (latestActionType === "collections_reminder_sent" && daysSinceAction !== null && daysSinceAction < 3) {
+    return {
+      label: "Awaiting response",
+      tone: "success",
+      detail: "A reminder went out recently, so wait before sending another nudge.",
+    };
+  }
+
+  if (latestActionType === "collections_account_handled" && ageDays < 14) {
+    return {
+      label: "Handled",
+      tone: "success",
+      detail: "This account has an owner and a current follow-up plan.",
+    };
+  }
+
+  if (ageDays >= 21) {
+    return {
+      label: "Escalated",
+      tone: "danger",
+      detail: "The overdue window is severe enough that this account needs escalation, not just another reminder.",
+    };
+  }
+
+  if (ageDays >= 14) {
+    return {
+      label: "Escalation due",
+      tone: "danger",
+      detail: "Past-due aging is high enough that collections should actively intervene now.",
+    };
+  }
+
+  if (ageDays >= 7) {
+    return {
+      label: "Follow-up due",
+      tone: "warning",
+      detail: "The account is old enough that a reminder or owner review is now due.",
+    };
+  }
+
+  return {
+    label: "Monitor",
+    tone: "neutral",
+    detail: "Track the account, but it does not yet need strong collections pressure.",
+  };
+}
+
+export function getCollectionsStateBadgeClass(tone: CollectionsStateTone) {
+  if (tone === "danger") return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200";
+  if (tone === "warning") return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200";
+  if (tone === "success") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200";
+  return "bg-muted text-muted-foreground";
+}
+
+export function getCollectionsNextAction(params: {
+  oldestOverdueAgeDays: number | null;
+  latestActionType?: CollectionsActionType | null;
+  latestActionCreatedAt?: string | null;
+}) {
+  const state = getCollectionsAccountState(params);
+
+  if (params.latestActionType === "collections_account_on_hold") {
+    return { label: "Wait for manual release from hold", tone: "neutral" as CollectionsStateTone };
+  }
+  if (params.latestActionType === "collections_account_disputed") {
+    return { label: "Resolve the dispute before more collections outreach", tone: "warning" as CollectionsStateTone };
+  }
+  if (params.latestActionType === "collections_reminder_sent" && params.latestActionCreatedAt) {
+    const daysSinceAction = Math.max(0, Math.floor((Date.now() - new Date(params.latestActionCreatedAt).getTime()) / 86_400_000));
+    if (daysSinceAction < 3) {
+      return { label: "Wait for response window to pass", tone: "success" as CollectionsStateTone };
+    }
+  }
+  if (state.tone === "danger") {
+    return { label: "Escalate account review now", tone: "danger" as CollectionsStateTone };
+  }
+  if (state.tone === "warning") {
+    return { label: "Send reminder or assign owner review", tone: "warning" as CollectionsStateTone };
+  }
+  if (state.tone === "success") {
+    return { label: "Monitor account and wait for next change", tone: "success" as CollectionsStateTone };
+  }
+  return { label: "Monitor account aging", tone: "neutral" as CollectionsStateTone };
+}
+
 export function normalizeInvoiceTermsDays(value: number | null | undefined) {
   if (!Number.isFinite(value)) return DEFAULT_INVOICE_TERMS_DAYS;
   return Math.min(90, Math.max(1, Math.trunc(value as number)));
