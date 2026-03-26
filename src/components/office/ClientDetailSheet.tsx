@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { ClientActivityFeed } from "./ClientActivityFeed";
+import { type BillingReminderPreference, formatInvoiceTermsLabel } from "@/lib/billing";
 
 type PricingTier = "standard" | "preferred" | "vip";
 type PortalUser = Tables<"portal_users">;
@@ -39,6 +40,9 @@ type FormData = {
   notes: string;
   pricing_tier: PricingTier;
   route_day: string;
+  invoice_terms_days: number;
+  billing_reminder_preference: BillingReminderPreference;
+  billing_notes: string;
 };
 
 interface ClientDetailSheetProps {
@@ -133,6 +137,48 @@ export function ClientDetailSheet({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Billing profile</h3>
+              <p className="text-xs text-muted-foreground">Controls invoice terms and default collections preference for this client account.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Invoice terms</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={90}
+                  value={form.invoice_terms_days}
+                  onChange={(e) => onUpdateField("invoice_terms_days", Number(e.target.value) || 14)}
+                />
+                <p className="text-xs text-muted-foreground">{formatInvoiceTermsLabel(form.invoice_terms_days)}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Reminder preference</Label>
+                <Select
+                  value={form.billing_reminder_preference}
+                  onValueChange={(value) => onUpdateField("billing_reminder_preference", value as BillingReminderPreference)}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="phone">Phone</SelectItem>
+                    <SelectItem value="manual">Manual only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Billing Notes</Label>
+              <Textarea
+                value={form.billing_notes}
+                onChange={(e) => onUpdateField("billing_notes", e.target.value)}
+                rows={3}
+                placeholder="Preferred wording, accounting contact, statement rules, special follow-up instructions..."
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Notes</Label>

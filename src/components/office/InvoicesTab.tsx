@@ -19,6 +19,7 @@ import { LoadingState } from "@/components/states/PageState";
 import { useInvoices, useInvalidateInvoices, type InvoiceRow } from "@/hooks/useInvoices";
 import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/shared/StatusBadge";
 import { MS_PER_DAY } from "@/lib/constants";
+import { calculateInvoiceDueDate } from "@/lib/billing";
 
 const STATUSES: Array<{ value: string; label: string }> = [
   { value: "outstanding", label: "Outstanding" },
@@ -142,7 +143,22 @@ export function InvoicesTab() {
   const updateStatus = async (newStatus: InvoiceStatus) => {
     if (!selected) return;
     const updates: Record<string, unknown> = { status: newStatus };
-    if (newStatus === "sent") updates.issued_at = new Date().toISOString();
+    if (newStatus === "sent") {
+      const issuedAt = new Date();
+      updates.issued_at = issuedAt.toISOString();
+      if (selected.client_id) {
+        const { data: clientProfile, error: clientError } = await supabase
+          .from("clients")
+          .select("invoice_terms_days")
+          .eq("id", selected.client_id)
+          .maybeSingle();
+        if (clientError) {
+          toast({ title: "Billing profile lookup failed", description: clientError.message, variant: "destructive" });
+          return;
+        }
+        updates.due_at = calculateInvoiceDueDate(issuedAt, clientProfile?.invoice_terms_days);
+      }
+    }
     if (newStatus === "paid") updates.paid_at = new Date().toISOString();
 
     const { error } = await supabase.from("invoices").update(updates).eq("id", selected.id);

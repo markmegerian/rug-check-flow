@@ -24,6 +24,7 @@ import { APP_NAME } from "@/lib/branding";
 
 import { type PricingTier, TIER_LABELS, TIER_COLORS, ROUTE_DAYS } from "@/lib/constants";
 import { parseCsvRows } from "@/lib/validation";
+import { DEFAULT_INVOICE_TERMS_DAYS, normalizeInvoiceTermsDays, type BillingReminderPreference } from "@/lib/billing";
 
 type Client = Tables<"clients">;
 type PortalUser = Tables<"portal_users">;
@@ -37,9 +38,12 @@ type FormData = {
   notes: string;
   pricing_tier: PricingTier;
   route_day: string;
+  invoice_terms_days: number;
+  billing_reminder_preference: BillingReminderPreference;
+  billing_notes: string;
 };
 
-type ImportedClientRow = FormData & { portal_email?: string };
+type ImportedClientRow = Omit<FormData, "invoice_terms_days" | "billing_reminder_preference" | "billing_notes"> & { portal_email?: string };
 
 type OnboardingEmailResponse = {
   success?: boolean;
@@ -57,7 +61,17 @@ type OnboardingEmailResponse = {
 };
 
 const emptyForm: FormData = {
-  name: "", contact_name: "", phone: "", email: "", address: "", notes: "", pricing_tier: "standard", route_day: "",
+  name: "",
+  contact_name: "",
+  phone: "",
+  email: "",
+  address: "",
+  notes: "",
+  pricing_tier: "standard",
+  route_day: "",
+  invoice_terms_days: DEFAULT_INVOICE_TERMS_DAYS,
+  billing_reminder_preference: "email",
+  billing_notes: "",
 };
 
 // --- CSV parsing utilities ---
@@ -193,7 +207,19 @@ export function ClientsTab() {
 
   const openEdit = (c: Client) => {
     setEditingId(c.id);
-    setForm({ name: c.name, contact_name: c.contact_name, phone: c.phone, email: c.email, address: c.address, notes: c.notes, pricing_tier: c.pricing_tier, route_day: c.route_day ?? "" });
+    setForm({
+      name: c.name,
+      contact_name: c.contact_name,
+      phone: c.phone,
+      email: c.email,
+      address: c.address,
+      notes: c.notes,
+      pricing_tier: c.pricing_tier,
+      route_day: c.route_day ?? "",
+      invoice_terms_days: normalizeInvoiceTermsDays(c.invoice_terms_days),
+      billing_reminder_preference: (c.billing_reminder_preference as BillingReminderPreference) ?? "email",
+      billing_notes: c.billing_notes ?? "",
+    });
     fetchPortalUsers(c.id);
     setNewPortalEmail("");
     setSheetOpen(true);
@@ -253,7 +279,7 @@ export function ClientsTab() {
 
       let createdClients = 0, createdPortalUsers = 0, failedRows = 0;
       for (const row of imported) {
-        const clientPayload: TablesInsert<"clients"> = { name: row.name, contact_name: row.contact_name, phone: row.phone, email: row.email, address: row.address, notes: row.notes, pricing_tier: row.pricing_tier, route_day: row.route_day };
+        const clientPayload: TablesInsert<"clients"> = { name: row.name, contact_name: row.contact_name, phone: row.phone, email: row.email, address: row.address, notes: row.notes, pricing_tier: row.pricing_tier, route_day: row.route_day, invoice_terms_days: DEFAULT_INVOICE_TERMS_DAYS, billing_reminder_preference: "email", billing_notes: "" };
         const { data: insertedClient, error: clientError } = await supabase.from("clients").insert(clientPayload).select("id").single();
         if (clientError || !insertedClient?.id) { failedRows += 1; continue; }
         createdClients += 1;

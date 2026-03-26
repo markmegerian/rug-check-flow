@@ -41,10 +41,13 @@ export type Database = {
       clients: {
         Row: {
           address: string
+          billing_notes: string
+          billing_reminder_preference: string
           contact_name: string
           created_at: string
           email: string
           id: string
+          invoice_terms_days: number
           name: string
           notes: string
           phone: string
@@ -54,10 +57,13 @@ export type Database = {
         }
         Insert: {
           address?: string
+          billing_notes?: string
+          billing_reminder_preference?: string
           contact_name?: string
           created_at?: string
           email?: string
           id?: string
+          invoice_terms_days?: number
           name: string
           notes?: string
           phone?: string
@@ -67,10 +73,13 @@ export type Database = {
         }
         Update: {
           address?: string
+          billing_notes?: string
+          billing_reminder_preference?: string
           contact_name?: string
           created_at?: string
           email?: string
           id?: string
+          invoice_terms_days?: number
           name?: string
           notes?: string
           phone?: string

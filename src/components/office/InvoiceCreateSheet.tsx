@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useClients } from "@/hooks/useClients";
+import { calculateInvoiceDueDate, formatInvoiceTermsLabel, type BillingReminderPreference } from "@/lib/billing";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface RugOption {
@@ -35,11 +36,13 @@ interface InvoiceCreateSheetProps {
 
 export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCreateSheetProps) {
   const { data: allClients = [] } = useClients();
-  const clients = useMemo(() => allClients.map((c) => ({ id: c.id, name: c.name, pricing_tier: c.pricing_tier })), [allClients]);
+  const clients = useMemo(() => allClients.map((c) => ({ id: c.id, name: c.name, pricing_tier: c.pricing_tier, invoice_terms_days: c.invoice_terms_days, billing_reminder_preference: c.billing_reminder_preference as BillingReminderPreference })), [allClients]);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
+  const selectedClient = useMemo(() => clients.find((client) => client.id === selectedClientId) ?? null, [clients, selectedClientId]);
+  const draftDueAt = useMemo(() => calculateInvoiceDueDate(new Date(), selectedClient?.invoice_terms_days), [selectedClient?.invoice_terms_days]);
 
   useEffect(() => {
     if (!open) return;
@@ -106,6 +109,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
         client_id: selectedClientId,
         status: "draft" as const,
         total,
+        due_at: draftDueAt,
         pdf_storage_path: `clients/${selectedClientId}/${invNum}.pdf`,
       })
       .select()
@@ -151,6 +155,15 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
               </SelectContent>
             </Select>
           </div>
+          {selectedClient && (
+            <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm space-y-1">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-foreground">Billing profile</span>
+                <Badge variant="outline">{formatInvoiceTermsLabel(selectedClient.invoice_terms_days)}</Badge>
+              </div>
+              <p className="text-muted-foreground">Draft due date will be set to {new Date(draftDueAt).toLocaleDateString()} and collections preference defaults to {selectedClient.billing_reminder_preference}.</p>
+            </div>
+          )}
 
           {selectedClientId && (
             <div className="space-y-2">

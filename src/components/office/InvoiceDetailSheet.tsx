@@ -124,10 +124,14 @@ export function InvoiceDetailSheet({
             </SheetHeader>
 
             <div className="space-y-6 py-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Date</span>
                   <p className="font-medium text-foreground">{invoice.created_at.slice(0, 10)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Due</span>
+                  <p className="font-medium text-foreground">{invoice.due_at ? invoice.due_at.slice(0, 10) : "—"}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Status</span>
