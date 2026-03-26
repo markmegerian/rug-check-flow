@@ -6,6 +6,7 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { usePortalClient } from "@/hooks/usePortalClient";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
+import { getCollectionsStateBadgeClass, getPortalBillingState, type CollectionsStateTone } from "@/lib/billing";
 import { type InvoiceStatus } from "@/components/shared/StatusBadge";
 type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
 
@@ -59,6 +60,15 @@ type PortalInvoice = {
   paymentAttempts: PortalInvoicePaymentAttempt[];
 };
 
+type PortalBillingSummary = {
+  openBalance: number;
+  overdueBalance: number;
+  openInvoices: number;
+  overdueInvoices: number;
+  nextDueAt: string | null;
+  oldestOverdueAgeDays: number | null;
+};
+
 const STATUS_VARIANT: Record<InvoiceStatus, "default" | "secondary" | "outline" | "destructive"> = {
   sent: "default",
   paid: "secondary",
@@ -82,6 +92,40 @@ export default function PortalInvoicesTab() {
   const [hasMore, setHasMore] = useState(false);
   const [paymentHistoryError, setPaymentHistoryError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
+  const [billingSummary, setBillingSummary] = useState<PortalBillingSummary | null>(null);
+
+  const fetchBillingSummary = useCallback(async (activeClientId: string) => {
+      const { data: invoiceRows, error } = await supabaseExtended
+        .from("invoices")
+        .select("status, total, due_at, created_at")
+        .eq("client_id", activeClientId)
+        .returns<Array<Pick<InvoiceLookup, "status" | "total" | "due_at" | "created_at">>>();
+
+      if (error) {
+        toast({ title: "Failed to load billing summary", description: error.message, variant: "destructive" });
+        setBillingSummary(null);
+        return;
+      }
+
+      const openInvoices = (invoiceRows ?? []).filter((invoice) => ["sent", "overdue"].includes(invoice.status));
+      const overdueInvoices = (invoiceRows ?? []).filter((invoice) => invoice.status === "overdue");
+      const datedOpenInvoices = openInvoices.filter((invoice) => Boolean(invoice.due_at));
+      const nextDueAt = datedOpenInvoices.length > 0
+        ? [...datedOpenInvoices].sort((a, b) => Date.parse(a.due_at ?? a.created_at) - Date.parse(b.due_at ?? b.created_at))[0]?.due_at ?? null
+        : null;
+      const oldestOverdueAgeDays = overdueInvoices.length > 0
+        ? Math.max(...overdueInvoices.map((invoice) => Math.max(0, Math.floor((Date.now() - Date.parse(invoice.due_at ?? invoice.created_at)) / 86_400_000))))
+        : null;
+
+      setBillingSummary({
+        openBalance: openInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
+        overdueBalance: overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
+        openInvoices: openInvoices.length,
+        overdueInvoices: overdueInvoices.length,
+        nextDueAt,
+        oldestOverdueAgeDays,
+      });
+  }, [toast]);
 
   const fetchInvoicesPage = useCallback(async (activeClientId: string, targetPageIndex: number, append: boolean) => {
       const from = targetPageIndex * PAGE_SIZE;
@@ -189,6 +233,7 @@ export default function PortalInvoicesTab() {
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
       setInvoices([]);
+      setBillingSummary(null);
       setHasMore(false);
       setLoading(false);
       return;
@@ -196,6 +241,7 @@ export default function PortalInvoicesTab() {
 
     if (!clientId) {
       setInvoices([]);
+      setBillingSummary(null);
       setHasMore(false);
       setLoading(false);
       return;
@@ -204,12 +250,15 @@ export default function PortalInvoicesTab() {
     const loadInitial = async () => {
       setLoading(true);
       setExpandedRow(null);
-      await fetchInvoicesPage(clientId, 0, false);
+      await Promise.all([
+        fetchInvoicesPage(clientId, 0, false),
+        fetchBillingSummary(clientId),
+      ]);
       setLoading(false);
     };
 
     loadInitial();
-  }, [clientId, errorMessage, fetchInvoicesPage, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchBillingSummary, fetchInvoicesPage, portalClientLoading, toast]);
 
   const loadOlderInvoices = async () => {
     if (!clientId || loadingMore || !hasMore) {
@@ -242,6 +291,13 @@ export default function PortalInvoicesTab() {
     }
   };
 
+  const portalBillingState = useMemo(() => getPortalBillingState({
+    overdueInvoices: billingSummary?.overdueInvoices ?? 0,
+    oldestOverdueAgeDays: billingSummary?.oldestOverdueAgeDays ?? null,
+    openInvoices: billingSummary?.openInvoices ?? 0,
+    nextDueAt: billingSummary?.nextDueAt ?? null,
+  }), [billingSummary]);
+
   const emptyState = useMemo(() => !loading && invoices.length === 0, [loading, invoices.length]);
 
   if (portalClientLoading || loading) {
@@ -253,15 +309,48 @@ export default function PortalInvoicesTab() {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/90 shadow-sm divide-y">
-      <div className="hidden sm:grid grid-cols-[1fr_90px_70px_90px_80px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-        <span>Invoice</span>
-        <span>Date</span>
-        <span>Rugs</span>
-        <span className="text-right">Total</span>
-        <span>Status</span>
-        <span />
-      </div>
+    <div className="space-y-4">
+      {billingSummary ? (
+        <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Account balance summary</h3>
+              <p className="text-sm text-muted-foreground">{portalBillingState.detail}</p>
+            </div>
+            <Badge className={getCollectionsStateBadgeClass(portalBillingState.tone as CollectionsStateTone)} variant="secondary">
+              {portalBillingState.label}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Open balance</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.openBalance.toFixed(2)}</div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Overdue balance</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.overdueBalance.toFixed(2)}</div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Open invoices</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">{billingSummary.openInvoices}</div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Next due date</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{billingSummary.nextDueAt ? new Date(billingSummary.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/90 shadow-sm divide-y">
+        <div className="hidden sm:grid grid-cols-[1fr_90px_70px_90px_80px_40px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <span>Invoice</span>
+          <span>Date</span>
+          <span>Rugs</span>
+          <span className="text-right">Total</span>
+          <span>Status</span>
+          <span />
+        </div>
 
       {invoices.map((inv) => {
         const isExpanded = expandedRow === inv.id;
@@ -278,7 +367,11 @@ export default function PortalInvoicesTab() {
                 <div>
                   <span className="text-sm font-medium block">{inv.invoiceNumber}</span>
                   {inv.dueAt && (
-                    <span className="text-xs text-muted-foreground">Due {new Date(inv.dueAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {inv.status === "overdue"
+                        ? `Overdue since ${new Date(inv.dueAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`
+                        : `Due ${new Date(inv.dueAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}`}
+                    </span>
                   )}
                 </div>
               </div>
@@ -366,13 +459,14 @@ export default function PortalInvoicesTab() {
         );
       })}
 
-      {hasMore ? (
-        <div className="flex justify-center border-t px-4 py-3">
-          <Button variant="outline" size="sm" onClick={loadOlderInvoices} disabled={loadingMore}>
-            {loadingMore ? "Loading…" : "Load older invoices"}
-          </Button>
-        </div>
-      ) : null}
+        {hasMore ? (
+          <div className="flex justify-center border-t px-4 py-3">
+            <Button variant="outline" size="sm" onClick={loadOlderInvoices} disabled={loadingMore}>
+              {loadingMore ? "Loading…" : "Load older invoices"}
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

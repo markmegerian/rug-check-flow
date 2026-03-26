@@ -182,3 +182,51 @@ export function formatReminderPreferenceLabel(preference: BillingReminderPrefere
   if (preference === "manual") return "Manual only";
   return "Email";
 }
+
+export function getPortalBillingState(params: {
+  overdueInvoices: number;
+  oldestOverdueAgeDays: number | null;
+  openInvoices: number;
+  nextDueAt: string | null;
+}) {
+  const { overdueInvoices, oldestOverdueAgeDays, openInvoices, nextDueAt } = params;
+
+  if (overdueInvoices > 0) {
+    if ((oldestOverdueAgeDays ?? 0) >= 14) {
+      return {
+        label: "Payment overdue",
+        tone: "danger" as CollectionsStateTone,
+        detail: "One or more invoices are meaningfully past due and should be settled as soon as possible.",
+      };
+    }
+
+    return {
+      label: "Payment due now",
+      tone: "warning" as CollectionsStateTone,
+      detail: "At least one invoice is overdue and needs attention.",
+    };
+  }
+
+  if (openInvoices > 0 && nextDueAt) {
+    const daysUntilDue = Math.ceil((new Date(nextDueAt).getTime() - Date.now()) / 86_400_000);
+    if (daysUntilDue <= 7) {
+      return {
+        label: "Upcoming payment",
+        tone: "warning" as CollectionsStateTone,
+        detail: "An open invoice is due soon, so this account should review the balance now.",
+      };
+    }
+
+    return {
+      label: "Open balance",
+      tone: "neutral" as CollectionsStateTone,
+      detail: "There is an outstanding balance, but nothing is overdue right now.",
+    };
+  }
+
+  return {
+    label: "Paid up",
+    tone: "success" as CollectionsStateTone,
+    detail: "No open or overdue invoices need attention right now.",
+  };
+}

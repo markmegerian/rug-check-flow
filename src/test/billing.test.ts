@@ -7,6 +7,7 @@ import {
   calculateInvoiceDueDate,
   formatInvoiceTermsLabel,
   formatReminderPreferenceLabel,
+  getPortalBillingState,
   normalizeInvoiceTermsDays,
 } from "@/lib/billing";
 
@@ -43,6 +44,12 @@ describe("billing helpers", () => {
   it("keeps collections actions centralized", () => {
     expect(COLLECTION_ACTION_TYPES).toContain("collections_account_disputed");
     expect(COLLECTION_ACTION_META.collections_reminder_sent.label).toBe("Reminder sent");
+  });
+
+  it("derives client-facing portal billing posture", () => {
+    expect(getPortalBillingState({ overdueInvoices: 1, oldestOverdueAgeDays: 20, openInvoices: 1, nextDueAt: null }).label).toBe("Payment overdue");
+    expect(getPortalBillingState({ overdueInvoices: 0, oldestOverdueAgeDays: null, openInvoices: 1, nextDueAt: "2099-01-02" }).label).toBe("Open balance");
+    expect(getPortalBillingState({ overdueInvoices: 0, oldestOverdueAgeDays: null, openInvoices: 0, nextDueAt: null }).label).toBe("Paid up");
   });
 
 });
