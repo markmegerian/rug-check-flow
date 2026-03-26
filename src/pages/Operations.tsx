@@ -57,7 +57,7 @@ type BusinessTabId = "pricing" | (typeof BUSINESS_TABS_BASE)[number]["id"];
 type TabId = FloorTabId | BusinessTabId;
 
 export default function Operations() {
-  const { hasRole } = useAuth();
+  const { hasRole, isSuperAdmin } = useAuth();
   const canManagePricing = hasRole("admin");
   const isOffice = hasRole("admin") || hasRole("office");
 
@@ -121,12 +121,14 @@ export default function Operations() {
       onSearchOpen={() => setSearchOpen(true)}
       actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
     >
-      <WorkspaceTabs
-        tabs={[]}
-        groups={groups}
-        activeTab={activeTab}
-        onTabChange={(tabId) => handleTabChange(tabId as TabId)}
-      />
+      {isSuperAdmin ? (
+        <WorkspaceTabs
+          tabs={[]}
+          groups={groups}
+          activeTab={activeTab}
+          onTabChange={(tabId) => handleTabChange(tabId as TabId)}
+        />
+      ) : null}
 
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-t-[1.75rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4">
         {/* Floor tabs */}

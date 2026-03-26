@@ -151,37 +151,22 @@ export default function WholesalePortal() {
     >
       <div className="app-page space-y-4">
         <section className="app-hero space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <nav className="flex w-full gap-1 overflow-x-auto rounded-2xl border border-border/70 bg-card/90 p-1 scrollbar-hide sm:w-fit">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-colors ${
-                  activeTab === tab.key
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+          <div className="flex justify-end">
+            {clientId ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 rounded-xl px-4 text-xs"
+                onClick={openOnboarding}
+                disabled={!onboardingUnlocked}
               >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-          {clientId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-10 rounded-xl px-4 text-xs"
-              onClick={openOnboarding}
-              disabled={!onboardingUnlocked}
-            >
-              {onboardingCompletedAt
-                ? "View guide"
-                : onboardingUnlocked
-                  ? "Start onboarding"
-                  : "Change password to unlock"}
-            </Button>
-          ) : null}
+                {onboardingCompletedAt
+                  ? "View guide"
+                  : onboardingUnlocked
+                    ? "Start onboarding"
+                    : "Change password to unlock"}
+              </Button>
+            ) : null}
           </div>
         </section>
 
