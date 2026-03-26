@@ -287,9 +287,8 @@ Deno.serve(async (req) => {
     // Create route_stops + route_stop_items for each delivery client
     // so they appear on the driver's Route tab immediately.
     // ---------------------------------------------------------------
-    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const routeDate = new Date().toISOString().slice(0, 10); // yyyy-MM-dd
-    const routeDay = DAYS[new Date().getDay()];
+    const routeDate = deliveryList.target_date;
+    const routeDay = deliveryList.route_day;
 
     // Build a map of clientId → delivery_list_item rows for route_stop_items
     const clientItems: Record<string, { id: string; rug_id: string }[]> = {};
@@ -299,7 +298,7 @@ Deno.serve(async (req) => {
       clientItems[item.client_id].push({ id: item.id, rug_id: item.rug_id });
     }
 
-    // Check for existing stops for these clients today (e.g. pickup stops)
+    // Check for existing stops for these clients on the scheduled route date (e.g. pickup stops)
     const clientIds = Object.keys(clientItems);
     const { data: existingStops } = await supabase
       .from("route_stops")
@@ -338,21 +337,44 @@ Deno.serve(async (req) => {
         stopId = newStop.id;
         routeStopsCreated++;
       } else {
-        // Existing stop (e.g. pickup) — link the delivery list
+        // Existing stop (e.g. pickup) — link the delivery list and align route metadata
         await supabase
           .from("route_stops")
-          .update({ delivery_list_id: delivery_list_id })
+          .update({
+            delivery_list_id: delivery_list_id,
+            route_date: routeDate,
+            route_day: routeDay,
+          })
           .eq("id", stopId);
       }
 
-      // Create route_stop_items for each rug
-      const stopItems = clientItems[clientId].map((di) => ({
-        route_stop_id: stopId,
-        phase: "delivery",
-        status: "pending",
-        rug_id: di.rug_id,
-        delivery_list_item_id: di.id,
-      }));
+      const clientDeliveryItems = clientItems[clientId] ?? [];
+      const deliveryListItemIds = clientDeliveryItems.map((di) => di.id);
+      const { data: existingStopItems } = await supabase
+        .from("route_stop_items")
+        .select("delivery_list_item_id")
+        .eq("route_stop_id", stopId)
+        .eq("phase", "delivery")
+        .in("delivery_list_item_id", deliveryListItemIds);
+
+      const existingDeliveryListItemIds = new Set(
+        (existingStopItems ?? [])
+          .map((row) => row.delivery_list_item_id)
+          .filter((value): value is string => Boolean(value))
+      );
+
+      // Create route_stop_items for each rug, but only if they do not already exist.
+      const stopItems = clientDeliveryItems
+        .filter((di) => !existingDeliveryListItemIds.has(di.id))
+        .map((di) => ({
+          route_stop_id: stopId,
+          phase: "delivery",
+          status: "pending",
+          rug_id: di.rug_id,
+          delivery_list_item_id: di.id,
+        }));
+
+      if (stopItems.length === 0) continue;
 
       const { error: itemsInsertErr } = await supabase
         .from("route_stop_items")
