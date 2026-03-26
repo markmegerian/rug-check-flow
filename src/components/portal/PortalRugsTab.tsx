@@ -10,6 +10,8 @@ import {
   supabaseExtended,
 } from "@/integrations/supabase/extended";
 import {
+  type EstimateRow,
+  type RugEstimateSummary,
   type RugRow,
   ACTIVE_STATUSES,
 } from "./portal-rug-types";
@@ -32,12 +34,44 @@ export default function PortalRugsTab() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pickupGroups, setPickupGroups] = useState<PickupGroup[]>([]);
+  const [estimateSummaryByRugId, setEstimateSummaryByRugId] = useState<Record<string, RugEstimateSummary>>({});
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const loadEstimateSummaries = useCallback(async (activeRugs: RugRow[]) => {
+    if (activeRugs.length === 0) {
+      setEstimateSummaryByRugId({});
+      return;
+    }
+
+    const { data, error } = await supabaseExtended
+      .from("estimates")
+      .select("id, rug_id, estimate_number, status, total, created_at")
+      .in("rug_id", activeRugs.map((rug) => rug.id))
+      .order("created_at", { ascending: false })
+      .returns<EstimateRow[]>();
+
+    if (error) {
+      toast({ title: "Failed to load rug estimate context", description: error.message, variant: "destructive" });
+      setEstimateSummaryByRugId({});
+      return;
+    }
+
+    const next: Record<string, RugEstimateSummary> = {};
+    for (const estimate of data ?? []) {
+      if (!estimate.rug_id || next[estimate.rug_id]) continue;
+      next[estimate.rug_id] = {
+        estimateNumber: estimate.estimate_number,
+        status: estimate.status,
+        total: Number(estimate.total ?? 0),
+      };
+    }
+    setEstimateSummaryByRugId(next);
+  }, [toast]);
 
   const loadPickupGroups = useCallback(async (activeClientId: string, activeRugs: RugRow[]) => {
     const { data: pickupData } = await supabaseExtended
@@ -109,13 +143,15 @@ export default function PortalRugsTab() {
       const loadedRugs = data ?? [];
       setRugs(loadedRugs);
 
-      // Load pickup grouping
-      await loadPickupGroups(clientId, loadedRugs);
+      await Promise.all([
+        loadPickupGroups(clientId, loadedRugs),
+        loadEstimateSummaries(loadedRugs),
+      ]);
       setLoading(false);
     };
 
     loadRugs();
-  }, [clientId, errorMessage, portalClientLoading, toast, loadPickupGroups]);
+  }, [clientId, errorMessage, portalClientLoading, toast, loadEstimateSummaries, loadPickupGroups]);
 
   // Filter rugs by search
   const filteredRugs = useMemo(() => {
@@ -196,7 +232,7 @@ export default function PortalRugsTab() {
           ) : (
             <div className="space-y-3">
               {pagination.items.map((rug) => (
-                <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
+                <PortalRugCard key={rug.id} rug={rug} estimateSummary={estimateSummaryByRugId[rug.id] ?? null} onClick={() => handleCardClick(rug)} />
               ))}
             </div>
           )}
@@ -221,7 +257,7 @@ export default function PortalRugsTab() {
               </h3>
               <div className="space-y-3">
                 {section.rugs.map((rug) => (
-                  <PortalRugCard key={rug.id} rug={rug} onClick={() => handleCardClick(rug)} />
+                  <PortalRugCard key={rug.id} rug={rug} estimateSummary={estimateSummaryByRugId[rug.id] ?? null} onClick={() => handleCardClick(rug)} />
                 ))}
               </div>
             </div>
@@ -251,6 +287,7 @@ export default function PortalRugsTab() {
       {/* Detail side panel */}
       <PortalRugDetailPanel
         rug={selectedRug}
+        estimateSummary={selectedRug ? estimateSummaryByRugId[selectedRug.id] ?? null : null}
         open={panelOpen}
         onOpenChange={setPanelOpen}
       />

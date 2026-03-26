@@ -13,6 +13,7 @@ import {
   supabaseExtended,
 } from "@/integrations/supabase/extended";
 import {
+  type RugEstimateSummary,
   type RugRow,
   type EstimateRow,
   type EstimateItemRow,
@@ -26,11 +27,41 @@ import { RugContextPanel } from "@/components/shared/RugContextPanel";
 
 interface PortalRugDetailPanelProps {
   rug: RugRow | null;
+  estimateSummary?: RugEstimateSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export default function PortalRugDetailPanel({ rug, open, onOpenChange }: PortalRugDetailPanelProps) {
+function getClientNextStep(rugStatus: string, estimateSummary?: RugEstimateSummary | null) {
+  if (estimateSummary?.status === "sent") {
+    return {
+      title: "Decision needed from you",
+      detail: `Review ${estimateSummary.estimateNumber} to approve or reject the proposed work before this rug can move forward.`,
+      tone: "bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100",
+    };
+  }
+  if (rugStatus === "ready") {
+    return {
+      title: "Ready for pickup",
+      detail: "This rug has finished production and is ready for the next pickup or delivery step.",
+      tone: "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100",
+    };
+  }
+  if (rugStatus === "in_production") {
+    return {
+      title: "Work in progress",
+      detail: "Our team is actively working on this rug. If you need a touchpoint, you can request an update below.",
+      tone: "bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100",
+    };
+  }
+  return {
+    title: "Awaiting production progress",
+    detail: "This rug is checked in and queued in the service cycle. We'll update status as work advances.",
+    tone: "bg-muted/40 text-foreground",
+  };
+}
+
+export default function PortalRugDetailPanel({ rug, estimateSummary, open, onOpenChange }: PortalRugDetailPanelProps) {
   const { toast } = useToast();
   const [requestingUpdate, setRequestingUpdate] = useState(false);
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
@@ -41,7 +72,7 @@ export default function PortalRugDetailPanel({ rug, open, onOpenChange }: Portal
     setLoadingEstimates(true);
     const { data, error } = await supabaseExtended
       .from("estimates")
-      .select("id, rug_id, estimate_number, status, total")
+      .select("id, rug_id, estimate_number, status, total, created_at")
       .eq("rug_id", rugId)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -106,6 +137,8 @@ export default function PortalRugDetailPanel({ rug, open, onOpenChange }: Portal
 
   if (!rug) return null;
 
+  const clientNextStep = getClientNextStep(rug.status, estimateSummary);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto sm:max-w-md">
@@ -116,6 +149,16 @@ export default function PortalRugDetailPanel({ rug, open, onOpenChange }: Portal
         <div className="space-y-5 mt-4">
           {/* Rug Journey Timeline */}
           <RugJourneyTimeline rug={rug} />
+
+          <div className={`rounded-xl border border-border/70 p-3 text-sm ${clientNextStep.tone}`}>
+            <div className="font-medium">{clientNextStep.title}</div>
+            <div className="mt-1">{clientNextStep.detail}</div>
+            {estimateSummary ? (
+              <div className="mt-2 text-xs opacity-80">
+                Latest estimate: {estimateSummary.estimateNumber} · ${estimateSummary.total.toFixed(2)}
+              </div>
+            ) : null}
+          </div>
 
           {/* Details grid */}
           <div className="grid grid-cols-2 gap-3 text-sm">

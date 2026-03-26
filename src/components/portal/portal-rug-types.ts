@@ -21,6 +21,13 @@ export type EstimateRow = {
   estimate_number: string;
   status: string;
   total: number;
+  created_at?: string;
+};
+
+export type RugEstimateSummary = {
+  estimateNumber: string;
+  status: string;
+  total: number;
 };
 
 export type EstimateItemRow = {
