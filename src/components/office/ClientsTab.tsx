@@ -172,7 +172,7 @@ function SortableHead({
 
 export function ClientsTab() {
   const { toast } = useToast();
-  const { hasRole, isSuperAdmin } = useAuth();
+  const { user, hasRole, isSuperAdmin } = useAuth();
   const csvInputRef = useRef<HTMLInputElement | null>(null);
   const { data: clients = [], isLoading: loading } = useClients();
   const { data: rugCounts = {} } = useRugCountsByClient();
@@ -188,6 +188,7 @@ export function ClientsTab() {
   const [importing, setImporting] = useState(false);
   const [portalActionId, setPortalActionId] = useState<string | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
+  const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(null);
 
   const { sort, toggleSort } = useSortableTable<ClientSortCol>("name");
 
@@ -195,6 +196,32 @@ export function ClientsTab() {
     const { getAuthHeaders } = await import("@/lib/supabase-helpers");
     return getAuthHeaders();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCompanyId = async () => {
+      if (!user?.id) {
+        setCurrentCompanyId(null);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc("get_user_company_id", { _user_id: user.id });
+      if (cancelled) return;
+      if (error) {
+        console.warn("Failed to resolve current company id for client writes", error.message);
+        setCurrentCompanyId(null);
+        return;
+      }
+
+      setCurrentCompanyId(data ?? null);
+    };
+
+    void loadCompanyId();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const fetchPortalUsers = async (clientId: string) => {
     const { data } = await supabase.from("portal_users").select("*").eq("client_id", clientId);
@@ -231,7 +258,7 @@ export function ClientsTab() {
       const { error } = await supabase.from("clients").update(form).eq("id", editingId);
       if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
     } else {
-      const { error } = await supabase.from("clients").insert(form);
+      const { error } = await supabase.from("clients").insert({ ...form, company_id: currentCompanyId });
       if (error) { toast({ title: "Create failed", description: error.message, variant: "destructive" }); return; }
     }
     setSheetOpen(false);
@@ -279,7 +306,7 @@ export function ClientsTab() {
 
       let createdClients = 0, createdPortalUsers = 0, failedRows = 0;
       for (const row of imported) {
-        const clientPayload: TablesInsert<"clients"> = { name: row.name, contact_name: row.contact_name, phone: row.phone, email: row.email, address: row.address, notes: row.notes, pricing_tier: row.pricing_tier, route_day: row.route_day, invoice_terms_days: DEFAULT_INVOICE_TERMS_DAYS, billing_reminder_preference: "email", billing_notes: "" };
+        const clientPayload: TablesInsert<"clients"> = { name: row.name, contact_name: row.contact_name, phone: row.phone, email: row.email, address: row.address, notes: row.notes, pricing_tier: row.pricing_tier, route_day: row.route_day, invoice_terms_days: DEFAULT_INVOICE_TERMS_DAYS, billing_reminder_preference: "email", billing_notes: "", company_id: currentCompanyId };
         const { data: insertedClient, error: clientError } = await supabase.from("clients").insert(clientPayload).select("id").single();
         if (clientError || !insertedClient?.id) { failedRows += 1; continue; }
         createdClients += 1;
