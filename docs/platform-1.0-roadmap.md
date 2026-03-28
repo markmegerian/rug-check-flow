@@ -1,3 +1,5 @@
+> Status note: see `docs/platform-1.0-status.md` for the living implementation-status tracker. This roadmap doc remains planning context and may lag behind shipped code.
+
 You are working in the repo markmegerian/rug-check-flow (Vite + React + TS + Supabase).
 Goal: make the platform production-ready by implementing:
 1) explicit state machines enforced in DB,

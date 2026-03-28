@@ -1,3 +1,5 @@
+> Status note: see `docs/platform-1.0-status.md` for the living implementation-status tracker. This roadmap doc remains planning context and may lag behind shipped code.
+
 # Platform 1.0 Implementation Plan
 
 **Date:** 2026-03-05  
