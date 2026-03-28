@@ -17,8 +17,8 @@ else
   done
 
   auth_response="$(mktemp)"
-  auth_status="$(curl -sS -o "$auth_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$(jq -cn --arg email "$OFFICE_USER_EMAIL" --arg password "$OFFICE_USER_PASSWORD" 'email':)")"
-  auth_status="$(curl -sS -o "$auth_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$(jq -cn --arg email "$OFFICE_USER_EMAIL" --arg password "$OFFICE_USER_PASSWORD" 'password':)")"
+  auth_payload="$(jq -cn --arg email "$OFFICE_USER_EMAIL" --arg password "$OFFICE_USER_PASSWORD" '{email:$email,password:$password}')"
+  auth_status="$(curl -sS -o "$auth_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$auth_payload")"
 
   if [[ "$auth_status" != "200" ]]; then
     echo "Office auth failed with status ${auth_status}" >&2

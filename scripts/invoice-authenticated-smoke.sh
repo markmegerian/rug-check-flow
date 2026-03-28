@@ -25,8 +25,8 @@ for var_name in SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PAS
 done
 
 auth_response="$(mktemp)"
-auth_status="$(curl -sS -o "$auth_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$(jq -cn --arg email "$OFFICE_USER_EMAIL" --arg password "$OFFICE_USER_PASSWORD" 'email':)")"
-auth_status="$(curl -sS -o "$auth_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$(jq -cn --arg email "$OFFICE_USER_EMAIL" --arg password "$OFFICE_USER_PASSWORD" 'password':)")"
+auth_payload="$(jq -cn --arg email "$OFFICE_USER_EMAIL" --arg password "$OFFICE_USER_PASSWORD" '{email:$email,password:$password}')"
+auth_status="$(curl -sS -o "$auth_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/auth/v1/token?grant_type=password" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Content-Type: application/json" -d "$auth_payload")"
 
 if [[ "$auth_status" != "200" ]]; then
   echo "Office auth failed with status ${auth_status}" >&2
@@ -85,8 +85,8 @@ fi
 
 echo "==> Verifying authenticated invoice flow for ${invoice_number} (${invoice_id})"
 pdf_response="$(mktemp)"
-pdf_status="$(curl -sS -o "$pdf_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/functions/v1/invoice-pdf" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${office_access_token}" -H "Content-Type: application/json" -d "$(jq -cn --arg invoice_id "$invoice_id" 'invoice_id':)")"
-pdf_status="$(curl -sS -o "$pdf_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/functions/v1/invoice-pdf" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${office_access_token}" -H "Content-Type: application/json" -d "$(jq -cn --arg invoice_id "$invoice_id" 'force_regenerate':true)")"
+pdf_payload="$(jq -cn --arg invoice_id "$invoice_id" '{invoice_id:$invoice_id,force_regenerate:true}')"
+pdf_status="$(curl -sS -o "$pdf_response" -w "%{http_code}" -X POST "${SUPABASE_URL}/functions/v1/invoice-pdf" -H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${office_access_token}" -H "Content-Type: application/json" -d "$pdf_payload")"
 
 if [[ "$pdf_status" != "200" ]]; then
   echo "invoice-pdf function failed with status ${pdf_status}" >&2
