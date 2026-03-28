@@ -3,6 +3,7 @@
 _Last updated: 2026-03-28_
 
 This doc breaks down the remaining company-scoping work after `clients.company_id` and `portal_users.company_id` were fixed on 2026-03-28.
+- `company_memberships` currently has 0 rows in prod
 
 The goal is to finish company ownership on legacy workflow/accounting tables in a way that is:
 - derivable from existing foreign keys
@@ -22,6 +23,12 @@ Confirmed missing in prod during audit:
 - `client_service_selections.company_id`
 - `service_completions.company_id`
 
+Current blocker discovered after plan creation:
+- `companies` currently has 0 rows in prod
+- `clients.company_id` is currently null for all 901 prod clients
+- `company_memberships` currently has 0 rows in prod
+- downstream company backfills cannot produce meaningful ownership until the company model is actually seeded or otherwise assigned upstream
+
 ## Principles
 
 1. Prefer **derived ownership** over manual entry.
@@ -35,6 +42,7 @@ Confirmed missing in prod during audit:
 ## Dependency map
 
 ### Directly derivable from `clients.company_id`
+- `company_memberships` currently has 0 rows in prod
 - `rugs` via `rugs.client_id -> clients.id`
 - `invoices` via `invoices.client_id -> clients.id`
 - `payments` via `payments.client_id -> clients.id`
@@ -53,6 +61,20 @@ Confirmed missing in prod during audit:
 
 ## Recommended rollout phases
 
+## Phase 0 — Bootstrap upstream company ownership
+
+### Why this comes first
+Downstream `company_id` rollout is blocked until upstream ownership actually exists in prod. Right now there are no `companies`, no `company_memberships`, and no client-level company assignments to derive from.
+
+### Required outcome
+- create at least one real `companies` row for the operating business
+- create `company_memberships` for office users who should own/manage that company
+- assign/seed `clients.company_id` for the existing client base using the chosen ownership model
+
+### Notes
+- If the app is truly single-company today, this may be a one-time bootstrap/migration, not a user-facing product feature.
+- Do this before rolling out any more downstream ownership columns.
+
 ## Phase A — Foundation ownership columns
 
 ### Tables
@@ -67,6 +89,7 @@ These have the simplest lineage and cover the most important business objects.
 1. Add nullable `company_id uuid references public.companies(id) on delete set null`
 2. Add indexes
 3. Backfill from `clients.company_id`
+- `company_memberships` currently has 0 rows in prod
 4. Add insert-time autofill trigger from related client
 5. Add a smoke/audit check for column presence + null counts
 
@@ -111,6 +134,7 @@ After Phases A and B are live and clean enough:
 
 ## `rugs`
 **Current lineage:** `rugs.client_id -> clients.id -> clients.company_id`
+- `company_memberships` currently has 0 rows in prod
 
 **Confidence:** High
 
@@ -121,6 +145,7 @@ After Phases A and B are live and clean enough:
 
 ## `invoices`
 **Current lineage:** `invoices.client_id -> clients.id -> clients.company_id`
+- `company_memberships` currently has 0 rows in prod
 
 **Confidence:** High
 
@@ -131,6 +156,7 @@ After Phases A and B are live and clean enough:
 
 ## `payments`
 **Current lineage:** `payments.client_id -> clients.id -> clients.company_id`
+- `company_memberships` currently has 0 rows in prod
 
 **Confidence:** High when `client_id` is present
 

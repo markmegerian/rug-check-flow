@@ -223,6 +223,7 @@ The following areas still need a proper review/rollout for company scoping consi
 - Treat this as a separate epic, not an incidental cleanup.
 - Detailed rollout plan now lives in `docs/company-scope-rollout-plan.md`.
 - Repeatable audit script: `scripts/company-scope-audit.sh`.
+- New blocker discovered during audit: prod currently has 0 `companies` rows, 0 `company_memberships` rows, and `clients.company_id` is null on all 901 clients, so downstream company backfills are blocked until upstream company ownership is seeded/assigned.
 
 ---
 
@@ -331,11 +332,12 @@ The following areas still need a proper review/rollout for company scoping consi
 
 ## Recommended next priority order
 
-1. Finish company scoping on remaining legacy tables
-2. Build Office Inbox / thread model
-3. Implement full reminder cadence automation
-4. Tighten DB-native authority for remaining stop workflow invariants where valuable
-5. Keep release evidence and rollout docs current as real deployments happen
+1. Bootstrap upstream company ownership (`companies`, `company_memberships`, and real `clients.company_id` assignment)
+2. Finish company scoping on remaining legacy tables
+3. Build Office Inbox / thread model
+4. Implement full reminder cadence automation
+5. Tighten DB-native authority for remaining stop workflow invariants where valuable
+6. Keep release evidence and rollout docs current as real deployments happen
 
 ---
 

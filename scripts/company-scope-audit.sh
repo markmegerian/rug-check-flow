@@ -61,7 +61,30 @@ TABLES=(
   service_completions
 )
 
+count_rows() {
+  local table="$1"
+  local filter="${2:-}"
+  local sep=""
+  [[ -n "$filter" ]] && sep='&'
+  local headers="$(mktemp)"
+  local body="$(mktemp)"
+  local status="$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' \
+    "${SUPABASE_URL}/rest/v1/${table}?select=id&limit=1${sep}${filter}" \
+    -H "apikey: ${api_key}" \
+    -H "Authorization: Bearer ${token}" \
+    -H 'Accept: application/json' \
+    -H 'Prefer: count=exact')"
+  local count="$(awk -F'/' '/^content-range:/ {gsub("\r", "", $2); print $2}' "$headers" | tail -1)"
+  echo "${status}:${count:-unknown}"
+  rm -f "$headers" "$body"
+}
+
 echo "==> Company scope audit (${mode})"
+echo "Upstream readiness:"
+echo "  companies total: $(count_rows companies)"
+echo "  clients total: $(count_rows clients)"
+echo "  clients company_id null: $(count_rows clients 'company_id=is.null')"
+echo
 
 for table in "${TABLES[@]}"; do
   response="$(mktemp)"
