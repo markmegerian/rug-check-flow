@@ -456,6 +456,7 @@ export type Database = {
           address: string
           billing_notes: string
           billing_reminder_preference: string
+          company_id: string | null
           contact_name: string
           created_at: string
           email: string
@@ -472,6 +473,7 @@ export type Database = {
           address?: string
           billing_notes?: string
           billing_reminder_preference?: string
+          company_id?: string | null
           contact_name?: string
           created_at?: string
           email?: string
@@ -488,6 +490,7 @@ export type Database = {
           address?: string
           billing_notes?: string
           billing_reminder_preference?: string
+          company_id?: string | null
           contact_name?: string
           created_at?: string
           email?: string
@@ -500,7 +503,15 @@ export type Database = {
           route_day?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       communication_events: {
         Row: {
@@ -2392,6 +2403,7 @@ export type Database = {
       portal_users: {
         Row: {
           client_id: string
+          company_id: string | null
           created_at: string
           email: string
           id: string
@@ -2401,6 +2413,7 @@ export type Database = {
         }
         Insert: {
           client_id: string
+          company_id?: string | null
           created_at?: string
           email: string
           id?: string
@@ -2410,6 +2423,7 @@ export type Database = {
         }
         Update: {
           client_id?: string
+          company_id?: string | null
           created_at?: string
           email?: string
           id?: string
@@ -2423,6 +2437,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_users_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

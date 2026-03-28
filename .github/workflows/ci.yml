@@ -74,6 +74,10 @@ jobs:
       - name: Authenticated invoice smoke (optional)
         if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' }}
         run: ./scripts/invoice-authenticated-smoke.sh
+      - name: Company-scope column smoke (optional)
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' }}
+        run: ./scripts/company-scope-column-smoke.sh
+
 
   release-readiness:
     runs-on: ubuntu-latest
