@@ -221,6 +221,8 @@ The following areas still need a proper review/rollout for company scoping consi
 ### Notes
 - This is currently the clearest structural gap left after the March 28 stabilization work.
 - Treat this as a separate epic, not an incidental cleanup.
+- Detailed rollout plan now lives in `docs/company-scope-rollout-plan.md`.
+- Repeatable audit script: `scripts/company-scope-audit.sh`.
 
 ---
 
