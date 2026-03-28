@@ -199,6 +199,8 @@ Use `scripts/company-scope-audit.sh` to check:
 - whether rows with lineage still remain null after rollout
 - what the current prod shape looks like before/after migrations
 
+Use `scripts/company-ownership-bootstrap-audit.sh` to identify likely internal owner/admin users for the initial company bootstrap.
+
 Recommended checks after each phase:
 1. `supabase db push --linked --include-all --dry-run`
 2. live REST audit of column presence

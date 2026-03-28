@@ -222,7 +222,7 @@ The following areas still need a proper review/rollout for company scoping consi
 - This is currently the clearest structural gap left after the March 28 stabilization work.
 - Treat this as a separate epic, not an incidental cleanup.
 - Detailed rollout plan now lives in `docs/company-scope-rollout-plan.md`.
-- Repeatable audit script: `scripts/company-scope-audit.sh`.
+- Repeatable audit scripts: `scripts/company-scope-audit.sh` and `scripts/company-ownership-bootstrap-audit.sh`.
 - New blocker discovered during audit: prod currently has 0 `companies` rows, 0 `company_memberships` rows, and `clients.company_id` is null on all 901 clients, so downstream company backfills are blocked until upstream company ownership is seeded/assigned.
 
 ---
