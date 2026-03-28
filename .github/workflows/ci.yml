@@ -68,6 +68,10 @@ jobs:
         if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.PORTAL_USER_EMAIL != '' && env.PORTAL_USER_PASSWORD != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' && env.DRIVER_USER_EMAIL != '' && env.DRIVER_USER_PASSWORD != '' }}
         run: ./scripts/rls-scope-smoke-test.sh
 
+      - name: Invoice client-link guard smoke (optional)
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_ANON_KEY != '' && env.OFFICE_USER_EMAIL != '' && env.OFFICE_USER_PASSWORD != '' }}
+        run: ./scripts/invoice-client-link-guard.sh
+
   release-readiness:
     runs-on: ubuntu-latest
     timeout-minutes: 30

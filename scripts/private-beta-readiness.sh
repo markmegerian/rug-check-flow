@@ -156,7 +156,7 @@ office_access_token=""
 require_envs "Office auth token" SUPABASE_URL SUPABASE_ANON_KEY OFFICE_USER_EMAIL OFFICE_USER_PASSWORD
 office_access_token="$(get_access_token "$OFFICE_USER_EMAIL" "$OFFICE_USER_PASSWORD")"
 
-log "Step 4/7: Validate critical tables are queryable"
+log "Step 4/8: Validate critical tables are queryable"
 for table_name in route_stops route_stop_items route_stop_events disputes payments credit_memos; do
   status="$({
     curl -sS -o /tmp/private-beta-table-check.json -w "%{http_code}" \
@@ -172,7 +172,10 @@ for table_name in route_stops route_stop_items route_stop_events disputes paymen
   log "OK: table ${table_name} is readable"
 done
 
-log "Step 5/7: Minimal stop ingestion pipeline smoke"
+log "Step 5/8: Invoice client-link guard"
+run_with_progress "scripts/invoice-client-link-guard.sh" ./scripts/invoice-client-link-guard.sh
+
+log "Step 6/8: Minimal stop ingestion pipeline smoke"
 client_response="$(mktemp)"
 client_status="$({
   curl -sS -o "$client_response" -w "%{http_code}" \
