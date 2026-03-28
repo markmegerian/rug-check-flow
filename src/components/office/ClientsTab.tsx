@@ -311,7 +311,7 @@ export function ClientsTab() {
         if (clientError || !insertedClient?.id) { failedRows += 1; continue; }
         createdClients += 1;
         if (row.portal_email) {
-          const { error: portalError } = await supabase.from("portal_users").insert({ client_id: insertedClient.id, email: row.portal_email, status: "invited" });
+          const { error: portalError } = await supabase.from("portal_users").insert({ client_id: insertedClient.id, company_id: currentCompanyId, email: row.portal_email, status: "invited" });
           if (portalError) failedRows += 1;
           else createdPortalUsers += 1;
         }
@@ -333,7 +333,7 @@ export function ClientsTab() {
     const email = newPortalEmail.trim().toLowerCase();
     if (!email || !editingId) return;
     if (portalUsers.some((u) => u.email === email)) { toast({ title: "Email already exists", variant: "destructive" }); return; }
-    const { error } = await supabase.from("portal_users").insert({ client_id: editingId, email, status: "invited" });
+    const { error } = await supabase.from("portal_users").insert({ client_id: editingId, company_id: currentCompanyId, email, status: "invited" });
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); return; }
     setNewPortalEmail("");
     toast({ title: "Portal login staged", description: `${email} added as invited. Activate and send onboarding when ready.` });
