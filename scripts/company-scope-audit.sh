@@ -94,7 +94,7 @@ for table in "${TABLES[@]}"; do
     -H "Authorization: Bearer ${token}" \
     -H 'Accept: application/json')"
 
-  if [[ "$status" == "200" ]]; then
+  if [[ "$status" == "200" || "$status" == "206" ]]; then
     count_headers="$(mktemp)"
     count_body="$(mktemp)"
     count_status="$(curl -sS -D "$count_headers" -o "$count_body" -w '%{http_code}' \
@@ -104,7 +104,7 @@ for table in "${TABLES[@]}"; do
       -H 'Accept: application/json' \
       -H 'Prefer: count=exact')"
 
-    if [[ "$count_status" == "200" ]]; then
+    if [[ "$count_status" == "200" || "$count_status" == "206" ]]; then
       null_count="$(awk -F'/' '/^content-range:/ {gsub("\r", "", $2); print $2}' "$count_headers" | tail -1)"
       echo "OK  ${table}.company_id present (null rows: ${null_count:-unknown})"
     else
