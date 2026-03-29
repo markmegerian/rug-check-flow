@@ -39,9 +39,10 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Invoice client-link guard + automated smoke coverage
 - `clients.company_id` and `portal_users.company_id` rollout + type sync + CI smoke
 - Phase A company scope rollout for `rugs`, `invoices`, and `payments` (migration + autofill triggers)
+- Phase B company scope rollout for `approved_estimates`, `service_completions`, and `client_service_selections` (migration + autofill triggers)
 
 ### Still incomplete / ongoing
-- Company scoping on remaining legacy workflow/accounting tables
+- Company scoping cleanup on remaining legacy edge cases (`rugs` / `invoices` historical nulls)
 - Messaging threads / Office Inbox
 - Reminder cadence automation for estimates and invoices
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
@@ -210,9 +211,10 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - `20260328211000_add_company_scope_to_clients_and_portal_users.sql`
 - `20260328212000_fix_company_scope_insert_triggers.sql`
 - `20260329090000_add_company_scope_to_rugs_invoices_payments.sql`
+- `20260329091000_add_company_scope_to_estimate_workflow_tables.sql`
 
-### Remaining likely work
-The following areas still need a proper review/rollout for company scoping consistency:
+### Current rollout state
+Direct company ownership columns are now present on:
 - `rugs`
 - `invoices`
 - `payments`
@@ -221,12 +223,11 @@ The following areas still need a proper review/rollout for company scoping consi
 - `service_completions`
 
 ### Notes
-- This is currently the clearest structural gap left after the March 28 stabilization work.
-- Treat this as a separate epic, not an incidental cleanup.
 - Detailed rollout plan now lives in `docs/company-scope-rollout-plan.md`.
 - Repeatable audit scripts: `scripts/company-scope-audit.sh` and `scripts/company-ownership-bootstrap-audit.sh`.
-- Phase 0 bootstrap artifacts now live in repo: `scripts/sql/bootstrap-company-ownership.sql` and `scripts/company-ownership-bootstrap-smoke.sh`.
-- Phase 0 bootstrap is now completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 901 clients now have non-null `company_id`.
+- Phase 0 bootstrap artifacts live in repo: `scripts/sql/bootstrap-company-ownership.sql` and `scripts/company-ownership-bootstrap-smoke.sh`.
+- Phase 0 bootstrap is completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 901 clients now have non-null `company_id`.
+- Current live audit state: `payments`, `approved_estimates`, `client_service_selections`, and `service_completions` have 0 null `company_id` rows; `rugs` has 30 nulls and `invoices` has 46 nulls, indicating historical lineage cleanup remains.
 
 ---
 

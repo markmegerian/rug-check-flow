@@ -94,7 +94,7 @@ These have the simplest lineage and cover the most important business objects.
 
 ### Current repo status
 - Phase A migration now exists in repo: `20260329090000_add_company_scope_to_rugs_invoices_payments.sql`
-- Meaningful non-null backfill in prod still depends on completing Phase 0 company ownership bootstrap first
+- Applied in prod after Phase 0 bootstrap; current audit shows `payments.company_id` is fully backfilled, while `rugs` and `invoices` still have historical null outliers to review
 
 ### Desired end state
 - new rows inherit company automatically when client exists
@@ -104,6 +104,7 @@ These have the simplest lineage and cover the most important business objects.
 ---
 
 ## Phase B — Workflow lineage columns
+_Status: applied in prod on 2026-03-29_
 
 ### Tables
 - `approved_estimates`
@@ -120,6 +121,10 @@ These depend on other workflow tables and should follow after the more foundatio
 4. Backfill `client_service_selections` from `approved_estimates.company_id`, fallback to `client_job_access.company_id`
 5. Add insert-time autofill triggers where inserts still happen in app flows
 6. Add audit coverage
+
+### Current repo/prod status
+- Phase B migration now exists and is applied in prod: `20260329091000_add_company_scope_to_estimate_workflow_tables.sql`
+- Current live audit shows 0 null `company_id` rows for `approved_estimates`, `service_completions`, and `client_service_selections`
 
 ---
 
