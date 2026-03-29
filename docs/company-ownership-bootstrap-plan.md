@@ -44,15 +44,23 @@ If no real multi-company separation exists yet:
 - backfill all existing clients to that company
 - defer true multi-company segmentation until there is an actual business need
 
-## Migration shape (recommended)
+## Execution shape (recommended)
 
-1. Insert `companies` row
-2. Insert `company_memberships` rows for chosen users
-3. Backfill `clients.company_id` where null
-4. Validate `get_user_company_id(auth.uid())` now resolves for office/admin flows
-5. Re-run:
+1. Run `scripts/company-ownership-bootstrap-audit.sh` to identify candidate internal owner/admin users
+2. Fill in and review `scripts/sql/bootstrap-company-ownership.sql`
+3. Execute the bootstrap SQL once in the target environment
+4. Run `scripts/company-ownership-bootstrap-smoke.sh`
+5. Validate `get_user_company_id(auth.uid())` now resolves for office/admin flows
+6. Re-run:
    - `scripts/company-scope-audit.sh`
+   - `scripts/company-scope-column-smoke.sh`
    - client create / portal user create smoke
+
+## Artifacts now in repo
+
+- `scripts/company-ownership-bootstrap-audit.sh`
+- `scripts/sql/bootstrap-company-ownership.sql`
+- `scripts/company-ownership-bootstrap-smoke.sh`
 
 ## Do not do this yet
 
