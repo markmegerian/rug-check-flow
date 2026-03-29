@@ -42,7 +42,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Phase B company scope rollout for `approved_estimates`, `service_completions`, and `client_service_selections` (migration + autofill triggers)
 
 ### Still incomplete / ongoing
-- Company scoping cleanup on remaining legacy edge cases (`rugs` / `invoices` historical nulls)
+- Company scoping mostly complete; only the single intentional orphan invoice remains without `company_id`
 - Messaging threads / Office Inbox
 - Reminder cadence automation for estimates and invoices
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
@@ -227,7 +227,7 @@ Direct company ownership columns are now present on:
 - Repeatable audit scripts: `scripts/company-scope-audit.sh` and `scripts/company-ownership-bootstrap-audit.sh`.
 - Phase 0 bootstrap artifacts live in repo: `scripts/sql/bootstrap-company-ownership.sql` and `scripts/company-ownership-bootstrap-smoke.sh`.
 - Phase 0 bootstrap is completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 901 clients now have non-null `company_id`.
-- Current live audit state: `payments`, `approved_estimates`, `client_service_selections`, and `service_completions` have 0 null `company_id` rows; `rugs` has 30 nulls and `invoices` has 46 nulls, indicating historical lineage cleanup remains.
+- Current live audit state: `rugs`, `payments`, `approved_estimates`, `client_service_selections`, and `service_completions` have 0 null `company_id` rows; `invoices` has 1 intentional legacy orphan remaining (`client_id = null`, `clients/unlinked/1.pdf`).
 
 ---
 

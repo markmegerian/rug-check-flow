@@ -94,12 +94,17 @@ These have the simplest lineage and cover the most important business objects.
 
 ### Current repo status
 - Phase A migration now exists in repo: `20260329090000_add_company_scope_to_rugs_invoices_payments.sql`
-- Applied in prod after Phase 0 bootstrap; current audit shows `payments.company_id` is fully backfilled, while `rugs` and `invoices` still have historical null outliers to review
+- Applied in prod after Phase 0 bootstrap; follow-up cleanup backfilled all remaining derivable `rugs.company_id` rows and all derivable `invoices.company_id` rows
 
 ### Desired end state
 - new rows inherit company automatically when client exists
 - historical rows backfill where client lineage is present
 - ambiguous rows remain visible as nulls for manual cleanup
+
+### Current live status
+- `rugs.company_id`: 0 null rows
+- `invoices.company_id`: 1 null row (the known intentional orphan invoice with `client_id = null`)
+- `payments.company_id`: 0 null rows
 
 ---
 
