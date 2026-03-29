@@ -89,9 +89,12 @@ These have the simplest lineage and cover the most important business objects.
 1. Add nullable `company_id uuid references public.companies(id) on delete set null`
 2. Add indexes
 3. Backfill from `clients.company_id`
-- `company_memberships` currently has 0 rows in prod
-4. Add insert-time autofill trigger from related client
+4. Add insert-time autofill trigger from related client/job lineage
 5. Add a smoke/audit check for column presence + null counts
+
+### Current repo status
+- Phase A migration now exists in repo: `20260329090000_add_company_scope_to_rugs_invoices_payments.sql`
+- Meaningful non-null backfill in prod still depends on completing Phase 0 company ownership bootstrap first
 
 ### Desired end state
 - new rows inherit company automatically when client exists

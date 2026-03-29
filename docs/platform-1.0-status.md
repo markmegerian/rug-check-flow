@@ -38,6 +38,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Invoice PDF generation/download path
 - Invoice client-link guard + automated smoke coverage
 - `clients.company_id` and `portal_users.company_id` rollout + type sync + CI smoke
+- Phase A company scope rollout for `rugs`, `invoices`, and `payments` (migration + autofill triggers)
 
 ### Still incomplete / ongoing
 - Company scoping on remaining legacy workflow/accounting tables
@@ -208,6 +209,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 ### Recent migrations
 - `20260328211000_add_company_scope_to_clients_and_portal_users.sql`
 - `20260328212000_fix_company_scope_insert_triggers.sql`
+- `20260329090000_add_company_scope_to_rugs_invoices_payments.sql`
 
 ### Remaining likely work
 The following areas still need a proper review/rollout for company scoping consistency:
