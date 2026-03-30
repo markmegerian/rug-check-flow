@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
 
 type MessageThread = Tables<"message_threads">;
 type Message = Tables<"messages">;
@@ -21,6 +22,7 @@ type PortalThread = MessageThread & {
   lastMessageAt: string | null;
   lastMessageBody: string | null;
   messageCount: number;
+  entityLabel: string | null;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -97,6 +99,8 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage }: P
         return;
       }
 
+      const entityLabels = await fetchThreadEntityLabels((data ?? []) as Array<Pick<MessageThread, "id" | "thread_type" | "entity_id">>);
+
       const nextThreads: PortalThread[] = (data ?? []).map((row: any) => {
         const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
         rowMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -112,6 +116,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage }: P
           lastMessageAt: preview?.created_at ?? null,
           lastMessageBody: preview?.body ?? null,
           messageCount: rowMessages.length,
+          entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
         };
       });
 
@@ -317,7 +322,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage }: P
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold">{THREAD_TYPE_LABEL[thread.thread_type]}</p>
-                        <p className="text-xs text-muted-foreground">{thread.entity_id ? thread.entity_id : "General conversation"}</p>
+                        <p className="text-xs text-muted-foreground">{thread.entityLabel ?? thread.entity_id ?? "General conversation"}</p>
                       </div>
                       <span className="text-[11px] text-muted-foreground">{formatWhen(thread.lastMessageAt ?? thread.updated_at)}</span>
                     </div>
@@ -334,7 +339,9 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage }: P
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{selectedThread ? THREAD_TYPE_LABEL[selectedThread.thread_type] : "Conversation"}</CardTitle>
           <CardDescription>
-            {selectedThread ? "Messages sync with the office inbox." : "Choose or start a thread to chat with the office team."}
+            {selectedThread
+              ? `Messages sync with the office inbox${selectedThread.entityLabel ? ` · ${selectedThread.entityLabel}` : selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}.`
+              : "Choose or start a thread to chat with the office team."}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex h-full flex-col gap-4">

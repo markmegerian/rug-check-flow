@@ -252,22 +252,35 @@ Direct company ownership columns are now present on:
 ---
 
 ## 9) Messaging threads / Office Inbox
-**Status:** Not built
+**Status:** Partial
 
 ### What exists
 - Generic `interactions` table
 - `communication_events` table
+- Shared structured thread tables already present in schema:
+  - `message_threads`
+  - `messages`
+- New Office Inbox UI:
+  - `src/components/office/InboxTab.tsx`
+  - wired into `src/pages/Operations.tsx`
+- New portal messaging UI:
+  - `src/components/portal/PortalMessagesTab.tsx`
+  - wired into `src/pages/WholesalePortal.tsx`
+- Shared thread context labeling helper:
+  - `src/lib/message-threads.ts`
+- Current thread types supported in UI:
+  - `general`
+  - `estimate`
+  - `invoice`
 
-### What is missing
-- Explicit thread convention implemented end-to-end:
-  - `thread_general`
-  - `thread_estimate:<id>`
-  - `thread_invoice:<id>`
-- Office Inbox UI grouped by client/thread
-- Clear portal-side thread composition flow
+### What is still missing
+- Deep-link creation from estimate/invoice surfaces into the correct thread automatically
+- Stronger entity-aware composition UX (create from selected estimate/invoice instead of manual context)
+- Explicit notification delivery/throttle behavior tied to thread replies
+- Thread lifecycle controls such as close/archive and unread state
 
 ### Notes
-- This is still a real roadmap item, not merely a cleanup task.
+- This is no longer “not built.” A usable first slice now exists for both office and portal, but it still needs workflow polish and automation hooks.
 
 ---
 

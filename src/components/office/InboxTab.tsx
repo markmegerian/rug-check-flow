@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
 
 type Client = Tables<"clients">;
 type MessageThread = Tables<"message_threads">;
@@ -24,6 +25,7 @@ type ThreadWithPreview = MessageThread & {
   lastMessageAt: string | null;
   lastMessageBody: string | null;
   messageCount: number;
+  entityLabel: string | null;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -106,6 +108,8 @@ export function InboxTab() {
         return;
       }
 
+      const entityLabels = await fetchThreadEntityLabels((data ?? []) as Array<Pick<MessageThread, "id" | "thread_type" | "entity_id">>);
+
       const nextThreads: ThreadWithPreview[] = (data ?? []).map((row: any) => {
         const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
         rowMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -124,6 +128,7 @@ export function InboxTab() {
           lastMessageAt: preview?.created_at ?? null,
           lastMessageBody: preview?.body ?? null,
           messageCount: rowMessages.length,
+          entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
         };
       });
 
@@ -396,7 +401,7 @@ export function InboxTab() {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {THREAD_TYPE_LABEL[thread.thread_type]}
-                            {thread.entity_id ? ` · ${thread.entity_id}` : ""}
+                            {thread.entityLabel ? ` · ${thread.entityLabel}` : thread.entity_id ? ` · ${thread.entity_id}` : ""}
                           </p>
                         </div>
                         <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -422,7 +427,7 @@ export function InboxTab() {
           </CardTitle>
           <CardDescription>
             {selectedThread
-              ? `${THREAD_TYPE_LABEL[selectedThread.thread_type]} conversation${selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}`
+              ? `${THREAD_TYPE_LABEL[selectedThread.thread_type]} conversation${selectedThread.entityLabel ? ` · ${selectedThread.entityLabel}` : selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}`
               : "Pick a thread to review and reply."}
           </CardDescription>
         </CardHeader>
