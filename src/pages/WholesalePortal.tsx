@@ -4,6 +4,7 @@ import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
 import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
 import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
 import PortalPricingTab from "@/components/portal/PortalPricingTab";
+import PortalMessagesTab from "@/components/portal/PortalMessagesTab";
 import { PortalAccountSnapshot } from "@/components/portal/PortalAccountSnapshot";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -16,13 +17,14 @@ import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDial
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "prices";
+type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "messages" | "prices";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "rugs", label: "Rugs" },
   { key: "pickups", label: "Pickups" },
   { key: "estimates", label: "Estimates" },
   { key: "invoices", label: "Invoices" },
+  { key: "messages", label: "Messages" },
   { key: "prices", label: "Prices" },
 ];
 
@@ -41,7 +43,7 @@ export default function WholesalePortal() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<Tab>(requestedTab && TABS.some((tab) => tab.key === requestedTab) ? requestedTab as Tab : "rugs");
-  const [mountedTabs, setMountedTabs] = useState<Record<Tab, boolean>>({ rugs: true, pickups: false, estimates: false, invoices: false, prices: false });
+  const [mountedTabs, setMountedTabs] = useState<Record<Tab, boolean>>({ rugs: true, pickups: false, estimates: false, invoices: false, messages: false, prices: false });
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -65,7 +67,7 @@ export default function WholesalePortal() {
   useEffect(() => {
     if (!clientId || portalClientLoading || requiresPasswordReset) return;
     const timer = window.setTimeout(() => {
-      setMountedTabs({ rugs: true, pickups: true, estimates: true, invoices: true, prices: true });
+      setMountedTabs({ rugs: true, pickups: true, estimates: true, invoices: true, messages: true, prices: true });
     }, 450);
     return () => window.clearTimeout(timer);
   }, [clientId, portalClientLoading, requiresPasswordReset]);
@@ -231,6 +233,11 @@ export default function WholesalePortal() {
               {mountedTabs.invoices ? (
                 <div className={activeTab === "invoices" ? "block" : "hidden"}>
                   <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                </div>
+              ) : null}
+              {mountedTabs.messages ? (
+                <div className={activeTab === "messages" ? "block" : "hidden"}>
+                  <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
                 </div>
               ) : null}
               {mountedTabs.prices ? (
