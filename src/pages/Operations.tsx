@@ -12,6 +12,7 @@ import {
   Map,
   Receipt,
   FolderOpen,
+  Inbox,
 } from "lucide-react";
 import { CheckInLayout } from "@/components/facility/CheckInLayout";
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
@@ -25,6 +26,7 @@ import { DeliveryProofBoard } from "@/components/office/DeliveryProofBoard";
 import { JobsTab } from "@/components/office/JobsTab";
 import { RouteBuilder } from "@/components/office/RouteBuilder";
 import { EstimatesTab } from "@/components/office/EstimatesTab";
+import { InboxTab } from "@/components/office/InboxTab";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
@@ -45,6 +47,7 @@ const BUSINESS_TABS_BASE = [
   { id: "estimates", label: "Estimates", icon: ClipboardCheck },
   { id: "clients", label: "Clients", icon: Users },
   { id: "jobs", label: "Jobs", icon: FolderOpen },
+  { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "deliveries", label: "Deliveries", icon: Truck },
   { id: "routes", label: "Routes", icon: Map },
   { id: "proofs", label: "Proofs", icon: Camera },
@@ -143,6 +146,7 @@ export default function Operations() {
         {activeTab === "estimates" && <EstimatesTab />}
         {activeTab === "clients" && <ClientsTab />}
         {activeTab === "jobs" && <JobsTab onOpenRug={handleRugSelect} />}
+        {activeTab === "inbox" && <InboxTab />}
         {activeTab === "deliveries" && <DeliveriesTab />}
         {activeTab === "routes" && <RouteBuilder />}
         {activeTab === "proofs" && <DeliveryProofBoard />}
