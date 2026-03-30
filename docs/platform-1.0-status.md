@@ -47,6 +47,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Reminder cadence automation for estimates and invoices
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
 - Release evidence / rollout discipline beyond branch deploy health
+- Live verification that new company-scope consistency triggers are pushed and green in prod
 
 ---
 
@@ -212,6 +213,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - `20260328212000_fix_company_scope_insert_triggers.sql`
 - `20260329090000_add_company_scope_to_rugs_invoices_payments.sql`
 - `20260329091000_add_company_scope_to_estimate_workflow_tables.sql`
+- `20260330074500_enforce_company_scope_consistency.sql`
 
 ### Current rollout state
 Direct company ownership columns are now present on:
@@ -228,6 +230,7 @@ Direct company ownership columns are now present on:
 - Phase 0 bootstrap artifacts live in repo: `scripts/sql/bootstrap-company-ownership.sql` and `scripts/company-ownership-bootstrap-smoke.sh`.
 - Phase 0 bootstrap is completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 901 clients now have non-null `company_id`.
 - Current live audit state: `rugs`, `payments`, `approved_estimates`, `client_service_selections`, and `service_completions` have 0 null `company_id` rows; `invoices` has 1 intentional legacy orphan remaining (`client_id = null`, `clients/unlinked/1.pdf`).
+- New DB consistency triggers now enforce that company-scoped workflow rows cannot drift away from their parent company linkage on insert/update, even if application code passes the wrong `company_id`.
 
 ---
 
