@@ -42,6 +42,7 @@ export default function WholesalePortal() {
   } = usePortalClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  const requestedThreadId = searchParams.get("threadId");
   const [activeTab, setActiveTab] = useState<Tab>(requestedTab && TABS.some((tab) => tab.key === requestedTab) ? requestedTab as Tab : "rugs");
   const [mountedTabs, setMountedTabs] = useState<Record<Tab, boolean>>({ rugs: true, pickups: false, estimates: false, invoices: false, messages: false, prices: false });
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -217,32 +218,32 @@ export default function WholesalePortal() {
 
               {mountedTabs.rugs ? (
                 <div className={activeTab === "rugs" ? "block" : "hidden"}>
-                  <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                  <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 </div>
               ) : null}
               {mountedTabs.pickups ? (
                 <div className={activeTab === "pickups" ? "block" : "hidden"}>
-                  <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                  <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 </div>
               ) : null}
               {mountedTabs.estimates ? (
                 <div className={activeTab === "estimates" ? "block" : "hidden"}>
-                  <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                  <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 </div>
               ) : null}
               {mountedTabs.invoices ? (
                 <div className={activeTab === "invoices" ? "block" : "hidden"}>
-                  <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                  <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 </div>
               ) : null}
               {mountedTabs.messages ? (
                 <div className={activeTab === "messages" ? "block" : "hidden"}>
-                  <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                  <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 </div>
               ) : null}
               {mountedTabs.prices ? (
                 <div className={activeTab === "prices" ? "block" : "hidden"}>
-                  <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} />
+                  <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 </div>
               ) : null}
             </div>

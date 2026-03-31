@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { useInvoices, useInvalidateInvoices, type InvoiceRow } from "@/hooks/use
 import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/shared/StatusBadge";
 import { MS_PER_DAY } from "@/lib/constants";
 import { calculateInvoiceDueDate } from "@/lib/billing";
+import { openOrCreateThread } from "@/lib/thread-navigation";
 
 const STATUSES: Array<{ value: string; label: string }> = [
   { value: "outstanding", label: "Outstanding" },
@@ -33,6 +34,7 @@ const STATUS_VALUES = new Set(STATUSES.map((status) => status.value));
 
 
 export function InvoicesTab() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const {
     data: infiniteData,
@@ -116,6 +118,25 @@ export function InvoicesTab() {
     setSelected(inv);
     setSheetOpen(true);
   };
+
+  const openInvoiceThread = useCallback(async (invoice: InvoiceRow) => {
+    if (!invoice.client_id) {
+      toast({ title: "No client linked", description: "This invoice does not have a client to message.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const threadId = await openOrCreateThread({
+        clientId: invoice.client_id,
+        threadType: "invoice",
+        entityId: invoice.id,
+      });
+      navigate(`/operations?tab=inbox&threadId=${threadId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Could not open thread", description: message, variant: "destructive" });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (!selected?.id) return;
@@ -357,9 +378,14 @@ export function InvoicesTab() {
                   <InvoiceStatusBadge status={inv.status} />
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openInvoice(inv); }}>
-                    <Eye className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); void openInvoiceThread(inv); }}>
+                      Thread
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openInvoice(inv); }}>
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))

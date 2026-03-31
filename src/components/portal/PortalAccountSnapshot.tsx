@@ -6,7 +6,7 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ACTIVE_STATUSES } from "./portal-rug-types";
 import { getCollectionsStateBadgeClass, getPortalBillingState } from "@/lib/billing";
 
-type PortalSnapshotTab = "rugs" | "estimates" | "invoices";
+type PortalSnapshotTab = "rugs" | "estimates" | "invoices" | "messages";
 
 type PortalAccountSnapshotProps = {
   clientId: string;
@@ -109,22 +109,22 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
         key: "overdue-invoices",
         title: `${summary.overdueInvoices} overdue invoice${summary.overdueInvoices === 1 ? "" : "s"}`,
         detail: `Review payment details for $${summary.overdueBalance.toFixed(2)} overdue.`,
-        tab: "invoices",
+        tab: "messages",
       });
     } else if (summary.openInvoices > 0) {
       items.push({
         key: "open-invoices",
         title: `${summary.openInvoices} open invoice${summary.openInvoices === 1 ? "" : "s"}`,
         detail: `Check the current balance of $${summary.openBalance.toFixed(2)}.`,
-        tab: "invoices",
+        tab: "messages",
       });
     }
     if (summary.pendingEstimates > 0) {
       items.push({
         key: "pending-estimates",
         title: `${summary.pendingEstimates} estimate${summary.pendingEstimates === 1 ? "" : "s"} awaiting review`,
-        detail: "Approve or reject proposed work from the Estimates tab.",
-        tab: "estimates",
+        detail: "Approve or reject proposed work from the Estimates tab, or message the office team for clarification.",
+        tab: "messages",
       });
     }
     if (summary.readyRugs > 0 || summary.inProductionRugs > 0) {

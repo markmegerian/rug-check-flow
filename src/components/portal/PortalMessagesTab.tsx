@@ -47,7 +47,7 @@ function formatWhen(value: string | null) {
   }).format(new Date(value));
 }
 
-export default function PortalMessagesTab({ clientId, loading, errorMessage }: PortalTabProps) {
+export default function PortalMessagesTab({ clientId, loading, errorMessage, requestedThreadId }: PortalTabProps) {
   const { toast } = useToast();
   const [threads, setThreads] = useState<PortalThread[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -128,6 +128,12 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage }: P
     void loadThreads();
     return () => { active = false; };
   }, [clientId, errorMessage, loading, toast]);
+
+  useEffect(() => {
+    if (requestedThreadId) {
+      setSelectedThreadId(requestedThreadId);
+    }
+  }, [requestedThreadId]);
 
   useEffect(() => {
     if (!selectedThreadId) {

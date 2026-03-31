@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { EstimateStatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/date-helpers";
 import { MS_PER_DAY } from "@/lib/constants";
+import { openOrCreateThread } from "@/lib/thread-navigation";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -50,6 +51,7 @@ type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_id" | "se
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "sent", "approved", "rejected", "expired"]);
 
 export function EstimatesTab() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
@@ -419,6 +421,25 @@ export function EstimatesTab() {
 
   const pagination = usePaginatedList(filteredEstimates);
 
+  const openEstimateThread = useCallback(async (estimate: EstimateRow) => {
+    if (!estimate.client_id) {
+      toast({ title: "No client linked", description: "This estimate does not have a client to message.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const threadId = await openOrCreateThread({
+        clientId: estimate.client_id,
+        threadType: "estimate",
+        entityId: estimate.id,
+      });
+      navigate(`/operations?tab=inbox&threadId=${threadId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Could not open thread", description: message, variant: "destructive" });
+    }
+  }, [navigate, toast]);
+
   const grouped = useMemo(() => {
     const map: Record<string, EstimateRow[]> = {};
     pagination.items.forEach((e) => {
@@ -504,6 +525,9 @@ export function EstimatesTab() {
                   )}
 
                   <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => openEstimateThread(estimate)}>
+                      Open thread
+                    </Button>
                     {estimate.status === "draft" && (
                       <Button
                         size="sm"
