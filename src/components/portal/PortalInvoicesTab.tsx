@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +8,7 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 import { getCollectionsStateBadgeClass, getPortalBillingState, type CollectionsStateTone } from "@/lib/billing";
+import { openOrCreateThread } from "@/lib/thread-navigation";
 import { type InvoiceStatus } from "@/components/shared/StatusBadge";
 type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
 
@@ -83,6 +85,7 @@ const PAYMENT_STATUS_STYLE: Record<PaymentAttemptStatus, string> = {
 };
 
 export default function PortalInvoicesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -268,6 +271,23 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
     setLoadingMore(false);
   };
 
+  const handleOpenThread = useCallback(async (invoice: PortalInvoice, event?: MouseEvent<HTMLButtonElement>) => {
+    event?.stopPropagation();
+    if (!clientId) return;
+
+    try {
+      const threadId = await openOrCreateThread({
+        clientId,
+        threadType: "invoice",
+        entityId: invoice.id,
+      });
+      navigate(`/portal?tab=messages&threadId=${threadId}`);
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Could not open thread", description, variant: "destructive" });
+    }
+  }, [clientId, navigate, toast]);
+
   const handleDownload = async (invoice: PortalInvoice, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
 
@@ -382,7 +402,15 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
               <Badge variant={STATUS_VARIANT[inv.status]} className="text-[11px] w-fit">
                 {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
               </Badge>
-              <div className="hidden sm:flex justify-end">
+              <div className="hidden sm:flex justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={(event) => void handleOpenThread(inv, event)}
+                >
+                  Message
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -395,8 +423,13 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
             </button>
             {isExpanded && (
               <div className="px-4 pb-3 pl-10 space-y-4 border-t bg-muted/20">
-                <div className="pt-2 space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Line items</p>
+                <div className="pt-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Line items</p>
+                    <Button size="sm" variant="secondary" onClick={(event) => void handleOpenThread(inv, event)}>
+                      Message office
+                    </Button>
+                  </div>
                   {inv.lineItems.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No line items found.</p>
                   ) : (

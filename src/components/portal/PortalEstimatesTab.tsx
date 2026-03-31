@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import {
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
+import { openOrCreateThread } from "@/lib/thread-navigation";
 import type { Tables } from "@/integrations/supabase/types";
 
 type EstimateRow = {
@@ -55,6 +57,7 @@ const statusBadge = (status: EstimateStatus) => {
 };
 
 export default function PortalEstimatesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [lineItemsByEstimateId, setLineItemsByEstimateId] = useState<Record<string, EstimateItemRow[]>>({});
@@ -210,6 +213,21 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
     setUpdatingId(null);
   };
 
+  const openEstimateThread = useCallback(async (estimate: EstimateRow) => {
+    if (!clientId) return;
+    try {
+      const threadId = await openOrCreateThread({
+        clientId,
+        threadType: "estimate",
+        entityId: estimate.id,
+      });
+      navigate(`/portal?tab=messages&threadId=${threadId}`);
+    } catch (error) {
+      const description = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Could not open thread", description, variant: "destructive" });
+    }
+  }, [clientId, navigate, toast]);
+
   const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);
   const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
 
@@ -324,6 +342,14 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Button
                       size="sm"
+                      variant="secondary"
+                      onClick={() => openEstimateThread(estimate)}
+                      disabled={isUpdating}
+                    >
+                      Message office
+                    </Button>
+                    <Button
+                      size="sm"
                       onClick={() => updateStatus(estimate, "approved")}
                       disabled={isUpdating}
                       className="bg-green-600 hover:bg-green-700 text-white"
@@ -373,7 +399,12 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                       {estimate.rugs?.tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
                     </p>
                   </div>
-                  {statusBadge(estimate.status)}
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => openEstimateThread(estimate)}>
+                      Message
+                    </Button>
+                    {statusBadge(estimate.status)}
+                  </div>
                 </div>
                 {index < historyPagination.items.length - 1 && <Separator />}
               </div>
