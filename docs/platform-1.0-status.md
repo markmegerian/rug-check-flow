@@ -43,11 +43,11 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 
 ### Still incomplete / ongoing
 - Company scoping mostly complete; only the single intentional orphan invoice remains without `company_id`
-- Messaging threads / Office Inbox
-- Reminder cadence automation for estimates and invoices
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
 - Release evidence / rollout discipline beyond branch deploy health
 - Live verification that new company-scope consistency triggers are pushed and green in prod
+- Live scheduler wiring / production execution verification for reminder cadence
+- Full production smoke evidence for the newly shipped messaging/reminder flows
 
 ---
 
@@ -252,7 +252,7 @@ Direct company ownership columns are now present on:
 ---
 
 ## 9) Messaging threads / Office Inbox
-**Status:** Partial
+**Status:** Built enough to rely on
 
 ### What exists
 - Generic `interactions` table
@@ -260,46 +260,83 @@ Direct company ownership columns are now present on:
 - Shared structured thread tables already present in schema:
   - `message_threads`
   - `messages`
-- New Office Inbox UI:
+- Office Inbox UI:
   - `src/components/office/InboxTab.tsx`
   - wired into `src/pages/Operations.tsx`
-- New portal messaging UI:
+- Portal messaging UI:
   - `src/components/portal/PortalMessagesTab.tsx`
   - wired into `src/pages/WholesalePortal.tsx`
 - Shared thread context labeling helper:
   - `src/lib/message-threads.ts`
+- Shared thread navigation helper:
+  - `src/lib/thread-navigation.ts`
+- Shared thread lifecycle helper:
+  - `src/lib/thread-lifecycle.ts`
 - Current thread types supported in UI:
   - `general`
   - `estimate`
   - `invoice`
+- Deep-link/open-or-create routing from estimate and invoice context exists on both office and portal surfaces
+- Thread lifecycle controls now exist:
+  - unread derivation
+  - close / archive / reopen
+  - filtering by status and unread
+  - consistent thread sorting rules
 
 ### What is still missing
-- Deep-link creation from estimate/invoice surfaces into the correct thread automatically
-- Stronger entity-aware composition UX (create from selected estimate/invoice instead of manual context)
-- Explicit notification delivery/throttle behavior tied to thread replies
-- Thread lifecycle controls such as close/archive and unread state
+- Deeper composition polish (for example, tighter prefilled subject/body context from every entity surface)
+- Richer assignment/ownership/search features if desired
+- Internal-note vs client-visible split if product requires it later
 
 ### Notes
-- This is no longer “not built.” A usable first slice now exists for both office and portal, but it still needs workflow polish and automation hooks.
+- This workstream is no longer merely partial scaffolding. It is now present in mounted UI, wired across office and portal, and tied into reminder delivery/system messages.
 
 ---
 
 ## 10) Reminder cadence automation
-**Status:** Partial
+**Status:** Built enough to rely on
 
 ### What exists
 - Operational alerts function:
   - `supabase/functions/operational-alerts/index.ts`
 - Dashboard reminders panel:
   - `src/components/dashboard/OperationalRemindersPanel.tsx`
-- Synthetic probe workflow:
-  - `.github/workflows/synthetic-probes.yml`
+- Shared cadence rules:
+  - `src/lib/notification-cadence.ts`
+- Shared cadence seeding store:
+  - `src/lib/notification-cadence-store.ts`
+- Cadence tests:
+  - `src/test/notification-cadence.test.ts`
+- Office visibility for client reminder state:
+  - `src/components/office/NotificationCadenceCard.tsx`
+- Due reminder processor:
+  - `supabase/functions/process-notification-cadence/index.ts`
+- Shared reminder delivery copy helper:
+  - `supabase/functions/_shared/reminder-delivery.ts`
+- Implemented estimate cadence:
+  - +24h
+  - +72h
+  - +7d
+- Implemented invoice cadence:
+  - 3d before due
+  - due date
+  - 7d overdue
+  - 14d overdue
+  - weekly statement
+- Per-client throttled collections cadence:
+  - 72h throttle enforcement
+- Reminder sends now:
+  - attempt provider delivery
+  - log to `communication_events`
+  - reflect into shared message threads as system messages
+  - remain retryable on failure
 
 ### What is still missing
-- Full estimate reminder cadence automation
-- Full invoice reminder cadence automation
-- Thread-aware reminder dispatch model described in roadmap docs
-- Per-client throttled collections cadence implementation as specified
+- Deployment-side scheduler/cron wiring to run the reminder processor automatically in each live environment
+- Optional manual suppression/override UX if product wants operator-level snooze controls
+
+### Notes
+- The cadence/delivery model now exists in app code, tests, UI, and edge function processing. The main remaining operational gap is environment-level scheduler wiring.
 
 ---
 
