@@ -11,12 +11,17 @@ export type ThreadLifecycleView = {
 
 export function deriveThreadLifecycle(params: {
   messages: Array<{ created_at: string; sender: Sender | null }>;
-  selfSender: Sender;
-}) : ThreadLifecycleView {
+  selfSenderId: string | null;
+}): ThreadLifecycleView {
   const sorted = [...params.messages].sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
   const latestMessageAt = sorted.at(-1)?.created_at ?? null;
-  const latestInbound = [...sorted].reverse().find((message) => (message.sender ?? "system") !== params.selfSender);
-  const latestOutbound = [...sorted].reverse().find((message) => message.sender === params.selfSender);
+  const latestInbound = [...sorted].reverse().find((message) => {
+    if (!params.selfSenderId) return message.sender !== null;
+    return message.sender !== params.selfSenderId;
+  });
+  const latestOutbound = params.selfSenderId
+    ? [...sorted].reverse().find((message) => message.sender === params.selfSenderId)
+    : undefined;
   const latestInboundAt = latestInbound?.created_at ?? null;
   const latestOutboundAt = latestOutbound?.created_at ?? null;
 

@@ -4,10 +4,10 @@ import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
 describe("thread lifecycle helpers", () => {
   it("marks a thread unread when latest inbound is newer than outbound", () => {
     const view = deriveThreadLifecycle({
-      selfSender: "office",
+      selfSenderId: "00000000-0000-0000-0000-000000000001",
       messages: [
-        { created_at: "2026-04-01T00:00:00.000Z", sender: "office" },
-        { created_at: "2026-04-01T01:00:00.000Z", sender: "portal" },
+        { created_at: "2026-04-01T00:00:00.000Z", sender: "00000000-0000-0000-0000-000000000001" },
+        { created_at: "2026-04-01T01:00:00.000Z", sender: "00000000-0000-0000-0000-000000000002" },
       ],
     });
     expect(view.unread).toBe(true);
@@ -15,10 +15,10 @@ describe("thread lifecycle helpers", () => {
 
   it("marks a thread read when office replied after inbound", () => {
     const view = deriveThreadLifecycle({
-      selfSender: "office",
+      selfSenderId: "00000000-0000-0000-0000-000000000001",
       messages: [
-        { created_at: "2026-04-01T00:00:00.000Z", sender: "portal" },
-        { created_at: "2026-04-01T01:00:00.000Z", sender: "office" },
+        { created_at: "2026-04-01T00:00:00.000Z", sender: "00000000-0000-0000-0000-000000000002" },
+        { created_at: "2026-04-01T01:00:00.000Z", sender: "00000000-0000-0000-0000-000000000001" },
       ],
     });
     expect(view.unread).toBe(false);

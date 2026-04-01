@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useClients } from "@/hooks/useClients";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -56,6 +57,7 @@ function formatWhen(value: string | null) {
 
 export function InboxTab() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { data: clients = [] } = useClients();
   const [threads, setThreads] = useState<ThreadWithPreview[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export function InboxTab() {
 
         const lifecycle = deriveThreadLifecycle({
           messages: rowMessages,
-          selfSender: "office",
+          selfSenderId: user?.id ?? null,
         });
 
         return {
@@ -229,7 +231,7 @@ export function InboxTab() {
       sortThreads(current.map((thread) => {
         if (thread.id !== threadId) return thread;
         const last = (data ?? []).at(-1) ?? null;
-        const lifecycle = deriveThreadLifecycle({ messages: data ?? [], selfSender: "office" });
+        const lifecycle = deriveThreadLifecycle({ messages: data ?? [], selfSenderId: user?.id ?? null });
         return {
           ...thread,
           updated_at: last?.created_at ?? thread.updated_at,
@@ -312,7 +314,7 @@ export function InboxTab() {
     const { error } = await supabase.from("messages").insert({
       thread_id: selectedThreadId,
       body,
-      sender: "office",
+      sender: user?.id ?? null,
       attachments: [],
     });
     setSending(false);

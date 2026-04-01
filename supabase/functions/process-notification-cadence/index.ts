@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
         if (thread?.id) {
           await adminClient.from("messages").insert({
             thread_id: thread.id,
-            sender: "system",
+            sender: null,
             body: `${copy.subject}\n\n${copy.body}\n\nDelivery status: ${providerMessage}`,
             attachments: [],
           });
