@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
 import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
 import { getThreadComposerPlaceholder, getThreadSummaryLabel } from "@/lib/thread-copy";
+import { isInternalMessage } from "@/lib/message-metadata";
 
 type MessageThread = Tables<"message_threads">;
 type Message = Tables<"messages">;
@@ -172,7 +173,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
         return;
       }
 
-      setMessages(data ?? []);
+      setMessages((data ?? []).filter((message) => !isInternalMessage(message.attachments)));
       setLoadingMessages(false);
     };
 
@@ -202,11 +203,12 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
 
     if (error) throw error;
 
-    setMessages(data ?? []);
+    const visibleMessages = (data ?? []).filter((message) => !isInternalMessage(message.attachments));
+    setMessages(visibleMessages);
     setThreads((current) => sortThreads(current.map((thread) => {
       if (thread.id !== threadId) return thread;
       const last = (data ?? []).at(-1) ?? null;
-      const lifecycle = deriveThreadLifecycle({ messages: data ?? [], selfSenderId: user?.id ?? null });
+      const lifecycle = deriveThreadLifecycle({ messages: visibleMessages, selfSenderId: user?.id ?? null });
       return {
         ...thread,
         updated_at: last?.created_at ?? thread.updated_at,

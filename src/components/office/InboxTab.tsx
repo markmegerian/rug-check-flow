@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, CheckCircle2, Loader2, MessageSquarePlus, Send } from "lucide-react";
+import { Archive, CheckCircle2, Loader2, MessageSquarePlus, Send, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useClients } from "@/hooks/useClients";
@@ -18,6 +18,8 @@ import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/mess
 import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import { getThreadComposerPlaceholder, getThreadSummaryLabel } from "@/lib/thread-copy";
+import { OFFICE_CANNED_REPLIES } from "@/lib/canned-replies";
+import { buildMessageMetadata, isInternalMessage } from "@/lib/message-metadata";
 
 type Client = Tables<"clients">;
 type MessageThread = Tables<"message_threads">;
@@ -72,6 +74,8 @@ export function InboxTab() {
   const [creatingThread, setCreatingThread] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "closed" | "archived">("active");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [sendAsInternalNote, setSendAsInternalNote] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -200,12 +204,17 @@ export function InboxTab() {
   }, [selectedThreadId, toast]);
 
   const filteredThreads = useMemo(() => {
+    const query = threadSearch.trim().toLowerCase();
     return threads.filter((thread) => {
       if (statusFilter !== "all" && thread.status !== statusFilter) return false;
       if (unreadOnly && !thread.unread) return false;
+      if (query) {
+        const haystack = [thread.client?.name, thread.entityLabel, thread.lastMessageBody, thread.thread_type].filter(Boolean).join(" ").toLowerCase();
+        if (!haystack.includes(query)) return false;
+      }
       return true;
     });
-  }, [threads, statusFilter, unreadOnly]);
+  }, [threads, statusFilter, unreadOnly, threadSearch]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.id === selectedThreadId) ?? null,
@@ -315,7 +324,7 @@ export function InboxTab() {
       thread_id: selectedThreadId,
       body,
       sender: user?.id ?? null,
-      attachments: [],
+      attachments: buildMessageMetadata(sendAsInternalNote ? "internal" : "shared"),
     });
     setSending(false);
 
@@ -329,6 +338,7 @@ export function InboxTab() {
     }
 
     setComposer("");
+    setSendAsInternalNote(false);
     try {
       await refreshSelectedThread(selectedThreadId);
     } catch (refreshError) {
@@ -409,6 +419,12 @@ export function InboxTab() {
           </CardHeader>
           <CardContent className="min-h-0 space-y-3">
             <div className="flex flex-wrap gap-2">
+              <Input
+                value={threadSearch}
+                onChange={(event) => setThreadSearch(event.target.value)}
+                placeholder="Search threads"
+                className="min-w-[180px] flex-1"
+              />
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
                 <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -516,7 +532,8 @@ export function InboxTab() {
                     </div>
                   ) : (
                     messages.map((message) => {
-                      const senderKey = message.sender ?? "system";
+                      const visibility = isInternalMessage(message.attachments) ? "internal" : "shared";
+                      const senderKey = message.sender === user?.id ? "office" : message.sender ? "portal" : "system";
                       const isOffice = senderKey === "office";
                       return (
                         <div
@@ -529,7 +546,7 @@ export function InboxTab() {
                           )}
                         >
                           <div className="mb-1 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] opacity-70">
-                            <span>{SENDER_LABELS[senderKey] ?? senderKey}</span>
+                            <span>{SENDER_LABELS[senderKey] ?? senderKey}{visibility === "internal" ? " · Internal" : ""}</span>
                             <span>{formatWhen(message.created_at)}</span>
                           </div>
                           <p className="whitespace-pre-wrap text-sm leading-6">{message.body}</p>
@@ -545,7 +562,23 @@ export function InboxTab() {
           <Separator />
 
           <div className="space-y-2">
-            <Label>Reply</Label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Reply</Label>
+              <div className="flex flex-wrap gap-2">
+                <Select onValueChange={(value) => setComposer((current) => current ? `${current}\n\n${OFFICE_CANNED_REPLIES.find((reply) => reply.id === value)?.text ?? ""}`.trim() : OFFICE_CANNED_REPLIES.find((reply) => reply.id === value)?.text ?? "") }>
+                  <SelectTrigger className="w-[190px]"><SelectValue placeholder="Canned replies" /></SelectTrigger>
+                  <SelectContent>
+                    {OFFICE_CANNED_REPLIES.map((reply) => (
+                      <SelectItem key={reply.id} value={reply.id}>{reply.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant={sendAsInternalNote ? "default" : "outline"} size="sm" onClick={() => setSendAsInternalNote((value) => !value)}>
+                  <StickyNote className="mr-2 h-4 w-4" />
+                  {sendAsInternalNote ? "Internal note" : "Shared reply"}
+                </Button>
+              </div>
+            </div>
             <Textarea
               value={composer}
               onChange={(event) => setComposer(event.target.value)}
@@ -553,10 +586,11 @@ export function InboxTab() {
               rows={4}
               disabled={!selectedThread || sending}
             />
+            {sendAsInternalNote ? <p className="text-xs text-muted-foreground">Internal notes stay in Office Inbox and are hidden from portal clients.</p> : null}
             <div className="flex justify-end">
               <Button onClick={handleSend} disabled={!selectedThread || sending || !composer.trim()}>
                 {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Send reply
+                {sendAsInternalNote ? "Save internal note" : "Send reply"}
               </Button>
             </div>
           </div>
