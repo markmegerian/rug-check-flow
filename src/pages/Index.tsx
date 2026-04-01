@@ -114,7 +114,7 @@ export default function Index() {
             )}
             {isSuperAdmin && (
               <Badge variant="outline" className="h-6 rounded-full border-destructive/30 px-2.5 text-[11px] text-destructive">
-                Superadmin
+                Mission Control
               </Badge>
             )}
           </div>

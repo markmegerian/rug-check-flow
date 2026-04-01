@@ -216,7 +216,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
           <div className="space-y-2">
             {isSuperAdmin && (
               <Badge variant="outline" className="w-full justify-center border-amber-200/20 bg-amber-300/10 text-[10px] text-amber-100">
-                Superadmin
+                Mission Control
               </Badge>
             )}
             <p className="truncate px-1 text-[11px] text-sidebar-foreground/56">

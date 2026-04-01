@@ -156,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isPortalUser = Boolean(portalClientId);
-  const isSuperAdmin = isSuperAdminEmail(user?.email);
+  const isSuperAdmin = isSuperAdminEmail(user?.email) || roles.includes("admin");
   const mustChangePassword = Boolean(user?.user_metadata?.must_change_password) || portalMustChangePassword;
 
   const signOut = async () => {

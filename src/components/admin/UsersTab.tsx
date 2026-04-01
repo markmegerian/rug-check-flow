@@ -265,8 +265,8 @@ export function UsersTab() {
 
       if (!isSuperAdmin && formState.role === "admin") {
         toast({
-          title: "Superadmin required",
-          description: "Only superadmin can grant admin role.",
+          title: "Mission Control required",
+          description: "Only Mission Control access can grant admin role.",
           variant: "destructive",
         });
         setSaving(false);
@@ -399,8 +399,8 @@ export function UsersTab() {
 
       if (!isSuperAdmin && editingUser?.role === "admin" && editingUser.userId !== currentUser?.id) {
         toast({
-          title: "Superadmin required",
-          description: "Only superadmin can modify other admin users.",
+          title: "Mission Control required",
+          description: "Only Mission Control access can modify other admin users.",
           variant: "destructive",
         });
         setSaving(false);
@@ -409,8 +409,8 @@ export function UsersTab() {
 
       if (!isSuperAdmin && formState.role === "admin" && editingUser?.role !== "admin") {
         toast({
-          title: "Superadmin required",
-          description: "Only superadmin can grant admin role.",
+          title: "Mission Control required",
+          description: "Only Mission Control access can grant admin role.",
           variant: "destructive",
         });
         setSaving(false);
