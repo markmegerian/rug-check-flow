@@ -91,11 +91,12 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
           messages (
             id,
             body,
-            created_at
+            created_at,
+            sender,
+            attachments
           )
         `)
         .eq("client_id", clientId)
-        .eq("status", "active")
         .order("updated_at", { ascending: false });
 
       if (!active) return;
@@ -111,10 +112,11 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
 
       const nextThreads: PortalThread[] = (data ?? []).map((row: any) => {
         const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
-        rowMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-        const preview = rowMessages[0] ?? null;
+        const visibleMessages = rowMessages.filter((message) => !isInternalMessage(message.attachments));
+        visibleMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
+        const preview = visibleMessages[0] ?? null;
         const lifecycle = deriveThreadLifecycle({
-          messages: rowMessages,
+          messages: visibleMessages,
           selfSenderId: user?.id ?? null,
         });
 
@@ -128,7 +130,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
           updated_at: row.updated_at,
           lastMessageAt: preview?.created_at ?? null,
           lastMessageBody: preview?.body ?? null,
-          messageCount: rowMessages.length,
+          messageCount: visibleMessages.length,
           entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
           unread: lifecycle.unread,
         };
@@ -245,8 +247,10 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
       lastMessageAt: null,
       lastMessageBody: null,
       messageCount: 0,
+      entityLabel: null,
+      unread: false,
     };
-    setThreads((current) => [nextThread, ...current]);
+    setThreads((current) => sortThreads([nextThread, ...current]));
     setSelectedThreadId(data.id);
     setMessages([]);
     toast({ title: "Thread started" });
@@ -428,7 +432,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
                   {messages.length === 0 ? (
                     <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No messages yet.</div>
                   ) : messages.map((message) => {
-                    const senderKey = message.sender ?? "system";
+                    const senderKey = message.sender === user?.id ? "portal" : message.sender ? "office" : "system";
                     const isPortal = senderKey === "portal";
                     return (
                       <div
