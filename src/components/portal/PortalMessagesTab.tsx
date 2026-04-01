@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, MessageSquarePlus, Send } from "lucide-react";
+import { Archive, CheckCircle2, Loader2, MessageSquarePlus, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import type { PortalTabProps } from "./portal-tab-props";
@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
+import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
 
 type MessageThread = Tables<"message_threads">;
 type Message = Tables<"messages">;
@@ -23,6 +24,7 @@ type PortalThread = MessageThread & {
   lastMessageBody: string | null;
   messageCount: number;
   entityLabel: string | null;
+  unread: boolean;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -58,6 +60,8 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
   const [creatingThread, setCreatingThread] = useState(false);
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "closed" | "archived">("active");
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   useEffect(() => {
     if (!clientId || loading || errorMessage) {
@@ -105,6 +109,11 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
         const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
         rowMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
         const preview = rowMessages[0] ?? null;
+        const lifecycle = deriveThreadLifecycle({
+          messages: rowMessages,
+          selfSender: "portal",
+        });
+
         return {
           id: row.id,
           client_id: row.client_id,
@@ -117,10 +126,11 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
           lastMessageBody: preview?.body ?? null,
           messageCount: rowMessages.length,
           entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
+          unread: lifecycle.unread,
         };
       });
 
-      setThreads(nextThreads);
+      setThreads(sortThreads(nextThreads));
       setSelectedThreadId((current) => current && nextThreads.some((t) => t.id === current) ? current : nextThreads[0]?.id ?? null);
       setLoadingThreads(false);
     };
@@ -166,6 +176,14 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
     void loadMessages();
     return () => { active = false; };
   }, [selectedThreadId, toast]);
+
+  const filteredThreads = useMemo(() => {
+    return threads.filter((thread) => {
+      if (statusFilter !== "all" && thread.status !== statusFilter) return false;
+      if (unreadOnly && !thread.unread) return false;
+      return true;
+    });
+  }, [threads, statusFilter, unreadOnly]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.id === selectedThreadId) ?? null,
@@ -225,6 +243,16 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
     setSelectedThreadId(data.id);
     setMessages([]);
     toast({ title: "Thread started" });
+  };
+
+  const updateThreadStatus = async (threadId: string, status: "active" | "closed" | "archived") => {
+    const { error } = await supabase.from("message_threads").update({ status }).eq("id", threadId);
+    if (error) {
+      toast({ title: "Could not update thread", description: error.message, variant: "destructive" });
+      return;
+    }
+    setThreads((current) => sortThreads(current.map((thread) => thread.id === threadId ? { ...thread, status } : thread)));
+    toast({ title: status === "active" ? "Thread reopened" : `Thread ${status}` });
   };
 
   const handleSend = async () => {
@@ -302,18 +330,32 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
             <CardTitle className="text-base">Your threads</CardTitle>
             <CardDescription>All active conversations with the office team.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All threads</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant={unreadOnly ? "default" : "outline"} size="sm" onClick={() => setUnreadOnly((value) => !value)}>
+                Unread only
+              </Button>
+            </div>
             {loadingThreads ? (
               <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
               </div>
-            ) : threads.length === 0 ? (
+            ) : filteredThreads.length === 0 ? (
               <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                No threads yet.
+                No threads match the current filters.
               </div>
             ) : (
               <div className="space-y-2">
-                {threads.map((thread) => (
+                {filteredThreads.map((thread) => (
                   <button
                     key={thread.id}
                     type="button"
@@ -327,7 +369,11 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">{THREAD_TYPE_LABEL[thread.thread_type]}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">{THREAD_TYPE_LABEL[thread.thread_type]}</p>
+                          {thread.unread ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Unread</span> : null}
+                          {thread.status !== "active" ? <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase">{thread.status}</span> : null}
+                        </div>
                         <p className="text-xs text-muted-foreground">{thread.entityLabel ?? thread.entity_id ?? "General conversation"}</p>
                       </div>
                       <span className="text-[11px] text-muted-foreground">{formatWhen(thread.lastMessageAt ?? thread.updated_at)}</span>
@@ -349,6 +395,13 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
               ? `Messages sync with the office inbox${selectedThread.entityLabel ? ` · ${selectedThread.entityLabel}` : selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}.`
               : "Choose or start a thread to chat with the office team."}
           </CardDescription>
+          {selectedThread ? (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {selectedThread.status !== "active" ? <Button size="sm" variant="outline" onClick={() => void updateThreadStatus(selectedThread.id, "active")}><CheckCircle2 className="mr-2 h-4 w-4" />Reopen</Button> : null}
+              {selectedThread.status === "active" ? <Button size="sm" variant="outline" onClick={() => void updateThreadStatus(selectedThread.id, "closed")}><CheckCircle2 className="mr-2 h-4 w-4" />Close</Button> : null}
+              {selectedThread.status !== "archived" ? <Button size="sm" variant="outline" onClick={() => void updateThreadStatus(selectedThread.id, "archived")}><Archive className="mr-2 h-4 w-4" />Archive</Button> : null}
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="flex h-full flex-col gap-4">
           <div className="min-h-0 flex-1 rounded-xl border bg-muted/20 p-3">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, MessageSquarePlus, Send } from "lucide-react";
+import { Archive, CheckCircle2, Loader2, MessageSquarePlus, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useClients } from "@/hooks/useClients";
@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
+import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
 
 type Client = Tables<"clients">;
 type MessageThread = Tables<"message_threads">;
@@ -26,6 +27,7 @@ type ThreadWithPreview = MessageThread & {
   lastMessageBody: string | null;
   messageCount: number;
   entityLabel: string | null;
+  unread: boolean;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -64,6 +66,8 @@ export function InboxTab() {
   const [newThreadType, setNewThreadType] = useState<ThreadType>("general");
   const [newEntityId, setNewEntityId] = useState("");
   const [creatingThread, setCreatingThread] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "closed" | "archived">("active");
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -116,6 +120,11 @@ export function InboxTab() {
         const preview = rowMessages[0] ?? null;
         const client = Array.isArray(row.clients) ? row.clients[0] ?? null : row.clients ?? null;
 
+        const lifecycle = deriveThreadLifecycle({
+          messages: rowMessages,
+          selfSender: "office",
+        });
+
         return {
           id: row.id,
           client_id: row.client_id,
@@ -129,10 +138,11 @@ export function InboxTab() {
           lastMessageBody: preview?.body ?? null,
           messageCount: rowMessages.length,
           entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
+          unread: lifecycle.unread,
         };
       });
 
-      setThreads(nextThreads);
+      setThreads(sortThreads(nextThreads));
       setSelectedThreadId((current) => {
         if (current && nextThreads.some((thread) => thread.id === current)) return current;
         return nextThreads[0]?.id ?? null;
@@ -184,6 +194,14 @@ export function InboxTab() {
       active = false;
     };
   }, [selectedThreadId, toast]);
+
+  const filteredThreads = useMemo(() => {
+    return threads.filter((thread) => {
+      if (statusFilter !== "all" && thread.status !== statusFilter) return false;
+      if (unreadOnly && !thread.unread) return false;
+      return true;
+    });
+  }, [threads, statusFilter, unreadOnly]);
 
   const selectedThread = useMemo(
     () => threads.find((thread) => thread.id === selectedThreadId) ?? null,
@@ -267,6 +285,16 @@ export function InboxTab() {
     setNewThreadType("general");
     setNewEntityId("");
     toast({ title: "Thread created" });
+  };
+
+  const updateThreadStatus = async (threadId: string, status: "active" | "closed" | "archived") => {
+    const { error } = await supabase.from("message_threads").update({ status }).eq("id", threadId);
+    if (error) {
+      toast({ title: "Could not update thread", description: error.message, variant: "destructive" });
+      return;
+    }
+    setThreads((current) => sortThreads(current.map((thread) => thread.id === threadId ? { ...thread, status } : thread)));
+    toast({ title: status === "active" ? "Thread reopened" : `Thread ${status}` });
   };
 
   const handleSend = async () => {
@@ -370,19 +398,33 @@ export function InboxTab() {
               Recent client conversations grouped by thread.
             </CardDescription>
           </CardHeader>
-          <CardContent className="min-h-0">
+          <CardContent className="min-h-0 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All threads</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant={unreadOnly ? "default" : "outline"} size="sm" onClick={() => setUnreadOnly((value) => !value)}>
+                Unread only
+              </Button>
+            </div>
             {loadingThreads ? (
               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading inbox…
               </div>
-            ) : threads.length === 0 ? (
+            ) : filteredThreads.length === 0 ? (
               <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                No message threads yet.
+                No message threads match the current filters.
               </div>
             ) : (
               <ScrollArea className="h-[calc(100vh-24rem)] pr-3">
                 <div className="space-y-2">
-                  {threads.map((thread) => (
+                  {filteredThreads.map((thread) => (
                     <button
                       key={thread.id}
                       type="button"
@@ -396,9 +438,13 @@ export function InboxTab() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-foreground">
-                            {thread.client?.name ?? "Unknown client"}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {thread.client?.name ?? "Unknown client"}
+                            </p>
+                            {thread.unread ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Unread</span> : null}
+                            {thread.status !== "active" ? <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground uppercase">{thread.status}</span> : null}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             {THREAD_TYPE_LABEL[thread.thread_type]}
                             {thread.entityLabel ? ` · ${thread.entityLabel}` : thread.entity_id ? ` · ${thread.entity_id}` : ""}
@@ -430,6 +476,13 @@ export function InboxTab() {
               ? `${THREAD_TYPE_LABEL[selectedThread.thread_type]} conversation${selectedThread.entityLabel ? ` · ${selectedThread.entityLabel}` : selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}`
               : "Pick a thread to review and reply."}
           </CardDescription>
+          {selectedThread ? (
+            <div className="flex flex-wrap gap-2 pt-2">
+              {selectedThread.status !== "active" ? <Button size="sm" variant="outline" onClick={() => void updateThreadStatus(selectedThread.id, "active")}><CheckCircle2 className="mr-2 h-4 w-4" />Reopen</Button> : null}
+              {selectedThread.status === "active" ? <Button size="sm" variant="outline" onClick={() => void updateThreadStatus(selectedThread.id, "closed")}><CheckCircle2 className="mr-2 h-4 w-4" />Close</Button> : null}
+              {selectedThread.status !== "archived" ? <Button size="sm" variant="outline" onClick={() => void updateThreadStatus(selectedThread.id, "archived")}><Archive className="mr-2 h-4 w-4" />Archive</Button> : null}
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="min-h-0 flex-1 rounded-xl border bg-muted/20 p-3">
