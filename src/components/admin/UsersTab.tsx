@@ -106,7 +106,7 @@ const EMPTY_FORM: FormState = {
 };
 
 export function UsersTab() {
-  const { user: currentUser, isSuperAdmin } = useAuth();
+  const { user: currentUser, isMissionControl } = useAuth();
   const { toast } = useToast();
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,7 +263,7 @@ export function UsersTab() {
         return;
       }
 
-      if (!isSuperAdmin && formState.role === "admin") {
+      if (!isMissionControl && formState.role === "admin") {
         toast({
           title: "Mission Control required",
           description: "Only Mission Control access can grant admin role.",
@@ -397,7 +397,7 @@ export function UsersTab() {
         return;
       }
 
-      if (!isSuperAdmin && editingUser?.role === "admin" && editingUser.userId !== currentUser?.id) {
+      if (!isMissionControl && editingUser?.role === "admin" && editingUser.userId !== currentUser?.id) {
         toast({
           title: "Mission Control required",
           description: "Only Mission Control access can modify other admin users.",
@@ -407,7 +407,7 @@ export function UsersTab() {
         return;
       }
 
-      if (!isSuperAdmin && formState.role === "admin" && editingUser?.role !== "admin") {
+      if (!isMissionControl && formState.role === "admin" && editingUser?.role !== "admin") {
         toast({
           title: "Mission Control required",
           description: "Only Mission Control access can grant admin role.",
@@ -707,7 +707,7 @@ export function UsersTab() {
                     disabled={
                       deleting ||
                       editingUser.userId === currentUser?.id ||
-                      (!isSuperAdmin && editingUser.role === "admin")
+                      (!isMissionControl && editingUser.role === "admin")
                     }
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
