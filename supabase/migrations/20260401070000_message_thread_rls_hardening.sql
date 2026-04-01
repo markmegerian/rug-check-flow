@@ -9,8 +9,32 @@ drop policy if exists "Internal users manage message threads" on public.message_
 create policy "Internal users manage message threads"
 on public.message_threads
 for all
-using (public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role]))
-with check (public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role]));
+using (
+  exists (
+    select 1
+    from public.clients c
+    where c.id = message_threads.client_id
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.clients c
+    where c.id = message_threads.client_id
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
+  )
+);
 
 drop policy if exists "Portal users view own client message threads" on public.message_threads;
 create policy "Portal users view own client message threads"
@@ -20,7 +44,7 @@ using (
   exists (
     select 1
     from public.portal_users pu
-    where lower(pu.email) = lower(auth.email())
+    where lower(pu.email) = lower(auth.jwt() ->> 'email')
       and pu.status = 'active'
       and pu.client_id = message_threads.client_id
   )
@@ -34,7 +58,7 @@ with check (
   exists (
     select 1
     from public.portal_users pu
-    where lower(pu.email) = lower(auth.email())
+    where lower(pu.email) = lower(auth.jwt() ->> 'email')
       and pu.status = 'active'
       and pu.client_id = message_threads.client_id
   )
@@ -48,7 +72,7 @@ using (
   exists (
     select 1
     from public.portal_users pu
-    where lower(pu.email) = lower(auth.email())
+    where lower(pu.email) = lower(auth.jwt() ->> 'email')
       and pu.status = 'active'
       and pu.client_id = message_threads.client_id
   )
@@ -57,7 +81,7 @@ with check (
   exists (
     select 1
     from public.portal_users pu
-    where lower(pu.email) = lower(auth.email())
+    where lower(pu.email) = lower(auth.jwt() ->> 'email')
       and pu.status = 'active'
       and pu.client_id = message_threads.client_id
   )
@@ -71,16 +95,28 @@ using (
   exists (
     select 1
     from public.message_threads mt
+    join public.clients c on c.id = mt.client_id
     where mt.id = messages.thread_id
-      and public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role])
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
   )
 )
 with check (
   exists (
     select 1
     from public.message_threads mt
+    join public.clients c on c.id = mt.client_id
     where mt.id = messages.thread_id
-      and public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role])
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
   )
 );
 
@@ -94,7 +130,7 @@ using (
     from public.message_threads mt
     join public.portal_users pu on pu.client_id = mt.client_id
     where mt.id = messages.thread_id
-      and lower(pu.email) = lower(auth.email())
+      and lower(pu.email) = lower(auth.jwt() ->> 'email')
       and pu.status = 'active'
   )
 );
@@ -109,7 +145,7 @@ with check (
     from public.message_threads mt
     join public.portal_users pu on pu.client_id = mt.client_id
     where mt.id = messages.thread_id
-      and lower(pu.email) = lower(auth.email())
+      and lower(pu.email) = lower(auth.jwt() ->> 'email')
       and pu.status = 'active'
   )
 );
@@ -118,14 +154,62 @@ drop policy if exists "Internal users manage notification cadence" on public.not
 create policy "Internal users manage notification cadence"
 on public.notification_cadence
 for all
-using (public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role]))
-with check (public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role]));
+using (
+  exists (
+    select 1
+    from public.clients c
+    where c.id = notification_cadence.client_id
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.clients c
+    where c.id = notification_cadence.client_id
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
+  )
+);
 
 drop policy if exists "Internal users manage notification throttles" on public.notification_throttles;
 create policy "Internal users manage notification throttles"
 on public.notification_throttles
 for all
-using (public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role]))
-with check (public.has_any_role(array['admin'::public.app_role, 'office'::public.app_role, 'checkin_staff'::public.app_role]));
+using (
+  exists (
+    select 1
+    from public.clients c
+    where c.id = notification_throttles.client_id
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.clients c
+    where c.id = notification_throttles.client_id
+      and c.company_id = public.get_user_company_id(auth.uid())
+      and (
+        public.has_role(auth.uid(), 'admin'::public.app_role)
+        or public.has_role(auth.uid(), 'office'::public.app_role)
+        or public.has_role(auth.uid(), 'checkin_staff'::public.app_role)
+      )
+  )
+);
 
 commit;
