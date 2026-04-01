@@ -38,56 +38,7 @@ function shouldThrottle(lastSentAt: string | null | undefined, scheduledFor: str
   return new Date(scheduledFor).getTime() - new Date(lastSentAt).getTime() < 72 * 60 * 60 * 1000;
 }
 
-function buildReminderCopy(row: CadenceRow, clientName?: string | null, entityLabel?: string | null) {
-  const subjectBase = entityLabel ?? row.entity_id ?? row.entity_type;
-  switch (row.notification_type) {
-    case "estimate_reminder_24h":
-      return {
-        subject: `Estimate follow-up: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\nJust following up on ${subjectBase}. We sent this estimate yesterday and wanted to make sure you had what you need to review it.`,
-      };
-    case "estimate_reminder_72h":
-      return {
-        subject: `Estimate reminder: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\nThis is a 72-hour follow-up on ${subjectBase}. Let us know if you have any questions or if you'd like us to proceed.`,
-      };
-    case "estimate_reminder_7d":
-      return {
-        subject: `Final estimate follow-up: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\nThis is a final automated follow-up on ${subjectBase}. Reply in the portal if you'd like to move forward or need changes.`,
-      };
-    case "invoice_reminder_3d_before_due":
-      return {
-        subject: `Invoice due soon: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\nA quick reminder that ${subjectBase} is due in 3 days.`,
-      };
-    case "invoice_reminder_due_date":
-      return {
-        subject: `Invoice due today: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\n${subjectBase} is due today. Please review the balance at your earliest convenience.`,
-      };
-    case "invoice_reminder_7d_overdue":
-      return {
-        subject: `Invoice overdue: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\n${subjectBase} is now 7 days overdue. Please reply if there is an issue we should know about.`,
-      };
-    case "invoice_reminder_14d_overdue":
-      return {
-        subject: `Second overdue reminder: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\n${subjectBase} is now 14 days overdue. Please contact us if you need help resolving the balance.`,
-      };
-    case "invoice_weekly_statement":
-      return {
-        subject: `Weekly account statement: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\nThis is your weekly automated statement reminder for ${subjectBase}.`,
-      };
-    default:
-      return {
-        subject: `Reminder: ${subjectBase}`,
-        body: `Hello ${clientName ?? "there"},\n\nThis is an automated reminder regarding ${subjectBase}.`,
-      };
-  }
-}
+import { buildReminderDeliveryCopy } from "../_shared/reminder-delivery.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -151,36 +102,86 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const copy = buildReminderCopy(row, client?.name ?? null, row.entity_id);
+      const copy = buildReminderDeliveryCopy({
+        notificationType: row.notification_type,
+        clientName: client?.name ?? null,
+        entityLabel: row.entity_id,
+      });
 
       if (!dryRun) {
+        let providerStatus: "sent" | "failed" | "not_configured" = "not_configured";
+        let providerMessage = "Reminder logged without email provider";
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        const fromEmail = Deno.env.get("REMINDER_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
+
+        if (resendApiKey && client?.email) {
+          const resendResp = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: fromEmail,
+              to: [client.email],
+              subject: copy.subject,
+              text: copy.body,
+            }),
+          });
+          providerStatus = resendResp.ok ? "sent" : "failed";
+          providerMessage = resendResp.ok ? "Reminder email delivered" : `Resend failed (${resendResp.status})`;
+        }
+
+        const { data: thread } = await adminClient
+          .from("message_threads")
+          .select("id")
+          .eq("client_id", row.client_id)
+          .eq("thread_type", row.entity_type)
+          .eq("entity_id", row.entity_id)
+          .limit(1)
+          .maybeSingle();
+
+        if (thread?.id) {
+          await adminClient.from("messages").insert({
+            thread_id: thread.id,
+            sender: "system",
+            body: `${copy.subject}\n\n${copy.body}\n\nDelivery status: ${providerMessage}`,
+            attachments: [],
+          });
+        }
+
         await adminClient.from("communication_events").insert({
           client_id: row.client_id,
           estimate_id: row.entity_type === "estimate" ? row.entity_id : null,
           invoice_id: row.entity_type === "invoice" ? row.entity_id : null,
           channel: "email",
           direction: "outbound",
-          event_type: row.notification_type,
+          event_type: providerStatus === "failed" ? `${row.notification_type}_failed` : row.notification_type,
           subject: copy.subject,
-          body: copy.body,
+          body: `${copy.body}\n\nProvider: ${providerStatus} · ${providerMessage}`,
           sent_to: client?.email ?? null,
           created_by: user.id,
         });
 
-        await adminClient.from("notification_cadence").update({ sent_at: nowIso }).eq("id", row.id);
+        if (providerStatus !== "failed") {
+          await adminClient.from("notification_cadence").update({ sent_at: nowIso }).eq("id", row.id);
 
-        if (throttle) {
-          await adminClient.from("notification_throttles").update({ last_sent_at: nowIso }).eq("id", (throttle as ThrottleRow).id);
-        } else {
-          await adminClient.from("notification_throttles").insert({
-            client_id: row.client_id,
-            throttle_key: row.throttle_key,
-            last_sent_at: nowIso,
-          });
+          if (throttle) {
+            await adminClient.from("notification_throttles").update({ last_sent_at: nowIso }).eq("id", (throttle as ThrottleRow).id);
+          } else {
+            await adminClient.from("notification_throttles").insert({
+              client_id: row.client_id,
+              throttle_key: row.throttle_key,
+              last_sent_at: nowIso,
+            });
+          }
         }
+
+        processed.push({ id: row.id, status: providerStatus, reason: providerMessage });
+        continue;
       }
 
-      processed.push({ id: row.id, status: dryRun ? "due" : "sent" });
+      processed.push({ id: row.id, status: "due" });
     }
 
     return json({ success: true, dry_run: dryRun, processed });
