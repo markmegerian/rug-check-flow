@@ -86,6 +86,7 @@ export default function Operations() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  const requestedThreadId = searchParams.get("threadId");
   const initialTab: TabId =
     requestedTab && allTabIds.has(requestedTab) ? (requestedTab as TabId) : defaultTab;
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -146,7 +147,7 @@ export default function Operations() {
         {activeTab === "estimates" && <EstimatesTab />}
         {activeTab === "clients" && <ClientsTab />}
         {activeTab === "jobs" && <JobsTab onOpenRug={handleRugSelect} />}
-        {activeTab === "inbox" && <InboxTab />}
+        {activeTab === "inbox" && <InboxTab requestedThreadId={requestedThreadId} />}
         {activeTab === "deliveries" && <DeliveriesTab />}
         {activeTab === "routes" && <RouteBuilder />}
         {activeTab === "proofs" && <DeliveryProofBoard />}

@@ -57,7 +57,7 @@ function formatWhen(value: string | null) {
   }).format(new Date(value));
 }
 
-export function InboxTab() {
+export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | null }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
@@ -163,6 +163,12 @@ export function InboxTab() {
       active = false;
     };
   }, [toast]);
+
+  useEffect(() => {
+    if (requestedThreadId) {
+      setSelectedThreadId(requestedThreadId);
+    }
+  }, [requestedThreadId]);
 
   useEffect(() => {
     if (!selectedThreadId) {

@@ -132,7 +132,7 @@ export function InvoicesTab() {
         threadType: "invoice",
         entityId: invoice.id,
       });
-      navigate(`/operations?tab=inbox&threadId=${threadId}`);
+      navigate(`/ops?tab=inbox&threadId=${threadId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       toast({ title: "Could not open thread", description: message, variant: "destructive" });
