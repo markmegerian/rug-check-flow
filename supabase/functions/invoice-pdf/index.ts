@@ -128,12 +128,14 @@ function formatRugSize(length: number | null, width: number | null): string {
 
 // ─── Fetch company branding ─────────────────────────────────────────────────
 
-async function fetchCompanyInfo(adminClient: ReturnType<typeof createClient>): Promise<CompanyInfo> {
-  const { data } = await adminClient
+async function fetchCompanyInfo(adminClient: ReturnType<typeof createClient>, companyId: string | null): Promise<CompanyInfo> {
+  const query = adminClient
     .from("company_branding")
-    .select("business_name, business_address, business_phone, business_email")
-    .limit(1)
-    .maybeSingle<CompanyBrandingRow>();
+    .select("business_name, business_address, business_phone, business_email");
+
+  const { data } = await (companyId
+    ? query.eq("company_id", companyId).limit(1).maybeSingle<CompanyBrandingRow>()
+    : query.limit(1).maybeSingle<CompanyBrandingRow>());
 
   return {
     businessName: data?.business_name ?? "RugBoost",
@@ -316,9 +318,7 @@ Deno.serve(async (req) => {
     if (roleError) return json({ error: roleError.message }, 500);
     const hasInternalRole = (roleRows ?? []).length > 0;
 
-    // Fetch company branding
-    const company = await fetchCompanyInfo(adminClient);
-
+    let companyId: string | null = null;
     let documentNumber: string;
     let documentDate: string;
     let clientId: string | null;
@@ -330,9 +330,9 @@ Deno.serve(async (req) => {
       // ─── Estimate flow ──────────────────────────────────────────────────
       const { data: estimate, error: estError } = await adminClient
         .from("estimates")
-        .select("id, client_id, rug_id, estimate_number, total, created_at, sent_at")
+        .select("id, client_id, rug_id, estimate_number, total, created_at, sent_at, company_id")
         .eq("id", estimateId)
-        .maybeSingle<EstimateLookupRow>();
+        .maybeSingle<EstimateLookupRow & { company_id?: string | null }>();
 
       if (estError) return json({ error: estError.message }, 500);
       if (!estimate) return json({ error: "Estimate not found" }, 404);
@@ -340,8 +340,22 @@ Deno.serve(async (req) => {
       documentNumber = estimate.estimate_number;
       documentDate = estimate.sent_at ?? estimate.created_at;
       clientId = estimate.client_id;
+      companyId = estimate.company_id ?? null;
       totalAmount = Number(estimate.total ?? 0);
       pdfStoragePath = null;
+
+      if (!hasInternalRole) {
+        const { data: portalRow, error: portalError } = await adminClient
+          .from("portal_users")
+          .select("id")
+          .eq("status", "active")
+          .eq("client_id", clientId)
+          .eq("email", userEmail)
+          .maybeSingle();
+
+        if (portalError) return json({ error: portalError.message }, 500);
+        if (!portalRow?.id) return json({ error: "Forbidden" }, 403);
+      }
 
       // Fetch estimate items
       const { data: estItems, error: estItemError } = await adminClient
@@ -378,6 +392,7 @@ Deno.serve(async (req) => {
       documentNumber = invoice.invoice_number;
       documentDate = invoice.issued_at ?? invoice.created_at;
       clientId = invoice.client_id;
+      companyId = (invoice as InvoiceLookupRow & { company_id?: string | null }).company_id ?? null;
       totalAmount = Number(invoice.total ?? 0);
       pdfStoragePath = invoice.pdf_storage_path;
 
@@ -410,6 +425,9 @@ Deno.serve(async (req) => {
 
       rugSections = await buildRugSections(adminClient, itemRows ?? []);
     }
+
+    // Fetch company branding
+    const company = await fetchCompanyInfo(adminClient, companyId);
 
     // Fetch client info
     let clientInfo: ClientInfo = { name: "Client", contactName: "", phone: "", address: "" };
