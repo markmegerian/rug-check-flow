@@ -34,6 +34,7 @@ export function OperationalRemindersPanel() {
   const { roles } = useAuth();
   const { loading, errorMessage, reminders, updates, trends, refresh } = useOperationalReminders();
   const [sendingAlerts, setSendingAlerts] = useState(false);
+  const [processingCadence, setProcessingCadence] = useState(false);
   const alertsEnabled = import.meta.env.VITE_ENABLE_OPERATIONAL_ALERTS === "true";
   const canSendAlerts = alertsEnabled && (roles.includes("admin") || roles.includes("office"));
 
@@ -74,6 +75,29 @@ export function OperationalRemindersPanel() {
     });
   };
 
+  const processCadence = async () => {
+    setProcessingCadence(true);
+    const { data, error } = await supabase.functions.invoke<{ success?: boolean; processed?: Array<{ id: string; status: string }> }>("process-notification-cadence", {
+      body: { dry_run: false },
+    });
+    setProcessingCadence(false);
+
+    if (error || !data?.success) {
+      toast({
+        title: "Cadence processing failed",
+        description: error?.message ?? "Unknown error",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Reminder cadence processed",
+      description: `${data.processed?.length ?? 0} due reminders handled.`,
+    });
+    refresh();
+  };
+
   return (
     <section className="rounded-xl border bg-card p-5 md:p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -86,6 +110,16 @@ export function OperationalRemindersPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={processCadence}
+            className="gap-1.5"
+            disabled={loading || processingCadence}
+          >
+            <Send className={`h-3.5 w-3.5 ${processingCadence ? "animate-pulse" : ""}`} />
+            {processingCadence ? "Processing reminders..." : "Process reminder cadence"}
+          </Button>
           {canSendAlerts ? (
             <Button
               variant="outline"

@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useClients } from "@/hooks/useClients";
 import { calculateInvoiceDueDate, formatInvoiceTermsLabel, type BillingReminderPreference } from "@/lib/billing";
+import { seedInvoiceReminderCadence } from "@/lib/notification-cadence-store";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface RugOption {
@@ -125,6 +126,18 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
     if (itemsErr) {
       toast({ title: "Error adding line items", description: itemsErr.message, variant: "destructive" });
+    }
+
+    if (selectedClientId && draftDueAt) {
+      try {
+        await seedInvoiceReminderCadence({
+          clientId: selectedClientId,
+          invoiceId: inv.id,
+          dueAt: draftDueAt,
+        });
+      } catch (cadenceError) {
+        console.error("Failed to seed invoice reminder cadence", cadenceError);
+      }
     }
 
     toast({ title: `Draft ${invNum} created` });

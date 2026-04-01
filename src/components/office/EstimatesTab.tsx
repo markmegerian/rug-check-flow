@@ -24,6 +24,7 @@ import { EstimateStatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/date-helpers";
 import { MS_PER_DAY } from "@/lib/constants";
 import { openOrCreateThread } from "@/lib/thread-navigation";
+import { seedEstimateReminderCadence } from "@/lib/notification-cadence-store";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -350,7 +351,19 @@ export function EstimatesTab() {
       return;
     }
 
-    await fetchData();
+    const refreshed = await fetchData();
+    const sentAt = new Date().toISOString();
+    if (estimate.client_id) {
+      try {
+        await seedEstimateReminderCadence({
+          clientId: estimate.client_id,
+          estimateId: estimate.id,
+          sentAt,
+        });
+      } catch (cadenceError) {
+        console.error("Failed to seed estimate reminder cadence", cadenceError);
+      }
+    }
     setSendingEstimateId(null);
     const providerMessage = (() => {
       if (!data?.provider_response || typeof data.provider_response !== "object") return null;

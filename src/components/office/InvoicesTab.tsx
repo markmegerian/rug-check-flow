@@ -21,6 +21,7 @@ import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/shared/Stat
 import { MS_PER_DAY } from "@/lib/constants";
 import { calculateInvoiceDueDate } from "@/lib/billing";
 import { openOrCreateThread } from "@/lib/thread-navigation";
+import { seedInvoiceReminderCadence } from "@/lib/notification-cadence-store";
 
 const STATUSES: Array<{ value: string; label: string }> = [
   { value: "outstanding", label: "Outstanding" },
@@ -194,6 +195,18 @@ export function InvoicesTab() {
       });
       if (pdfError || pdfData?.error) {
         toast({ title: "Invoice marked sent with warning", description: pdfData?.error ?? pdfError?.message ?? "Failed to prepare PDF artifact.", variant: "destructive" });
+      }
+
+      if (selected.client_id && typeof updates.due_at === "string") {
+        try {
+          await seedInvoiceReminderCadence({
+            clientId: selected.client_id,
+            invoiceId: selected.id,
+            dueAt: updates.due_at,
+          });
+        } catch (cadenceError) {
+          console.error("Failed to seed invoice reminder cadence", cadenceError);
+        }
       }
     }
 
