@@ -15,6 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
 import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
+import { openOrCreateThread } from "@/lib/thread-navigation";
+import { getThreadComposerPlaceholder, getThreadSummaryLabel } from "@/lib/thread-copy";
 
 type Client = Tables<"clients">;
 type MessageThread = Tables<"message_threads">;
@@ -224,17 +226,19 @@ export function InboxTab() {
 
     setMessages(data ?? []);
     setThreads((current) =>
-      current.map((thread) => {
+      sortThreads(current.map((thread) => {
         if (thread.id !== threadId) return thread;
         const last = (data ?? []).at(-1) ?? null;
+        const lifecycle = deriveThreadLifecycle({ messages: data ?? [], selfSender: "office" });
         return {
           ...thread,
           updated_at: last?.created_at ?? thread.updated_at,
           lastMessageAt: last?.created_at ?? thread.lastMessageAt,
           lastMessageBody: last?.body ?? thread.lastMessageBody,
           messageCount: data?.length ?? thread.messageCount,
+          unread: lifecycle.unread,
         };
-      }),
+      })),
     );
   };
 
@@ -245,46 +249,49 @@ export function InboxTab() {
     }
 
     setCreatingThread(true);
-    const payload = {
-      client_id: newClientId,
-      thread_type: newThreadType,
-      entity_id: newEntityId.trim() || null,
-      status: "active" as const,
-    };
+    try {
+      const threadId = await openOrCreateThread({
+        clientId: newClientId,
+        threadType: newThreadType,
+        entityId: newEntityId.trim() || null,
+      });
 
-    const { data, error } = await supabase
-      .from("message_threads")
-      .insert(payload)
-      .select("id, client_id, entity_id, thread_type, status, created_at, updated_at")
-      .single();
-
-    setCreatingThread(false);
-
-    if (error || !data) {
+      const client = selectableClients.find((entry) => entry.id === newClientId) ?? null;
+      const existing = threads.find((thread) => thread.id === threadId);
+      if (!existing) {
+        const nextThread: ThreadWithPreview = {
+          id: threadId,
+          client_id: newClientId,
+          entity_id: newEntityId.trim() || null,
+          thread_type: newThreadType,
+          status: "active",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          client,
+          lastMessageAt: null,
+          lastMessageBody: null,
+          messageCount: 0,
+          entityLabel: newEntityId.trim() || null,
+          unread: false,
+        };
+        setThreads((current) => sortThreads([nextThread, ...current]));
+      }
+      setSelectedThreadId(threadId);
+      setMessages([]);
+      setNewClientId("");
+      setNewThreadType("general");
+      setNewEntityId("");
+      toast({ title: existing ? "Opened existing thread" : "Thread created" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
       toast({
         title: "Could not create thread",
-        description: error?.message ?? "Unknown error",
+        description: message,
         variant: "destructive",
       });
-      return;
+    } finally {
+      setCreatingThread(false);
     }
-
-    const client = selectableClients.find((entry) => entry.id === data.client_id) ?? null;
-    const nextThread: ThreadWithPreview = {
-      ...data,
-      client,
-      lastMessageAt: null,
-      lastMessageBody: null,
-      messageCount: 0,
-    };
-
-    setThreads((current) => [nextThread, ...current]);
-    setSelectedThreadId(data.id);
-    setMessages([]);
-    setNewClientId("");
-    setNewThreadType("general");
-    setNewEntityId("");
-    toast({ title: "Thread created" });
   };
 
   const updateThreadStatus = async (threadId: string, status: "active" | "closed" | "archived") => {
@@ -473,7 +480,11 @@ export function InboxTab() {
           </CardTitle>
           <CardDescription>
             {selectedThread
-              ? `${THREAD_TYPE_LABEL[selectedThread.thread_type]} conversation${selectedThread.entityLabel ? ` · ${selectedThread.entityLabel}` : selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}`
+              ? getThreadSummaryLabel({
+                  threadType: selectedThread.thread_type,
+                  entityLabel: selectedThread.entityLabel ?? selectedThread.entity_id,
+                  perspective: "office",
+                })
               : "Pick a thread to review and reply."}
           </CardDescription>
           {selectedThread ? (
@@ -536,7 +547,7 @@ export function InboxTab() {
             <Textarea
               value={composer}
               onChange={(event) => setComposer(event.target.value)}
-              placeholder={selectedThread ? "Write a reply…" : "Choose a thread first"}
+              placeholder={selectedThread ? getThreadComposerPlaceholder({ threadType: selectedThread.thread_type, entityLabel: selectedThread.entityLabel ?? selectedThread.entity_id, perspective: "office" }) : "Choose a thread first"}
               rows={4}
               disabled={!selectedThread || sending}
             />

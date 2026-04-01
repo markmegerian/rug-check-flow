@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
 import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
+import { getThreadComposerPlaceholder, getThreadSummaryLabel } from "@/lib/thread-copy";
 
 type MessageThread = Tables<"message_threads">;
 type Message = Tables<"messages">;
@@ -200,17 +201,19 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
     if (error) throw error;
 
     setMessages(data ?? []);
-    setThreads((current) => current.map((thread) => {
+    setThreads((current) => sortThreads(current.map((thread) => {
       if (thread.id !== threadId) return thread;
       const last = (data ?? []).at(-1) ?? null;
+      const lifecycle = deriveThreadLifecycle({ messages: data ?? [], selfSender: "portal" });
       return {
         ...thread,
         updated_at: last?.created_at ?? thread.updated_at,
         lastMessageAt: last?.created_at ?? thread.lastMessageAt,
         lastMessageBody: last?.body ?? thread.lastMessageBody,
         messageCount: data?.length ?? thread.messageCount,
+        unread: lifecycle.unread,
       };
-    }));
+    })));
   };
 
   const handleCreateThread = async () => {
@@ -392,7 +395,11 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
           <CardTitle className="text-base">{selectedThread ? THREAD_TYPE_LABEL[selectedThread.thread_type] : "Conversation"}</CardTitle>
           <CardDescription>
             {selectedThread
-              ? `Messages sync with the office inbox${selectedThread.entityLabel ? ` · ${selectedThread.entityLabel}` : selectedThread.entity_id ? ` · ${selectedThread.entity_id}` : ""}.`
+              ? getThreadSummaryLabel({
+                  threadType: selectedThread.thread_type,
+                  entityLabel: selectedThread.entityLabel ?? selectedThread.entity_id,
+                  perspective: "portal",
+                })
               : "Choose or start a thread to chat with the office team."}
           </CardDescription>
           {selectedThread ? (
@@ -450,7 +457,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
               value={composer}
               onChange={(event) => setComposer(event.target.value)}
               rows={4}
-              placeholder={selectedThread ? "Write a message to the office team…" : "Choose a thread first"}
+              placeholder={selectedThread ? getThreadComposerPlaceholder({ threadType: selectedThread.thread_type, entityLabel: selectedThread.entityLabel ?? selectedThread.entity_id, perspective: "portal" }) : "Choose a thread first"}
               disabled={!selectedThread || sending}
             />
             <div className="flex justify-end">
