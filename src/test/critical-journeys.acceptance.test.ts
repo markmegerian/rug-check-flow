@@ -59,4 +59,20 @@ describe("critical journey acceptance coverage", () => {
     expect(script).toContain("portal_users?select=");
     expect(script).toContain("portal invoices, invoice_items, payment_attempts, pickup_requests, and portal_users are readable");
   });
+
+  it("journey 6: messaging and reminder lifecycle stays wired into the product", () => {
+    const operations = readFileSync(resolve(process.cwd(), "src/pages/Operations.tsx"), "utf-8");
+    const portal = readFileSync(resolve(process.cwd(), "src/pages/WholesalePortal.tsx"), "utf-8");
+    const officeInbox = readFileSync(resolve(process.cwd(), "src/components/office/InboxTab.tsx"), "utf-8");
+    const portalMessages = readFileSync(resolve(process.cwd(), "src/components/portal/PortalMessagesTab.tsx"), "utf-8");
+    const cadenceProcessor = readFileSync(resolve(process.cwd(), "supabase/functions/process-notification-cadence/index.ts"), "utf-8");
+
+    expect(operations).toContain('id: "inbox"');
+    expect(portal).toContain('key: "messages"');
+    expect(officeInbox).toContain("Unread only");
+    expect(officeInbox).toContain("Archive");
+    expect(portalMessages).toContain("Unread only");
+    expect(cadenceProcessor).toContain("communication_events");
+    expect(cadenceProcessor).toContain('from("messages")');
+  });
 });
