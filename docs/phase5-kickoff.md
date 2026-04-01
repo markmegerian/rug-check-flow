@@ -18,10 +18,10 @@ Give office/admin teams a live operational pulse without reintroducing noisy sho
 
 ## Next recommended Phase 5 items
 
-1. Add drill-down filters for each reminder card (pre-filter Office tabs by selected reminder).
-2. Add escalation thresholds and SLA tags (3-day/5-day/7-day aging bands).
-3. Add notification delivery layer (email/Slack) for critical reminder counts.
-4. Add trend snapshots (day-over-day reminder deltas) for leadership reporting.
+1. Keep live scheduler/cron wiring for reminder cadence active in each environment.
+2. Capture production release evidence for messaging + reminder execution after each meaningful promote.
+3. Add thread ownership/search/templates if office throughput requires it.
+4. Continue leadership reporting / trend snapshots alongside the newer thread-based reminder flow.
 
 ## Progress update
 
@@ -31,3 +31,5 @@ Give office/admin teams a live operational pulse without reintroducing noisy sho
 - ✅ SLA aging bands are shown on each reminder card (3-4d, 5-6d, 7+d) with severity styling.
 - ✅ Notification delivery layer added via `operational-alerts` edge function (Slack + email providers when configured).
 - ✅ Day-over-day trend snapshots are displayed in Mission Control for leadership visibility.
+- ✅ Shared message-thread workflow is now mounted across office + portal with Inbox / Messages surfaces, entity-aware deep links, thread lifecycle controls, and reminder reflection into threads.
+- ✅ Reminder cadence scheduling/delivery now exists in app code and edge-function processing (`process-notification-cadence`), with collections throttling and retry-safe failure handling.

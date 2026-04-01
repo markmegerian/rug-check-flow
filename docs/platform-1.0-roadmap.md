@@ -102,17 +102,21 @@ A) Add Office UI:
 - Ensure invoice immutability is respected
 
 PHASE 6 — Messaging + throttled notifications
-A) Use existing interactions table:
-- Create “threads” by convention with interaction_type values:
-  - thread_general
-  - thread_estimate:<estimate_id>
-  - thread_invoice:<invoice_id>
-- Allow portal user INSERT for their client_id only for those types.
-- Add Office “Inbox” view grouped by client/thread.
-B) Implement reminder cadence:
-- Estimates: +24h, +72h, +7d, then stop
-- Invoices: -3d, due date, +7d, +14d, then weekly statements
-- cap: 1 automated collections email per client per 72h
+Status note: this phase has materially moved from planning into shipped code. See `docs/platform-1.0-status.md` and `docs/release-evidence/2026-04-01-messaging-reminders-validation.md` for the current truth.
+
+Delivered implementation now includes:
+- Shared structured `message_threads` + `messages` workflow mounted in office and portal
+- Office Inbox grouped by client/thread
+- Portal Messages view for client-side conversation
+- Entity-aware deep links from estimate/invoice context into threads
+- Thread lifecycle controls (unread, close, archive, reopen, filters)
+- Reminder cadence scheduling for estimates and invoices
+- 72h collections throttle
+- Reminder delivery processing with communication-event logging and thread reflection
+
+Still operationally required:
+- live scheduler/cron wiring for automatic cadence execution in each deployed environment
+- live provider/secrets verification and release evidence capture after deploy
 
 TESTS / ACCEPTANCE CRITERIA (must all pass)
 1) Driver can complete a stop in airplane mode; when online, events sync and stop becomes completed on server.
