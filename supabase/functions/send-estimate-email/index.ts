@@ -56,13 +56,6 @@ Deno.serve(async (req) => {
     const nowIso = new Date().toISOString();
     const eventType = priorStatus === "sent" ? "estimate_resent" : "estimate_sent";
 
-    if (priorStatus === "draft") {
-      await adminClient
-        .from("estimates")
-        .update({ status: "sent", sent_at: nowIso })
-        .eq("id", estimate.id);
-    }
-
     const subject = `Estimate ${estimate.estimate_number} from RugBoost`;
     const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
     const body = [
@@ -112,12 +105,19 @@ Deno.serve(async (req) => {
           sent_to: estimate.clients.email,
         });
         return json({
-          success: true,
+          success: false,
           provider_status: providerStatus,
           provider_response: providerResponse,
           action_hint: `Share estimate manually in portal: ${portalUrl}`,
-        });
+        }, 502);
       }
+    }
+
+    if (priorStatus === "draft") {
+      await adminClient
+        .from("estimates")
+        .update({ status: "sent", sent_at: nowIso })
+        .eq("id", estimate.id);
     }
 
     await adminClient.from("communication_events").insert({

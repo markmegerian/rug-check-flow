@@ -353,7 +353,7 @@ export function EstimatesTab() {
 
     const refreshed = await fetchData();
     const sentAt = new Date().toISOString();
-    if (estimate.client_id) {
+    if (estimate.client_id && data?.provider_status === "sent") {
       try {
         await seedEstimateReminderCadence({
           clientId: estimate.client_id,

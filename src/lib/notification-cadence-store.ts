@@ -27,7 +27,16 @@ async function upsertCadenceRows(rows: NotificationCadenceRow[]) {
       .maybeSingle();
 
     if (lookupError) throw lookupError;
-    if (existing?.id) continue;
+    if (existing?.id) {
+      if (!existing.sent_at) {
+        const { error: updateError } = await supabase
+          .from("notification_cadence")
+          .update({ scheduled_for: row.scheduled_for, throttle_key: row.throttle_key })
+          .eq("id", existing.id);
+        if (updateError) throw updateError;
+      }
+      continue;
+    }
 
     const { error: insertError } = await supabase.from("notification_cadence").insert({
       client_id: row.client_id,
