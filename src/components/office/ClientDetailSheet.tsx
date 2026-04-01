@@ -25,6 +25,7 @@ import {
 import type { Tables } from "@/integrations/supabase/types";
 import { ClientActivityFeed } from "./ClientActivityFeed";
 import { ClientBillingSummary } from "./ClientBillingSummary";
+import { NotificationCadenceCard } from "./NotificationCadenceCard";
 import { type BillingReminderPreference, formatInvoiceTermsLabel } from "@/lib/billing";
 
 type PricingTier = "standard" | "preferred" | "vip";
@@ -195,6 +196,7 @@ export function ClientDetailSheet({
                 billingReminderPreference={form.billing_reminder_preference}
                 billingNotes={form.billing_notes}
               />
+              <NotificationCadenceCard clientId={editingId} />
               <ClientActivityFeed clientId={editingId} />
             </>
           )}
