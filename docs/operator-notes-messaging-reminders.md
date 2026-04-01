@@ -37,12 +37,17 @@ Reminder cadence is also attached to this workflow. Automated reminder sends:
 - Automated reminder messages appear in the relevant shared thread as system messages
 
 ## Live-environment requirement
-The repo now contains the reminder processor and config, but automatic execution still depends on deployed scheduler/cron wiring.
+The repo now contains the reminder processor and supports two invocation modes:
+- manual office/admin invocation via authenticated UI
+- scheduler/service invocation via `x-cron-secret` matching `PROCESS_NOTIFICATION_CADENCE_SECRET`
+
+Automatic execution still depends on deployed scheduler/cron wiring.
 
 You must verify in each environment:
 - edge function deployment
 - provider secret configuration (for example `RESEND_API_KEY`)
 - scheduler/cron execution path
+- `PROCESS_NOTIFICATION_CADENCE_SECRET` configuration for machine-triggered runs
 
 ## Recommended smoke checks after deploy
 1. Open Office Inbox and confirm threads load.

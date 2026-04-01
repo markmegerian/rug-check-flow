@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildReminderDeliveryCopy } from "../_shared/reminder-delivery.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 const json = (body: unknown, status = 200) =>
@@ -38,40 +39,63 @@ function shouldThrottle(lastSentAt: string | null | undefined, scheduledFor: str
   return new Date(scheduledFor).getTime() - new Date(lastSentAt).getTime() < 72 * 60 * 60 * 1000;
 }
 
-import { buildReminderDeliveryCopy } from "../_shared/reminder-delivery.ts";
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Unauthorized" }, 401);
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const cronSecret = req.headers.get("x-cron-secret");
+    const configuredCronSecret = Deno.env.get("PROCESS_NOTIFICATION_CADENCE_SECRET");
+    const authHeader = req.headers.get("Authorization");
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const anonClient = createClient(supabaseUrl, anonKey);
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userErr } = await anonClient.auth.getUser(token);
-    const user = userData.user;
-    if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+    let actorUserId: string | null = null;
+    let callerCompanyId: string | null = null;
+    let invocationMode: "manual" | "scheduler" = "manual";
 
-    const { data: roleRows } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .in("role", ["office", "admin"])
-      .limit(1);
-    if (!roleRows || roleRows.length === 0) return json({ error: "Forbidden" }, 403);
+    if (configuredCronSecret && cronSecret === configuredCronSecret) {
+      invocationMode = "scheduler";
+    } else {
+      if (!authHeader) return json({ error: "Unauthorized" }, 401);
+      const token = authHeader.replace("Bearer ", "");
+      const { data: userData, error: userErr } = await anonClient.auth.getUser(token);
+      const user = userData.user;
+      if (userErr || !user) return json({ error: "Unauthorized" }, 401);
+      actorUserId = user.id;
+
+      const { data: roleRows } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .in("role", ["office", "admin"])
+        .limit(1);
+      if (!roleRows || roleRows.length === 0) return json({ error: "Forbidden" }, 403);
+
+      const { data: companyRows, error: companyError } = await adminClient.rpc("get_user_company_id", { _user_id: user.id });
+      if (companyError) return json({ error: companyError.message }, 500);
+      callerCompanyId = companyRows ?? null;
+    }
 
     const body = await req.json().catch(() => ({}));
     const dryRun = Boolean(body.dry_run);
     const nowIso = new Date().toISOString();
 
-    const { data: rows, error: cadenceError } = await adminClient
+    let clientIds: string[] | null = null;
+    if (invocationMode === "manual") {
+      const { data: clientRows, error: clientErr } = await adminClient
+        .from("clients")
+        .select("id")
+        .eq("company_id", callerCompanyId);
+      if (clientErr) return json({ error: clientErr.message }, 500);
+      clientIds = (clientRows ?? []).map((row) => row.id);
+      if (clientIds.length === 0) return json({ success: true, dry_run: dryRun, processed: [] });
+    }
+
+    let cadenceQuery = adminClient
       .from("notification_cadence")
       .select("id, client_id, entity_type, entity_id, notification_type, scheduled_for, sent_at, throttle_key")
       .is("sent_at", null)
@@ -79,6 +103,9 @@ Deno.serve(async (req) => {
       .order("scheduled_for", { ascending: true })
       .limit(50);
 
+    if (clientIds) cadenceQuery = cadenceQuery.in("client_id", clientIds);
+
+    const { data: rows, error: cadenceError } = await cadenceQuery;
     if (cadenceError) return json({ error: cadenceError.message }, 500);
 
     const processed: Array<{ id: string; status: string; reason?: string }> = [];
@@ -86,9 +113,19 @@ Deno.serve(async (req) => {
     for (const row of (rows ?? []) as CadenceRow[]) {
       const { data: client } = await adminClient
         .from("clients")
-        .select("id, name, email")
+        .select("id, company_id, name, email")
         .eq("id", row.client_id)
         .maybeSingle();
+
+      if (!client) {
+        processed.push({ id: row.id, status: "skipped", reason: "Client not found" });
+        continue;
+      }
+
+      if (invocationMode === "manual" && client.company_id !== callerCompanyId) {
+        processed.push({ id: row.id, status: "skipped", reason: "Cross-company row blocked" });
+        continue;
+      }
 
       const { data: throttle } = await adminClient
         .from("notification_throttles")
@@ -104,7 +141,7 @@ Deno.serve(async (req) => {
 
       const copy = buildReminderDeliveryCopy({
         notificationType: row.notification_type,
-        clientName: client?.name ?? null,
+        clientName: client.name ?? null,
         entityLabel: row.entity_id,
       });
 
@@ -114,7 +151,7 @@ Deno.serve(async (req) => {
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
         const fromEmail = Deno.env.get("REMINDER_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
 
-        if (resendApiKey && client?.email) {
+        if (resendApiKey && client.email) {
           const resendResp = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -159,8 +196,8 @@ Deno.serve(async (req) => {
           event_type: providerStatus === "failed" ? `${row.notification_type}_failed` : row.notification_type,
           subject: copy.subject,
           body: `${copy.body}\n\nProvider: ${providerStatus} · ${providerMessage}`,
-          sent_to: client?.email ?? null,
-          created_by: user.id,
+          sent_to: client.email ?? null,
+          created_by: actorUserId,
         });
 
         if (providerStatus !== "failed") {
@@ -184,7 +221,7 @@ Deno.serve(async (req) => {
       processed.push({ id: row.id, status: "due" });
     }
 
-    return json({ success: true, dry_run: dryRun, processed });
+    return json({ success: true, dry_run: dryRun, mode: invocationMode, processed });
   } catch (error) {
     console.error(error);
     return json({ error: "Internal server error" }, 500);
