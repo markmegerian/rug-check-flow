@@ -7,6 +7,7 @@ import {
   FileText,
   FolderOpen,
   Home,
+  Inbox,
   LogOut,
   Map,
   Package,
@@ -40,7 +41,7 @@ const SUPERADMIN_NAV_ITEMS = [
   { title: "Operations", url: "/ops", icon: Factory, active: (path: string) => path.startsWith("/ops") },
   { title: "Wholesale Portal", url: "/portal", icon: Store, active: (path: string) => path.startsWith("/portal") },
   { title: "Driver Portal", url: "/driver", icon: Truck, active: (path: string) => path.startsWith("/driver") },
-  { title: "Admin", url: "/admin", icon: ShieldCheck, active: (path: string) => path.startsWith("/admin") },
+  { title: "Mission Control", url: "/admin", icon: ShieldCheck, active: (path: string) => path.startsWith("/admin") },
 ] as const;
 
 const OPS_FLOOR_ITEMS = [
@@ -55,6 +56,7 @@ const OPS_BUSINESS_ITEMS = [
   { id: "estimates", label: "Estimates", icon: ClipboardCheck },
   { id: "clients", label: "Clients", icon: Users },
   { id: "jobs", label: "Jobs", icon: FolderOpen },
+  { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "deliveries", label: "Deliveries", icon: Truck },
   { id: "routes", label: "Routes", icon: Map },
   { id: "proofs", label: "Proofs", icon: Camera },
@@ -67,6 +69,7 @@ const PORTAL_ITEMS = [
   { id: "pickups", label: "Pickups", icon: Truck },
   { id: "estimates", label: "Estimates", icon: ClipboardCheck },
   { id: "invoices", label: "Invoices", icon: Receipt },
+  { id: "messages", label: "Messages", icon: Inbox },
   { id: "prices", label: "Prices", icon: DollarSign },
 ] as const;
 
