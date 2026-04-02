@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, CheckCircle2, Loader2, MessageSquarePlus, Send, StickyNote } from "lucide-react";
+import { Archive, CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Send, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useClients } from "@/hooks/useClients";
@@ -227,6 +227,14 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
     [threads, selectedThreadId],
   );
 
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    const timer = window.setInterval(() => {
+      void refreshSelectedThread(selectedThreadId).catch(() => undefined);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [selectedThreadId]);
+
   const selectableClients = useMemo(
     () => clients.filter((client) => Boolean(client.id && client.name)),
     [clients],
@@ -418,10 +426,18 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
 
         <Card className="min-h-0 flex-1">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Threads</CardTitle>
-            <CardDescription>
-              Recent client conversations grouped by thread.
-            </CardDescription>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Threads</CardTitle>
+                <CardDescription>
+                  Recent client conversations grouped by thread.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => selectedThreadId ? void refreshSelectedThread(selectedThreadId) : undefined}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="min-h-0 space-y-3">
             <div className="flex flex-wrap gap-2">

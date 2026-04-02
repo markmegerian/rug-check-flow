@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Archive, CheckCircle2, Loader2, MessageSquarePlus, Send } from "lucide-react";
+import { Archive, CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import type { PortalTabProps } from "./portal-tab-props";
@@ -196,6 +196,14 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
     [threads, selectedThreadId],
   );
 
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    const timer = window.setInterval(() => {
+      void refreshThread(selectedThreadId).catch(() => undefined);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [selectedThreadId]);
+
   const refreshThread = async (threadId: string) => {
     const { data, error } = await supabase
       .from("messages")
@@ -338,8 +346,16 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Your threads</CardTitle>
-            <CardDescription>All active conversations with the office team.</CardDescription>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">Your threads</CardTitle>
+                <CardDescription>All active conversations with the office team.</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => selectedThreadId ? void refreshThread(selectedThreadId) : undefined}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
