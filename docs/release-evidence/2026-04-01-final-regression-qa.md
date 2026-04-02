@@ -43,8 +43,9 @@ These remain manual/live validation items, not code-level uncertainty:
 - [ ] Click-through on deployed portal Messages UI
 - [ ] Live invocation of `process-notification-cadence`
 - [ ] Delivery success path with configured provider secrets
-- [ ] Scheduler/cron execution proof
+- [ ] Scheduler/cron execution proof using `PROCESS_NOTIFICATION_CADENCE_SECRET`
 - [ ] Production/staging smoke script outputs attached
+- [ ] Confirm refresh/polling behavior is acceptable in live messaging sessions
 
 ## Release QA conclusion
 - Code-level regression coverage: materially improved and explicit

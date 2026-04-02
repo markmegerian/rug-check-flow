@@ -33,6 +33,16 @@ Relevant commits in this workstream:
 - `87922b8` Complete reminder delivery path and thread reflection
 - `afb59b7` Register reminder cadence edge function
 - `5f79103` Add thread lifecycle controls and inbox filters
+- `b86f9ec` Fix office inbox deep links and thread selection
+- `782c841` Fix portal message previews and sender rendering
+- `08213ee` Fix reminder cadence seeding and estimate send semantics
+- `4e26e32` Fix message and reminder RLS policy migration
+- `ecfbd12` Fix company-scope joins for rugs and payments
+- `136d491` Support scoped scheduler auth for reminder processing
+- `97388af` Harden estimate PDF authorization and branding scope
+- `b2fc951` Fix operational reminder deep links
+- `643780e` Add messaging refresh affordances and polling
+- `a2233bb` Add uniqueness guards for reminders and threads
 
 ## What is validated locally
 - Messaging/inbox surfaces are mounted and interactive in code
@@ -44,9 +54,10 @@ Relevant commits in this workstream:
 These items require real environment credentials/secrets or deployed scheduler execution:
 - production/staging invocation of `process-notification-cadence`
 - live provider delivery success path using configured `RESEND_API_KEY`
-- actual cron/scheduler execution for reminder cadence
+- actual cron/scheduler execution for reminder cadence using `PROCESS_NOTIFICATION_CADENCE_SECRET`
 - production smoke pass proving company-scope consistency triggers are active on the live project
 - click-through UAT on office + portal messaging surfaces after deployment
+- proof that refresh/polling behavior is acceptable in real operator/client usage until full realtime is added
 
 ## Recommended next live checks
 1. Deploy edge functions and frontend using the release runbook order.

@@ -1,6 +1,6 @@
 # Platform 1.0 Status Tracker
 
-_Last updated: 2026-03-28_
+_Last updated: 2026-04-02_
 
 This is the living reality-check document for the project.
 
@@ -284,12 +284,12 @@ Direct company ownership columns are now present on:
   - consistent thread sorting rules
 
 ### What is still missing
-- Deeper composition polish (for example, tighter prefilled subject/body context from every entity surface)
+- True realtime subscriptions/read receipts if you want a fully live chat-grade inbox beyond refresh + polling
 - Richer assignment/ownership/search features if desired
-- Internal-note vs client-visible split if product requires it later
+- Longer-term portal auth hardening away from email-based identity matching
 
 ### Notes
-- This workstream is no longer merely partial scaffolding. It is now present in mounted UI, wired across office and portal, and tied into reminder delivery/system messages.
+- This workstream is now present in mounted UI, wired across office and portal, tied into reminder delivery/system messages, and has post-audit fixes for deep-linking, portal preview privacy, sender rendering, and live refresh affordances.
 
 ---
 
@@ -333,10 +333,13 @@ Direct company ownership columns are now present on:
 
 ### What is still missing
 - Deployment-side scheduler/cron wiring to run the reminder processor automatically in each live environment
+- Final row-claiming/locking hardening if you want fully robust concurrent processor execution
 - Optional manual suppression/override UX if product wants operator-level snooze controls
 
 ### Notes
-- The cadence/delivery model now exists in app code, tests, UI, and edge function processing. The main remaining operational gap is environment-level scheduler wiring.
+- The cadence/delivery model now exists in app code, tests, UI, and edge function processing.
+- The processor now supports both manual office/admin invocation and scheduler/service invocation via `x-cron-secret` + `PROCESS_NOTIFICATION_CADENCE_SECRET`.
+- The main remaining operational gaps are environment-level scheduler wiring, live execution proof, and deeper concurrency hardening.
 
 ---
 
