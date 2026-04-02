@@ -318,7 +318,7 @@ export function InvoicesTab() {
   }
 
   return (
-    <div className="p-4 md:p-6 overflow-auto h-full space-y-6 animate-fade-in-up">
+    <div className="p-3 sm:p-4 md:p-6 overflow-auto h-full space-y-4 sm:space-y-6 animate-fade-in-up">
       {hasReminderFilter && (
         <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           Reminder filter active:
@@ -327,7 +327,8 @@ export function InvoicesTab() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="overflow-x-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             {STATUSES.map((s) => (
@@ -342,7 +343,8 @@ export function InvoicesTab() {
             ))}
           </TabsList>
         </Tabs>
-        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+        </div>
+        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5 self-start lg:self-auto">
           <Plus className="h-4 w-4" /> New Invoice
         </Button>
       </div>
@@ -356,6 +358,7 @@ export function InvoicesTab() {
         onDateToChange={setDateTo}
       />
 
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -405,8 +408,9 @@ export function InvoicesTab() {
           )}
         </TableBody>
       </Table>
+      </div>
 
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground">
         <span>Showing {invoices.length} most recent invoices.</span>
         {hasNextPage && (
           <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={loadingMore}>
