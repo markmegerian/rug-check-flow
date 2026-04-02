@@ -158,12 +158,26 @@ export default function WholesalePortal() {
     >
       <div className="app-page space-y-4">
         <section className="app-hero space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 sm:pb-0">
+              {TABS.map((tab) => (
+                <Button
+                  key={tab.key}
+                  type="button"
+                  size="sm"
+                  variant={activeTab === tab.key ? "default" : "outline"}
+                  className="h-9 rounded-xl px-3 whitespace-nowrap"
+                  onClick={() => changeTab(tab.key)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
             {clientId ? (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-10 rounded-xl px-4 text-xs"
+                className="h-10 rounded-xl px-4 text-xs self-start sm:self-auto"
                 onClick={openOnboarding}
                 disabled={!onboardingUnlocked}
               >
@@ -179,7 +193,7 @@ export default function WholesalePortal() {
 
         <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.45)]">
           {requiresPasswordReset ? (
-            <div className="mx-auto max-w-md space-y-4 p-6 sm:p-8">
+            <div className="mx-auto max-w-md space-y-4 p-4 sm:p-6 lg:p-8">
               <h2 className="text-base font-semibold">Change your password to continue</h2>
               <p className="text-sm text-muted-foreground">
                 For security, first-time portal sign in requires a password change.
@@ -213,7 +227,7 @@ export default function WholesalePortal() {
               </Button>
             </div>
           ) : (
-            <div className="p-4 md:p-6 space-y-4">
+            <div className="p-3 sm:p-4 md:p-6 space-y-4">
               {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={changeTab} /> : null}
 
               {mountedTabs.rugs ? (
