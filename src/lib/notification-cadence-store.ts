@@ -15,40 +15,20 @@ function uniqueByEntityAndType(rows: NotificationCadenceRow[]) {
 
 async function upsertCadenceRows(rows: NotificationCadenceRow[]) {
   const normalized = uniqueByEntityAndType(rows);
-  for (const row of normalized) {
-    const { data: existing, error: lookupError } = await supabase
-      .from("notification_cadence")
-      .select("id, sent_at")
-      .eq("client_id", row.client_id)
-      .eq("entity_type", row.entity_type)
-      .eq("entity_id", row.entity_id)
-      .eq("notification_type", row.notification_type)
-      .limit(1)
-      .maybeSingle();
+  const payload = normalized.map((row) => ({
+    client_id: row.client_id,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    notification_type: row.notification_type,
+    scheduled_for: row.scheduled_for,
+    throttle_key: row.throttle_key,
+  }));
 
-    if (lookupError) throw lookupError;
-    if (existing?.id) {
-      if (!existing.sent_at) {
-        const { error: updateError } = await supabase
-          .from("notification_cadence")
-          .update({ scheduled_for: row.scheduled_for, throttle_key: row.throttle_key })
-          .eq("id", existing.id);
-        if (updateError) throw updateError;
-      }
-      continue;
-    }
+  const { error } = await supabase
+    .from("notification_cadence")
+    .upsert(payload, { onConflict: "client_id,entity_type,entity_id,notification_type" });
 
-    const { error: insertError } = await supabase.from("notification_cadence").insert({
-      client_id: row.client_id,
-      entity_type: row.entity_type,
-      entity_id: row.entity_id,
-      notification_type: row.notification_type,
-      scheduled_for: row.scheduled_for,
-      throttle_key: row.throttle_key,
-    });
-
-    if (insertError) throw insertError;
-  }
+  if (error) throw error;
 }
 
 export async function seedEstimateReminderCadence(params: {

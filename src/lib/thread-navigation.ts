@@ -35,6 +35,11 @@ export async function openOrCreateThread({ clientId, threadType, entityId }: Ope
     .select("id")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    const { data: retry, error: retryError } = await query.maybeSingle();
+    if (retryError) throw retryError;
+    if (retry?.id) return retry.id;
+    throw error;
+  }
   return data.id;
 }
