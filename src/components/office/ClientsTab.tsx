@@ -450,7 +450,7 @@ export function ClientsTab() {
   }
 
   return (
-    <div className="p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
+    <div className="p-3 sm:p-4 md:p-6 overflow-auto h-full animate-fade-in-up">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-lg font-semibold text-foreground">Clients</h2>
         <div className="flex items-center gap-2 ml-auto flex-wrap">
@@ -460,7 +460,7 @@ export function ClientsTab() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search clients..."
-              className="pl-8 h-9 w-[200px]"
+              className="pl-8 h-9 w-[160px] sm:w-[200px]"
             />
           </div>
           <Button size="sm" variant="outline" onClick={triggerCsvPicker} disabled={importing}>
@@ -469,7 +469,7 @@ export function ClientsTab() {
           </Button>
           <input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleCsvFileChange} />
           <Select value={filterDay || "all"} onValueChange={(v) => setFilterDay(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-[150px] h-9">
+            <SelectTrigger className="w-[130px] sm:w-[150px] h-9">
               <SelectValue placeholder="Route Day" />
             </SelectTrigger>
             <SelectContent>
@@ -495,6 +495,7 @@ export function ClientsTab() {
         Imported portal logins are staged as invited and never auto-send onboarding emails.
       </p>
 
+      <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
@@ -523,6 +524,7 @@ export function ClientsTab() {
           ))}
         </TableBody>
       </Table>
+      </div>
 
       <PaginationControls
         page={pagination.page}
