@@ -115,7 +115,7 @@ export function InvoiceDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent side="right" className="w-full max-w-full sm:max-w-lg overflow-y-auto">
         {invoice && (
           <>
             <SheetHeader>
