@@ -369,7 +369,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
   };
 
   return (
-    <div className="grid h-full min-h-0 gap-4 p-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+    <div className="grid min-h-0 gap-4 p-3 md:p-4 lg:grid-cols-[360px_minmax(0,1fr)]">
       <div className="flex min-h-0 flex-col gap-4">
         <Card>
           <CardHeader className="pb-3">
@@ -469,7 +469,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
                 No message threads match the current filters.
               </div>
             ) : (
-              <ScrollArea className="h-[calc(100vh-24rem)] pr-3">
+              <ScrollArea className="max-h-[50vh] lg:max-h-[calc(100vh-24rem)] pr-3">
                 <div className="space-y-2">
                   {filteredThreads.map((thread) => (
                     <button
@@ -546,7 +546,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading messages…
               </div>
             ) : (
-              <ScrollArea className="h-[calc(100vh-18rem)] pr-3">
+              <ScrollArea className="max-h-[52vh] lg:max-h-[calc(100vh-18rem)] pr-3">
                 <div className="space-y-3">
                   {messages.length === 0 ? (
                     <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">

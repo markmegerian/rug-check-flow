@@ -414,7 +414,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
         </Card>
       </div>
 
-      <Card className="min-h-[520px]">
+      <Card className="min-h-[420px] lg:min-h-[520px]">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{selectedThread ? THREAD_TYPE_LABEL[selectedThread.thread_type] : "Conversation"}</CardTitle>
           <CardDescription>
@@ -443,7 +443,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading conversation…
               </div>
             ) : (
-              <ScrollArea className="h-[420px] pr-3">
+              <ScrollArea className="max-h-[52vh] lg:h-[420px] pr-3">
                 <div className="space-y-3">
                   {messages.length === 0 ? (
                     <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No messages yet.</div>
