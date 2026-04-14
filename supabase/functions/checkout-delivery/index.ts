@@ -273,15 +273,9 @@ Deno.serve(async (req) => {
         direction: "outbound",
         event_type: "invoice_sent",
         subject: `${invoiceNumber} created and sent`,
-        body: `Created invoice ${invoiceNumber} during truck handoff for ${rugIds.length} rugs.`,
+        body: `Created invoice ${invoiceNumber} during truck handoff for ${rugIds.length} rugs. Pickup completion remains part of stop proof.`,
         sent_to: clientRow?.email ?? null,
       });
-
-      // Update rugs to picked_up status
-      await supabase
-        .from("rugs")
-        .update({ status: "picked_up", picked_up_at: new Date().toISOString() })
-        .in("id", rugIds);
     }
 
     // Mark delivery list as checked out
