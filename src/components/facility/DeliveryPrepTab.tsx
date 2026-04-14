@@ -15,6 +15,7 @@ import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DAYS_OF_WEEK } from "@/lib/constants";
+import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES } from "@/lib/delivery-lists";
 
 type DeliveryItem = {
   id: string;
@@ -74,7 +75,6 @@ export function DeliveryPrepTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -145,16 +145,8 @@ export function DeliveryPrepTab() {
       return;
     }
 
-    // Get eligible rugs for these clients
-    const eligibleRugs = allRugs.filter((r) => r.client_id && clientIds.includes(r.client_id));
-
-    if (eligibleRugs.length === 0) {
-      setDeliveryList(null);
-      setItems([]);
-      return;
-    }
-
-    // Find or create delivery list for this date
+    // Find or create delivery list for this date so the prep page exists ahead of time,
+    // even before every rug is actually ready.
     const { data: listsData } = await supabase
       .from("delivery_lists")
       .select("id, route_day, target_date, status")
@@ -182,6 +174,11 @@ export function DeliveryPrepTab() {
     }
 
     setDeliveryList(list);
+
+    // Get currently delivery-eligible rugs for these clients.
+    const eligibleRugs = allRugs.filter(
+      (r) => r.client_id && clientIds.includes(r.client_id) && DELIVERY_LIST_ELIGIBLE_RUG_STATUSES.includes(r.status as (typeof DELIVERY_LIST_ELIGIBLE_RUG_STATUSES)[number]),
+    );
 
     // Fetch existing items
     const { data: existingItems } = await supabase
@@ -219,11 +216,10 @@ export function DeliveryPrepTab() {
 
   // When date changes or data loads, sync delivery list
   useEffect(() => {
-    if (!loading && Object.keys(clientMap).length > 0) {
-      fetchDeliveryListForDate(selectedDate, selectedDayName);
+    if (!loading && selectedDayName && Object.keys(clientMap).length > 0) {
+      void fetchDeliveryListForDate(selectedDate, selectedDayName);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, loading]);
+  }, [selectedDate, selectedDayName, loading, clientMap, allRugs]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -271,61 +267,50 @@ export function DeliveryPrepTab() {
       }
 
       if (value && rug.status !== "ready") {
-        setPreviousStatusMap((prev) => ({ ...prev, [rug.id]: rug.status }));
-
-        const { error: rugError } = await supabase
-          .from("rugs")
-          .update({ status: "ready", completed_at: new Date().toISOString() })
-          .eq("id", rug.id);
-
-        if (rugError) {
-          await supabase
-            .from("delivery_list_items")
-            .update({ confirmed_for_delivery: false })
-            .eq("id", itemId);
-          toast({ title: "Failed to update rug status", description: rugError.message, variant: "destructive" });
-          return;
-        }
-
-        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: "ready" } }));
+        await supabase
+          .from("delivery_list_items")
+          .update({ confirmed_for_delivery: false })
+          .eq("id", itemId);
         toast({
-          title: "Rug confirmed & marked ready",
-          description: `${rug.tag} moved from ${statusLabel(rug.status)} to Ready`,
+          title: "Rug not ready",
+          description: `${rug.tag} is still ${statusLabel(rug.status)} and cannot join the guaranteed list yet.`,
+          variant: "destructive",
         });
-      } else if (!value && previousStatusMap[rug.id]) {
-        const prevStatus = previousStatusMap[rug.id];
-        const revertUpdates: Record<string, string | null> = { status: prevStatus };
-        if (prevStatus !== "ready") {
-          revertUpdates.completed_at = null;
-        }
-
-        const { error: rugError } = await supabase
-          .from("rugs")
-          .update(revertUpdates)
-          .eq("id", rug.id);
-
-        if (rugError) {
-          toast({ title: "Failed to revert rug status", description: rugError.message, variant: "destructive" });
-          return;
-        }
-
-        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: prevStatus } }));
-        setPreviousStatusMap((prev) => {
-          const next = { ...prev };
-          delete next[rug.id];
-          return next;
-        });
-        toast({
-          title: "Confirmation removed",
-          description: `${rug.tag} reverted to ${statusLabel(prevStatus)}`,
-        });
-      } else {
-        toast({
-          title: value ? "Rug confirmed" : "Confirmation removed",
-        });
+        return;
       }
 
+      toast({
+        title: value ? "Rug confirmed" : "Confirmation removed",
+      });
+
       setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, confirmed_for_delivery: value } : i)));
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const markRugReady = async (e: React.MouseEvent, rug: RugInfo) => {
+    e.stopPropagation();
+    if (rug.status === "ready") return;
+    const confirmed = window.confirm(`Mark rug ${rug.tag} as ready for delivery?`);
+    if (!confirmed) return;
+
+    setUpdating(rug.id);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("rugs")
+        .update({ status: "ready", completed_at: now })
+        .eq("id", rug.id);
+
+      if (error) {
+        toast({ title: "Failed to mark ready", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      setAllRugs((prev) => prev.map((entry) => (entry.id === rug.id ? { ...entry, status: "ready" } : entry)));
+      setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: "ready" } }));
+      toast({ title: "Rug marked ready", description: `${rug.tag} is now ready for delivery prep.` });
     } finally {
       setUpdating(null);
     }
@@ -380,7 +365,7 @@ export function DeliveryPrepTab() {
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-foreground">Delivery Prep</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalItems} rugs · {readyCount} ready · {inProductionCount} in production · {checkedInCount} checked in · {confirmedCount} confirmed
+            {totalItems} rugs · {readyCount} ready · {inProductionCount} in production · {checkedInCount} checked in · {confirmedCount} on guaranteed list
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -466,15 +451,15 @@ export function DeliveryPrepTab() {
                                       !!v,
                                     );
                                   }}
-                                  disabled={!item || updating === item?.id}
+                                  disabled={!item || updating === item?.id || !isReady}
                                 />
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="right">
                               {isConfirmed ? (
-                                <p>Confirmed for delivery — click to unconfirm</p>
+                                <p>Confirmed for delivery, click to unconfirm</p>
                               ) : !isReady ? (
-                                <p>Rug is {statusLabel(rug.status)} — confirming will mark it Ready</p>
+                                <p>Use Mark Ready first, then confirm it for delivery</p>
                               ) : (
                                 <p>Click to confirm this rug for delivery</p>
                               )}
@@ -503,20 +488,31 @@ export function DeliveryPrepTab() {
                         )}
 
                         {!isReady && !isConfirmed && (
-                          <TooltipProvider delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                {rug.status === "in_production" ? (
-                                  <Clock className="h-4 w-4 text-amber-500 shrink-0" />
-                                ) : (
-                                  <AlertCircle className="h-4 w-4 text-blue-500 shrink-0" />
-                                )}
-                              </TooltipTrigger>
-                              <TooltipContent side="left">
-                                <p>{statusLabel(rug.status)} — may not be ready by delivery date</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0"
+                              disabled={updating === rug.id}
+                              onClick={(e) => void markRugReady(e, rug)}
+                            >
+                              Mark Ready
+                            </Button>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  {rug.status === "in_production" ? (
+                                    <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                                  ) : (
+                                    <AlertCircle className="h-4 w-4 text-blue-500 shrink-0" />
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  <p>{statusLabel(rug.status)} , staff can mark it ready with confirmation when it is actually done</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </>
                         )}
 
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
