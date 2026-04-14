@@ -525,7 +525,7 @@ async function applyEventEffect(
       // Get all items
       const { data: items, error: itemsError } = await adminClient
         .from("route_stop_items")
-        .select("id, status")
+        .select("id, status, phase, rug_id")
         .eq("route_stop_id", route_stop_id);
 
       if (itemsError) {
@@ -577,6 +577,25 @@ async function applyEventEffect(
           throw error;
         }
         throw new Error(`Failed to complete stop: ${updateError.message}`);
+      }
+
+      const deliveredRugIds = (items ?? [])
+        .filter((item) => item.phase === "delivery" && item.status === "verified" && item.rug_id)
+        .map((item) => item.rug_id) as string[];
+
+      if (deliveredRugIds.length > 0) {
+        const { error: rugUpdateError } = await adminClient
+          .from("rugs")
+          .update({
+            status: "picked_up",
+            picked_up_at: new Date().toISOString(),
+          })
+          .in("id", deliveredRugIds)
+          .eq("status", "ready");
+
+        if (rugUpdateError) {
+          throw new Error(`Failed to update delivered rugs: ${rugUpdateError.message}`);
+        }
       }
 
       break;
@@ -729,7 +748,30 @@ async function verifyEventEffectApplied(
         .select("status")
         .eq("id", route_stop_id)
         .single();
-      return stop?.status === "completed" || stop?.status === "completed_with_exceptions";
+
+      if (!(stop?.status === "completed" || stop?.status === "completed_with_exceptions")) {
+        return false;
+      }
+
+      const { data: items } = await adminClient
+        .from("route_stop_items")
+        .select("status, phase, rug_id")
+        .eq("route_stop_id", route_stop_id);
+
+      const deliveredRugIds = (items ?? [])
+        .filter((item) => item.phase === "delivery" && item.status === "verified" && item.rug_id)
+        .map((item) => item.rug_id) as string[];
+
+      if (deliveredRugIds.length === 0) {
+        return true;
+      }
+
+      const { data: rugs } = await adminClient
+        .from("rugs")
+        .select("id, status")
+        .in("id", deliveredRugIds);
+
+      return (rugs ?? []).every((rug) => rug.status === "picked_up");
     }
 
     case "STOP_UNABLE_TO_COMPLETE": {
