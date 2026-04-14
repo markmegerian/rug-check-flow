@@ -378,7 +378,7 @@ export function DeliveriesTab() {
 
     setSelectedList({ ...selectedList, status: "confirmed", confirmed_at: new Date().toISOString() });
     await fetchDeliveryLists();
-    toast({ title: "Delivery confirmed", description: `${confirmedItems.length} rugs ready for truck checkout.` });
+    toast({ title: "Guaranteed list confirmed", description: `${confirmedItems.length} rugs are locked in for truck loading.` });
   };
 
   const checkoutTruck = async () => {
@@ -401,8 +401,8 @@ export function DeliveriesTab() {
     }
 
     toast({
-      title: "Truck checked out!",
-      description: `${data.invoices_created} invoices created for ${data.rugs_delivered} rugs.`,
+      title: "Truck handed off",
+      description: `${data.invoices_created} invoices created for ${data.rugs_delivered} rugs. Stop signatures, photos, and proof happen on route.`,
     });
     setSelectedList({ ...selectedList, status: "checked_out", checked_out_at: new Date().toISOString() });
     await fetchDeliveryLists();
@@ -544,25 +544,28 @@ export function DeliveriesTab() {
             <p className="text-sm text-muted-foreground mt-0.5">
               {items.length} rugs · {Object.keys(itemsByClient).length} clients
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Prep marks rugs ready, confirmation locks the guaranteed list, truck loading handles what gets loaded, and stop proof happens later on route.
+            </p>
           </div>
 
           <div className="flex gap-2">
             {!isCheckedOut && (
               <Button size="sm" variant="outline" onClick={recompileDeliveryList} disabled={compiling}>
                 <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                Re-compile
+                Refresh ready rugs
               </Button>
             )}
             {isCompiling && (
               <Button onClick={confirmList} disabled={confirmedCount === 0}>
                 <CheckCircle2 className="h-4 w-4 mr-1" />
-                Confirm Delivery ({confirmedCount})
+                Confirm Guaranteed List ({confirmedCount})
               </Button>
             )}
             {isConfirmed && (
               <Button onClick={checkoutTruck} disabled={loadedCount === 0 || checkingOut}>
                 <Truck className="h-4 w-4 mr-1" />
-                {checkingOut ? "Processing…" : `Truck Checkout (${loadedCount})`}
+                {checkingOut ? "Processing…" : `Hand Off to Truck (${loadedCount})`}
               </Button>
             )}
           </div>
@@ -626,7 +629,7 @@ export function DeliveriesTab() {
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="right">
-                              <p>Cannot confirm — rug is still in production</p>
+                              <p>Cannot confirm yet, mark the rug ready first in delivery prep</p>
                             </TooltipContent>
                           </Tooltip>
                         ) : (
@@ -661,7 +664,7 @@ export function DeliveriesTab() {
                             <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
                           </TooltipTrigger>
                           <TooltipContent side="left">
-                            <p>Still in production — cannot be confirmed yet</p>
+                            <p>Still in production, it must be marked ready before it can join the guaranteed list</p>
                           </TooltipContent>
                         </Tooltip>
                       )}
@@ -723,7 +726,7 @@ export function DeliveriesTab() {
                   disabled={compiling || dayClients.length === 0}
                 >
                   <Package className="h-3.5 w-3.5 mr-1" />
-                  Compile
+                  Build next-day list
                 </Button>
               </div>
 
