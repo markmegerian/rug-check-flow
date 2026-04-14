@@ -350,28 +350,28 @@ export function InvoicesTab() {
       />
 
       <div className="space-y-3 md:hidden">
-        {rows.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No invoices found.</div>
-        ) : rows.map((inv) => (
+        ) : filtered.map((inv) => (
           <div key={inv.id} className="rounded-xl border bg-card p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold">{inv.invoice_number}</div>
-                <div className="text-xs text-muted-foreground">{inv.client_name ?? "Unknown client"}</div>
+                <div className="text-xs text-muted-foreground">{clientName(inv)}</div>
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold">${Number(inv.total ?? 0).toFixed(2)}</div>
-                <div className="text-xs text-muted-foreground">{inv.status}</div>
+                <InvoiceStatusBadge status={inv.status} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
                 <div className="text-muted-foreground">Issued</div>
-                <div>{inv.issued_at ? formatDate(inv.issued_at) : "Draft"}</div>
+                <div>{inv.issued_at ? inv.issued_at.slice(0, 10) : "Draft"}</div>
               </div>
               <div>
                 <div className="text-muted-foreground">Due</div>
-                <div>{inv.due_at ? formatDate(inv.due_at) : "—"}</div>
+                <div>{inv.due_at ? inv.due_at.slice(0, 10) : "—"}</div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -389,7 +389,6 @@ export function InvoicesTab() {
             <TableHead>Invoice #</TableHead>
             <TableHead>Client</TableHead>
             <TableHead className="hidden sm:table-cell">Date</TableHead>
-            <TableHead className="w-16 text-center">Items</TableHead>
             <TableHead className="w-28 text-right">Total</TableHead>
             <TableHead className="w-24">Status</TableHead>
             <TableHead className="w-16" />
@@ -398,7 +397,7 @@ export function InvoicesTab() {
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 No invoices
               </TableCell>
             </TableRow>
@@ -410,7 +409,6 @@ export function InvoicesTab() {
                 <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
                   {inv.created_at.slice(0, 10)}
                 </TableCell>
-                <TableCell className="text-center">{inv.invoice_items.length}</TableCell>
                 <TableCell className="text-right font-medium">
                   ${Number(inv.total).toFixed(2)}
                 </TableCell>
