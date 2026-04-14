@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -31,12 +31,30 @@ import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
 
-import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
-import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
-import { RugHistoryCard } from "./RugHistoryCard";
+import type { PhotoItem } from "./CheckInPhotoSection";
+import type { DbService } from "./CheckInServiceSelector";
 import { useRugHistory } from "@/hooks/useRugHistory";
 
+const CheckInPhotoSection = lazy(async () => {
+  const module = await import("./CheckInPhotoSection");
+  return { default: module.CheckInPhotoSection };
+});
+
+const CheckInServiceSelector = lazy(async () => {
+  const module = await import("./CheckInServiceSelector");
+  return { default: module.CheckInServiceSelector };
+});
+
+const RugHistoryCard = lazy(async () => {
+  const module = await import("./RugHistoryCard");
+  return { default: module.RugHistoryCard };
+});
+
 type PricingTier = "standard" | "preferred" | "vip";
+
+function SectionFallback({ label }: { label: string }) {
+  return <div className="text-sm text-muted-foreground">Loading {label}…</div>;
+}
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -361,7 +379,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </Alert>
           )}
 
-          <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
+          <Suspense fallback={<SectionFallback label="rug history" />}>
+            <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
+          </Suspense>
 
           {/* Identity row */}
           {isReadOnlyIdentity ? (
@@ -488,33 +508,37 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
 
           {/* Photo upload */}
-          <CheckInPhotoSection
-            photos={photos}
-            onPhotosChange={setPhotos}
-          />
+          <Suspense fallback={<SectionFallback label="photo tools" />}>
+            <CheckInPhotoSection
+              photos={photos}
+              onPhotosChange={setPhotos}
+            />
+          </Suspense>
 
           {/* Service selection */}
-          <CheckInServiceSelector
-            dbServices={dbServices}
-            watchedServices={watchedServices}
-            toggleService={toggleService}
-            clearAll={() => {
-              form.setValue("selectedServices", [], { shouldValidate: true });
-              setFlatPrices({});
-              setEdgeSelections({});
-            }}
-            setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-            getUnitPrice={getUnitPrice}
-            getLineTotal={getLineTotal}
-            edgeSelections={edgeSelections}
-            setEdgeSelections={setEdgeSelections}
-            flatPrices={flatPrices}
-            setFlatPrices={setFlatPrices}
-            watchedLength={watchedLength}
-            watchedWidth={watchedWidth}
-            tierLabel={tierLabel}
-            error={form.formState.errors.selectedServices?.message}
-          />
+          <Suspense fallback={<SectionFallback label="service options" />}>
+            <CheckInServiceSelector
+              dbServices={dbServices}
+              watchedServices={watchedServices}
+              toggleService={toggleService}
+              clearAll={() => {
+                form.setValue("selectedServices", [], { shouldValidate: true });
+                setFlatPrices({});
+                setEdgeSelections({});
+              }}
+              setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+              getUnitPrice={getUnitPrice}
+              getLineTotal={getLineTotal}
+              edgeSelections={edgeSelections}
+              setEdgeSelections={setEdgeSelections}
+              flatPrices={flatPrices}
+              setFlatPrices={setFlatPrices}
+              watchedLength={watchedLength}
+              watchedWidth={watchedWidth}
+              tierLabel={tierLabel}
+              error={form.formState.errors.selectedServices?.message}
+            />
+          </Suspense>
         </div>
 
         {/* Sticky review / action footer */}
