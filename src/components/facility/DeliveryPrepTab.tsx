@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { format, addDays } from "date-fns";
 import { Package, CheckCircle2, ChevronRight, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,50 +89,46 @@ export function DeliveryPrepTab() {
   const selectedDayName = selectedOption?.dayName ?? "";
 
   // Fetch ALL undelivered rugs from wholesale clients (no date filter)
-  const fetchAllRugs = async () => {
+  const fetchAllRugs = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch ALL clients (wholesale clients have route_day set)
-      const { data: clientsData, error: clientsError } = await supabase
-        .from("clients")
-        .select("id, name, route_day, address");
+      const [clientsResult, rugsResult] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("id, name, route_day, address")
+          .not("route_day", "is", null),
+        supabase
+          .from("rugs")
+          .select("id, tag, description, status, size_length, size_width, client_id")
+          .in("status", ["checked_in", "in_production", "ready"])
+          .not("client_id", "is", null)
+          .order("tag"),
+      ]);
 
-      if (clientsError) {
-        toast({ title: "Failed to load clients", description: clientsError.message, variant: "destructive" });
+      if (clientsResult.error) {
+        toast({ title: "Failed to load clients", description: clientsResult.error.message, variant: "destructive" });
         return;
       }
 
-      const clients = (clientsData ?? []) as ClientInfo[];
-      const clientMapLocal: Record<string, ClientInfo> = {};
-      clients.forEach((c) => { clientMapLocal[c.id] = c; });
+      if (rugsResult.error) {
+        toast({ title: "Failed to load rugs", description: rugsResult.error.message, variant: "destructive" });
+        return;
+      }
+
+      const clients = (clientsResult.data ?? []) as ClientInfo[];
+      const clientMapLocal = Object.fromEntries(clients.map((client) => [client.id, client])) as Record<string, ClientInfo>;
       setClientMap(clientMapLocal);
 
-      // 2. Fetch ALL undelivered rugs at any workflow stage
-      const { data: rugsData, error: rugsError } = await supabase
-        .from("rugs")
-        .select("id, tag, description, status, size_length, size_width, client_id")
-        .in("status", ["checked_in", "in_production", "ready"])
-        .not("client_id", "is", null)
-        .order("tag");
-
-      if (rugsError) {
-        toast({ title: "Failed to load rugs", description: rugsError.message, variant: "destructive" });
-        return;
-      }
-
-      const eligibleRugs = (rugsData ?? []) as RugInfo[];
+      const eligibleRugs = (rugsResult.data ?? []) as RugInfo[];
       setAllRugs(eligibleRugs);
-
-      const rugMapLocal: Record<string, RugInfo> = {};
-      eligibleRugs.forEach((r) => { rugMapLocal[r.id] = r; });
-      setRugMap(rugMapLocal);
+      setRugMap(Object.fromEntries(eligibleRugs.map((rug) => [rug.id, rug])) as Record<string, RugInfo>);
     } catch (error) {
       console.error("Failed to fetch delivery prep data:", error);
       toast({ title: "Failed to load data", description: "An unexpected error occurred", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   // Fetch or create delivery list for the selected date, and sync items
   const fetchDeliveryListForDate = async (date: string, dayName: string) => {
@@ -218,9 +214,8 @@ export function DeliveryPrepTab() {
   };
 
   useEffect(() => {
-    fetchAllRugs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void fetchAllRugs();
+  }, [fetchAllRugs]);
 
   // When date changes or data loads, sync delivery list
   useEffect(() => {
