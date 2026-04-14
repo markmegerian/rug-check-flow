@@ -75,7 +75,6 @@ export function DeliveryPrepTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
-  const [previousStatusMap, setPreviousStatusMap] = useState<Record<string, string>>({});
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -268,59 +267,21 @@ export function DeliveryPrepTab() {
       }
 
       if (value && rug.status !== "ready") {
-        setPreviousStatusMap((prev) => ({ ...prev, [rug.id]: rug.status }));
-
-        const { error: rugError } = await supabase
-          .from("rugs")
-          .update({ status: "ready", completed_at: new Date().toISOString() })
-          .eq("id", rug.id);
-
-        if (rugError) {
-          await supabase
-            .from("delivery_list_items")
-            .update({ confirmed_for_delivery: false })
-            .eq("id", itemId);
-          toast({ title: "Failed to update rug status", description: rugError.message, variant: "destructive" });
-          return;
-        }
-
-        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: "ready" } }));
+        await supabase
+          .from("delivery_list_items")
+          .update({ confirmed_for_delivery: false })
+          .eq("id", itemId);
         toast({
-          title: "Rug confirmed & marked ready",
-          description: `${rug.tag} moved from ${statusLabel(rug.status)} to Ready`,
+          title: "Rug not ready",
+          description: `${rug.tag} is still ${statusLabel(rug.status)} and cannot be confirmed for delivery yet.`,
+          variant: "destructive",
         });
-      } else if (!value && previousStatusMap[rug.id]) {
-        const prevStatus = previousStatusMap[rug.id];
-        const revertUpdates: Record<string, string | null> = { status: prevStatus };
-        if (prevStatus !== "ready") {
-          revertUpdates.completed_at = null;
-        }
-
-        const { error: rugError } = await supabase
-          .from("rugs")
-          .update(revertUpdates)
-          .eq("id", rug.id);
-
-        if (rugError) {
-          toast({ title: "Failed to revert rug status", description: rugError.message, variant: "destructive" });
-          return;
-        }
-
-        setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: prevStatus } }));
-        setPreviousStatusMap((prev) => {
-          const next = { ...prev };
-          delete next[rug.id];
-          return next;
-        });
-        toast({
-          title: "Confirmation removed",
-          description: `${rug.tag} reverted to ${statusLabel(prevStatus)}`,
-        });
-      } else {
-        toast({
-          title: value ? "Rug confirmed" : "Confirmation removed",
-        });
+        return;
       }
+
+      toast({
+        title: value ? "Rug confirmed" : "Confirmation removed",
+      });
 
       setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, confirmed_for_delivery: value } : i)));
     } finally {
@@ -463,15 +424,15 @@ export function DeliveryPrepTab() {
                                       !!v,
                                     );
                                   }}
-                                  disabled={!item || updating === item?.id}
+                                  disabled={!item || updating === item?.id || !isReady}
                                 />
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="right">
                               {isConfirmed ? (
-                                <p>Confirmed for delivery — click to unconfirm</p>
+                                <p>Confirmed for delivery, click to unconfirm</p>
                               ) : !isReady ? (
-                                <p>Rug is {statusLabel(rug.status)} — confirming will mark it Ready</p>
+                                <p>Rug is {statusLabel(rug.status)} and cannot be confirmed until it is actually ready</p>
                               ) : (
                                 <p>Click to confirm this rug for delivery</p>
                               )}
