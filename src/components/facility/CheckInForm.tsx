@@ -255,13 +255,23 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }, 0);
   }, [watchedServices, serviceById, getLineTotal]);
 
-  const toggleService = (serviceId: string) => {
+  const toggleService = useCallback((serviceId: string) => {
     const current = form.getValues("selectedServices");
     const next = current.includes(serviceId)
       ? current.filter((id) => id !== serviceId)
       : [...current, serviceId];
     form.setValue("selectedServices", next, { shouldValidate: true });
-  };
+  }, [form]);
+
+  const clearAllServices = useCallback(() => {
+    form.setValue("selectedServices", [], { shouldValidate: true });
+    setFlatPrices({});
+    setEdgeSelections({});
+  }, [form]);
+
+  const setSelectedServices = useCallback((ids: string[]) => {
+    form.setValue("selectedServices", ids, { shouldValidate: true });
+  }, [form]);
 
   const onSubmit = async (data: CheckInValues) => {
     if (!editingEntry && photos.length < 1) {
@@ -472,12 +482,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                   dbServices={dbServices}
                   watchedServices={watchedServices}
                   toggleService={toggleService}
-                  clearAll={() => {
-                    form.setValue("selectedServices", [], { shouldValidate: true });
-                    setFlatPrices({});
-                    setEdgeSelections({});
-                  }}
-                  setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+                  clearAll={clearAllServices}
+                  setServices={setSelectedServices}
                   getUnitPrice={getUnitPrice}
                   getLineTotal={getLineTotal}
                   edgeSelections={edgeSelections}

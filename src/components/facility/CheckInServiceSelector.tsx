@@ -185,7 +185,7 @@ interface CheckInServiceSelectorProps {
   error?: string;
 }
 
-export function CheckInServiceSelector({
+export const CheckInServiceSelector = memo(function CheckInServiceSelector({
   dbServices, watchedServices, toggleService, clearAll, setServices,
   getUnitPrice, getLineTotal, edgeSelections, setEdgeSelections,
   flatPrices, setFlatPrices, watchedLength, watchedWidth, tierLabel, error,
@@ -194,6 +194,7 @@ export function CheckInServiceSelector({
   const deferredServiceSearch = useDeferredValue(serviceSearch);
 
   const searchLower = deferredServiceSearch.trim().toLowerCase();
+  const watchedServiceSet = useMemo(() => new Set(watchedServices), [watchedServices]);
   const filteredServices = useMemo(
     () => searchLower
       ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
@@ -248,7 +249,7 @@ export function CheckInServiceSelector({
               .map((n) => dbServices.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id)
               .filter(Boolean) as string[];
             if (ids.length === 0) return null;
-            const allSelected = ids.length > 0 && ids.every((id) => watchedServices.includes(id));
+            const allSelected = ids.length > 0 && ids.every((id) => watchedServiceSet.has(id));
             return (
               <button
                 key={preset.label}
@@ -317,4 +318,4 @@ export function CheckInServiceSelector({
       )}
     </div>
   );
-}
+});
