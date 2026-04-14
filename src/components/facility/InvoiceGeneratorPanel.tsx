@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search, FileText, Loader2, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,32 +28,29 @@ type UninvoicedRug = {
 };
 
 export function InvoiceGeneratorPanel() {
-  const [clients, setClients] = useState<ClientOption[]>([]);
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [rugs, setRugs] = useState<UninvoicedRug[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
-  const [loadingClients, setLoadingClients] = useState(true);
   const [loadingRugs, setLoadingRugs] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
 
-  // Fetch clients on mount
-  useEffect(() => {
-    const fetchClients = async () => {
+  const { data: clients = [], isLoading: loadingClients } = useQuery({
+    queryKey: ["clients", "invoice-generator"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
         .select("id, name, address")
         .order("name");
-
       if (error) {
         toast({ title: "Failed to load clients", description: error.message, variant: "destructive" });
+        return [] as ClientOption[];
       }
-      setClients((data ?? []) as ClientOption[]);
-      setLoadingClients(false);
-    };
-    fetchClients();
-  }, []);
+      return (data ?? []) as ClientOption[];
+    },
+    staleTime: 5 * 60_000,
+  });
 
   // Fetch uninvoiced rugs for selected client
   const fetchUninvoicedRugs = useCallback(async (clientId: string) => {

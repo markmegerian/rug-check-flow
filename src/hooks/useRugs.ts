@@ -32,6 +32,7 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
   const { data, error } = await supabase
     .from("rugs")
     .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, client_id, photo_url, clients(name)")
+    .in("status", PRODUCTION_STAGES.map((stage) => stage.id))
     .order("checked_in_at", { ascending: false });
 
   if (error) throw error;
@@ -80,7 +81,7 @@ export function useRugs() {
   return useQuery({
     queryKey: RUGS_KEY,
     queryFn: fetchRugsWithServices,
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 }
 
