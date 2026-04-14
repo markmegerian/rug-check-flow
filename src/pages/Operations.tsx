@@ -27,12 +27,12 @@ const JobsTab = lazy(() => import("@/components/office/JobsTab").then((m) => ({ 
 const RouteBuilder = lazy(() => import("@/components/office/RouteBuilder").then((m) => ({ default: m.RouteBuilder })));
 const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then((m) => ({ default: m.EstimatesTab })));
 const InboxTab = lazy(() => import("@/components/office/InboxTab").then((m) => ({ default: m.InboxTab })));
-import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
-import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
+const RugSearchDialog = lazy(() => import("@/components/facility/RugSearchDialog").then((m) => ({ default: m.RugSearchDialog })));
+const RugDetailSheet = lazy(() => import("@/components/facility/RugDetailSheet").then((m) => ({ default: m.RugDetailSheet })));
+const WorkspaceStatusBar = lazy(() => import("@/components/layout/WorkspaceStatusBar").then((m) => ({ default: m.WorkspaceStatusBar })));
+const ClientPricingDialog = lazy(() => import("@/components/pricing/ClientPricingDialog").then((m) => ({ default: m.ClientPricingDialog })));
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs, type WorkspaceTabGroup } from "@/components/layout/WorkspaceTabs";
-import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
-import { ClientPricingDialog } from "@/components/pricing/ClientPricingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 const FLOOR_TABS = [
@@ -121,9 +121,17 @@ export default function Operations() {
       title="Operations"
       subtitle={activeLabel}
       contentClassName="overflow-hidden flex flex-col"
-      statusBar={<WorkspaceStatusBar />}
+      statusBar={
+        <Suspense fallback={null}>
+          <WorkspaceStatusBar />
+        </Suspense>
+      }
       onSearchOpen={() => setSearchOpen(true)}
-      actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
+      actions={isOffice ? (
+        <Suspense fallback={null}>
+          <ClientPricingDialog triggerLabel="Price Lookup" />
+        </Suspense>
+      ) : undefined}
     >
       {isSuperAdmin ? (
         <WorkspaceTabs
@@ -155,8 +163,16 @@ export default function Operations() {
         </Suspense>
       </div>
 
-      <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
-      <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
+      {searchOpen ? (
+        <Suspense fallback={null}>
+          <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
+        </Suspense>
+      ) : null}
+      {detailRugId ? (
+        <Suspense fallback={null}>
+          <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
+        </Suspense>
+      ) : null}
     </AppShell>
   );
 }
