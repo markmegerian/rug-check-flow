@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { type PendingRug } from "@/types/pending-rug";
-import { useClientNames } from "@/hooks/useClients";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PendingRugsPanelProps {
   rugs: PendingRug[];
@@ -25,14 +26,22 @@ export function PendingRugsPanel({
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [rugNumber, setRugNumber] = useState("");
   const [queueSearch, setQueueSearch] = useState("");
-  const { data: clientRows = [] } = useClientNames();
-  const clientNames = useMemo(() => clientRows.map((client) => client.name).filter(Boolean), [clientRows]);
 
-  const filteredClients = useMemo(() => {
-    if (!clientSearch.trim()) return [];
-    const q = clientSearch.toLowerCase();
-    return clientNames.filter((c) => c.toLowerCase().includes(q));
-  }, [clientSearch, clientNames]);
+  const { data: filteredClients = [] } = useQuery({
+    queryKey: ["pending-rugs-panel", "client-search", clientSearch.trim()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("name")
+        .ilike("name", `%${clientSearch.trim()}%`)
+        .order("name")
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []).map((client) => client.name).filter(Boolean);
+    },
+    enabled: walkInOpen && clientSearch.trim().length >= 2 && !selectedClient,
+    staleTime: 30_000,
+  });
 
   const filteredRugs = useMemo(() => {
     if (!queueSearch.trim()) return rugs;
