@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Download, Send, Trash2, DollarSign, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,12 +11,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import type { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 type InvoiceRow = Tables<"invoices"> & {
   pdf_storage_path?: string | null;
   clients: { name: string } | null;
-  invoice_items: Tables<"invoice_items">[];
 };
+
+type InvoiceItemRow = Tables<"invoice_items">;
 
 type InvoiceStatus = "draft" | "sent" | "paid" | "overdue";
 
@@ -64,6 +66,8 @@ export function InvoiceDetailSheet({
   const [creditReason, setCreditReason] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [savingCredit, setSavingCredit] = useState(false);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItemRow[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   // Reset allocations when invoice changes
   const invoiceId = invoice?.id;
@@ -77,6 +81,34 @@ export function InvoiceDetailSheet({
     setCreditReason("");
     setCreditAmount("");
   }
+
+  useEffect(() => {
+    if (!invoice?.id || !open) {
+      setInvoiceItems([]);
+      return;
+    }
+
+    let active = true;
+    setLoadingItems(true);
+    void supabase
+      .from("invoice_items")
+      .select("*")
+      .eq("invoice_id", invoice.id)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setInvoiceItems([]);
+          setLoadingItems(false);
+          return;
+        }
+        setInvoiceItems(data ?? []);
+        setLoadingItems(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [invoice?.id, open]);
 
   const filteredOpenInvoices = useMemo(() => {
     const query = allocationSearch.trim().toLowerCase();
@@ -111,7 +143,7 @@ export function InvoiceDetailSheet({
   };
 
   const clientName = invoice?.clients?.name ?? "Unknown";
-  const rugCount = invoice?.invoice_items.length ?? 0;
+  const rugCount = invoiceItems.length;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -146,7 +178,9 @@ export function InvoiceDetailSheet({
               <div>
                 <Label className="mb-2 block">Line Items ({rugCount})</Label>
                 <div className="border border-border rounded-lg divide-y divide-border text-sm">
-                  {invoice.invoice_items.map((li) => (
+                  {loadingItems ? (
+                    <div className="px-3 py-3 text-sm text-muted-foreground">Loading line items…</div>
+                  ) : invoiceItems.map((li) => (
                     <div key={li.id} className="flex items-center justify-between px-3 py-2.5">
                       <div>
                         <span className="font-medium text-foreground">{li.description}</span>
