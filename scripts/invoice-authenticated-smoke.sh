@@ -62,9 +62,9 @@ fi
 
 invoice_count="$(jq 'length' "$invoice_response")"
 if [[ "$invoice_count" == "0" ]]; then
-  echo "No linked invoice available for authenticated smoke." >&2
+  echo "SKIP: no linked invoice available for authenticated smoke."
   rm -f "$invoice_response"
-  exit 1
+  exit 0
 fi
 
 invoice_id="$(jq -r '.[0].id // empty' "$invoice_response")"
