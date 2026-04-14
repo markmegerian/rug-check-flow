@@ -9,6 +9,7 @@ import { LoadingState } from "@/components/states/PageState";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { RugDetailSheet } from "./RugDetailSheet";
+import { applyCleaningServiceMinimum } from "@/lib/service-pricing";
 
 type ClientOption = {
   id: string;
@@ -112,12 +113,22 @@ export function InvoiceGeneratorPanel() {
     const uninvoicedIds = uninvoicedRugs.map((r) => r.id);
     const { data: rugServices } = await supabase
       .from("rug_services")
-      .select("rug_id, line_total")
+      .select("rug_id, service_id, line_total")
       .in("rug_id", uninvoicedIds);
+
+    const serviceIds = Array.from(new Set((rugServices ?? []).map((s) => s.service_id).filter(Boolean)));
+    let categoryByServiceId: Record<string, string> = {};
+    if (serviceIds.length > 0) {
+      const { data: serviceRows } = await supabase
+        .from("services")
+        .select("id, category")
+        .in("id", serviceIds);
+      categoryByServiceId = Object.fromEntries((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
+    }
 
     const serviceTotalByRug: Record<string, number> = {};
     (rugServices ?? []).forEach((s) => {
-      serviceTotalByRug[s.rug_id] = (serviceTotalByRug[s.rug_id] ?? 0) + Number(s.line_total);
+      serviceTotalByRug[s.rug_id] = (serviceTotalByRug[s.rug_id] ?? 0) + applyCleaningServiceMinimum(Number(s.line_total), categoryByServiceId[s.service_id] ?? null);
     });
 
     setRugs(
@@ -179,7 +190,7 @@ export function InvoiceGeneratorPanel() {
       // Fetch rug_services for selected rugs
       const { data: rugServices, error: svcError } = await supabase
         .from("rug_services")
-        .select("rug_id, service_name, unit_price, line_total")
+        .select("rug_id, service_id, service_name, unit_price, line_total")
         .in("rug_id", rugIdsToInvoice);
 
       if (svcError || !rugServices || rugServices.length === 0) {
@@ -192,7 +203,26 @@ export function InvoiceGeneratorPanel() {
       const rugTagMap: Record<string, string> = {};
       rugs.forEach((r) => { rugTagMap[r.id] = r.tag; });
 
-      const total = rugServices.reduce((sum, s) => sum + Number(s.line_total), 0);
+      const serviceIds = Array.from(new Set((rugServices ?? []).map((s) => s.service_id).filter(Boolean)));
+      let categoryByServiceId: Record<string, string> = {};
+      if (serviceIds.length > 0) {
+        const { data: serviceRows } = await supabase
+          .from("services")
+          .select("id, category")
+          .in("id", serviceIds);
+        categoryByServiceId = Object.fromEntries((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
+      }
+
+      const normalizedRugServices = rugServices.map((s) => {
+        const adjustedTotal = applyCleaningServiceMinimum(Number(s.line_total), categoryByServiceId[s.service_id] ?? null);
+        return {
+          ...s,
+          unit_price: adjustedTotal,
+          line_total: adjustedTotal,
+        };
+      });
+
+      const total = normalizedRugServices.reduce((sum, s) => sum + Number(s.line_total), 0);
       const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
 
       // Create invoice
@@ -215,7 +245,7 @@ export function InvoiceGeneratorPanel() {
       }
 
       // Create line items
-      const lineItems = rugServices.map((s) => ({
+      const lineItems = normalizedRugServices.map((s) => ({
         invoice_id: invoice.id,
         rug_id: s.rug_id,
         description: `${rugTagMap[s.rug_id] ?? "Rug"} — ${s.service_name}`,

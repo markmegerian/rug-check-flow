@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useClientNames } from "@/hooks/useClients";
 import { calculateInvoiceDueDate, formatInvoiceTermsLabel, type BillingReminderPreference } from "@/lib/billing";
+import { applyCleaningServiceMinimum } from "@/lib/service-pricing";
 import type { Tables } from "@/integrations/supabase/types";
 
 interface RugOption {
@@ -21,11 +22,11 @@ interface RugOption {
   tag: string;
   size_length: number | null;
   size_width: number | null;
-  rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string } | null }[];
+  rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string; category: string | null } | null }[];
 }
 
 type ClientRugRow = Pick<Tables<"rugs">, "id" | "tag" | "size_length" | "size_width"> & {
-  rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string } | null }[];
+  rug_services: { service_id: string; unit_price: number; line_total: number; services: { name: string; category: string | null } | null }[];
 };
 
 interface InvoiceCreateSheetProps {
@@ -59,7 +60,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     (async () => {
       const { data } = await supabase
         .from("rugs")
-        .select("id, tag, size_length, size_width, rug_services(service_id, unit_price, line_total, services(name))")
+        .select("id, tag, size_length, size_width, rug_services(service_id, unit_price, line_total, services(name, category))")
         .eq("client_id", selectedClientId)
         .eq("status", "ready")
         .order("checked_in_at", { ascending: false })
@@ -82,13 +83,16 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
     return clientRugs
       .filter((r) => selectedRugIds.has(r.id))
       .flatMap((rug) =>
-        (rug.rug_services ?? []).map((rs) => ({
-          rug_id: rug.id,
-          description: `${rs.services?.name ?? "Service"} — ${rug.tag}`,
-          quantity: 1,
-          unit_price: Number(rs.line_total),
-          total: Number(rs.line_total),
-        }))
+        (rug.rug_services ?? []).map((rs) => {
+          const adjustedTotal = applyCleaningServiceMinimum(Number(rs.line_total), rs.services?.category);
+          return {
+            rug_id: rug.id,
+            description: `${rs.services?.name ?? "Service"} — ${rug.tag}`,
+            quantity: 1,
+            unit_price: adjustedTotal,
+            total: adjustedTotal,
+          };
+        })
       );
   }, [clientRugs, selectedRugIds]);
 

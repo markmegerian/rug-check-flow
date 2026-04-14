@@ -76,6 +76,7 @@ type RugRow = {
 
 type RugServiceRow = {
   rug_id: string;
+  service_id: string;
   service_name: string;
   unit_price: number;
   line_total: number;
@@ -187,10 +188,20 @@ async function buildRugSections(
   if (rugIds.length > 0) {
     const { data: svcData } = await adminClient
       .from("rug_services")
-      .select("rug_id, service_name, unit_price, line_total, edges")
+      .select("rug_id, service_id, service_name, unit_price, line_total, edges")
       .in("rug_id", rugIds)
       .order("created_at", { ascending: true })
       .returns<RugServiceRow[]>();
+
+    const serviceIds = Array.from(new Set((svcData ?? []).map((row) => row.service_id).filter(Boolean)));
+    let categoryByServiceId = new Map<string, string>();
+    if (serviceIds.length > 0) {
+      const { data: serviceRows } = await adminClient
+        .from("services")
+        .select("id, category")
+        .in("id", serviceIds);
+      categoryByServiceId = new Map((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
+    }
 
     if (svcData) {
       for (const row of svcData) {
@@ -213,14 +224,17 @@ async function buildRugSections(
     if (rugServices.length > 0) {
       // Use rug_services for accurate pricing breakdown
       for (const svc of rugServices) {
+        const isCleaning = (categoryByServiceId.get(svc.service_id) ?? "").toLowerCase() === "cleaning";
+        const adjustedTotal = isCleaning ? Math.max(Number(svc.line_total), 35) : Number(svc.line_total);
+        const adjustedUnitPrice = isCleaning ? adjustedTotal : Number(svc.unit_price);
         serviceLines.push({
           name: svc.service_name,
           pricingLabel: buildPricingLabel(
-            Number(svc.unit_price),
-            Number(svc.line_total),
+            adjustedUnitPrice,
+            adjustedTotal,
             svc.edges,
           ),
-          extPrice: Number(svc.line_total),
+          extPrice: adjustedTotal,
         });
       }
     } else {

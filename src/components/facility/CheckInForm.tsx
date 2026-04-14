@@ -30,6 +30,7 @@ import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
+import { applyCleaningServiceMinimum, isCleaningCategory } from "@/lib/service-pricing";
 
 import type { PhotoItem } from "./CheckInPhotoSection";
 import type { DbService } from "./CheckInServiceSelector";
@@ -226,18 +227,18 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const getLineTotal = useCallback(
     (svc: DbService): number => {
       const unitPrice = getUnitPrice(svc);
-      if (svc.unit === "per sqft") return unitPrice * sqft;
-      if (svc.unit === "per linear ft") {
+      let rawTotal = unitPrice;
+      if (svc.unit === "per sqft") rawTotal = unitPrice * sqft;
+      else if (svc.unit === "per linear ft") {
         const edges = edgeSelections[svc.id] ?? [];
         const l = Number(watchedLength) || 0;
         const w = Number(watchedWidth) || 0;
-        return unitPrice * calcSelectedLinearFt(edges, l, w);
-      }
-      if (svc.unit === "flat") {
+        rawTotal = unitPrice * calcSelectedLinearFt(edges, l, w);
+      } else if (svc.unit === "flat") {
         const manual = parseFloat(flatPrices[svc.id] ?? "");
-        return isNaN(manual) ? 0 : manual;
+        rawTotal = isNaN(manual) ? 0 : manual;
       }
-      return unitPrice;
+      return applyCleaningServiceMinimum(rawTotal, svc.category);
     },
     [getUnitPrice, sqft, edgeSelections, flatPrices, watchedLength, watchedWidth]
   );
@@ -290,7 +291,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           const svc = serviceById.get(id);
           if (!svc) return null;
           const lt = getLineTotal(svc);
-          const up = svc.unit === "flat" ? lt : getUnitPrice(svc);
+          const rawUnitPrice = svc.unit === "flat" ? lt : getUnitPrice(svc);
+          const up = isCleaningCategory(svc.category) ? lt : rawUnitPrice;
           const edges = svc.unit === "per linear ft" ? (edgeSelections[id] ?? []) : [];
           return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
         })

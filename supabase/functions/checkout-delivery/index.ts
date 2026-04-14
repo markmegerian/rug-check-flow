@@ -130,8 +130,18 @@ Deno.serve(async (req) => {
       // Get rug_services for these rugs to build line items
       const { data: rugServices } = await supabase
         .from("rug_services")
-        .select("rug_id, service_name, unit_price, line_total, edges")
+        .select("rug_id, service_id, service_name, unit_price, line_total, edges")
         .in("rug_id", rugIds);
+
+      const serviceIds = Array.from(new Set((rugServices ?? []).map((row) => row.service_id).filter(Boolean)));
+      let categoryByServiceId: Record<string, string> = {};
+      if (serviceIds.length > 0) {
+        const { data: serviceRows } = await supabase
+          .from("services")
+          .select("id, category")
+          .in("id", serviceIds);
+        categoryByServiceId = Object.fromEntries((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
+      }
 
       // Get rug details for PDF sections
       const { data: rugs } = await supabase
@@ -160,8 +170,9 @@ Deno.serve(async (req) => {
         const svcLines: RugServiceLine[] = [];
 
         for (const rs of services) {
-          const lt = Number(rs.line_total);
-          const up = Number(rs.unit_price);
+          const isCleaning = (categoryByServiceId[rs.service_id] ?? "").toLowerCase() === "cleaning";
+          const lt = isCleaning ? Math.max(Number(rs.line_total), 35) : Number(rs.line_total);
+          const up = isCleaning ? lt : Number(rs.unit_price);
           invoiceTotal += lt;
           lineItems.push({
             description: `${rug?.tag ?? rugId} — ${rs.service_name}`,
