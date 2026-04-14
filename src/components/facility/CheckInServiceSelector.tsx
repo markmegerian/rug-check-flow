@@ -1,4 +1,4 @@
-import { memo, useDeferredValue, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,7 @@ const PRESETS = [
 const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   category, services, isFirst, watchedServices, getUnitPrice, getLineTotal,
   toggleService, edgeSelections, setEdgeSelections, flatPrices, setFlatPrices,
-  watchedLength, watchedWidth,
+  watchedLength, watchedWidth, forceOpen = false,
 }: {
   category: string;
   services: DbService[];
@@ -42,9 +42,16 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   setFlatPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   watchedLength: number;
   watchedWidth: number;
+  forceOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
   const selectedCount = services.filter((s) => watchedServices.includes(s.id)).length;
+  const [open, setOpen] = useState(() => forceOpen || selectedCount > 0 || isFirst);
+
+  useEffect(() => {
+    if (forceOpen || selectedCount > 0) {
+      setOpen(true);
+    }
+  }, [forceOpen, selectedCount]);
 
   return (
     <div className={!isFirst ? "border-t border-border" : ""}>
@@ -300,6 +307,7 @@ export function CheckInServiceSelector({
             setFlatPrices={setFlatPrices}
             watchedLength={watchedLength}
             watchedWidth={watchedWidth}
+            forceOpen={Boolean(searchLower)}
           />
         ))}
       </div>
