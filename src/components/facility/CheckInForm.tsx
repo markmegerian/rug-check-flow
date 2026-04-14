@@ -367,7 +367,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           <span className="text-base md:text-lg font-bold shrink-0">${totalPrice.toFixed(2)}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-6">
+        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4">
           {selectedRug?.estimateRequested && (
             <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100">
               <AlertTitle>Estimate requested</AlertTitle>
@@ -379,195 +379,205 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </Alert>
           )}
 
-          <Suspense fallback={<SectionFallback label="rug history" />}>
-            <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
-          </Suspense>
-
-          {/* Identity row */}
-          {isReadOnlyIdentity ? (
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              <div>
-                <Label className="text-xs text-muted-foreground">Rug #</Label>
-                <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Client</Label>
-                <p className="font-medium text-sm md:text-base">{form.watch("clientName")}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-              <FormField
-                control={form.control}
-                name="rugNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rug #</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. R-4521" autoFocus {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.8fr)]">
+            <div className="space-y-4 min-w-0">
+              <div className="rounded-lg border border-border bg-background/70 p-3 md:p-4 space-y-3">
+                {isReadOnlyIdentity ? (
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                    <div className="lg:col-span-2">
+                      <Label className="text-xs text-muted-foreground">Rug #</Label>
+                      <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
+                    </div>
+                    <div className="lg:col-span-2">
+                      <Label className="text-xs text-muted-foreground">Client</Label>
+                      <p className="font-medium text-sm md:text-base truncate">{form.watch("clientName")}</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Type</Label>
+                      <p className="font-medium text-sm md:text-base truncate">{form.watch("rugType") || "—"}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-end">
+                    <FormField
+                      control={form.control}
+                      name="rugNumber"
+                      render={({ field }) => (
+                        <FormItem className="lg:col-span-2">
+                          <FormLabel>Rug #</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. R-4521" autoFocus {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="clientName"
+                      render={({ field }) => (
+                        <FormItem className="lg:col-span-2">
+                          <FormLabel>Client Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Client name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="rugType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rug Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {RUG_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 )}
-              />
-              <FormField
-                control={form.control}
-                name="clientName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Client Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Client name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          )}
 
-          {/* Rug details */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
-            <FormField
-              control={form.control}
-              name="rugType"
-              render={({ field }) => (
-                <FormItem className="col-span-2 sm:col-span-1">
-                  <FormLabel>Rug Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {RUG_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="length"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Length (ft)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.1" placeholder="0.0" inputMode="decimal" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="width"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Width (ft)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.1" placeholder="0.0" inputMode="decimal" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {sqft > 0 && (
-            <p className="text-xs md:text-sm text-muted-foreground">
-              Area: <span className="font-medium text-foreground">{sqft.toFixed(1)} sq ft</span>
-              {linearFt > 0 && (
-                <> · Perimeter: <span className="font-medium text-foreground">{linearFt.toFixed(1)} linear ft</span></>
-              )}
-            </p>
-          )}
-
-          {/* Condition notes */}
-          <FormField
-            control={form.control}
-            name="conditionNotes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Condition Notes</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Stains, damage, special instructions…"
-                    className="min-h-[60px]"
-                    {...field}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                  <FormField
+                    control={form.control}
+                    name="length"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Length (ft)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.1" placeholder="0.0" inputMode="decimal" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+                  <FormField
+                    control={form.control}
+                    name="width"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Width (ft)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.1" placeholder="0.0" inputMode="decimal" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <Label className="text-[11px] text-muted-foreground">Area</Label>
+                    <p className="text-sm font-semibold text-foreground">{sqft > 0 ? `${sqft.toFixed(1)} sq ft` : "—"}</p>
+                  </div>
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <Label className="text-[11px] text-muted-foreground">Perimeter</Label>
+                    <p className="text-sm font-semibold text-foreground">{linearFt > 0 ? `${linearFt.toFixed(1)} lf` : "—"}</p>
+                  </div>
+                </div>
+              </div>
 
-          {/* Photo upload */}
-          <Suspense fallback={<SectionFallback label="photo tools" />}>
-            <CheckInPhotoSection
-              photos={photos}
-              onPhotosChange={setPhotos}
-            />
-          </Suspense>
+              <Suspense fallback={<SectionFallback label="service options" />}>
+                <CheckInServiceSelector
+                  dbServices={dbServices}
+                  watchedServices={watchedServices}
+                  toggleService={toggleService}
+                  clearAll={() => {
+                    form.setValue("selectedServices", [], { shouldValidate: true });
+                    setFlatPrices({});
+                    setEdgeSelections({});
+                  }}
+                  setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+                  getUnitPrice={getUnitPrice}
+                  getLineTotal={getLineTotal}
+                  edgeSelections={edgeSelections}
+                  setEdgeSelections={setEdgeSelections}
+                  flatPrices={flatPrices}
+                  setFlatPrices={setFlatPrices}
+                  watchedLength={watchedLength}
+                  watchedWidth={watchedWidth}
+                  tierLabel={tierLabel}
+                  error={form.formState.errors.selectedServices?.message}
+                />
+              </Suspense>
+            </div>
 
-          {/* Service selection */}
-          <Suspense fallback={<SectionFallback label="service options" />}>
-            <CheckInServiceSelector
-              dbServices={dbServices}
-              watchedServices={watchedServices}
-              toggleService={toggleService}
-              clearAll={() => {
-                form.setValue("selectedServices", [], { shouldValidate: true });
-                setFlatPrices({});
-                setEdgeSelections({});
-              }}
-              setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-              getUnitPrice={getUnitPrice}
-              getLineTotal={getLineTotal}
-              edgeSelections={edgeSelections}
-              setEdgeSelections={setEdgeSelections}
-              flatPrices={flatPrices}
-              setFlatPrices={setFlatPrices}
-              watchedLength={watchedLength}
-              watchedWidth={watchedWidth}
-              tierLabel={tierLabel}
-              error={form.formState.errors.selectedServices?.message}
-            />
-          </Suspense>
+            <div className="space-y-3 min-w-0">
+              <details className="rounded-lg border border-border bg-background/70 p-3" open={similarRugs.length > 0}>
+                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">History {similarRugs.length > 0 ? `(${similarRugs.length})` : ""}</summary>
+                <div className="mt-3">
+                  <Suspense fallback={<SectionFallback label="rug history" />}>
+                    <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
+                  </Suspense>
+                </div>
+              </details>
+
+              <details className="rounded-lg border border-border bg-background/70 p-3">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Condition notes</summary>
+                <div className="mt-3">
+                  <FormField
+                    control={form.control}
+                    name="conditionNotes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Stains, damage, special instructions…"
+                            className="min-h-[96px]"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </details>
+
+              <details className="rounded-lg border border-border bg-background/70 p-3" open={photos.length > 0}>
+                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Photos ({photos.length})</summary>
+                <div className="mt-3">
+                  <Suspense fallback={<SectionFallback label="photo tools" />}>
+                    <CheckInPhotoSection
+                      photos={photos}
+                      onPhotosChange={setPhotos}
+                    />
+                  </Suspense>
+                </div>
+              </details>
+            </div>
+          </div>
         </div>
 
-        {/* Sticky review / action footer */}
         <div className="sticky bottom-0 border-t border-border bg-background rounded-b-lg shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-          {watchedServices.length > 0 && (
-            <div className="px-3 md:px-4 pt-2 pb-1">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+          <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0 text-sm text-muted-foreground">
+              <div>
                 {watchedServices.length} service{watchedServices.length !== 1 ? "s" : ""}
-              </p>
-              <div className="space-y-0.5 max-h-28 overflow-y-auto">
-                {watchedServices.map((id) => {
-                  const svc = serviceById.get(id);
-                  if (!svc) return null;
-                  const lt = getLineTotal(svc);
-                  return (
-                    <div key={id} className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="truncate mr-2">{svc.name}</span>
-                      <span className="shrink-0 font-medium text-foreground">${lt.toFixed(2)}</span>
-                    </div>
-                  );
-                })}
+                {watchedServices.length > 0 ? (
+                  <span className="ml-2 hidden sm:inline truncate">
+                    {watchedServices.slice(0, 2).map((id) => serviceById.get(id)?.name).filter(Boolean).join(", ")}
+                    {watchedServices.length > 2 ? ` +${watchedServices.length - 2} more` : ""}
+                  </span>
+                ) : null}
+              </div>
+              <div>
+                Total: <span className="text-foreground font-bold text-base md:text-lg">${totalPrice.toFixed(2)}</span>
               </div>
             </div>
-          )}
-          <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Total: <span className="text-foreground font-bold text-base md:text-lg">${totalPrice.toFixed(2)}</span>
-            </div>
-            <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6">
+            <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6 shrink-0">
               {isEditing ? "Update" : "Complete Check-In"}
             </Button>
           </div>
