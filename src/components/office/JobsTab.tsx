@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { LoadingState } from "@/components/states/PageState";
 import { InvoiceStatusBadge, PickupStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
@@ -125,6 +126,7 @@ type JobFilter = "all" | "estimate_open" | "uninvoiced" | "delivered" | "returns
 
 type JobView = {
   key: string;
+  sourceType: "pickup" | "walkin";
   clientId: string;
   clientName: string;
   clientAddress: string | null;
@@ -182,7 +184,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<JobView[]>([]);
   const [search, setSearch] = useState("");
-  const [routeDayFilter, setRouteDayFilter] = useState<string>("all");
+  const [sourceTab, setSourceTab] = useState<"pickup" | "walkin">("pickup");
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
   const [jobFilters, setJobFilters] = useState<Record<string, JobFilter>>({});
   const [editor, setEditor] = useState<ItemEditorState | null>(null);
@@ -348,6 +350,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       const grouped = new Map<string, JobView>();
       const upsertJob = (input: {
         key: string;
+        sourceType: "pickup" | "walkin";
         clientId: string;
         clientName: string;
         clientAddress: string | null;
@@ -378,6 +381,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
 
         const created: JobView = {
           key: input.key,
+          sourceType: input.sourceType,
           clientId: input.clientId,
           clientName: input.clientName,
           clientAddress: input.clientAddress,
@@ -404,10 +408,12 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         const linkedInvoice = item.checked_in_rug_id ? invoiceMap.get(item.checked_in_rug_id) ?? null : null;
         const latestReturnState = item.checked_in_rug_id ? returnEventMap.get(item.checked_in_rug_id) ?? null : null;
         const eventDate = linkedRug?.intake_date?.slice(0, 10) ?? linkedRug?.checked_in_at?.slice(0, 10) ?? request.scheduled_date;
-        const sourceLabel = linkedRug?.intake_source === "pickup" ? "Pickup" : linkedRug?.intake_source ? "Walk-in" : request.route_day || "Unassigned";
-        const key = `${request.client_id}__${eventDate}`;
+        const sourceType = linkedRug?.intake_source === "pickup" ? "pickup" : "walkin";
+        const sourceLabel = sourceType === "pickup" ? "Pickup" : "Walk-in";
+        const key = `${request.client_id}__${sourceType}__${eventDate}`;
         const job = upsertJob({
           key,
+          sourceType,
           clientId: request.client_id,
           clientName: request.clients?.name ?? clientInfoById.get(request.client_id)?.name ?? "Unknown client",
           clientAddress: request.clients?.address ?? clientInfoById.get(request.client_id)?.address ?? null,
@@ -427,14 +433,16 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         const eventDate = rug.intake_date?.slice(0, 10) ?? rug.checked_in_at?.slice(0, 10);
         if (!eventDate) continue;
         const clientInfo = clientInfoById.get(rug.client_id);
-        const key = `${rug.client_id}__${eventDate}`;
+        const sourceType = rug.intake_source === "pickup" ? "pickup" : "walkin";
+        const key = `${rug.client_id}__${sourceType}__${eventDate}`;
         const job = upsertJob({
           key,
+          sourceType,
           clientId: rug.client_id,
           clientName: clientInfo?.name ?? "Unknown client",
           clientAddress: clientInfo?.address ?? null,
           scheduledDate: eventDate,
-          routeDay: rug.intake_source === "pickup" ? "Pickup" : "Walk-in",
+          routeDay: sourceType === "pickup" ? "Pickup" : "Walk-in",
           updatedAt: rug.checked_in_at ?? rug.completed_at ?? new Date(0).toISOString(),
         });
         job.items.push({
@@ -495,7 +503,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const filteredJobs = useMemo(() => {
     const query = search.trim().toLowerCase();
     return jobs.filter((job) => {
-      if (routeDayFilter !== "all" && job.routeDay !== routeDayFilter) return false;
+      if (job.sourceType !== sourceTab) return false;
       if (!query) return true;
       const haystacks = [job.clientName.toLowerCase(), job.scheduledDate.toLowerCase(), job.routeDay.toLowerCase()];
       if (haystacks.some((value) => value.includes(query))) return true;
@@ -504,10 +512,13 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         return rugValues.some((value) => value.toLowerCase().includes(query));
       });
     });
-  }, [jobs, routeDayFilter, search]);
+  }, [jobs, search, sourceTab]);
 
-  const sourceOptions = useMemo(
-    () => Array.from(new Set(jobs.map((job) => job.routeDay).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+  const sourceCounts = useMemo(
+    () => ({
+      pickup: jobs.filter((job) => job.sourceType === "pickup").length,
+      walkin: jobs.filter((job) => job.sourceType === "walkin").length,
+    }),
     [jobs],
   );
 
@@ -680,9 +691,23 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         <div className="app-section-header gap-3">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Jobs</h2>
-            <p className="text-sm text-muted-foreground">Client rug history grouped by day entered or received.</p>
+            <p className="text-sm text-muted-foreground">Pickup and walk-in rug history, grouped by day entered or received.</p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="overflow-x-auto">
+              <Tabs value={sourceTab} onValueChange={(value) => setSourceTab(value as "pickup" | "walkin") }>
+                <TabsList>
+                  <TabsTrigger value="pickup" className="gap-1.5">
+                    Pickups
+                    <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-xs">{sourceCounts.pickup}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="walkin" className="gap-1.5">
+                    Walk-ins
+                    <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-xs">{sourceCounts.walkin}</Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
             <div className="relative w-full sm:w-72">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -692,24 +717,13 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                 className="pl-9"
               />
             </div>
-            <Select value={routeDayFilter} onValueChange={setRouteDayFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="All sources" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All sources</SelectItem>
-                {sourceOptions.map((source) => (
-                  <SelectItem key={source} value={source}>{source}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </section>
 
       {filteredJobs.length === 0 ? (
         <div className="app-section rounded-2xl border border-dashed border-border/70 bg-card/70 p-8 text-center text-muted-foreground">
-          No jobs match the current filters.
+          No {sourceTab === "pickup" ? "pickup" : "walk-in"} jobs match the current filters.
         </div>
       ) : (
         pagination.items.map((job) => {
