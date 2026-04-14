@@ -114,12 +114,16 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         .select("id, route_day, target_date, status, confirmed_at, updated_at")
         .eq("target_date", todayStr)
         .eq("route_day", routeDay)
-        .in("status", ["compiling", "confirmed"]);
+        .in("status", ["compiling", "confirmed", "checked_out"]);
 
       if (listErr) throw listErr;
 
       const rankedLists = [...(lists ?? [])].sort((a, b) => {
-        const rank = (status: string) => (status === "confirmed" ? 0 : 1);
+        const rank = (status: string) => {
+          if (status === "checked_out") return 0;
+          if (status === "confirmed") return 1;
+          return 2;
+        };
         const rankDiff = rank(a.status) - rank(b.status);
         if (rankDiff !== 0) return rankDiff;
         const aStamp = Date.parse(a.confirmed_at ?? a.updated_at);
