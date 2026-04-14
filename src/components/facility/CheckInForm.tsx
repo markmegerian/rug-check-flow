@@ -513,17 +513,15 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 </div>
               </details>
 
-              <details className="rounded-lg border border-border bg-background/70 p-3" open={photos.length > 0}>
-                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Photos ({photos.length})</summary>
-                <div className="mt-3">
-                  <Suspense fallback={<SectionFallback label="photo tools" />}>
-                    <CheckInPhotoSection
-                      photos={photos}
-                      onPhotosChange={setPhotos}
-                    />
-                  </Suspense>
-                </div>
-              </details>
+              <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
+                <div className="text-sm font-semibold text-foreground">Photos</div>
+                <Suspense fallback={<SectionFallback label="photo tools" />}>
+                  <CheckInPhotoSection
+                    photos={photos}
+                    onPhotosChange={setPhotos}
+                  />
+                </Suspense>
+              </div>
             </div>
           </div>
         </div>

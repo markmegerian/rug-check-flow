@@ -164,47 +164,53 @@ export function CheckInPhotoSection({ photos, onPhotosChange, maxPhotos = 20 }: 
   };
 
   return (
-    <div className="space-y-2">
-      <Label>
-        Photos{" "}
-        <span className="text-muted-foreground font-normal">
-          ({photos.length}/{maxPhotos} — min 1)
-        </span>
-      </Label>
-      <div className="flex flex-wrap gap-2">
-        {photos.map((photo, i) => (
-          <div
-            key={i}
-            className="relative w-16 h-16 md:w-20 md:h-20 rounded-md overflow-hidden border border-border group"
-          >
-            <img
-              src={photo.preview}
-              alt={`Photo ${i + 1}`}
-              className="w-full h-full object-cover"
-            />
-            <button
-              type="button"
-              onClick={() => removePhoto(i)}
-              className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 md:p-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-            >
-              <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
-            </button>
-          </div>
-        ))}
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label>
+          Photos{" "}
+          <span className="text-muted-foreground font-normal">
+            ({photos.length}/{maxPhotos} , min 1)
+          </span>
+        </Label>
         {photos.length < maxPhotos && (
-          <>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-16 h-16 md:w-20 md:h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-              title="Upload photo"
-            >
-              <Camera className="h-5 w-5" />
-            </button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => fileInputRef.current?.click()}>
+              Upload Photo
+            </Button>
             <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => void openCameraCapture()} disabled={cameraLoading || !cameraSupported}>
               {cameraLoading ? "Opening camera…" : "Use Camera"}
             </Button>
-          </>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-border bg-background/60 p-3">
+        {photos.length === 0 ? (
+          <div className="flex min-h-28 items-center justify-center rounded-md border-2 border-dashed border-muted-foreground/20 text-sm text-muted-foreground">
+            No photos yet. Add check-in photos here.
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {photos.map((photo, i) => (
+              <div
+                key={i}
+                className="relative w-20 h-20 md:w-24 md:h-24 rounded-md overflow-hidden border border-border group"
+              >
+                <img
+                  src={photo.preview}
+                  alt={`Photo ${i + 1}`}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePhoto(i)}
+                  className="absolute top-0.5 right-0.5 bg-destructive text-destructive-foreground rounded-full p-1 md:p-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
       <input
