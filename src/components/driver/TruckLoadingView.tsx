@@ -36,7 +36,8 @@ interface ClientGroup {
   clientId: string;
   clientName: string;
   clientAddress: string;
-  rugs: RugOnTruck[];
+  guaranteedRugs: RugOnTruck[];
+  morningAdditions: RugOnTruck[];
 }
 
 interface DeliveryListSummary {
@@ -289,11 +290,16 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
     [rugs, addedSet],
   );
 
+  const guaranteedRugs = useMemo(
+    () => rugs.filter((r) => !r.isMorningAddition),
+    [rugs],
+  );
+
   const totalCount = activeRugs.length + morningAdditions.length;
   const loadedCount = activeRugs.filter((r) => loadedSet.has(r.rugId)).length;
   const allLoaded = activeRugs.length > 0 && loadedCount === activeRugs.length;
 
-  /** Group active + morning-addition rugs by client */
+  /** Group guaranteed list rugs + morning additions by client */
   const clientGroups = useMemo(() => {
     const map = new Map<string, ClientGroup>();
     for (const r of rugs) {
@@ -303,11 +309,16 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
           clientId: r.clientId,
           clientName: r.clientName,
           clientAddress: r.clientAddress,
-          rugs: [],
+          guaranteedRugs: [],
+          morningAdditions: [],
         };
         map.set(r.clientId, group);
       }
-      group.rugs.push(r);
+      if (r.isMorningAddition) {
+        group.morningAdditions.push(r);
+      } else {
+        group.guaranteedRugs.push(r);
+      }
     }
     return Array.from(map.values());
   }, [rugs]);
@@ -494,7 +505,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         <div className="max-w-lg mx-auto mt-1 flex items-center justify-between text-sm opacity-90">
           <span>{format(new Date(), "EEEE, MMMM d")}</span>
           <span>
-            {totalCount} rug{totalCount === 1 ? "" : "s"} &middot; {activeRugs.length} confirmed
+            {totalCount} rug{totalCount === 1 ? "" : "s"} &middot; {guaranteedRugs.length} guaranteed &middot; {morningAdditions.length} extra ready
           </span>
         </div>
         {deliveryListSummary ? (
@@ -508,6 +519,10 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
 
       {/* ---- Main list grouped by client ---- */}
       <main className="p-4 space-y-4 max-w-lg mx-auto">
+        <section className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Loading handoff</p>
+          <p className="mt-1">Guaranteed rugs were confirmed in delivery prep. Extra ready rugs became available this morning and can still be added. Signatures, photos, pickups, and delivery proof happen later at each stop on the route.</p>
+        </section>
         {clientGroups.map((group) => (
           <section key={group.clientId} className="rounded-lg border bg-card shadow-card overflow-hidden">
             {/* Client header */}
@@ -520,7 +535,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
 
             {/* Rug rows */}
             <div className="divide-y">
-              {group.rugs.map((rug) => {
+              {[...group.guaranteedRugs, ...group.morningAdditions].map((rug) => {
                 const isAdded = addedSet.has(rug.rugId);
                 const showAsActive = !rug.isMorningAddition || isAdded;
                 const isLoaded = loadedSet.has(rug.rugId);
@@ -565,13 +580,17 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
                       {rug.rugStatus.replace("_", " ")}
                     </Badge>
 
-                    {/* Morning addition indicator */}
-                    {rug.isMorningAddition && !isAdded && (
+                    {/* Loading source indicator */}
+                    {rug.isMorningAddition ? (
                       <Badge
                         className="shrink-0 bg-blue-100 text-blue-800 border-blue-200"
                         variant="outline"
                       >
-                        Morning
+                        {isAdded ? "Added this morning" : "Morning-ready option"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="shrink-0">
+                        Guaranteed stop list
                       </Badge>
                     )}
                   </div>
