@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTION_STAGES } from "@/data/production";
-import { maybeAutoCreateInvoice } from "@/lib/invoice-automation";
+import { applyCleaningServiceMinimum } from "@/lib/service-pricing";
 
 /**
  * Advance a rug to the next production stage.
@@ -21,14 +21,6 @@ export async function advanceRugStage(
   const { error } = await supabase.from("rugs").update(updates).eq("id", rugId);
   if (error) return { nextStage, error: error.message };
 
-  // Auto-create invoice when rug reaches "ready" status
-  if (nextStage === "ready") {
-    const invoiceResult = await maybeAutoCreateInvoice(rugId);
-    if (invoiceResult) {
-      return { nextStage, autoInvoice: invoiceResult.invoiceNumber };
-    }
-  }
-
   return { nextStage };
 }
 
@@ -40,11 +32,15 @@ export async function createDraftInvoice(input: {
   clientId: string;
   rugId: string;
   rugTag: string;
-  services: Array<{ service_name: string; line_total: number }>;
+  services: Array<{ service_name: string; line_total: number; category?: string | null }>;
 }): Promise<{ invoiceNumber: string; total: number; error?: string }> {
   const { clientId, rugId, rugTag, services } = input;
+  const normalizedServices = services.map((s) => ({
+    ...s,
+    line_total: applyCleaningServiceMinimum(Number(s.line_total), s.category),
+  }));
   const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
-  const total = services.reduce((sum, s) => sum + Number(s.line_total), 0);
+  const total = normalizedServices.reduce((sum, s) => sum + Number(s.line_total), 0);
 
   const { data: inv, error: invErr } = await supabase
     .from("invoices")
@@ -62,7 +58,7 @@ export async function createDraftInvoice(input: {
     return { invoiceNumber: invNum, total, error: invErr?.message ?? "Insert failed" };
   }
 
-  const lineItems = services.map((s) => ({
+  const lineItems = normalizedServices.map((s) => ({
     invoice_id: inv.id,
     rug_id: rugId,
     description: `${s.service_name} — ${rugTag}`,
