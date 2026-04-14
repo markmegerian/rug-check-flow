@@ -169,16 +169,7 @@ export function InvoicesTab() {
       const issuedAt = new Date();
       updates.issued_at = issuedAt.toISOString();
       if (selected.client_id) {
-        const { data: clientProfile, error: clientError } = await supabase
-          .from("clients")
-          .select("invoice_terms_days")
-          .eq("id", selected.client_id)
-          .maybeSingle();
-        if (clientError) {
-          toast({ title: "Billing profile lookup failed", description: clientError.message, variant: "destructive" });
-          return;
-        }
-        updates.due_at = calculateInvoiceDueDate(issuedAt, clientProfile?.invoice_terms_days);
+        updates.due_at = calculateInvoiceDueDate(issuedAt, selected.clients?.invoice_terms_days);
       }
     }
     if (newStatus === "paid") updates.paid_at = new Date().toISOString();
@@ -358,7 +349,40 @@ export function InvoicesTab() {
         onDateToChange={setDateTo}
       />
 
-      <div className="overflow-x-auto">
+      <div className="space-y-3 md:hidden">
+        {rows.length === 0 ? (
+          <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No invoices found.</div>
+        ) : rows.map((inv) => (
+          <div key={inv.id} className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold">{inv.invoice_number}</div>
+                <div className="text-xs text-muted-foreground">{inv.client_name ?? "Unknown client"}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-semibold">${Number(inv.total ?? 0).toFixed(2)}</div>
+                <div className="text-xs text-muted-foreground">{inv.status}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <div className="text-muted-foreground">Issued</div>
+                <div>{inv.issued_at ? formatDate(inv.issued_at) : "Draft"}</div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">Due</div>
+                <div>{inv.due_at ? formatDate(inv.due_at) : "—"}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => void openInvoiceThread(inv)}>Thread</Button>
+              <Button size="sm" variant="outline" onClick={() => openInvoice(inv)}>View</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
