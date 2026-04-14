@@ -61,7 +61,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
         .from("rugs")
         .select("id, tag, size_length, size_width, rug_services(service_id, unit_price, line_total, services(name))")
         .eq("client_id", selectedClientId)
-        .in("status", ["checked_in", "in_production", "ready"])
+        .eq("status", "ready")
         .order("checked_in_at", { ascending: false })
         .returns<ClientRugRow[]>();
       setClientRugs(data ?? []);
@@ -138,7 +138,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>New Invoice</SheetTitle>
-          <SheetDescription>Select a client and their rugs to generate a draft invoice.</SheetDescription>
+          <SheetDescription>Select a client and their ready rugs to generate a draft invoice.</SheetDescription>
         </SheetHeader>
 
         <div className="space-y-5 py-6">
@@ -169,7 +169,7 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
             <div className="space-y-2">
               <Label>Rugs ({clientRugs.length} available)</Label>
               {clientRugs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No rugs found for this client.</p>
+                <p className="text-sm text-muted-foreground">No ready rugs found for this client.</p>
               ) : (
                 <div className="border border-border rounded-lg divide-y divide-border">
                   {clientRugs.map((rug) => {

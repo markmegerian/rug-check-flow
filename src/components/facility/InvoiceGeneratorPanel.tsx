@@ -61,12 +61,12 @@ export function InvoiceGeneratorPanel() {
     setLoadingRugs(true);
     setSelectedRugIds(new Set());
 
-    // 1. Get all rugs for this client that are ready or picked_up
+    // 1. Get ready rugs for this client that are available for walk-in pickup invoicing
     const { data: rugsData, error: rugsError } = await supabase
       .from("rugs")
       .select("id, tag, description, status, size_length, size_width, services")
       .eq("client_id", clientId)
-      .in("status", ["ready", "checked_in", "in_production", "picked_up"])
+      .eq("status", "ready")
       .order("tag");
 
     if (rugsError) {
@@ -327,13 +327,13 @@ export function InvoiceGeneratorPanel() {
             ) : rugs.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">No uninvoiced rugs for this client.</p>
+                <p className="text-sm text-muted-foreground">No uninvoiced ready rugs for this client.</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    {rugs.length} uninvoiced rug{rugs.length !== 1 ? "s" : ""}
+                    {rugs.length} uninvoiced ready rug{rugs.length !== 1 ? "s" : ""}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAll}>
