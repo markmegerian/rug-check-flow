@@ -93,6 +93,7 @@ export default function Operations() {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
+  const [deferChrome, setDeferChrome] = useState(false);
   const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
 
   const handleTabChange = (nextTab: TabId) => {
@@ -108,6 +109,16 @@ export default function Operations() {
     }
   }, [requestedTab, allTabIds]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(() => setDeferChrome(true), { timeout: 1500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timeoutId = window.setTimeout(() => setDeferChrome(true), 400);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   const activeLabel = useMemo(() => {
     for (const g of groups) {
       const found = g.tabs.find((t) => t.id === activeTab);
@@ -121,13 +132,13 @@ export default function Operations() {
       title="Operations"
       subtitle={activeLabel}
       contentClassName="overflow-hidden flex flex-col"
-      statusBar={
+      statusBar={deferChrome ? (
         <Suspense fallback={null}>
           <WorkspaceStatusBar />
         </Suspense>
-      }
+      ) : null}
       onSearchOpen={() => setSearchOpen(true)}
-      actions={isOffice ? (
+      actions={isOffice && deferChrome ? (
         <Suspense fallback={null}>
           <ClientPricingDialog triggerLabel="Price Lookup" />
         </Suspense>
