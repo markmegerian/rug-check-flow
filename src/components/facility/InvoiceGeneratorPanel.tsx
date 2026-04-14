@@ -30,6 +30,7 @@ type UninvoicedRug = {
 export function InvoiceGeneratorPanel() {
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null);
   const [rugs, setRugs] = useState<UninvoicedRug[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
   const [loadingRugs, setLoadingRugs] = useState(false);
@@ -37,19 +38,22 @@ export function InvoiceGeneratorPanel() {
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
 
   const { data: clients = [], isLoading: loadingClients } = useQuery({
-    queryKey: ["clients", "invoice-generator"],
+    queryKey: ["clients", "invoice-generator-search", clientSearch.trim()],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
         .select("id, name, address")
-        .order("name");
+        .ilike("name", `%${clientSearch.trim()}%`)
+        .order("name")
+        .limit(12);
       if (error) {
         toast({ title: "Failed to load clients", description: error.message, variant: "destructive" });
         return [] as ClientOption[];
       }
       return (data ?? []) as ClientOption[];
     },
-    staleTime: 5 * 60_000,
+    enabled: !selectedClientId && clientSearch.trim().length >= 2,
+    staleTime: 30_000,
   });
 
   // Fetch uninvoiced rugs for selected client
@@ -128,14 +132,11 @@ export function InvoiceGeneratorPanel() {
     } else {
       setRugs([]);
       setSelectedRugIds(new Set());
+      setSelectedClient(null);
     }
   }, [selectedClientId, fetchUninvoicedRugs]);
 
-  const filteredClients = useMemo(() => {
-    if (!clientSearch.trim()) return clients;
-    const q = clientSearch.toLowerCase();
-    return clients.filter((c) => c.name.toLowerCase().includes(q));
-  }, [clients, clientSearch]);
+  const filteredClients = clients;
 
   const toggleRug = (rugId: string) => {
     setSelectedRugIds((prev) => {
@@ -236,9 +237,7 @@ export function InvoiceGeneratorPanel() {
     }
   };
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
-
-  if (loadingClients) {
+  if (loadingClients && !selectedClientId) {
     return (
       <div className="flex items-center justify-center h-full">
         <LoadingState title="Loading clients" description="Fetching client list..." />
@@ -268,7 +267,11 @@ export function InvoiceGeneratorPanel() {
             />
           </div>
 
-          {!selectedClientId && (
+          {!selectedClientId && clientSearch.trim().length < 2 && (
+            <p className="text-xs text-muted-foreground">Type at least 2 characters to search clients.</p>
+          )}
+
+          {!selectedClientId && clientSearch.trim().length >= 2 && (
             <div className="max-h-48 overflow-auto border rounded-md divide-y">
               {filteredClients.length === 0 ? (
                 <p className="text-xs text-muted-foreground p-3 text-center">No clients found</p>
@@ -279,6 +282,7 @@ export function InvoiceGeneratorPanel() {
                     type="button"
                     onClick={() => {
                       setSelectedClientId(c.id);
+                      setSelectedClient(c);
                       setClientSearch("");
                     }}
                     className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
@@ -302,6 +306,7 @@ export function InvoiceGeneratorPanel() {
                 variant="ghost"
                 onClick={() => {
                   setSelectedClientId(null);
+                  setSelectedClient(null);
                   setRugs([]);
                   setSelectedRugIds(new Set());
                 }}
