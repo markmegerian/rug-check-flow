@@ -355,7 +355,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </Alert>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.8fr)]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1.1fr)_360px]">
             <div className="space-y-4 min-w-0">
               <div className="rounded-lg border border-border bg-background/70 p-3 md:p-4 space-y-3">
                 {isReadOnlyIdentity ? (
@@ -491,7 +491,29 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               </Suspense>
             </div>
 
-            <div className="space-y-3 min-w-0">
+            <div className="space-y-3 min-w-0 xl:sticky xl:top-3 self-start">
+              <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
+                <div className="text-sm font-semibold text-foreground">Check-in summary</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">Client tier</div>
+                    <div className="text-sm font-semibold text-foreground">{tierLabel ?? "Standard"}</div>
+                  </div>
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">Selected services</div>
+                    <div className="text-sm font-semibold text-foreground">{watchedServices.length}</div>
+                  </div>
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">Area</div>
+                    <div className="text-sm font-semibold text-foreground">{sqft > 0 ? `${sqft.toFixed(1)} sq ft` : "—"}</div>
+                  </div>
+                  <div className="rounded-md bg-muted/50 px-3 py-2">
+                    <div className="text-[11px] text-muted-foreground">Perimeter</div>
+                    <div className="text-sm font-semibold text-foreground">{linearFt > 0 ? `${linearFt.toFixed(1)} lf` : "—"}</div>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
                 <div className="text-sm font-semibold text-foreground">Condition notes</div>
                 <FormField
@@ -502,7 +524,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                       <FormControl>
                         <Textarea
                           placeholder="Stains, damage, special instructions…"
-                          className="min-h-[96px]"
+                          className="min-h-[132px]"
                           {...field}
                         />
                       </FormControl>

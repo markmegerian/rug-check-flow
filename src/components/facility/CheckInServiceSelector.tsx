@@ -200,7 +200,7 @@ export function CheckInServiceSelector({
   );
 
   return (
-    <div className="space-y-2 md:space-y-3">
+    <div className="rounded-lg border border-border bg-background/70 p-3 md:p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Label className="text-sm md:text-base">Services</Label>
@@ -271,7 +271,7 @@ export function CheckInServiceSelector({
         <p className="text-sm text-muted-foreground italic">Loading services…</p>
       )}
 
-      <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md">
+      <div className="max-h-[52vh] overflow-y-auto border border-border rounded-md bg-background">
         {categories.map((cat, catIdx) => (
           <ServiceCategoryGroup
             key={cat}
