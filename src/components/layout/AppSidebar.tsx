@@ -82,6 +82,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
   const { user, signOut, isSuperAdmin, isPortalUser, hasRole } = useAuth();
 
   const isOffice = hasRole("admin") || hasRole("office");
+  const isCheckinOnly = hasRole("checkin_staff") && !isOffice;
   const canManagePricing = hasRole("admin");
 
   const topLevelNavItems = isSuperAdmin
@@ -100,18 +101,25 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         icon: item.icon,
         active: location.pathname.startsWith("/portal") && (currentTab ?? "rugs") === item.id,
       }))
-    : [
-        ...OPS_FLOOR_ITEMS,
-        ...(isOffice ? [
-          ...(canManagePricing ? [PRICING_ITEM] : []),
-          ...OPS_BUSINESS_ITEMS,
-        ] : []),
-      ].map((item) => ({
-        title: item.label,
-        url: `/ops?tab=${item.id}`,
-        icon: item.icon,
-        active: location.pathname.startsWith("/ops") && (currentTab ?? "checkin") === item.id,
-      }));
+    : isCheckinOnly
+      ? [{
+          title: "Check-In",
+          url: "/ops/checkin",
+          icon: ClipboardCheck,
+          active: location.pathname.startsWith("/ops/checkin"),
+        }]
+      : [
+          ...OPS_FLOOR_ITEMS,
+          ...(isOffice ? [
+            ...(canManagePricing ? [PRICING_ITEM] : []),
+            ...OPS_BUSINESS_ITEMS,
+          ] : []),
+        ].map((item) => ({
+          title: item.label,
+          url: `/ops?tab=${item.id}`,
+          icon: item.icon,
+          active: location.pathname.startsWith("/ops") && (currentTab ?? "checkin") === item.id,
+        }));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">

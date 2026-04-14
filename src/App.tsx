@@ -25,6 +25,7 @@ const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Operations = lazy(() => import("./pages/Operations"));
+const CheckInWorkspace = lazy(() => import("./pages/CheckInWorkspace"));
 const WholesalePortal = lazy(() => import("./pages/WholesalePortal"));
 const StopPortal = lazy(() => import("./pages/StopPortal"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
@@ -60,9 +61,19 @@ const App = () => (
                   <Route
                     path="/ops"
                     element={
-                      <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
+                      <ProtectedRoute allowedRoles={["admin", "office"]}>
                         <ErrorBoundary fallbackTitle="Operations Error">
                           <Operations />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/ops/checkin"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
+                        <ErrorBoundary fallbackTitle="Check-In Error">
+                          <CheckInWorkspace />
                         </ErrorBoundary>
                       </ProtectedRoute>
                     }
