@@ -20,4 +20,13 @@ describe("reminder workflow correctness", () => {
     expect(failedIndex).toBeGreaterThan(-1);
     expect(statusUpdateIndex).toBeGreaterThan(failedIndex);
   });
+
+  it("does not mark estimates sent when client email is missing", () => {
+    const edge = readFileSync(resolve(process.cwd(), "supabase/functions/send-estimate-email/index.ts"), "utf-8");
+    const noEmailIndex = edge.indexOf('provider_status: "no_email"');
+    const statusUpdateIndex = edge.indexOf('.update({ status: "sent", sent_at: nowIso })');
+    expect(noEmailIndex).toBeGreaterThan(-1);
+    expect(statusUpdateIndex).toBeGreaterThan(noEmailIndex);
+    expect(edge).not.toContain('estimate_marked_sent_without_email');
+  });
 });

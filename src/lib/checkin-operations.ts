@@ -3,9 +3,9 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 
 /**
  * Auto-send an estimate by calling the send-estimate-email edge function.
- * This transitions draft → sent and emails the client if configured.
+ * Missing email or provider failures must not be treated as sent.
  */
-async function autoSendEstimate(estimateId: string): Promise<{ success: boolean; providerStatus?: string | null }> {
+async function autoSendEstimate(estimateId: string): Promise<{ success: boolean; providerStatus?: string | null; error?: string | null; actionHint?: string | null }> {
   try {
     const { data, error } = await supabase.functions.invoke("send-estimate-email", {
       body: { estimate_id: estimateId },
@@ -13,14 +13,23 @@ async function autoSendEstimate(estimateId: string): Promise<{ success: boolean;
 
     if (error || data?.success === false) {
       console.warn("Auto-send estimate failed for", estimateId, error ?? data);
-      return { success: false, providerStatus: data?.provider_status ?? null };
+      return {
+        success: false,
+        providerStatus: data?.provider_status ?? null,
+        error: data?.error ?? error?.message ?? "Unknown error",
+        actionHint: data?.action_hint ?? null,
+      };
     }
 
-    return { success: true, providerStatus: data?.provider_status ?? null };
+    return {
+      success: true,
+      providerStatus: data?.provider_status ?? null,
+      error: null,
+      actionHint: data?.action_hint ?? null,
+    };
   } catch (error) {
-    // Non-critical: estimate was created, sending is best-effort
     console.warn("Auto-send estimate failed for", estimateId, error);
-    return { success: false, providerStatus: null };
+    return { success: false, providerStatus: null, error: "Unknown error", actionHint: null };
   }
 }
 
@@ -137,13 +146,11 @@ export async function maybeAutoCreateEstimateDraft(
   const sendResult = await autoSendEstimate(insertedEstimate.id);
 
   if (sendResult.success) {
-    if (sendResult.providerStatus === "no_email") {
-      onSuccess("Estimate auto-created & marked sent", `${estimateNumber} is in sent status and visible in the portal, but no client email was on file.`);
-    } else {
-      onSuccess("Estimate auto-created & sent", `${estimateNumber} has been sent to the client.`);
-    }
+    onSuccess("Estimate auto-created & sent", `${estimateNumber} has been sent to the client.`);
+  } else if (sendResult.providerStatus === "no_email") {
+    onError("Estimate auto-send blocked", `${estimateNumber} was created as a draft, but the client email is missing. Add an email before sending.${sendResult.actionHint ? ` ${sendResult.actionHint}` : ""}`);
   } else {
-    onSuccess("Estimate auto-created", `${estimateNumber} was created, but sending still needs attention.`);
+    onError("Estimate auto-send failed", `${estimateNumber} was created as a draft, but sending failed.${sendResult.error ? ` ${sendResult.error}` : ""}${sendResult.actionHint ? ` ${sendResult.actionHint}` : ""}`);
   }
 
   return estimateNumber;
