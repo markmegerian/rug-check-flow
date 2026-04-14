@@ -40,7 +40,6 @@ const App = () => (
   <ErrorBoundary fallbackTitle="Application Error">
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <OfflineQueueProvider>
           <TooltipProvider>
             <Toaster />
             <Suspense fallback={<RouteLoadingFallback />}>
@@ -82,9 +81,11 @@ const App = () => (
                     path="/driver"
                     element={
                       <ProtectedRoute allowedRoles={["admin", "driver"]}>
-                        <ErrorBoundary fallbackTitle="Driver Portal Error">
-                          <StopPortal />
-                        </ErrorBoundary>
+                        <OfflineQueueProvider>
+                          <ErrorBoundary fallbackTitle="Driver Portal Error">
+                            <StopPortal />
+                          </ErrorBoundary>
+                        </OfflineQueueProvider>
                       </ProtectedRoute>
                     }
                   />
@@ -104,7 +105,6 @@ const App = () => (
               </BrowserRouter>
             </Suspense>
           </TooltipProvider>
-        </OfflineQueueProvider>
       </AuthProvider>
     </QueryClientProvider>
   </ErrorBoundary>
