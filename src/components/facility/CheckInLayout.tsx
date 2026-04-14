@@ -1,8 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import { ClipboardList, FileText, Plus } from "lucide-react";
-import { PendingRugsPanel } from "./PendingRugsPanel";
 import { CheckInForm } from "./CheckInForm";
-import { CheckInLogPanel } from "./CheckInLogPanel";
 import { deriveUserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
@@ -14,7 +12,25 @@ import { useCheckInData } from "@/hooks/useCheckInData";
 import { uploadCheckinPhoto, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
 import { advanceRugStage } from "@/lib/rug-operations";
 
+const PendingRugsPanel = lazy(async () => {
+  const module = await import("./PendingRugsPanel");
+  return { default: module.PendingRugsPanel };
+});
+
+const CheckInLogPanel = lazy(async () => {
+  const module = await import("./CheckInLogPanel");
+  return { default: module.CheckInLogPanel };
+});
+
 type MobilePanel = "form" | "pending" | "log";
+
+function PanelFallback({ label }: { label: string }) {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      Loading {label}…
+    </div>
+  );
+}
 
 export function CheckInLayout() {
   const { user, roles } = useAuth();
@@ -303,12 +319,14 @@ export function CheckInLayout() {
           )}
           {mobilePanel === "pending" && (
             <div className="relative h-full">
-              <PendingRugsPanel
-                rugs={pendingRugs}
-                selectedRugId={selectedRugId}
-                onSelectRug={handleSelectRug}
-                onAddWalkIn={handleAddWalkIn}
-              />
+              <Suspense fallback={<PanelFallback label="pending rugs" />}>
+                <PendingRugsPanel
+                  rugs={pendingRugs}
+                  selectedRugId={selectedRugId}
+                  onSelectRug={handleSelectRug}
+                  onAddWalkIn={handleAddWalkIn}
+                />
+              </Suspense>
               <button
                 onClick={() => {
                   setSelectedRugId(null);
@@ -322,11 +340,13 @@ export function CheckInLayout() {
             </div>
           )}
           {mobilePanel === "log" && (
-            <CheckInLogPanel
-              entries={checkInLog}
-              userRole={userRole}
-              onEdit={handleEditEntry}
-            />
+            <Suspense fallback={<PanelFallback label="check-in log" />}>
+              <CheckInLogPanel
+                entries={checkInLog}
+                userRole={userRole}
+                onEdit={handleEditEntry}
+              />
+            </Suspense>
           )}
         </div>
       </div>
@@ -336,22 +356,26 @@ export function CheckInLayout() {
   // Desktop: 3-panel layout
   return (
     <div className="h-full grid grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr]">
-      <PendingRugsPanel
-        rugs={pendingRugs}
-        selectedRugId={selectedRugId}
-        onSelectRug={handleSelectRug}
-        onAddWalkIn={handleAddWalkIn}
-      />
+      <Suspense fallback={<PanelFallback label="pending rugs" />}>
+        <PendingRugsPanel
+          rugs={pendingRugs}
+          selectedRugId={selectedRugId}
+          onSelectRug={handleSelectRug}
+          onAddWalkIn={handleAddWalkIn}
+        />
+      </Suspense>
       <CheckInForm
         selectedRug={selectedRug}
         editingEntry={editingEntry}
         onCheckInComplete={handleCheckInComplete}
       />
-      <CheckInLogPanel
-        entries={checkInLog}
-        userRole={userRole}
-        onEdit={handleEditEntry}
-      />
+      <Suspense fallback={<PanelFallback label="check-in log" />}>
+        <CheckInLogPanel
+          entries={checkInLog}
+          userRole={userRole}
+          onEdit={handleEditEntry}
+        />
+      </Suspense>
     </div>
   );
 }
