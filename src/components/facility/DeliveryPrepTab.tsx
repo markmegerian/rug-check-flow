@@ -15,6 +15,7 @@ import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DAYS_OF_WEEK } from "@/lib/constants";
+import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES } from "@/lib/delivery-lists";
 
 type DeliveryItem = {
   id: string;
@@ -145,16 +146,8 @@ export function DeliveryPrepTab() {
       return;
     }
 
-    // Get eligible rugs for these clients
-    const eligibleRugs = allRugs.filter((r) => r.client_id && clientIds.includes(r.client_id));
-
-    if (eligibleRugs.length === 0) {
-      setDeliveryList(null);
-      setItems([]);
-      return;
-    }
-
-    // Find or create delivery list for this date
+    // Find or create delivery list for this date so the prep page exists ahead of time,
+    // even before every rug is actually ready.
     const { data: listsData } = await supabase
       .from("delivery_lists")
       .select("id, route_day, target_date, status")
@@ -182,6 +175,11 @@ export function DeliveryPrepTab() {
     }
 
     setDeliveryList(list);
+
+    // Get currently delivery-eligible rugs for these clients.
+    const eligibleRugs = allRugs.filter(
+      (r) => r.client_id && clientIds.includes(r.client_id) && DELIVERY_LIST_ELIGIBLE_RUG_STATUSES.includes(r.status as (typeof DELIVERY_LIST_ELIGIBLE_RUG_STATUSES)[number]),
+    );
 
     // Fetch existing items
     const { data: existingItems } = await supabase
@@ -219,11 +217,10 @@ export function DeliveryPrepTab() {
 
   // When date changes or data loads, sync delivery list
   useEffect(() => {
-    if (!loading && Object.keys(clientMap).length > 0) {
-      fetchDeliveryListForDate(selectedDate, selectedDayName);
+    if (!loading && selectedDayName && Object.keys(clientMap).length > 0) {
+      void fetchDeliveryListForDate(selectedDate, selectedDayName);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, loading]);
+  }, [selectedDate, selectedDayName, loading, clientMap, allRugs]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
