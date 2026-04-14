@@ -289,6 +289,33 @@ export function DeliveryPrepTab() {
     }
   };
 
+  const markRugReady = async (e: React.MouseEvent, rug: RugInfo) => {
+    e.stopPropagation();
+    if (rug.status === "ready") return;
+    const confirmed = window.confirm(`Mark rug ${rug.tag} as ready for delivery?`);
+    if (!confirmed) return;
+
+    setUpdating(rug.id);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("rugs")
+        .update({ status: "ready", completed_at: now })
+        .eq("id", rug.id);
+
+      if (error) {
+        toast({ title: "Failed to mark ready", description: error.message, variant: "destructive" });
+        return;
+      }
+
+      setAllRugs((prev) => prev.map((entry) => (entry.id === rug.id ? { ...entry, status: "ready" } : entry)));
+      setRugMap((prev) => ({ ...prev, [rug.id]: { ...rug, status: "ready" } }));
+      toast({ title: "Rug marked ready", description: `${rug.tag} is now ready for delivery prep.` });
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   // Group rugs by client
   const rugsByClient = useMemo(() => {
     const map: Record<string, RugInfo[]> = {};
@@ -432,7 +459,7 @@ export function DeliveryPrepTab() {
                               {isConfirmed ? (
                                 <p>Confirmed for delivery, click to unconfirm</p>
                               ) : !isReady ? (
-                                <p>Rug is {statusLabel(rug.status)} and cannot be confirmed until it is actually ready</p>
+                                <p>Use Mark Ready first, then confirm it for delivery</p>
                               ) : (
                                 <p>Click to confirm this rug for delivery</p>
                               )}
@@ -461,20 +488,31 @@ export function DeliveryPrepTab() {
                         )}
 
                         {!isReady && !isConfirmed && (
-                          <TooltipProvider delayDuration={300}>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                {rug.status === "in_production" ? (
-                                  <Clock className="h-4 w-4 text-amber-500 shrink-0" />
-                                ) : (
-                                  <AlertCircle className="h-4 w-4 text-blue-500 shrink-0" />
-                                )}
-                              </TooltipTrigger>
-                              <TooltipContent side="left">
-                                <p>{statusLabel(rug.status)} — may not be ready by delivery date</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0"
+                              disabled={updating === rug.id}
+                              onClick={(e) => void markRugReady(e, rug)}
+                            >
+                              Mark Ready
+                            </Button>
+                            <TooltipProvider delayDuration={300}>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  {rug.status === "in_production" ? (
+                                    <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                                  ) : (
+                                    <AlertCircle className="h-4 w-4 text-blue-500 shrink-0" />
+                                  )}
+                                </TooltipTrigger>
+                                <TooltipContent side="left">
+                                  <p>{statusLabel(rug.status)} , staff can mark it ready with confirmation when it is actually done</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </>
                         )}
 
                         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
