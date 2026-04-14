@@ -14,6 +14,9 @@ type ClientOption = {
   id: string;
   name: string;
   address: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 type UninvoicedRug = {
@@ -40,10 +43,16 @@ export function InvoiceGeneratorPanel() {
   const { data: clients = [], isLoading: loadingClients } = useQuery({
     queryKey: ["clients", "invoice-generator-search", clientSearch.trim()],
     queryFn: async () => {
+      const term = clientSearch.trim().replace(/,/g, " ");
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name, address")
-        .ilike("name", `%${clientSearch.trim()}%`)
+        .select("id, name, address, contact_name, phone, email")
+        .or([
+          `name.ilike.%${term}%`,
+          `contact_name.ilike.%${term}%`,
+          `phone.ilike.%${term}%`,
+          `email.ilike.%${term}%`,
+        ].join(","))
         .order("name")
         .limit(12);
       if (error) {
@@ -223,9 +232,19 @@ export function InvoiceGeneratorPanel() {
         return;
       }
 
+      await supabase.from("communication_events").insert({
+        client_id: selectedClientId,
+        invoice_id: invoice.id,
+        channel: "in_app_chat",
+        direction: "outbound",
+        event_type: "walkin_invoice_created",
+        subject: `${invoiceNumber} created for handoff`,
+        body: `Invoice ${invoiceNumber} was created from the walk-in / on-site pickup handoff flow for ${selectedRugIds.size} ready rug(s).`,
+      });
+
       toast({
-        title: "Invoice generated",
-        description: `${invoiceNumber} — $${total.toFixed(2)} for ${selectedRugIds.size} rug(s)`,
+        title: "Handoff invoice generated",
+        description: `${invoiceNumber} — $${total.toFixed(2)} for ${selectedRugIds.size} ready rug(s). Pickup handoff remains a separate action.`,
       });
 
       // Refresh the list
@@ -250,17 +269,22 @@ export function InvoiceGeneratorPanel() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30 shrink-0">
         <FileText className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Invoice Generator</h2>
+        <h2 className="text-sm font-semibold">Walk-In / On-Site Pickup Invoicing</h2>
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        <div className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Billing before handoff</p>
+          <p className="mt-1">Search the client, select ready rugs that are being handed off on-site, and generate the invoice before pickup. This does not itself mark rugs picked up.</p>
+        </div>
+
         {/* Client Search */}
         <div className="space-y-2">
           <label className="text-xs font-medium text-muted-foreground">Select Client</label>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search clients..."
+              placeholder="Search by client, contact, phone, or email..."
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               className="pl-9"
@@ -288,6 +312,11 @@ export function InvoiceGeneratorPanel() {
                     className="w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors"
                   >
                     <p className="text-sm font-medium">{c.name}</p>
+                    {(c.contact_name || c.phone || c.email) && (
+                      <p className="text-xs text-muted-foreground">
+                        {[c.contact_name, c.phone, c.email].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                     {c.address && <p className="text-xs text-muted-foreground">{c.address}</p>}
                   </button>
                 ))
@@ -299,6 +328,11 @@ export function InvoiceGeneratorPanel() {
             <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-primary/5">
               <div>
                 <p className="text-sm font-medium">{selectedClient.name}</p>
+                {(selectedClient.contact_name || selectedClient.phone || selectedClient.email) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[selectedClient.contact_name, selectedClient.phone, selectedClient.email].filter(Boolean).join(" · ")}
+                  </p>
+                )}
                 {selectedClient.address && <p className="text-xs text-muted-foreground">{selectedClient.address}</p>}
               </div>
               <Button
@@ -327,13 +361,13 @@ export function InvoiceGeneratorPanel() {
             ) : rugs.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">No uninvoiced ready rugs for this client.</p>
+                <p className="text-sm text-muted-foreground">No uninvoiced ready rugs are available for handoff for this client.</p>
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    {rugs.length} uninvoiced ready rug{rugs.length !== 1 ? "s" : ""}
+                    {rugs.length} uninvoiced ready rug{rugs.length !== 1 ? "s" : ""} available for handoff
                   </p>
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAll}>
@@ -410,7 +444,7 @@ export function InvoiceGeneratorPanel() {
             ) : (
               <CheckSquare className="h-4 w-4" />
             )}
-            Generate Invoice
+            Generate Handoff Invoice
           </Button>
         </div>
       )}
