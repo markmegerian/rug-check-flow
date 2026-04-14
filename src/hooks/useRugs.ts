@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import type { ProductionStage } from "@/data/production";
+import { PRODUCTION_STAGES, type ProductionStage } from "@/data/production";
 
 export type RugRow = Tables<"rugs">;
 export type RugServiceRow = Pick<
