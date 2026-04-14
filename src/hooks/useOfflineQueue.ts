@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  getPendingEventCount,
-  getPendingEventCountForStop,
-  addEvent as addEventToQueue,
-} from "@/lib/offline-queue";
-import { performFullSync, isOnline, startAutoSync } from "@/lib/offline-sync";
+import { isOnline } from "@/lib/offline-sync";
+import type { performFullSync } from "@/lib/offline-sync";
 
 export interface OfflineQueueState {
   pendingCount: number;
@@ -21,6 +17,7 @@ export function useOfflineQueue() {
 
   // Update pending count
   const updatePendingCount = useCallback(async () => {
+    const { getPendingEventCount } = await import("@/lib/offline-queue");
     const count = await getPendingEventCount();
     setPendingCount(count);
   }, []);
@@ -32,6 +29,7 @@ export function useOfflineQueue() {
     }
     setIsSyncing(true);
     try {
+      const { performFullSync } = await import("@/lib/offline-sync");
       const result = await performFullSync();
       setLastSyncResult(result);
       await updatePendingCount();
@@ -44,6 +42,7 @@ export function useOfflineQueue() {
   // Add event to queue
   const addEvent = useCallback(
     async (route_stop_id: string, event_type: string, payload: Record<string, unknown> = {}) => {
+      const { addEvent: addEventToQueue } = await import("@/lib/offline-queue");
       const offline_event_id = await addEventToQueue(route_stop_id, event_type, payload);
       await updatePendingCount();
       return offline_event_id;
@@ -53,6 +52,7 @@ export function useOfflineQueue() {
 
   // Get pending count for a specific stop
   const getStopPendingCount = useCallback(async (route_stop_id: string) => {
+    const { getPendingEventCountForStop } = await import("@/lib/offline-queue");
     return await getPendingEventCountForStop(route_stop_id);
   }, []);
 
@@ -66,9 +66,12 @@ export function useOfflineQueue() {
     window.addEventListener("offline", updateOnlineStatus);
 
     // Start auto-sync
-    const cleanup = startAutoSync((result) => {
-      setLastSyncResult(result);
-      void updatePendingCount();
+    let cleanup = () => {};
+    void import("@/lib/offline-sync").then(({ startAutoSync }) => {
+      cleanup = startAutoSync((result) => {
+        setLastSyncResult(result);
+        void updatePendingCount();
+      });
     });
 
     // Initial pending count

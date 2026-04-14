@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOfflineQueueContext } from "@/contexts/OfflineQueueContext";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { supabase } from "@/integrations/supabase/client";
-import { addPendingPhoto } from "@/lib/offline-queue";
 import { type Stop, type StopItem, type RouteStopRow, type RouteStopItemRow } from "@/types/route-stop";
 
 export function useRouteStops() {
@@ -223,6 +222,7 @@ export function useRouteStops() {
 
   const addItemPhoto = async (stopId: string, itemId: string, file: File) => {
     try {
+      const { addPendingPhoto } = await import("@/lib/offline-queue");
       await addPendingPhoto(stopId, itemId, file);
       toast({ title: "Photo queued", description: "Will upload when online" });
 
