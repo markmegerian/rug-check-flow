@@ -316,7 +316,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   const isFromPanel = !!selectedRug;
   const isEditing = !!editingEntry;
-  const isReadOnlyIdentity = isFromPanel || isEditing;
+  const lockRugAndClient = isFromPanel || isEditing;
   const tierLabel = clientTier !== "standard" ? clientTier.charAt(0).toUpperCase() + clientTier.slice(1) : null;
 
   return (
@@ -358,75 +358,73 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1.1fr)_360px]">
             <div className="space-y-4 min-w-0">
               <div className="rounded-lg border border-border bg-background/70 p-3 md:p-4 space-y-3">
-                {isReadOnlyIdentity ? (
-                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
-                    <div className="lg:col-span-2">
-                      <Label className="text-xs text-muted-foreground">Rug #</Label>
-                      <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
-                    </div>
-                    <div className="lg:col-span-2">
-                      <Label className="text-xs text-muted-foreground">Client</Label>
-                      <p className="font-medium text-sm md:text-base truncate">{form.watch("clientName")}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Type</Label>
-                      <p className="font-medium text-sm md:text-base truncate">{form.watch("rugType") || "—"}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-end">
-                    <FormField
-                      control={form.control}
-                      name="rugNumber"
-                      render={({ field }) => (
-                        <FormItem className="lg:col-span-2">
-                          <FormLabel>Rug #</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. R-4521" autoFocus {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="clientName"
-                      render={({ field }) => (
-                        <FormItem className="lg:col-span-2">
-                          <FormLabel>Client Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Client name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="rugType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Rug Type</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-end">
+                  {lockRugAndClient ? (
+                    <>
+                      <div className="lg:col-span-2">
+                        <Label className="text-xs text-muted-foreground">Rug #</Label>
+                        <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <Label className="text-xs text-muted-foreground">Client</Label>
+                        <p className="font-medium text-sm md:text-base truncate">{form.watch("clientName")}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="rugNumber"
+                        render={({ field }) => (
+                          <FormItem className="lg:col-span-2">
+                            <FormLabel>Rug #</FormLabel>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select type" />
-                              </SelectTrigger>
+                              <Input placeholder="e.g. R-4521" autoFocus {...field} />
                             </FormControl>
-                            <SelectContent>
-                              {RUG_TYPES.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="clientName"
+                        render={({ field }) => (
+                          <FormItem className="lg:col-span-2">
+                            <FormLabel>Client Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Client name" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
+                  <FormField
+                    control={form.control}
+                    name="rugType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rug Type</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {RUG_TYPES.map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-end">
                   <FormField
