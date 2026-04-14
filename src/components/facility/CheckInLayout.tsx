@@ -207,6 +207,37 @@ export function CheckInLayout() {
           return;
         }
 
+        const { data: priorSameTagRugs } = await supabase
+          .from("rugs")
+          .select("id, tag, status, checked_in_at, picked_up_at")
+          .eq("client_id", clientId)
+          .eq("tag", data.rugNumber)
+          .neq("id", inserted.id)
+          .order("checked_in_at", { ascending: false })
+          .limit(3);
+
+        const latestPriorSameTagRug = (priorSameTagRugs ?? [])[0] ?? null;
+        if (latestPriorSameTagRug) {
+          const priorStateDate = latestPriorSameTagRug.picked_up_at ?? latestPriorSameTagRug.checked_in_at;
+          const continuityNote = `Return continuity: prior same-tag rug ${latestPriorSameTagRug.tag} (${latestPriorSameTagRug.id}) last status ${latestPriorSameTagRug.status}${priorStateDate ? ` on ${new Date(priorStateDate).toLocaleString()}` : ""}.`;
+          const mergedContinuityNotes = [data.conditionNotes, continuityNote].filter(Boolean).join("\n\n");
+
+          await supabase
+            .from("rugs")
+            .update({ notes: mergedContinuityNotes })
+            .eq("id", inserted.id);
+
+          await supabaseExtended.from("communication_events").insert({
+            client_id: clientId,
+            rug_id: inserted.id,
+            channel: "in_app_chat",
+            direction: "outbound",
+            event_type: "rug_continuity_linked",
+            subject: `${data.rugNumber} linked to prior same-tag history`,
+            body: `New intake ${inserted.id} matches prior rug ${latestPriorSameTagRug.id} for the same client and tag. Prior status: ${latestPriorSameTagRug.status}.`,
+          });
+        }
+
         if (data.serviceSnapshots.length > 0) {
           const { error: insServicesErr } = await supabase.from("rug_services").insert(
             data.serviceSnapshots.map((s) => ({
