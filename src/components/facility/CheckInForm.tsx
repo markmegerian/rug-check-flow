@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
@@ -167,10 +167,13 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     setResolvedClientId(null);
   }, [selectedRug, editingEntry, form]);
 
-  const watchedClient = form.watch("clientName");
-  const watchedLength = form.watch("length");
-  const watchedWidth = form.watch("width");
-  const watchedServices = form.watch("selectedServices");
+  const watchedClient = useWatch({ control: form.control, name: "clientName" });
+  const watchedLength = useWatch({ control: form.control, name: "length" });
+  const watchedWidth = useWatch({ control: form.control, name: "width" });
+  const watchedServices = useWatch({ control: form.control, name: "selectedServices" }) ?? [];
+  const watchedRugNumber = useWatch({ control: form.control, name: "rugNumber" });
+  const watchedClientName = useWatch({ control: form.control, name: "clientName" });
+  const watchedRugTypeValue = useWatch({ control: form.control, name: "rugType" });
 
   useEffect(() => {
     if (!watchedClient) {
@@ -328,10 +331,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         }`}>
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <span className="text-base md:text-lg font-bold font-mono truncate">
-              {form.watch("rugNumber") || "—"}
+              {watchedRugNumber || "—"}
             </span>
             <span className="text-xs md:text-sm opacity-80 truncate hidden sm:inline">
-              {form.watch("clientName") || "No client"}
+              {watchedClientName || "No client"}
             </span>
             {tierLabel && (
               <span className="text-xs bg-white/20 px-2 py-0.5 rounded shrink-0">{tierLabel}</span>
@@ -363,11 +366,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                     <>
                       <div className="lg:col-span-2">
                         <Label className="text-xs text-muted-foreground">Rug #</Label>
-                        <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
+                        <p className="font-mono font-bold text-base md:text-lg">{watchedRugNumber}</p>
                       </div>
                       <div className="lg:col-span-2">
                         <Label className="text-xs text-muted-foreground">Client</Label>
-                        <p className="font-medium text-sm md:text-base truncate">{form.watch("clientName")}</p>
+                        <p className="font-medium text-sm md:text-base truncate">{watchedClientName}</p>
                       </div>
                     </>
                   ) : (
@@ -489,7 +492,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               </Suspense>
             </div>
 
-            <div className="space-y-3 min-w-0 xl:sticky xl:top-3 self-start">
+            <div className="space-y-3 min-w-0 self-start">
               <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
                 <div className="text-sm font-semibold text-foreground">Check-in summary</div>
                 <div className="grid grid-cols-2 gap-2">
