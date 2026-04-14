@@ -28,6 +28,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   handleReset = () => {
+    const message = this.state.error?.message ?? "";
+    if (/Failed to fetch dynamically imported module|Importing a module script failed|Unable to preload CSS/i.test(message)) {
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: null });
     this.props.onReset?.();
   };
