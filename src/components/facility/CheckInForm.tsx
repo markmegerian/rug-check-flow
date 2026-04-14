@@ -33,7 +33,6 @@ import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
 
 import type { PhotoItem } from "./CheckInPhotoSection";
 import type { DbService } from "./CheckInServiceSelector";
-import { useRugHistory } from "@/hooks/useRugHistory";
 
 const CheckInPhotoSection = lazy(async () => {
   const module = await import("./CheckInPhotoSection");
@@ -43,11 +42,6 @@ const CheckInPhotoSection = lazy(async () => {
 const CheckInServiceSelector = lazy(async () => {
   const module = await import("./CheckInServiceSelector");
   return { default: module.CheckInServiceSelector };
-});
-
-const RugHistoryCard = lazy(async () => {
-  const module = await import("./RugHistoryCard");
-  return { default: module.RugHistoryCard };
 });
 
 type PricingTier = "standard" | "preferred" | "vip";
@@ -265,24 +259,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       : [...current, serviceId];
     form.setValue("selectedServices", next, { shouldValidate: true });
   };
-
-  const watchedRugType = form.watch("rugType");
-  const { similarRugs } = useRugHistory(
-    resolvedClientId,
-    watchedRugType,
-    Number(watchedLength) || 0,
-    Number(watchedWidth) || 0
-  );
-
-  const handleCopyServices = useCallback((services: string[]) => {
-    const matchedIds = services
-      .map((name) => dbServices.find((s) => s.name.toLowerCase() === name.toLowerCase())?.id)
-      .filter(Boolean) as string[];
-    if (matchedIds.length > 0) {
-      form.setValue("selectedServices", matchedIds, { shouldValidate: true });
-      toast({ title: "Services applied", description: `Copied ${matchedIds.length} service(s) from previous rug.` });
-    }
-  }, [dbServices, form]);
 
   const onSubmit = async (data: CheckInValues) => {
     if (!editingEntry && photos.length < 1) {
@@ -516,15 +492,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </div>
 
             <div className="space-y-3 min-w-0">
-              <details className="rounded-lg border border-border bg-background/70 p-3" open={similarRugs.length > 0}>
-                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">History {similarRugs.length > 0 ? `(${similarRugs.length})` : ""}</summary>
-                <div className="mt-3">
-                  <Suspense fallback={<SectionFallback label="rug history" />}>
-                    <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
-                  </Suspense>
-                </div>
-              </details>
-
               <details className="rounded-lg border border-border bg-background/70 p-3">
                 <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Condition notes</summary>
                 <div className="mt-3">
