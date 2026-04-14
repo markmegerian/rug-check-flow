@@ -88,7 +88,7 @@ export function DeliveriesTab() {
   const fetchDeliveryLists = useCallback(async () => {
     const { data } = await supabase
       .from("delivery_lists")
-      .select("*")
+      .select("id, route_day, target_date, status, confirmed_at, checked_out_at, created_at")
       .order("target_date", { ascending: false })
       .limit(50);
     setDeliveryLists((data ?? []) as DeliveryList[]);
@@ -218,7 +218,11 @@ export function DeliveriesTab() {
         : `${totalExisting} rugs already on list for ${routeDay}`,
     });
     await fetchDeliveryLists();
-    const { data: dl } = await supabase.from("delivery_lists").select("*").eq("id", listId).single();
+    const { data: dl } = await supabase
+      .from("delivery_lists")
+      .select("id, route_day, target_date, status, confirmed_at, checked_out_at, created_at")
+      .eq("id", listId)
+      .single();
     if (dl) openDetail(dl as DeliveryList);
     setCompiling(false);
   };
@@ -271,7 +275,7 @@ export function DeliveriesTab() {
 
     const { data: listItems } = await supabase
       .from("delivery_list_items")
-      .select("*")
+      .select("id, delivery_list_id, rug_id, client_id, confirmed_for_delivery, loaded_on_truck")
       .eq("delivery_list_id", dl.id);
 
     const typedItems = (listItems ?? []) as DeliveryItem[];
