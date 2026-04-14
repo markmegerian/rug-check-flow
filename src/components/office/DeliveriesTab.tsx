@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, addDays } from "date-fns";
 
 import { DAYS_OF_WEEK, DAY_INDEX } from "@/lib/constants";
-import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES, shouldPromoteRugToReadyForDelivery } from "@/lib/delivery-lists";
+import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES } from "@/lib/delivery-lists";
 import { DeliveryStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
 
 type DeliveryList = {
@@ -296,25 +296,6 @@ export function DeliveriesTab() {
 
   const toggleConfirmed = async (itemId: string, value: boolean) => {
     const item = items.find((i) => i.id === itemId);
-    if (value && item) {
-      const rug = rugMap[item.rug_id];
-      if (rug && shouldPromoteRugToReadyForDelivery(rug.status)) {
-        const { error: rugError } = await supabase
-          .from("rugs")
-          .update({ status: "ready" })
-          .eq("id", rug.id);
-
-        if (rugError) {
-          toast({ title: "Failed to update rug status", description: rugError.message, variant: "destructive" });
-          return;
-        }
-
-        setRugMap((prev) => ({
-          ...prev,
-          [rug.id]: { ...prev[rug.id], status: "ready" },
-        }));
-      }
-    }
     await supabase
       .from("delivery_list_items")
       .update({ confirmed_for_delivery: value })
