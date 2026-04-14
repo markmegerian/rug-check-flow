@@ -76,7 +76,12 @@ export function DeliveriesTab() {
   const [historyInvoices, setHistoryInvoices] = useState<Record<string, InvoiceInfo[]>>({});
 
   const fetchClients = useCallback(async () => {
-    const { data } = await supabase.from("clients").select("id, name, route_day, address").order("name");
+    const { data } = await supabase
+      .from("clients")
+      .select("id, name, route_day, address")
+      .not("route_day", "is", null)
+      .neq("route_day", "")
+      .order("name");
     setClients((data ?? []) as ClientInfo[]);
   }, []);
 
@@ -102,6 +107,14 @@ export function DeliveriesTab() {
       if (c.route_day && map[c.route_day]) {
         map[c.route_day].push(c);
       }
+    });
+    return map;
+  }, [clients]);
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, ClientInfo> = {};
+    clients.forEach((client) => {
+      map[client.id] = client;
     });
     return map;
   }, [clients]);
@@ -393,7 +406,7 @@ export function DeliveriesTab() {
 
   const clientName = (clientId: string | null) => {
     if (!clientId) return "Unknown";
-    return clients.find((c) => c.id === clientId)?.name ?? "Unknown";
+    return clientMap[clientId]?.name ?? "Unknown";
   };
 
   const itemsByClient = useMemo(() => {
@@ -578,7 +591,7 @@ export function DeliveriesTab() {
                 <div>
                   <p className="font-medium text-sm text-foreground">{clientName(cid)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {clients.find((c) => c.id === cid)?.address || "No address"}
+                    {clientMap[cid]?.address || "No address"}
                   </p>
                 </div>
                 <Badge variant="secondary">{clientItems.length} rugs</Badge>
