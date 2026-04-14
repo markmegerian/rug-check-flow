@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["office", "admin"])
+      .in("role", ["office", "admin", "checkin_staff"])
       .limit(1);
 
     if (!roleRows || roleRows.length === 0) return json({ error: "Forbidden" }, 403);
@@ -50,7 +50,6 @@ Deno.serve(async (req) => {
       .single();
 
     if (estErr || !estimate) return json({ error: "Estimate not found" }, 404);
-    if (!estimate.clients?.email) return json({ error: "Client email is missing" }, 400);
 
     const priorStatus = estimate.status as string;
     const nowIso = new Date().toISOString();
@@ -73,8 +72,11 @@ Deno.serve(async (req) => {
 
     let providerStatus = "not_configured";
     let providerResponse: unknown = null;
+    const clientEmail = estimate.clients?.email ?? null;
 
-    if (resendApiKey) {
+    if (!clientEmail) {
+      providerStatus = "no_email";
+    } else if (resendApiKey) {
       const resendResp = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -83,7 +85,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           from: fromEmail,
-          to: [estimate.clients.email],
+          to: [clientEmail],
           subject,
           text: body,
         }),
@@ -102,7 +104,7 @@ Deno.serve(async (req) => {
           event_type: "estimate_send_failed",
           subject,
           body,
-          sent_to: estimate.clients.email,
+          sent_to: clientEmail,
         });
         return json({
           success: false,
@@ -124,12 +126,12 @@ Deno.serve(async (req) => {
       client_id: estimate.client_id,
       rug_id: estimate.rug_id,
       estimate_id: estimate.id,
-      channel: "email",
+      channel: clientEmail ? "email" : "in_app_chat",
       direction: "outbound",
-      event_type: eventType,
+      event_type: clientEmail ? eventType : "estimate_marked_sent_without_email",
       subject,
       body,
-      sent_to: estimate.clients.email,
+      sent_to: clientEmail,
     });
 
     return json({

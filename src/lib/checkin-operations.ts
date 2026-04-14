@@ -5,14 +5,22 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
  * Auto-send an estimate by calling the send-estimate-email edge function.
  * This transitions draft → sent and emails the client if configured.
  */
-async function autoSendEstimate(estimateId: string): Promise<void> {
+async function autoSendEstimate(estimateId: string): Promise<{ success: boolean; providerStatus?: string | null }> {
   try {
-    await supabase.functions.invoke("send-estimate-email", {
+    const { data, error } = await supabase.functions.invoke("send-estimate-email", {
       body: { estimate_id: estimateId },
     });
-  } catch {
+
+    if (error || data?.success === false) {
+      console.warn("Auto-send estimate failed for", estimateId, error ?? data);
+      return { success: false, providerStatus: data?.provider_status ?? null };
+    }
+
+    return { success: true, providerStatus: data?.provider_status ?? null };
+  } catch (error) {
     // Non-critical: estimate was created, sending is best-effort
-    console.warn("Auto-send estimate failed for", estimateId);
+    console.warn("Auto-send estimate failed for", estimateId, error);
+    return { success: false, providerStatus: null };
   }
 }
 
@@ -126,8 +134,17 @@ export async function maybeAutoCreateEstimateDraft(
   });
 
   // Auto-send the estimate to the client
-  await autoSendEstimate(insertedEstimate.id);
+  const sendResult = await autoSendEstimate(insertedEstimate.id);
 
-  onSuccess("Estimate auto-created & sent", `${estimateNumber} has been sent to the client.`);
+  if (sendResult.success) {
+    if (sendResult.providerStatus === "no_email") {
+      onSuccess("Estimate auto-created & marked sent", `${estimateNumber} is in sent status and visible in the portal, but no client email was on file.`);
+    } else {
+      onSuccess("Estimate auto-created & sent", `${estimateNumber} has been sent to the client.`);
+    }
+  } else {
+    onSuccess("Estimate auto-created", `${estimateNumber} was created, but sending still needs attention.`);
+  }
+
   return estimateNumber;
 }
