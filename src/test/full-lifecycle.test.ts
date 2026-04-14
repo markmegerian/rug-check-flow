@@ -9,9 +9,10 @@ import {
 } from "@/lib/workflow-guards";
 import { PRODUCTION_STAGES, type ProductionStage } from "@/data/production";
 import { isEntryEditable, deriveUserRole, type CheckInEntry } from "@/data/check-in-log";
+import { maybeAutoCreateInvoice } from "@/lib/invoice-automation";
 
 describe("full rug lifecycle simulation", () => {
-  it("simulates a rug from pickup request through delivery", () => {
+  it("simulates a rug from pickup request through delivery", async () => {
     // Step 1: Portal user creates a pickup request (status = pending)
     let pickupStatus: PickupRequestStatus = "pending";
 
@@ -36,9 +37,10 @@ describe("full rug lifecycle simulation", () => {
     rugStage = "in_production";
     rugStage = "ready";
 
-    // Step 7: When ready, auto-invoice may be created
+    // Step 7: Reaching ready does not auto-create invoices anymore
+    await expect(maybeAutoCreateInvoice("rug-1")).resolves.toBeNull();
 
-    // Step 8: After delivery, rug is picked up
+    // Step 8: Billing happens in explicit handoff / truck checkout flows, then stop completion marks picked up
     rugStage = "picked_up";
     expect(PRODUCTION_STAGES.findIndex((s) => s.id === rugStage)).toBe(PRODUCTION_STAGES.length - 1);
   });
