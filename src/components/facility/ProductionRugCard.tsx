@@ -23,9 +23,17 @@ export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryD
 
   return (
     <div className={cn("rounded-md border bg-card text-card-foreground shadow-sm", selected && "ring-2 ring-primary border-primary/50")}>
-      <button
-        className="w-full text-left px-3 py-2.5 flex items-start justify-between gap-2"
+      <div
+        className="w-full text-left px-3 py-2.5 flex items-start justify-between gap-2 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((prev) => !prev);
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -45,7 +53,7 @@ export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryD
               className={`font-mono font-bold text-sm ${onViewDetail ? "text-primary hover:underline cursor-pointer" : ""}`}
               onClick={onViewDetail ? (e) => { e.stopPropagation(); onViewDetail(rug.id); } : undefined}
             >
-              {rug.tag}
+              {rug.tag ?? "Untitled rug"}
             </span>
             {rug.client_name && (
               <span className="text-sm text-muted-foreground truncate">{rug.client_name}</span>
@@ -84,7 +92,7 @@ export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryD
         ) : (
           <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
         )}
-      </button>
+      </div>
 
       {expanded && (
         <div className="border-t px-3 py-2.5 space-y-2">
@@ -92,7 +100,7 @@ export function ProductionRugCard({ rug, onAdvanceStage, onViewDetail, deliveryD
             <p className="text-xs text-muted-foreground">{rug.notes}</p>
           )}
           <div className="text-xs text-muted-foreground">
-            Checked in: {new Date(rug.checked_in_at).toLocaleString()}
+            Checked in: {rug.checked_in_at ? new Date(rug.checked_in_at).toLocaleString() : "Unknown"}
           </div>
           {!isLastStage && (
             <Button size="sm" onClick={() => onAdvanceStage(rug.id)}>

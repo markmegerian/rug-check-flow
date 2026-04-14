@@ -30,7 +30,7 @@ export function ProductionBoard() {
     const q = search.trim().toLowerCase();
     if (!q) return rugs;
     return rugs.filter((r) =>
-      r.tag.toLowerCase().includes(q) ||
+      (r.tag ?? "").toLowerCase().includes(q) ||
       (r.client_name ?? "").toLowerCase().includes(q)
     );
   }, [rugs, search]);
