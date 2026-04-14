@@ -24,15 +24,125 @@ const PRESETS = [
   { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
 ];
 
+const ServiceRow = memo(function ServiceRow({
+  svc,
+  checked,
+  unitPrice,
+  lineTotal,
+  edges,
+  flatPrice,
+  watchedLength,
+  watchedWidth,
+  toggleService,
+  setEdgeSelections,
+  setFlatPrices,
+}: {
+  svc: DbService;
+  checked: boolean;
+  unitPrice: number;
+  lineTotal: number;
+  edges: RugEdge[];
+  flatPrice: string;
+  watchedLength: number;
+  watchedWidth: number;
+  toggleService: (id: string) => void;
+  setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
+  setFlatPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+}) {
+  const isFlat = svc.unit === "flat";
+  const isLinear = svc.unit === "per linear ft";
+  const l = Number(watchedLength) || 0;
+  const w = Number(watchedWidth) || 0;
+
+  const toggleEdge = (edge: RugEdge) => {
+    setEdgeSelections((prev) => {
+      const current = prev[svc.id] ?? [];
+      return {
+        ...prev,
+        [svc.id]: current.includes(edge)
+          ? current.filter((e) => e !== edge)
+          : [...current, edge],
+      };
+    });
+  };
+
+  return (
+    <div className="px-1">
+      <label
+        className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
+          checked ? "bg-accent" : "hover:bg-muted"
+        }`}
+      >
+        <Checkbox
+          checked={checked}
+          onCheckedChange={() => toggleService(svc.id)}
+        />
+        <span className="flex-1 text-sm truncate">{svc.name}</span>
+        {!isFlat && (
+          <span className="text-xs text-muted-foreground shrink-0">
+            ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
+          </span>
+        )}
+        {isFlat && !checked && (
+          <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
+        )}
+        {checked && !isFlat && !isLinear && (
+          <span className="text-sm font-semibold shrink-0">
+            ${lineTotal.toFixed(2)}
+          </span>
+        )}
+        {checked && isLinear && edges.length > 0 && (
+          <span className="text-sm font-semibold shrink-0">
+            ${lineTotal.toFixed(2)}
+          </span>
+        )}
+      </label>
+      {checked && isLinear && l > 0 && w > 0 && (
+        <div className="ml-4 md:ml-8 mt-2 mb-2">
+          <RugEdgeDiagram
+            lengthFt={l}
+            widthFt={w}
+            selectedEdges={edges}
+            onToggleEdge={toggleEdge}
+          />
+          {edges.length > 0 && (
+            <p className="text-xs text-muted-foreground text-center mt-1">
+              {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
+            </p>
+          )}
+        </div>
+      )}
+      {checked && isFlat && (
+        <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
+          <span className="text-xs text-muted-foreground">Price $</span>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            inputMode="decimal"
+            placeholder="Enter price"
+            className="h-8 w-28"
+            value={flatPrice}
+            onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
+          />
+          {lineTotal > 0 && (
+            <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
 const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
-  category, services, isFirst, watchedServices, getUnitPrice, getLineTotal,
+  category, services, isFirst, selectedSet, getUnitPrice, getLineTotal,
   toggleService, edgeSelections, setEdgeSelections, flatPrices, setFlatPrices,
   watchedLength, watchedWidth, forceOpen = false,
 }: {
   category: string;
   services: DbService[];
   isFirst: boolean;
-  watchedServices: string[];
+  selectedSet: Set<string>;
   getUnitPrice: (svc: DbService) => number;
   getLineTotal: (svc: DbService) => number;
   toggleService: (id: string) => void;
@@ -44,7 +154,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   watchedWidth: number;
   forceOpen?: boolean;
 }) {
-  const selectedCount = services.filter((s) => watchedServices.includes(s.id)).length;
+  const selectedCount = services.filter((s) => selectedSet.has(s.id)).length;
   const [open, setOpen] = useState(() => forceOpen || selectedCount > 0 || isFirst);
 
   useEffect(() => {
@@ -73,92 +183,21 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
       {open && (
         <div className="divide-y divide-border/50">
           {services.map((svc) => {
-            const unitPrice = getUnitPrice(svc);
-            const lineTotal = getLineTotal(svc);
-            const checked = watchedServices.includes(svc.id);
-            const isFlat = svc.unit === "flat";
-            const isLinear = svc.unit === "per linear ft";
-            const edges = edgeSelections[svc.id] ?? [];
-            const l = Number(watchedLength) || 0;
-            const w = Number(watchedWidth) || 0;
-
-            const toggleEdge = (edge: RugEdge) => {
-              setEdgeSelections((prev) => {
-                const current = prev[svc.id] ?? [];
-                return {
-                  ...prev,
-                  [svc.id]: current.includes(edge)
-                    ? current.filter((e) => e !== edge)
-                    : [...current, edge],
-                };
-              });
-            };
-
             return (
-              <div key={svc.id} className="px-1">
-                <label
-                  className={`flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2.5 md:py-2 rounded-md cursor-pointer transition-colors ${
-                    checked ? "bg-accent" : "hover:bg-muted"
-                  }`}
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => toggleService(svc.id)}
-                  />
-                  <span className="flex-1 text-sm truncate">{svc.name}</span>
-                  {!isFlat && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
-                    </span>
-                  )}
-                  {isFlat && !checked && (
-                    <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
-                  )}
-                  {checked && !isFlat && !isLinear && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
-                  )}
-                  {checked && isLinear && edges.length > 0 && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
-                  )}
-                </label>
-                {checked && isLinear && l > 0 && w > 0 && (
-                  <div className="ml-4 md:ml-8 mt-2 mb-2">
-                    <RugEdgeDiagram
-                      lengthFt={l}
-                      widthFt={w}
-                      selectedEdges={edges}
-                      onToggleEdge={toggleEdge}
-                    />
-                    {edges.length > 0 && (
-                      <p className="text-xs text-muted-foreground text-center mt-1">
-                        {calcSelectedLinearFt(edges, l, w).toFixed(1)} lin ft selected
-                      </p>
-                    )}
-                  </div>
-                )}
-                {checked && isFlat && (
-                  <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Price $</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      placeholder="Enter price"
-                      className="h-8 w-28"
-                      value={flatPrices[svc.id] ?? ""}
-                      onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
-                    />
-                    {lineTotal > 0 && (
-                      <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
-                    )}
-                  </div>
-                )}
-              </div>
+              <ServiceRow
+                key={svc.id}
+                svc={svc}
+                checked={selectedSet.has(svc.id)}
+                unitPrice={getUnitPrice(svc)}
+                lineTotal={getLineTotal(svc)}
+                edges={edgeSelections[svc.id] ?? []}
+                flatPrice={flatPrices[svc.id] ?? ""}
+                watchedLength={watchedLength}
+                watchedWidth={watchedWidth}
+                toggleService={toggleService}
+                setEdgeSelections={setEdgeSelections}
+                setFlatPrices={setFlatPrices}
+              />
             );
           })}
         </div>
@@ -219,6 +258,18 @@ export const CheckInServiceSelector = memo(function CheckInServiceSelector({
     [grouped]
   );
 
+  const presetIdsByLabel = useMemo(() => {
+    const serviceIdByName = new Map(dbServices.map((service) => [service.name.toLowerCase(), service.id]));
+    return Object.fromEntries(
+      PRESETS.map((preset) => [
+        preset.label,
+        preset.names
+          .map((name) => serviceIdByName.get(name.toLowerCase()))
+          .filter(Boolean),
+      ]),
+    ) as Record<string, string[]>;
+  }, [dbServices]);
+
   return (
     <div className="rounded-lg border border-border bg-background/70 p-3 md:p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -245,9 +296,7 @@ export const CheckInServiceSelector = memo(function CheckInServiceSelector({
       {dbServices.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
           {PRESETS.map((preset) => {
-            const ids = preset.names
-              .map((n) => dbServices.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id)
-              .filter(Boolean) as string[];
+            const ids = presetIdsByLabel[preset.label] ?? [];
             if (ids.length === 0) return null;
             const allSelected = ids.length > 0 && ids.every((id) => watchedServiceSet.has(id));
             return (
@@ -298,7 +347,7 @@ export const CheckInServiceSelector = memo(function CheckInServiceSelector({
             category={cat}
             services={grouped[cat]}
             isFirst={catIdx === 0}
-            watchedServices={watchedServices}
+            selectedSet={watchedServiceSet}
             getUnitPrice={getUnitPrice}
             getLineTotal={getLineTotal}
             toggleService={toggleService}
