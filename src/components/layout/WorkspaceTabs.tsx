@@ -37,10 +37,10 @@ function TabButton<T extends string>({
       key={tab.id}
       onClick={() => onTabChange(tab.id)}
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs sm:text-sm font-medium transition-all shrink-0 border",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs sm:text-sm font-medium shrink-0 border",
         active
-          ? "border-primary/15 bg-primary text-primary-foreground shadow-[0_10px_26px_-18px_rgba(15,23,42,0.55)]"
-          : "border-transparent text-muted-foreground hover:text-foreground hover:bg-white/80 hover:border-border/70",
+          ? "border-primary/15 bg-primary text-primary-foreground"
+          : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted hover:border-border/70",
       )}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -59,7 +59,7 @@ export function WorkspaceTabs<T extends string>({
   return (
     <nav
       className={cn(
-        "flex items-center gap-1 px-2 sm:px-3 md:px-4 py-2.5 sm:py-3 border-b border-border/60 bg-white/40 overflow-x-auto scrollbar-hide shrink-0 backdrop-blur-sm",
+        "flex items-center gap-1 px-2 sm:px-3 md:px-4 py-2.5 sm:py-3 border-b border-border/60 bg-background overflow-x-auto scrollbar-hide shrink-0",
         className,
       )}
     >

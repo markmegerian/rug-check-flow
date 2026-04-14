@@ -52,7 +52,7 @@ export default function AdminPanel() {
         onTabChange={(tabId) => setActiveTab(tabId as TabId)}
       />
 
-      <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-t-[1.75rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4">
+      <div className="flex-1 min-w-0 min-h-0 overflow-auto rounded-t-[1.75rem] border border-border bg-background md:mx-4">
         {activeTab === "overview" && <SuperAdminOverview onOpenRug={handleRugSelect} onSelectTab={(tab) => setActiveTab(tab as TabId)} />}
         {activeTab === "responses" && <ClientResponsesTab />}
         {activeTab === "collections" && <CollectionsTab />}

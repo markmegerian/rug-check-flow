@@ -122,10 +122,10 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         }));
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <SidebarHeader className="p-3 space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-[0_10px_25px_-18px_rgba(212,180,106,0.65)]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary">
             <span className="text-xs font-bold text-primary-foreground">R</span>
           </div>
           {!collapsed && (
@@ -174,7 +174,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                         to={item.url}
                         className={cn(
                           "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium"
                         )}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
@@ -204,7 +204,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                         to={item.url}
                         className={cn(
                           "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium"
                         )}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
