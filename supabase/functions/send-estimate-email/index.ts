@@ -75,7 +75,22 @@ Deno.serve(async (req) => {
     const clientEmail = estimate.clients?.email ?? null;
 
     if (!clientEmail) {
-      providerStatus = "no_email";
+      await adminClient.from("communication_events").insert({
+        client_id: estimate.client_id,
+        rug_id: estimate.rug_id,
+        estimate_id: estimate.id,
+        channel: "email",
+        direction: "outbound",
+        event_type: "estimate_send_failed",
+        subject: `Estimate ${estimate.estimate_number} send blocked`,
+        body: "Estimate send was blocked because the client email is missing.",
+      });
+      return json({
+        success: false,
+        error: "Client email is missing",
+        provider_status: "no_email",
+        action_hint: "Add a client email before sending the estimate.",
+      }, 400);
     } else if (resendApiKey) {
       const resendResp = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -126,9 +141,9 @@ Deno.serve(async (req) => {
       client_id: estimate.client_id,
       rug_id: estimate.rug_id,
       estimate_id: estimate.id,
-      channel: clientEmail ? "email" : "in_app_chat",
+      channel: "email",
       direction: "outbound",
-      event_type: clientEmail ? eventType : "estimate_marked_sent_without_email",
+      event_type: eventType,
       subject,
       body,
       sent_to: clientEmail,
