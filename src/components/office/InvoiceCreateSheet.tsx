@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useClients } from "@/hooks/useClients";
+import { useClientNames } from "@/hooks/useClients";
 import { calculateInvoiceDueDate, formatInvoiceTermsLabel, type BillingReminderPreference } from "@/lib/billing";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -35,8 +35,8 @@ interface InvoiceCreateSheetProps {
 }
 
 export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCreateSheetProps) {
-  const { data: allClients = [] } = useClients();
-  const clients = useMemo(() => allClients.map((c) => ({ id: c.id, name: c.name, pricing_tier: c.pricing_tier, invoice_terms_days: c.invoice_terms_days, billing_reminder_preference: c.billing_reminder_preference as BillingReminderPreference })), [allClients]);
+  const { data: clientRows = [] } = useClientNames();
+  const clients = useMemo(() => clientRows.map((c) => ({ id: c.id, name: c.name, pricing_tier: c.pricing_tier, invoice_terms_days: c.invoice_terms_days, billing_reminder_preference: c.billing_reminder_preference as BillingReminderPreference })), [clientRows]);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());

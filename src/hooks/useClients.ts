@@ -23,14 +23,14 @@ export function useClients() {
   });
 }
 
-/** Lightweight lookup for selectors and thread creation flows */
+/** Lightweight lookup for selectors and lightweight billing/profile flows */
 export function useClientNames() {
   return useQuery({
     queryKey: ["clients", "names"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name, contact_name, email")
+        .select("id, name, contact_name, email, pricing_tier, invoice_terms_days, billing_reminder_preference")
         .order("name");
       if (error) throw error;
       return data ?? [];
@@ -41,5 +41,8 @@ export function useClientNames() {
 
 export function useInvalidateClients() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: CLIENTS_KEY });
+  return () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: CLIENTS_KEY }),
+    queryClient.invalidateQueries({ queryKey: ["clients", "names"] }),
+  ]);
 }
