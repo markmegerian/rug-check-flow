@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 type DbService = Tables<"services">;
-type DbClient = Tables<"clients">;
+type DbClient = Pick<Tables<"clients">, "id" | "name" | "pricing_tier">;
 
 interface ServicePreset {
   id: string;
@@ -89,8 +89,11 @@ export function PricingTab() {
   }, [toast]);
 
   const fetchClients = useCallback(async () => {
-    const { data } = await supabase.from("clients").select("*").order("name");
-    setClients(data ?? []);
+    const { data } = await supabase
+      .from("clients")
+      .select("id, name, pricing_tier")
+      .order("name");
+    setClients((data ?? []) as DbClient[]);
   }, []);
 
   useEffect(() => {
