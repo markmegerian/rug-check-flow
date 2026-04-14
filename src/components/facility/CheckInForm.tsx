@@ -492,26 +492,24 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </div>
 
             <div className="space-y-3 min-w-0">
-              <details className="rounded-lg border border-border bg-background/70 p-3">
-                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">Condition notes</summary>
-                <div className="mt-3">
-                  <FormField
-                    control={form.control}
-                    name="conditionNotes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Stains, damage, special instructions…"
-                            className="min-h-[96px]"
-                            {...field}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </details>
+              <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
+                <div className="text-sm font-semibold text-foreground">Condition notes</div>
+                <FormField
+                  control={form.control}
+                  name="conditionNotes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Stains, damage, special instructions…"
+                          className="min-h-[96px]"
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="rounded-lg border border-border bg-background/70 p-3 space-y-3">
                 <div className="text-sm font-semibold text-foreground">Photos</div>
