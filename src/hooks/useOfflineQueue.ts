@@ -1,19 +1,26 @@
 import { useState, useEffect, useCallback } from "react";
-import { isOnline } from "@/lib/offline-sync";
-import type { performFullSync } from "@/lib/offline-sync";
+
+type FullSyncResult = {
+  photos: { uploaded: number; failed: number };
+  events: { synced: number; failed: number; errors: Array<{ offline_event_id: string; error: string }> };
+};
+
+function isOnline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine;
+}
 
 export interface OfflineQueueState {
   pendingCount: number;
   isOnline: boolean;
   isSyncing: boolean;
-  lastSyncResult: Awaited<ReturnType<typeof performFullSync>> | null;
+  lastSyncResult: FullSyncResult | null;
 }
 
 export function useOfflineQueue() {
   const [pendingCount, setPendingCount] = useState(0);
   const [isOnlineState, setIsOnlineState] = useState(isOnline());
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncResult, setLastSyncResult] = useState<Awaited<ReturnType<typeof performFullSync>> | null>(null);
+  const [lastSyncResult, setLastSyncResult] = useState<FullSyncResult | null>(null);
 
   // Update pending count
   const updatePendingCount = useCallback(async () => {

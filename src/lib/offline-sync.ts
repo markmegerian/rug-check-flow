@@ -1,15 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import {
-  getPendingEvents,
-  markEventSynced,
-  markEventFailed,
-  getPendingPhotos,
-  markPhotoUploaded,
-  clearOldSyncedEvents,
-  clearOldUploadedPhotos,
-  type OfflineEvent,
-  type PendingPhoto,
-} from "./offline-queue";
+import type { OfflineEvent, PendingPhoto } from "./offline-queue";
 
 const BATCH_SIZE = 10;
 const BASE_SYNC_INTERVAL_MS = 5000;
@@ -40,6 +30,7 @@ async function uploadPhoto(photo: PendingPhoto): Promise<string> {
  * Sync pending photos
  */
 export async function syncPendingPhotos(): Promise<{ uploaded: number; failed: number }> {
+  const { getPendingPhotos, markPhotoUploaded } = await import("./offline-queue");
   const pendingPhotos = await getPendingPhotos();
   let uploaded = 0;
   let failed = 0;
@@ -74,6 +65,7 @@ export async function syncPendingEvents(): Promise<{
   failed: number;
   errors: Array<{ offline_event_id: string; error: string }>;
 }> {
+  const { getPendingEvents, markEventSynced, markEventFailed } = await import("./offline-queue");
   const pendingEvents = await getPendingEvents();
   if (pendingEvents.length === 0) {
     return { synced: 0, failed: 0, errors: [] };
@@ -210,8 +202,10 @@ export function startAutoSync(
   window.addEventListener("online", handleOnline);
 
   // Cleanup old synced data on startup
-  void clearOldSyncedEvents().catch(() => {});
-  void clearOldUploadedPhotos().catch(() => {});
+  void import("./offline-queue").then(({ clearOldSyncedEvents, clearOldUploadedPhotos }) => {
+    void clearOldSyncedEvents().catch(() => {});
+    void clearOldUploadedPhotos().catch(() => {});
+  });
 
   // Initial sync
   void sync();
