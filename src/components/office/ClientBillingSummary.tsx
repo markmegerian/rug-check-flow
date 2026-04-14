@@ -35,6 +35,7 @@ type ClientBillingSummaryProps = {
   invoiceTermsDays: number;
   billingReminderPreference: BillingReminderPreference;
   billingNotes: string;
+  enabled?: boolean;
 };
 
 type BillingSummaryData = {
@@ -96,11 +97,12 @@ export function ClientBillingSummary({
   invoiceTermsDays,
   billingReminderPreference,
   billingNotes,
+  enabled = true,
 }: ClientBillingSummaryProps) {
   const summaryQuery = useQuery({
     queryKey: ["client-billing-summary", clientId],
     queryFn: () => fetchBillingSummary(clientId),
-    enabled: Boolean(clientId),
+    enabled: enabled && Boolean(clientId),
     staleTime: 30_000,
   });
 

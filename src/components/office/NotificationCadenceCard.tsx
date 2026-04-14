@@ -7,6 +7,7 @@ import { describeNotificationType, shouldThrottleCollectionsReminder, type Notif
 
 type NotificationCadenceCardProps = {
   clientId: string;
+  enabled?: boolean;
 };
 
 type NotificationCadenceRow = {
@@ -47,11 +48,11 @@ async function fetchCadence(clientId: string) {
   };
 }
 
-export function NotificationCadenceCard({ clientId }: NotificationCadenceCardProps) {
+export function NotificationCadenceCard({ clientId, enabled = true }: NotificationCadenceCardProps) {
   const cadenceQuery = useQuery({
     queryKey: ["notification-cadence", clientId],
     queryFn: () => fetchCadence(clientId),
-    enabled: Boolean(clientId),
+    enabled: enabled && Boolean(clientId),
     staleTime: 30_000,
   });
 

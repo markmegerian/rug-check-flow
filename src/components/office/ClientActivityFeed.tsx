@@ -40,15 +40,20 @@ function formatEventType(eventType: string): string {
 
 interface ClientActivityFeedProps {
   clientId: string;
+  enabled?: boolean;
 }
 
-export function ClientActivityFeed({ clientId }: ClientActivityFeedProps) {
+export function ClientActivityFeed({ clientId, enabled = true }: ClientActivityFeedProps) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId || !enabled) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
 

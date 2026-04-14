@@ -86,7 +86,7 @@ export function ClientDetailSheet({
 }: ClientDetailSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+      <SheetContent side="right" className="w-full max-w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{editingId ? "Edit Client" : "Add Client"}</SheetTitle>
           <SheetDescription>
@@ -195,9 +195,10 @@ export function ClientDetailSheet({
                 invoiceTermsDays={form.invoice_terms_days}
                 billingReminderPreference={form.billing_reminder_preference}
                 billingNotes={form.billing_notes}
+                enabled={open}
               />
-              <NotificationCadenceCard clientId={editingId} />
-              <ClientActivityFeed clientId={editingId} />
+              <NotificationCadenceCard clientId={editingId} enabled={open} />
+              <ClientActivityFeed clientId={editingId} enabled={open} />
             </>
           )}
 
