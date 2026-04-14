@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import PortalRugsTab from "@/components/portal/PortalRugsTab";
-import PortalPickupsTab from "@/components/portal/PortalPickupsTab";
-import PortalInvoicesTab from "@/components/portal/PortalInvoicesTab";
-import PortalEstimatesTab from "@/components/portal/PortalEstimatesTab";
-import PortalPricingTab from "@/components/portal/PortalPricingTab";
-import PortalMessagesTab from "@/components/portal/PortalMessagesTab";
+import { Suspense, lazy, useEffect, useState } from "react";
+const PortalRugsTab = lazy(() => import("@/components/portal/PortalRugsTab"));
+const PortalPickupsTab = lazy(() => import("@/components/portal/PortalPickupsTab"));
+const PortalInvoicesTab = lazy(() => import("@/components/portal/PortalInvoicesTab"));
+const PortalEstimatesTab = lazy(() => import("@/components/portal/PortalEstimatesTab"));
+const PortalPricingTab = lazy(() => import("@/components/portal/PortalPricingTab"));
+const PortalMessagesTab = lazy(() => import("@/components/portal/PortalMessagesTab"));
 import { PortalAccountSnapshot } from "@/components/portal/PortalAccountSnapshot";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -223,36 +223,38 @@ export default function WholesalePortal() {
             <div className="p-3 sm:p-4 md:p-6 space-y-4">
               {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={changeTab} /> : null}
 
-              {mountedTabs.rugs ? (
-                <div className={activeTab === "rugs" ? "block" : "hidden"}>
-                  <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                </div>
-              ) : null}
-              {mountedTabs.pickups ? (
-                <div className={activeTab === "pickups" ? "block" : "hidden"}>
-                  <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                </div>
-              ) : null}
-              {mountedTabs.estimates ? (
-                <div className={activeTab === "estimates" ? "block" : "hidden"}>
-                  <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                </div>
-              ) : null}
-              {mountedTabs.invoices ? (
-                <div className={activeTab === "invoices" ? "block" : "hidden"}>
-                  <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                </div>
-              ) : null}
-              {mountedTabs.messages ? (
-                <div className={activeTab === "messages" ? "block" : "hidden"}>
-                  <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                </div>
-              ) : null}
-              {mountedTabs.prices ? (
-                <div className={activeTab === "prices" ? "block" : "hidden"}>
-                  <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                </div>
-              ) : null}
+              <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading portal view…</div>}>
+                {mountedTabs.rugs ? (
+                  <div className={activeTab === "rugs" ? "block" : "hidden"}>
+                    <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
+                  </div>
+                ) : null}
+                {mountedTabs.pickups ? (
+                  <div className={activeTab === "pickups" ? "block" : "hidden"}>
+                    <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
+                  </div>
+                ) : null}
+                {mountedTabs.estimates ? (
+                  <div className={activeTab === "estimates" ? "block" : "hidden"}>
+                    <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
+                  </div>
+                ) : null}
+                {mountedTabs.invoices ? (
+                  <div className={activeTab === "invoices" ? "block" : "hidden"}>
+                    <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
+                  </div>
+                ) : null}
+                {mountedTabs.messages ? (
+                  <div className={activeTab === "messages" ? "block" : "hidden"}>
+                    <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
+                  </div>
+                ) : null}
+                {mountedTabs.prices ? (
+                  <div className={activeTab === "prices" ? "block" : "hidden"}>
+                    <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
+                  </div>
+                ) : null}
+              </Suspense>
             </div>
           )}
         </div>

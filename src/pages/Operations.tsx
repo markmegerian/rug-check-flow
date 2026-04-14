@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   ClipboardCheck,
@@ -14,19 +14,19 @@ import {
   FolderOpen,
   Inbox,
 } from "lucide-react";
-import { CheckInLayout } from "@/components/facility/CheckInLayout";
-import { ProductionBoard } from "@/components/facility/ProductionBoard";
-import { InvoiceGeneratorPanel } from "@/components/facility/InvoiceGeneratorPanel";
-import { DeliveryPrepTab } from "@/components/facility/DeliveryPrepTab";
-import { PricingTab } from "@/components/office/PricingTab";
-import { InvoicesTab } from "@/components/office/InvoicesTab";
-import { ClientsTab } from "@/components/office/ClientsTab";
-import { DeliveriesTab } from "@/components/office/DeliveriesTab";
-import { DeliveryProofBoard } from "@/components/office/DeliveryProofBoard";
-import { JobsTab } from "@/components/office/JobsTab";
-import { RouteBuilder } from "@/components/office/RouteBuilder";
-import { EstimatesTab } from "@/components/office/EstimatesTab";
-import { InboxTab } from "@/components/office/InboxTab";
+const CheckInLayout = lazy(() => import("@/components/facility/CheckInLayout").then((m) => ({ default: m.CheckInLayout })));
+const ProductionBoard = lazy(() => import("@/components/facility/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
+const InvoiceGeneratorPanel = lazy(() => import("@/components/facility/InvoiceGeneratorPanel").then((m) => ({ default: m.InvoiceGeneratorPanel })));
+const DeliveryPrepTab = lazy(() => import("@/components/facility/DeliveryPrepTab").then((m) => ({ default: m.DeliveryPrepTab })));
+const PricingTab = lazy(() => import("@/components/office/PricingTab").then((m) => ({ default: m.PricingTab })));
+const InvoicesTab = lazy(() => import("@/components/office/InvoicesTab").then((m) => ({ default: m.InvoicesTab })));
+const ClientsTab = lazy(() => import("@/components/office/ClientsTab").then((m) => ({ default: m.ClientsTab })));
+const DeliveriesTab = lazy(() => import("@/components/office/DeliveriesTab").then((m) => ({ default: m.DeliveriesTab })));
+const DeliveryProofBoard = lazy(() => import("@/components/office/DeliveryProofBoard").then((m) => ({ default: m.DeliveryProofBoard })));
+const JobsTab = lazy(() => import("@/components/office/JobsTab").then((m) => ({ default: m.JobsTab })));
+const RouteBuilder = lazy(() => import("@/components/office/RouteBuilder").then((m) => ({ default: m.RouteBuilder })));
+const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then((m) => ({ default: m.EstimatesTab })));
+const InboxTab = lazy(() => import("@/components/office/InboxTab").then((m) => ({ default: m.InboxTab })));
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
@@ -135,22 +135,24 @@ export default function Operations() {
       ) : null}
 
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-[1.25rem] md:rounded-t-[1.75rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4">
-        {/* Floor tabs */}
-        {activeTab === "checkin" && <CheckInLayout />}
-        {activeTab === "production" && <ProductionBoard />}
-        {activeTab === "delivery-prep" && <DeliveryPrepTab />}
-        {activeTab === "invoice-generator" && <InvoiceGeneratorPanel />}
+        <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading workspace…</div>}>
+          {/* Floor tabs */}
+          {activeTab === "checkin" && <CheckInLayout />}
+          {activeTab === "production" && <ProductionBoard />}
+          {activeTab === "delivery-prep" && <DeliveryPrepTab />}
+          {activeTab === "invoice-generator" && <InvoiceGeneratorPanel />}
 
-        {/* Business tabs */}
-        {activeTab === "pricing" && canManagePricing && <PricingTab />}
-        {activeTab === "accounts-receivable" && <InvoicesTab />}
-        {activeTab === "estimates" && <EstimatesTab />}
-        {activeTab === "clients" && <ClientsTab />}
-        {activeTab === "jobs" && <JobsTab onOpenRug={handleRugSelect} />}
-        {activeTab === "inbox" && <InboxTab requestedThreadId={requestedThreadId} />}
-        {activeTab === "deliveries" && <DeliveriesTab />}
-        {activeTab === "routes" && <RouteBuilder />}
-        {activeTab === "proofs" && <DeliveryProofBoard />}
+          {/* Business tabs */}
+          {activeTab === "pricing" && canManagePricing && <PricingTab />}
+          {activeTab === "accounts-receivable" && <InvoicesTab />}
+          {activeTab === "estimates" && <EstimatesTab />}
+          {activeTab === "clients" && <ClientsTab />}
+          {activeTab === "jobs" && <JobsTab onOpenRug={handleRugSelect} />}
+          {activeTab === "inbox" && <InboxTab requestedThreadId={requestedThreadId} />}
+          {activeTab === "deliveries" && <DeliveriesTab />}
+          {activeTab === "routes" && <RouteBuilder />}
+          {activeTab === "proofs" && <DeliveryProofBoard />}
+        </Suspense>
       </div>
 
       <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
