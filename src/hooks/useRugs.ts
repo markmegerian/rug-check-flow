@@ -31,24 +31,42 @@ const RUGS_KEY = ["rugs"] as const;
 async function fetchRugsWithServices(): Promise<RugWithServices[]> {
   const { data, error } = await supabase
     .from("rugs")
-    .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, client_id, photo_url, clients(name)")
+    .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, client_id, photo_url")
     .in("status", PRODUCTION_STAGES.map((stage) => stage.id))
     .order("checked_in_at", { ascending: false });
 
   if (error) throw error;
 
-  const rugRows = (data ?? []) as unknown as (Pick<
+  const rugRows = (data ?? []) as Pick<
     Tables<"rugs">,
     "id" | "tag" | "description" | "status" | "size_length" | "size_width" | "checked_in_at" | "notes" | "client_id" | "photo_url"
-  > & { clients: { name: string } | null })[];
+  >[];
 
   const rugIds = rugRows.map((r) => r.id);
   if (rugIds.length === 0) return [];
 
-  const { data: serviceData } = await supabase
-    .from("rug_services")
-    .select("rug_id, line_total, service_name, edges")
-    .in("rug_id", rugIds);
+  const clientIds = Array.from(new Set(rugRows.map((r) => r.client_id).filter(Boolean))) as string[];
+
+  const [{ data: serviceData, error: serviceError }, { data: clientData, error: clientError }] = await Promise.all([
+    supabase
+      .from("rug_services")
+      .select("rug_id, line_total, service_name, edges")
+      .in("rug_id", rugIds),
+    clientIds.length > 0
+      ? supabase
+          .from("clients")
+          .select("id, name")
+          .in("id", clientIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (serviceError) throw serviceError;
+  if (clientError) throw clientError;
+
+  const clientNameMap = new Map<string, string>();
+  for (const client of (clientData ?? []) as Pick<Tables<"clients">, "id" | "name">[]) {
+    clientNameMap.set(client.id, client.name);
+  }
 
   const serviceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
   for (const row of (serviceData ?? []) as RugServiceRow[]) {
@@ -71,7 +89,7 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
     checked_in_at: rug.checked_in_at,
     notes: rug.notes,
     client_id: rug.client_id,
-    client_name: rug.clients?.name ?? null,
+    client_name: rug.client_id ? clientNameMap.get(rug.client_id) ?? null : null,
     photo_url: rug.photo_url,
     services: serviceMap.get(rug.id) ?? [],
   }));

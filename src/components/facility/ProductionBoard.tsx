@@ -17,7 +17,7 @@ import { RugDetailSheet } from "./RugDetailSheet";
 export type DbRug = RugWithServices;
 
 export function ProductionBoard() {
-  const { data: rugs = [], isLoading: loading } = useRugs();
+  const { data: rugs = [], isLoading: loading, error } = useRugs();
   const invalidateRugs = useInvalidateRugs();
   const { data: deliveryAllocations } = useDeliveryAllocations();
   const [activeStage, setActiveStage] = useState<string | null>(null);
@@ -99,6 +99,16 @@ export function ProductionBoard() {
           {PRODUCTION_STAGES.map((s) => (
             <Skeleton key={s.id} className="h-64 w-64 shrink-0" />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load production rugs: {error instanceof Error ? error.message : "Unknown error"}
         </div>
       </div>
     );
