@@ -738,7 +738,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
           const approvedEstimateCount = job.items.filter((item) => item.latestEstimateResponse?.status === "approved").length;
           const rejectedEstimateCount = job.items.filter((item) => item.latestEstimateResponse?.status === "rejected").length;
           const openEstimateCount = Math.max(estimateCount - estimateRespondedCount, 0);
-          const deliveredCount = job.items.filter((item) => item.linkedRug?.status === "delivered").length;
+          const deliveredCount = job.items.filter((item) => item.linkedRug?.status === "picked_up").length;
           const uninvoicedCount = job.items.filter((item) => !item.linkedInvoice).length;
           const returnCount = job.items.filter((item) => item.latestReturnState?.state === "open").length;
           const attentionCount = job.items.filter((item) => item.latestReturnState?.state === "open" || (item.estimate_requested && !item.latestEstimateResponse) || (!item.linkedInvoice && item.linkedRug?.status === "ready")).length;
@@ -747,7 +747,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
           const visibleItems = job.items.filter((item) => {
             if (activeJobFilter === "estimate_open") return item.estimate_requested && !item.latestEstimateResponse;
             if (activeJobFilter === "uninvoiced") return !item.linkedInvoice;
-            if (activeJobFilter === "delivered") return item.linkedRug?.status === "delivered";
+            if (activeJobFilter === "delivered") return item.linkedRug?.status === "picked_up";
             if (activeJobFilter === "returns") return item.latestReturnState?.state === "open";
             if (activeJobFilter === "attention") return item.latestReturnState?.state === "open" || (item.estimate_requested && !item.latestEstimateResponse) || (!item.linkedInvoice && item.linkedRug?.status === "ready");
             return true;
@@ -781,9 +781,9 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                   label: `${item.linkedInvoice.invoice_number} linked for ${item.rug_number}`,
                 });
               }
-              if (item.linkedRug?.status === "delivered") {
+              if (item.linkedRug?.status === "picked_up") {
                 events.push({
-                  at: item.linkedInvoice?.issued_at ?? item.linkedInvoice?.created_at ?? job.updatedAt,
+                  at: item.linkedRug?.picked_up_at ?? item.linkedInvoice?.issued_at ?? item.linkedInvoice?.created_at ?? job.updatedAt,
                   label: `${item.rug_number} delivered`,
                 });
               }

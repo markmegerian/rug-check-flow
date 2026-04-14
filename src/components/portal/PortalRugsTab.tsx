@@ -127,7 +127,7 @@ export default function PortalRugsTab({ clientId, loading: portalClientLoading, 
       setLoading(true);
       const { data, error } = await supabase
         .from("rugs")
-        .select("id, tag, description, services, size_length, size_width, checked_in_at, status, notes, photo_url")
+        .select("id, tag, description, services, size_length, size_width, checked_in_at, picked_up_at, status, notes, photo_url")
         .eq("client_id", clientId)
         .in("status", ACTIVE_STATUSES)
         .order("checked_in_at", { ascending: false })
@@ -176,9 +176,14 @@ export default function PortalRugsTab({ clientId, loading: portalClientLoading, 
       }
     }
 
-    const other = rugs.filter((r) => !assigned.has(r.id));
-    if (other.length > 0) {
-      sections.push({ label: "Other active rugs", rugs: other });
+    const otherActive = rugs.filter((r) => !assigned.has(r.id) && r.status !== "picked_up");
+    if (otherActive.length > 0) {
+      sections.push({ label: "Other active rugs", rugs: otherActive });
+    }
+
+    const completed = rugs.filter((r) => !assigned.has(r.id) && r.status === "picked_up");
+    if (completed.length > 0) {
+      sections.push({ label: "Delivered rugs", rugs: completed });
     }
 
     return sections.length > 0 ? sections : null;

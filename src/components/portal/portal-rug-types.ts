@@ -10,6 +10,7 @@ export type RugRow = {
   size_length: number | null;
   size_width: number | null;
   checked_in_at: string;
+  picked_up_at?: string | null;
   status: RugStatus;
   notes: string | null;
   photo_url: string | null;
@@ -55,7 +56,7 @@ export const STATUS_VARIANTS: Record<string, "default" | "secondary" | "outline"
   picked_up: "outline",
 };
 
-export const ACTIVE_STATUSES: RugStatus[] = ["checked_in", "in_production", "ready"];
+export const ACTIVE_STATUSES: RugStatus[] = ["checked_in", "in_production", "ready", "picked_up"];
 
 export const PROGRESS_STEPS: RugStatus[] = ["checked_in", "in_production", "ready"];
 
