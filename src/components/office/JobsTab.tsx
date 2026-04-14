@@ -28,7 +28,6 @@ import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
-import { DAYS_OF_WEEK } from "@/lib/constants";
 
 type PickupRequestRow = Pick<
   ExtendedTableRow<"pickup_requests">,
@@ -53,13 +52,17 @@ type PickupItemRow = Pick<
 
 type RugLookup = {
   id: string;
+  client_id: string | null;
   tag: string;
+  description: string;
   status: string;
   photo_url: string | null;
   size_length: number | null;
   size_width: number | null;
   checked_in_at: string | null;
   completed_at: string | null;
+  intake_date: string | null;
+  intake_source: string | null;
 };
 
 type RugServiceLookup = {
@@ -115,6 +118,7 @@ type JobItemView = PickupItemRow & {
   latestEstimateResponse: LatestEstimateResponse | null;
   linkedInvoice: InvoiceLookup | null;
   latestReturnState: LatestReturnState | null;
+  itemSource?: string | null;
 };
 
 type JobFilter = "all" | "estimate_open" | "uninvoiced" | "delivered" | "returns" | "attention";
@@ -199,24 +203,35 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       if (requestError) throw requestError;
 
       const requests = (requestData ?? []) as unknown as PickupRequestRow[];
-      if (requests.length === 0) {
-        setJobs([]);
-        setLoading(false);
-        return;
-      }
-
       const requestIds = requests.map((request) => request.id);
-      const { data: itemData, error: itemError } = await supabaseExtended
-        .from("pickup_request_items")
-        .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, checked_in_rug_id, estimate_requested, estimate_request_details")
-        .in("pickup_request_id", requestIds);
 
-      if (itemError) throw itemError;
+      const itemResult = requestIds.length > 0
+        ? await supabaseExtended
+            .from("pickup_request_items")
+            .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, checked_in_rug_id, estimate_requested, estimate_request_details")
+            .in("pickup_request_id", requestIds)
+        : null;
 
-      const items = (itemData ?? []) as PickupItemRow[];
+      if (itemResult?.error) throw itemResult.error;
+
+      const items = requestIds.length > 0
+        ? ((itemResult?.data ?? []) as PickupItemRow[])
+        : [];
+
       const checkedInRugIds = items
         .map((item) => item.checked_in_rug_id)
         .filter((value): value is string => Boolean(value));
+
+      const { data: rugInventoryData, error: rugInventoryError } = await supabase
+        .from("rugs")
+        .select("id, client_id, tag, description, status, photo_url, size_length, size_width, checked_in_at, completed_at, intake_date, intake_source")
+        .order("checked_in_at", { ascending: false })
+        .limit(500);
+
+      if (rugInventoryError) throw rugInventoryError;
+
+      const rugInventory = (rugInventoryData ?? []) as RugLookup[];
+      const allRelevantRugIds = Array.from(new Set([...checkedInRugIds, ...rugInventory.map((rug) => rug.id)]));
 
       let rugMap = new Map<string, RugLookup>();
       const serviceMap = new Map<string, string[]>();
@@ -225,30 +240,30 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       const invoiceMap = new Map<string, InvoiceLookup>();
       const returnEventMap = new Map<string, LatestReturnState>();
 
-      if (checkedInRugIds.length > 0) {
+      if (allRelevantRugIds.length > 0) {
         const [rugResult, serviceResult, responseResult, invoiceResult, returnResult] = await Promise.all([
           supabase
             .from("rugs")
-            .select("id, tag, status, photo_url, size_length, size_width, checked_in_at, completed_at")
-            .in("id", checkedInRugIds),
+            .select("id, client_id, tag, description, status, photo_url, size_length, size_width, checked_in_at, completed_at, intake_date, intake_source")
+            .in("id", allRelevantRugIds),
           supabase
             .from("rug_services")
             .select("rug_id, service_name, line_total")
-            .in("rug_id", checkedInRugIds),
+            .in("rug_id", allRelevantRugIds),
           supabaseExtended
             .from("communication_events")
             .select("rug_id, event_type, subject, created_at")
-            .in("rug_id", checkedInRugIds)
+            .in("rug_id", allRelevantRugIds)
             .in("event_type", ["estimate_approved_by_client", "estimate_rejected_by_client"])
             .order("created_at", { ascending: false }),
           supabase
             .from("invoice_items")
             .select("rug_id, invoices(id, invoice_number, status, created_at, issued_at)")
-            .in("rug_id", checkedInRugIds),
+            .in("rug_id", allRelevantRugIds),
           supabaseExtended
             .from("communication_events")
             .select("rug_id, event_type, created_at")
-            .in("rug_id", checkedInRugIds)
+            .in("rug_id", allRelevantRugIds)
             .in("event_type", [...RETURN_EVENT_TYPES])
             .order("created_at", { ascending: false }),
         ]);
@@ -306,53 +321,148 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       }
 
       const requestById = new Map(requests.map((request) => [request.id, request]));
-      const grouped = new Map<string, JobView>();
-
+      const clientInfoById = new Map<string, { name: string; address: string | null }>();
       for (const request of requests) {
-        const key = `${request.client_id}__${request.scheduled_date}`;
-        const existing = grouped.get(key);
-        if (existing) {
-          existing.requestIds.push(request.id);
-          if (!existing.statuses.includes(request.status)) existing.statuses.push(request.status);
-          if (request.notes?.trim()) existing.notes.push(request.notes.trim());
-          existing.updatedAt = latestIso([existing.updatedAt, request.updated_at]);
-          continue;
-        }
-
-        grouped.set(key, {
-          key,
-          clientId: request.client_id,
-          clientName: request.clients?.name ?? "Unknown client",
-          clientAddress: request.clients?.address ?? null,
-          scheduledDate: request.scheduled_date,
-          routeDay: request.route_day || "Unassigned",
-          requestIds: [request.id],
-          primaryRequestId: request.id,
-          statuses: [request.status],
-          updatedAt: request.updated_at,
-          notes: request.notes?.trim() ? [request.notes.trim()] : [],
-          items: [],
+        clientInfoById.set(request.client_id, {
+          name: request.clients?.name ?? "Unknown client",
+          address: request.clients?.address ?? null,
         });
       }
+
+      const missingClientIds = Array.from(new Set(
+        rugInventory
+          .map((rug) => rug.client_id)
+          .filter((value): value is string => Boolean(value) && !clientInfoById.has(value))
+      ));
+
+      if (missingClientIds.length > 0) {
+        const { data: missingClients } = await supabase
+          .from("clients")
+          .select("id, name, address")
+          .in("id", missingClientIds);
+        for (const client of missingClients ?? []) {
+          clientInfoById.set(client.id, { name: client.name, address: client.address });
+        }
+      }
+
+      const grouped = new Map<string, JobView>();
+      const upsertJob = (input: {
+        key: string;
+        clientId: string;
+        clientName: string;
+        clientAddress: string | null;
+        scheduledDate: string;
+        routeDay: string;
+        requestId?: string;
+        status?: ExtendedTableRow<"pickup_requests">["status"];
+        updatedAt: string;
+        note?: string | null;
+      }) => {
+        const existing = grouped.get(input.key);
+        if (existing) {
+          if (input.requestId && !existing.requestIds.includes(input.requestId)) {
+            existing.requestIds.push(input.requestId);
+          }
+          if (input.requestId && !existing.primaryRequestId) {
+            existing.primaryRequestId = input.requestId;
+          }
+          if (input.status && !existing.statuses.includes(input.status)) {
+            existing.statuses.push(input.status);
+          }
+          if (input.note?.trim()) {
+            existing.notes.push(input.note.trim());
+          }
+          existing.updatedAt = latestIso([existing.updatedAt, input.updatedAt]);
+          return existing;
+        }
+
+        const created: JobView = {
+          key: input.key,
+          clientId: input.clientId,
+          clientName: input.clientName,
+          clientAddress: input.clientAddress,
+          scheduledDate: input.scheduledDate,
+          routeDay: input.routeDay,
+          requestIds: input.requestId ? [input.requestId] : [],
+          primaryRequestId: input.requestId ?? "",
+          statuses: input.status ? [input.status] : [],
+          updatedAt: input.updatedAt,
+          notes: input.note?.trim() ? [input.note.trim()] : [],
+          items: [],
+        };
+        grouped.set(input.key, created);
+        return created;
+      };
 
       for (const item of items) {
         const request = requestById.get(item.pickup_request_id);
         if (!request) continue;
-        const key = `${request.client_id}__${request.scheduled_date}`;
-        const job = grouped.get(key);
-        if (!job) continue;
         const linkedRug = item.checked_in_rug_id ? rugMap.get(item.checked_in_rug_id) ?? null : null;
         const linkedServices = item.checked_in_rug_id ? serviceMap.get(item.checked_in_rug_id) ?? [] : [];
         const linkedServiceTotal = item.checked_in_rug_id ? serviceTotalMap.get(item.checked_in_rug_id) ?? 0 : 0;
         const latestEstimateResponse = item.checked_in_rug_id ? estimateResponseMap.get(item.checked_in_rug_id) ?? null : null;
         const linkedInvoice = item.checked_in_rug_id ? invoiceMap.get(item.checked_in_rug_id) ?? null : null;
         const latestReturnState = item.checked_in_rug_id ? returnEventMap.get(item.checked_in_rug_id) ?? null : null;
-        job.items.push({ ...item, linkedRug, linkedServices, linkedServiceTotal, latestEstimateResponse, linkedInvoice, latestReturnState });
+        const eventDate = linkedRug?.intake_date?.slice(0, 10) ?? linkedRug?.checked_in_at?.slice(0, 10) ?? request.scheduled_date;
+        const sourceLabel = linkedRug?.intake_source === "pickup" ? "Pickup" : linkedRug?.intake_source ? "Walk-in" : request.route_day || "Unassigned";
+        const key = `${request.client_id}__${eventDate}`;
+        const job = upsertJob({
+          key,
+          clientId: request.client_id,
+          clientName: request.clients?.name ?? clientInfoById.get(request.client_id)?.name ?? "Unknown client",
+          clientAddress: request.clients?.address ?? clientInfoById.get(request.client_id)?.address ?? null,
+          scheduledDate: eventDate,
+          routeDay: sourceLabel,
+          requestId: request.id,
+          status: request.status,
+          updatedAt: linkedRug?.checked_in_at ?? request.updated_at,
+          note: request.notes,
+        });
+        job.items.push({ ...item, linkedRug, linkedServices, linkedServiceTotal, latestEstimateResponse, linkedInvoice, latestReturnState, itemSource: linkedRug?.intake_source ?? "pickup" });
+      }
+
+      const representedRugIds = new Set(items.map((item) => item.checked_in_rug_id).filter((value): value is string => Boolean(value)));
+      for (const rug of rugInventory) {
+        if (!rug.client_id || representedRugIds.has(rug.id)) continue;
+        const eventDate = rug.intake_date?.slice(0, 10) ?? rug.checked_in_at?.slice(0, 10);
+        if (!eventDate) continue;
+        const clientInfo = clientInfoById.get(rug.client_id);
+        const key = `${rug.client_id}__${eventDate}`;
+        const job = upsertJob({
+          key,
+          clientId: rug.client_id,
+          clientName: clientInfo?.name ?? "Unknown client",
+          clientAddress: clientInfo?.address ?? null,
+          scheduledDate: eventDate,
+          routeDay: rug.intake_source === "pickup" ? "Pickup" : "Walk-in",
+          updatedAt: rug.checked_in_at ?? rug.completed_at ?? new Date(0).toISOString(),
+        });
+        job.items.push({
+          id: `rug:${rug.id}`,
+          pickup_request_id: "",
+          rug_number: rug.tag,
+          rug_type: rug.description,
+          length: rug.size_length,
+          width: rug.size_width,
+          verified: true,
+          checked_in_rug_id: rug.id,
+          estimate_requested: false,
+          estimate_request_details: null,
+          linkedRug: rug,
+          linkedServices: serviceMap.get(rug.id) ?? [],
+          linkedServiceTotal: serviceTotalMap.get(rug.id) ?? 0,
+          latestEstimateResponse: estimateResponseMap.get(rug.id) ?? null,
+          linkedInvoice: invoiceMap.get(rug.id) ?? null,
+          latestReturnState: returnEventMap.get(rug.id) ?? null,
+          itemSource: rug.intake_source,
+        });
       }
 
       const nextJobs = Array.from(grouped.values())
+        .filter((job) => job.items.length > 0)
         .map((job) => ({
           ...job,
+          notes: Array.from(new Set(job.notes.filter(Boolean))),
           items: [...job.items].sort((a, b) =>
             a.rug_number.localeCompare(b.rug_number, undefined, { numeric: true, sensitivity: "base" }),
           ),
@@ -395,6 +505,11 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       });
     });
   }, [jobs, routeDayFilter, search]);
+
+  const sourceOptions = useMemo(
+    () => Array.from(new Set(jobs.map((job) => job.routeDay).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [jobs],
+  );
 
   const pagination = usePaginatedList(filteredJobs);
 
@@ -554,7 +669,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   if (loading) {
     return (
       <div className="app-page flex h-full items-center justify-center">
-        <LoadingState title="Loading jobs" description="Grouping rugs by client and pickup date..." />
+        <LoadingState title="Loading jobs" description="Grouping rugs by day entered or received..." />
       </div>
     );
   }
@@ -565,7 +680,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         <div className="app-section-header gap-3">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Jobs</h2>
-            <p className="text-sm text-muted-foreground">Office workspace grouped by client + pickup date.</p>
+            <p className="text-sm text-muted-foreground">Client rug history grouped by day entered or received.</p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-72">
@@ -579,13 +694,12 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
             </div>
             <Select value={routeDayFilter} onValueChange={setRouteDayFilter}>
               <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="All route days" />
+                <SelectValue placeholder="All sources" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All route days</SelectItem>
-                <SelectItem value="Unassigned">Unassigned</SelectItem>
-                {DAYS_OF_WEEK.map((day) => (
-                  <SelectItem key={day} value={day}>{day}</SelectItem>
+                <SelectItem value="all">All sources</SelectItem>
+                {sourceOptions.map((source) => (
+                  <SelectItem key={source} value={source}>{source}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -681,46 +795,37 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                       <p className="text-sm text-muted-foreground">{formatDate(job.scheduledDate)} · {job.routeDay}</p>
                     </div>
                   </div>
-                  {job.clientAddress ? <p className="pl-6 text-xs text-muted-foreground">{job.clientAddress}</p> : null}
-                  <div className="flex flex-wrap gap-2 pl-6">
-                    <Badge variant="secondary">{job.items.length} rug{job.items.length === 1 ? "" : "s"}</Badge>
-                    <Badge variant="secondary">{checkedInCount} checked in</Badge>
-                    <Badge variant="secondary">{verifiedCount} truck-confirmed</Badge>
-                    {estimateCount > 0 ? <Badge variant="secondary">{estimateCount} estimate request{estimateCount === 1 ? "" : "s"}</Badge> : null}
-                    {estimateRespondedCount > 0 ? <Badge variant="secondary">{estimateRespondedCount} response{estimateRespondedCount === 1 ? "" : "s"}</Badge> : null}
-                    {invoicedCount > 0 ? <Badge variant="secondary">{invoicedCount} invoiced</Badge> : null}
-                    {returnCount > 0 ? <Badge variant="secondary">{returnCount} return / re-entry</Badge> : null}
-                    {attentionCount > 0 ? <Badge variant="secondary">{attentionCount} need attention</Badge> : null}
-                    {statusSet.map((status) => (
-                      <PickupStatusBadge key={`${job.key}-${status}`} status={status} />
-                    ))}
-                  </div>
+                  <p className="pl-6 text-xs text-muted-foreground">{job.items.length} rug{job.items.length === 1 ? "" : "s"}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openJobNoteDialog(job);
-                    }}
-                  >
-                    <Pencil className="mr-1 h-3.5 w-3.5" /> Notes
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openCreateDialog(job);
-                    }}
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" /> Add rug
-                  </Button>
+                  {job.primaryRequestId ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openJobNoteDialog(job);
+                        }}
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" /> Notes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openCreateDialog(job);
+                        }}
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" /> Add rug
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </button>
 
@@ -729,61 +834,6 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                   {job.notes.length > 0 ? (
                     <div className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{job.notes.join(" · ")}</div>
                   ) : null}
-
-                  <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-5">
-                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Estimate status</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">{approvedEstimateCount} approved · {rejectedEstimateCount} rejected</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{openEstimateCount} still open</p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Billing</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">{invoicedCount} invoiced</p>
-                      <p className="mt-1 text-xs text-muted-foreground">${billedTotal.toFixed(2)} linked billed value</p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Service value</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">${serviceTotal.toFixed(2)}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Across all linked rug services</p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Delivery</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">{deliveredCount} delivered</p>
-                    </div>
-                    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Latest activity</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">{formatDistanceToNow(new Date(latestActivityAt), { addSuffix: true })}</p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-border/70 bg-background/60 p-3">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Badge variant="outline">Requested {formatDate(job.scheduledDate)}</Badge>
-                      {verifiedCount > 0 ? <Badge variant="outline">Pickup confirmed · {verifiedCount}</Badge> : null}
-                      {checkedInCount > 0 ? <Badge variant="outline">Checked in · {checkedInCount}</Badge> : null}
-                      {estimateCount > 0 ? <Badge variant="outline">Estimate requested · {estimateCount}</Badge> : null}
-                      {estimateRespondedCount > 0 ? <Badge variant="outline">Estimate response · {estimateRespondedCount}</Badge> : null}
-                      {invoicedCount > 0 ? <Badge variant="outline">Invoice linked · {invoicedCount}</Badge> : null}
-                      {deliveredCount > 0 ? <Badge variant="outline">Delivered · {deliveredCount}</Badge> : null}
-                      {returnCount > 0 ? <Badge variant="outline">Return / re-entry · {returnCount}</Badge> : null}
-                      {attentionCount > 0 ? <Badge variant="outline">Need attention · {attentionCount}</Badge> : null}
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-border/70 bg-background/60 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Activity stream</p>
-                      <Badge variant="outline">{activityEvents.length} recent</Badge>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {activityEvents.map((event, index) => (
-                        <div key={`${job.key}-activity-${index}`} className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-sm">
-                          <span className="text-foreground">{event.label}</span>
-                          <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDistanceToNow(new Date(event.at), { addSuffix: true })}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
 
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -879,12 +929,16 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                                   Open rug
                                 </Button>
                               ) : null}
-                              <Button size="sm" variant="outline" onClick={() => openEditDialog(item)}>
-                                <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-                              </Button>
-                              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => void removeItem(item)}>
-                                <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove
-                              </Button>
+                              {item.pickup_request_id ? (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => openEditDialog(item)}>
+                                    <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => void removeItem(item)}>
+                                    <Trash2 className="mr-1 h-3.5 w-3.5" /> Remove
+                                  </Button>
+                                </>
+                              ) : null}
                             </div>
                           </div>
                         </div>

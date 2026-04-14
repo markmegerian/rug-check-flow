@@ -81,6 +81,7 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
   const [servicesLoading, setServicesLoading] = useState(false);
   const [availableServices, setAvailableServices] = useState<AvailableService[]>([]);
   const [addingServiceId, setAddingServiceId] = useState<string>("none");
+  const [addingServicePrice, setAddingServicePrice] = useState("");
   const [addingService, setAddingService] = useState(false);
 
   const [returnEventType, setReturnEventType] = useState<"immediate_return" | "reentry_for_approved_work">("immediate_return");
@@ -189,14 +190,18 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     setAddingService(true);
     const l = parseFloat(fields.size_length) || 0;
     const w = parseFloat(fields.size_width) || 0;
-    let lineTotal = Number(svc.base_price);
-    if (svc.unit === "per sqft") lineTotal = Number(svc.base_price) * l * w;
+    const customFlatPrice = parseFloat(addingServicePrice);
+    const unitPrice = svc.unit === "flat"
+      ? (Number.isFinite(customFlatPrice) && customFlatPrice >= 0 ? customFlatPrice : 0)
+      : Number(svc.base_price);
+    let lineTotal = unitPrice;
+    if (svc.unit === "per sqft") lineTotal = unitPrice * l * w;
 
     const { error } = await supabase.from("rug_services").insert({
       rug_id: rugId,
       service_id: svc.id,
       service_name: svc.name,
-      unit_price: Number(svc.base_price),
+      unit_price: unitPrice,
       line_total: lineTotal,
       edges: [],
     });
@@ -206,6 +211,7 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     } else {
       toast({ title: `${svc.name} added` });
       setAddingServiceId("none");
+      setAddingServicePrice("");
       await fetchServices();
       invalidateRugs();
     }
@@ -349,6 +355,7 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
   const addableServices = availableServices.filter(
     (as) => !services.some((s) => s.service_id === as.id)
   );
+  const selectedAddService = addableServices.find((service) => service.id === addingServiceId) ?? null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -516,28 +523,46 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
 
               {/* Add service */}
               {addableServices.length > 0 && (
-                <div className="flex gap-2 pt-1">
-                  <Select value={addingServiceId} onValueChange={setAddingServiceId}>
-                    <SelectTrigger className="h-8 text-xs flex-1">
-                      <SelectValue placeholder="Add service..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Select service...</SelectItem>
-                      {addableServices.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name} — ${Number(s.base_price).toFixed(2)}/{s.unit === "per sqft" ? "sf" : s.unit === "per linear ft" ? "lf" : "flat"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs"
-                    disabled={addingServiceId === "none" || addingService}
-                    onClick={handleAddService}
-                  >
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </Button>
+                <div className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    <Select value={addingServiceId} onValueChange={setAddingServiceId}>
+                      <SelectTrigger className="h-8 text-xs flex-1">
+                        <SelectValue placeholder="Add service..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select service...</SelectItem>
+                        {addableServices.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name} — ${Number(s.base_price).toFixed(2)}/{s.unit === "per sqft" ? "sf" : s.unit === "per linear ft" ? "lf" : "flat"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs"
+                      disabled={addingServiceId === "none" || addingService || (selectedAddService?.unit === "flat" && addingServicePrice.trim() === "")}
+                      onClick={handleAddService}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> Add
+                    </Button>
+                  </div>
+                  {selectedAddService?.unit === "flat" ? (
+                    <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                      <Label htmlFor="rug-add-service-price" className="text-xs text-muted-foreground">Flat price</Label>
+                      <Input
+                        id="rug-add-service-price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        inputMode="decimal"
+                        placeholder="Enter price"
+                        className="h-8 w-32 text-xs"
+                        value={addingServicePrice}
+                        onChange={(e) => setAddingServicePrice(e.target.value)}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>

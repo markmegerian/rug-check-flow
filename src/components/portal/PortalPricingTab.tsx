@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabaseExtended } from "@/integrations/supabase/extended";
+import { supabase } from "@/integrations/supabase/client";
 import type { PortalTabProps } from "./portal-tab-props";
 
 type PricingTier = "standard" | "preferred" | "vip";
@@ -21,19 +21,26 @@ export default function PortalPricingTab({ clientId, loading, errorMessage }: Po
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [clientPricing, setClientPricing] = useState<ClientPricing | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!clientId) return;
     const load = async () => {
       setIsLoading(true);
+      setLoadError(null);
       const [clientResult, servicesResult] = await Promise.all([
-        supabaseExtended.from("clients").select("name, pricing_tier").eq("id", clientId).maybeSingle(),
-        supabaseExtended
+        supabase.from("clients").select("name, pricing_tier").eq("id", clientId).maybeSingle(),
+        supabase
           .from("services")
           .select("id, name, unit, base_price, preferred_price, vip_price")
           .eq("active", true)
           .order("name", { ascending: true }),
       ]);
+
+      if (clientResult.error || servicesResult.error) {
+        setLoadError(clientResult.error?.message ?? servicesResult.error?.message ?? "Unable to load pricing.");
+      }
+
       setClientPricing((clientResult.data ?? null) as ClientPricing | null);
       setServices((servicesResult.data ?? []) as ServiceRow[]);
       setIsLoading(false);
@@ -44,9 +51,13 @@ export default function PortalPricingTab({ clientId, loading, errorMessage }: Po
   const tier: PricingTier = clientPricing?.pricing_tier ?? "standard";
   const resolvePrice = useMemo(
     () => (svc: ServiceRow) => {
-      if (tier === "vip") return svc.vip_price;
-      if (tier === "preferred") return svc.preferred_price;
-      return svc.base_price;
+      const raw = tier === "vip"
+        ? svc.vip_price
+        : tier === "preferred"
+          ? svc.preferred_price
+          : svc.base_price;
+      const numeric = Number(raw);
+      return Number.isFinite(numeric) ? numeric : null;
     },
     [tier]
   );
@@ -61,6 +72,7 @@ export default function PortalPricingTab({ clientId, loading, errorMessage }: Po
       </p>
 
       {isLoading ? <p className="text-sm text-muted-foreground">Loading pricing…</p> : null}
+      {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
 
       {!isLoading ? (
         <div className="rounded-md border overflow-auto">
@@ -77,7 +89,7 @@ export default function PortalPricingTab({ clientId, loading, errorMessage }: Po
                 <tr key={svc.id} className="border-t">
                   <td className="px-3 py-2">{svc.name}</td>
                   <td className="px-3 py-2 text-muted-foreground">{svc.unit || "ea"}</td>
-                  <td className="px-3 py-2 font-medium">{money.format(resolvePrice(svc))}</td>
+                  <td className="px-3 py-2 font-medium">{resolvePrice(svc) == null ? "Call for quote" : money.format(resolvePrice(svc) ?? 0)}</td>
                 </tr>
               ))}
             </tbody>
