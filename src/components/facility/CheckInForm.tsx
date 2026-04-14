@@ -1,5 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -69,7 +70,6 @@ interface CheckInFormProps {
 
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [dbServices, setDbServices] = useState<DbService[]>([]);
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
@@ -88,19 +88,19 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     },
   });
 
-  useEffect(() => {
-    async function fetchServices() {
+  const { data: dbServices = [] } = useQuery({
+    queryKey: ["services", "active", "checkin"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
         .select("id, name, unit, base_price, preferred_price, vip_price, category")
         .eq("active", true)
         .order("name");
-      if (!error && data) {
-        setDbServices(data as DbService[]);
-      }
-    }
-    fetchServices();
-  }, []);
+      if (error) throw error;
+      return (data ?? []) as DbService[];
+    },
+    staleTime: 5 * 60_000,
+  });
 
   useEffect(() => {
     if (selectedRug) {

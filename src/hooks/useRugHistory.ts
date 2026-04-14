@@ -67,12 +67,12 @@ export function useRugHistory(
   length: number,
   width: number
 ) {
-  const enabled = Boolean(clientId) && (Boolean(rugType) || length > 0 || width > 0);
+  const enabled = Boolean(clientId) && Boolean(rugType.trim()) && length > 0 && width > 0;
 
   const { data, isLoading } = useQuery({
     queryKey: ["rug-history", clientId, rugType, Math.round(length), Math.round(width)],
     queryFn: () => fetchSimilarRugs(clientId!, rugType, length, width),
-    staleTime: 30_000,
+    staleTime: 60_000,
     enabled,
   });
 
