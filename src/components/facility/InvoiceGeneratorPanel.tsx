@@ -29,6 +29,7 @@ type UninvoicedRug = {
   size_width: number | null;
   services: string[];
   serviceTotal: number;
+  cleaningMinimumApplied: boolean;
 };
 
 export function InvoiceGeneratorPanel() {
@@ -127,8 +128,12 @@ export function InvoiceGeneratorPanel() {
     }
 
     const serviceTotalByRug: Record<string, number> = {};
+    const cleaningMinimumByRug: Record<string, boolean> = {};
     (rugServices ?? []).forEach((s) => {
-      serviceTotalByRug[s.rug_id] = (serviceTotalByRug[s.rug_id] ?? 0) + applyCleaningServiceMinimum(Number(s.line_total), categoryByServiceId[s.service_id] ?? null);
+      const rawTotal = Number(s.line_total);
+      const adjustedTotal = applyCleaningServiceMinimum(rawTotal, categoryByServiceId[s.service_id] ?? null);
+      serviceTotalByRug[s.rug_id] = (serviceTotalByRug[s.rug_id] ?? 0) + adjustedTotal;
+      if (adjustedTotal > rawTotal) cleaningMinimumByRug[s.rug_id] = true;
     });
 
     setRugs(
@@ -141,6 +146,7 @@ export function InvoiceGeneratorPanel() {
         size_width: r.size_width,
         services: r.services ?? [],
         serviceTotal: serviceTotalByRug[r.id] ?? 0,
+        cleaningMinimumApplied: Boolean(cleaningMinimumByRug[r.id]),
       })),
     );
     setLoadingRugs(false);
@@ -177,6 +183,11 @@ export function InvoiceGeneratorPanel() {
 
   const selectedTotal = useMemo(
     () => rugs.filter((r) => selectedRugIds.has(r.id)).reduce((sum, r) => sum + r.serviceTotal, 0),
+    [rugs, selectedRugIds],
+  );
+
+  const selectedMinimumAdjustedCount = useMemo(
+    () => rugs.filter((r) => selectedRugIds.has(r.id) && r.cleaningMinimumApplied).length,
     [rugs, selectedRugIds],
   );
 
@@ -438,6 +449,9 @@ export function InvoiceGeneratorPanel() {
                               {rug.size_length}×{rug.size_width} ft
                             </span>
                           )}
+                          {rug.cleaningMinimumApplied && (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">$35 min</Badge>
+                          )}
                         </div>
                         {rug.services.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -467,6 +481,9 @@ export function InvoiceGeneratorPanel() {
               {selectedRugIds.size} rug{selectedRugIds.size !== 1 ? "s" : ""} selected
             </p>
             <p className="text-xs text-muted-foreground">Total: ${selectedTotal.toFixed(2)}</p>
+            {selectedMinimumAdjustedCount > 0 && (
+              <p className="text-xs text-muted-foreground">Includes $35 cleaning minimum on {selectedMinimumAdjustedCount} rug{selectedMinimumAdjustedCount !== 1 ? "s" : ""}.</p>
+            )}
           </div>
           <Button onClick={handleGenerateInvoice} disabled={generating} className="gap-1.5">
             {generating ? (
