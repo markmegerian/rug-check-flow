@@ -92,7 +92,7 @@ export function InvoiceDetailSheet({
     setLoadingItems(true);
     void supabase
       .from("invoice_items")
-      .select("*")
+      .select("id, description, quantity, total")
       .eq("invoice_id", invoice.id)
       .then(({ data, error }) => {
         if (!active) return;

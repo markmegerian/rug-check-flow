@@ -16,7 +16,7 @@ const DELIVERY_LISTS_KEY = ["deliveryLists"] as const;
 async function fetchDeliveryLists(): Promise<DeliveryList[]> {
   const { data, error } = await supabase
     .from("delivery_lists")
-    .select("*")
+    .select("id, route_day, target_date, status, confirmed_at, checked_out_at, created_at")
     .order("target_date", { ascending: false })
     .limit(50);
   if (error) throw error;
