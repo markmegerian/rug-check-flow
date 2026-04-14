@@ -44,7 +44,14 @@ jobs:
         run: |
           sudo apt-get install -y -qq sshpass
 
-          # Deploy dist/ contents to DreamHost
-          sshpass -p "$SSH_PASSWORD" rsync -avz --delete \
+          # 1) Upload hashed assets first, without deleting old ones.
+          # This prevents active clients from 404ing if they still reference the previous build.
+          sshpass -p "$SSH_PASSWORD" rsync -avz \
+            -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            dist/assets/ "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/assets/"
+
+          # 2) Sync top-level deploy files, but never delete assets during rollout.
+          # index.html switches over after the new assets are already present.
+          sshpass -p "$SSH_PASSWORD" rsync -avz --delete --exclude assets \
             -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             dist/ "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/"
