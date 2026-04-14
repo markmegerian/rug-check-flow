@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useDeferredValue, useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ const PRESETS = [
   { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
 ];
 
-function ServiceCategoryGroup({
+const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   category, services, isFirst, watchedServices, getUnitPrice, getLineTotal,
   toggleService, edgeSelections, setEdgeSelections, flatPrices, setFlatPrices,
   watchedLength, watchedWidth,
@@ -158,7 +158,7 @@ function ServiceCategoryGroup({
       )}
     </div>
   );
-}
+});
 
 interface CheckInServiceSelectorProps {
   dbServices: DbService[];
@@ -184,19 +184,31 @@ export function CheckInServiceSelector({
   flatPrices, setFlatPrices, watchedLength, watchedWidth, tierLabel, error,
 }: CheckInServiceSelectorProps) {
   const [serviceSearch, setServiceSearch] = useState("");
+  const deferredServiceSearch = useDeferredValue(serviceSearch);
 
-  const searchLower = serviceSearch.toLowerCase();
-  const filteredServices = searchLower
-    ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
-    : dbServices;
-  const grouped: Record<string, DbService[]> = {};
-  filteredServices.forEach((svc) => {
-    const cat = svc.category || "Other";
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(svc);
-  });
-  const categories = CATEGORY_ORDER.filter((c) => grouped[c]?.length).concat(
-    Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c))
+  const searchLower = deferredServiceSearch.trim().toLowerCase();
+  const filteredServices = useMemo(
+    () => searchLower
+      ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
+      : dbServices,
+    [dbServices, searchLower]
+  );
+
+  const grouped = useMemo(() => {
+    const next: Record<string, DbService[]> = {};
+    filteredServices.forEach((svc) => {
+      const cat = svc.category || "Other";
+      if (!next[cat]) next[cat] = [];
+      next[cat].push(svc);
+    });
+    return next;
+  }, [filteredServices]);
+
+  const categories = useMemo(
+    () => CATEGORY_ORDER.filter((c) => grouped[c]?.length).concat(
+      Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c))
+    ),
+    [grouped]
   );
 
   return (
