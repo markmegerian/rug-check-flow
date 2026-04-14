@@ -273,7 +273,7 @@ export function DeliveryPrepTab() {
           .eq("id", itemId);
         toast({
           title: "Rug not ready",
-          description: `${rug.tag} is still ${statusLabel(rug.status)} and cannot be confirmed for delivery yet.`,
+          description: `${rug.tag} is still ${statusLabel(rug.status)} and cannot join the guaranteed list yet.`,
           variant: "destructive",
         });
         return;
@@ -365,7 +365,7 @@ export function DeliveryPrepTab() {
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-foreground">Delivery Prep</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalItems} rugs · {readyCount} ready · {inProductionCount} in production · {checkedInCount} checked in · {confirmedCount} confirmed
+            {totalItems} rugs · {readyCount} ready · {inProductionCount} in production · {checkedInCount} checked in · {confirmedCount} on guaranteed list
           </p>
         </div>
         <div className="flex items-center gap-2">

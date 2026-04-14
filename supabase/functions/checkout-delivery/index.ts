@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
         direction: "outbound",
         event_type: "invoice_sent",
         subject: `${invoiceNumber} created and sent`,
-        body: `Created invoice ${invoiceNumber} during delivery checkout for ${rugIds.length} rugs.`,
+        body: `Created invoice ${invoiceNumber} during truck handoff for ${rugIds.length} rugs.`,
         sent_to: clientRow?.email ?? null,
       });
 

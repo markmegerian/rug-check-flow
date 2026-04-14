@@ -430,8 +430,8 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       setSubmitted(true);
 
       toast({
-        title: "Truck submitted",
-        description: `${count} invoice${count === 1 ? "" : "s"} created. Drive safe!`,
+        title: "Truck handed off",
+        description: `${count} invoice${count === 1 ? "" : "s"} created. Stop proof happens on route. Drive safe!`,
       });
 
       onTruckFinalized();
@@ -472,12 +472,12 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       <div className="p-4 max-w-lg mx-auto space-y-4">
         <div className="rounded-lg border bg-card p-8 text-center flex flex-col items-center gap-3">
           <CheckCircle2 className="h-10 w-10 text-green-600" />
-          <h2 className="text-xl font-semibold">Truck Submitted</h2>
+          <h2 className="text-xl font-semibold">Truck Handed Off</h2>
           <p className="text-sm text-muted-foreground">
             {invoiceCount > 0
               ? `${invoiceCount} invoice${invoiceCount === 1 ? "" : "s"} created.`
               : "All done for loading."}{" "}
-            Drive safe!
+            Stop proof continues on route. Drive safe!
           </p>
         </div>
       </div>
@@ -603,7 +603,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         {clientGroups.length === 0 && (
           <EmptyState
             title="No rugs on today's list"
-            description="Confirmed rugs will appear here."
+            description="Guaranteed rugs and morning-ready additions will appear here."
             className="border-dashed"
           />
         )}
@@ -620,7 +620,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
             disabled={!allLoaded || submitting || activeRugs.length === 0}
             onClick={handleSubmit}
           >
-            {submitting ? "Submitting..." : "Confirm & Submit Truck"}
+            {submitting ? "Handing off..." : "Hand Off to Truck"}
           </Button>
         </div>
       </div>
