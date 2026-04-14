@@ -527,6 +527,12 @@ export function EstimatesTab() {
                     <EstimateStatusBadge status={estimate.status} />
                   </div>
 
+                  {estimate.status === "draft" && !estimate.clients?.email?.trim() && (
+                    <div className="rounded border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                      Missing client email — add an email on the client record before sending this estimate.
+                    </div>
+                  )}
+
                   {(estimate.status === "approved" || estimate.status === "rejected") && (
                     <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
                       <p className="text-muted-foreground font-medium">
@@ -547,9 +553,9 @@ export function EstimatesTab() {
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={() => sendEstimate(estimate)}
-                        disabled={sendingEstimateId === estimate.id}
+                        disabled={sendingEstimateId === estimate.id || !estimate.clients?.email?.trim()}
                       >
-                        {sendingEstimateId === estimate.id ? "Sending..." : "Mark sent"}
+                        {sendingEstimateId === estimate.id ? "Sending..." : !estimate.clients?.email?.trim() ? "Email required" : "Mark sent"}
                       </Button>
                     )}
                     {estimate.status === "sent" && (

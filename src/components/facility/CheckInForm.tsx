@@ -223,6 +223,30 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }, 0);
   }, [watchedServices, serviceById, getLineTotal]);
 
+  const cleaningMinimumAdjustments = useMemo(() => {
+    return watchedServices
+      .map((id) => {
+        const svc = serviceById.get(id);
+        if (!svc || !isCleaningCategory(svc.category)) return null;
+        const unitPrice = getUnitPrice(svc);
+        let rawTotal = unitPrice;
+        if (svc.unit === "per sqft") rawTotal = unitPrice * sqft;
+        else if (svc.unit === "per linear ft") {
+          const edges = edgeSelections[svc.id] ?? [];
+          const l = Number(watchedLength) || 0;
+          const w = Number(watchedWidth) || 0;
+          rawTotal = unitPrice * calcSelectedLinearFt(edges, l, w);
+        } else if (svc.unit === "flat") {
+          const manual = parseFloat(flatPrices[svc.id] ?? "");
+          rawTotal = isNaN(manual) ? 0 : manual;
+        }
+        const adjustedTotal = applyCleaningServiceMinimum(rawTotal, svc.category);
+        if (adjustedTotal <= rawTotal) return null;
+        return { serviceName: svc.name, rawTotal, adjustedTotal };
+      })
+      .filter(Boolean) as Array<{ serviceName: string; rawTotal: number; adjustedTotal: number }>;
+  }, [watchedServices, serviceById, getUnitPrice, sqft, edgeSelections, watchedLength, watchedWidth, flatPrices]);
+
   const toggleService = (serviceId: string) => {
     const current = form.getValues("selectedServices");
     const next = current.includes(serviceId)
@@ -329,6 +353,15 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 The client requested an estimate for this rug. {selectedRug.estimateRequestDetails?.trim()
                   ? `Details: ${selectedRug.estimateRequestDetails}`
                   : "Review services and create/send estimate as needed."}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {cleaningMinimumAdjustments.length > 0 && (
+            <Alert>
+              <AlertTitle>$35 cleaning minimum applied</AlertTitle>
+              <AlertDescription>
+                {cleaningMinimumAdjustments.map((item) => `${item.serviceName}: $${item.rawTotal.toFixed(2)} → $${item.adjustedTotal.toFixed(2)}`).join(" · ")}
               </AlertDescription>
             </Alert>
           )}
