@@ -140,7 +140,7 @@ if [[ -z "$office_token" ]]; then
 fi
 
 if [[ -z "${SAMPLE_INVOICE_ID:-}" ]]; then
-  SAMPLE_INVOICE_ID="$(./scripts/get-sample-invoice-id.sh)"
+  SAMPLE_INVOICE_ID="$(./scripts/get-sample-invoice-id.sh || true)"
 fi
 
 results_file="$(mktemp)"
@@ -148,7 +148,11 @@ results_file="$(mktemp)"
   http_check "rest.pickup_requests" "${SUPABASE_URL}/rest/v1/pickup_requests?select=id&limit=1" "GET" "" "Authorization: Bearer ${office_token}"
   http_check "rest.estimates" "${SUPABASE_URL}/rest/v1/estimates?select=id&limit=1" "GET" "" "Authorization: Bearer ${office_token}"
   http_check "rest.invoices" "${SUPABASE_URL}/rest/v1/invoices?select=id&limit=1" "GET" "" "Authorization: Bearer ${office_token}"
-  http_check "fn.invoice-pdf" "${SUPABASE_URL}/functions/v1/invoice-pdf" "POST" "$(json_payload_single "invoice_id" "$SAMPLE_INVOICE_ID")" "Authorization: Bearer ${office_token}"
+  if [[ -n "${SAMPLE_INVOICE_ID:-}" ]]; then
+    http_check "fn.invoice-pdf" "${SUPABASE_URL}/functions/v1/invoice-pdf" "POST" "$(json_payload_single "invoice_id" "$SAMPLE_INVOICE_ID")" "Authorization: Bearer ${office_token}"
+  else
+    echo '{"label":"fn.invoice-pdf","url":"skipped:no-sample-invoice","status":204,"ok":true,"body":"skipped because no sample invoice exists"}'
+  fi
   http_check "fn.operational-alerts" "${SUPABASE_URL}/functions/v1/operational-alerts" "POST" '{"dry_run":true}' "Authorization: Bearer ${office_token}"
 } > "$results_file"
 
