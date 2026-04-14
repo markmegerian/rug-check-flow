@@ -85,40 +85,11 @@ function buildTrendSnapshot(id: string, label: string, current: number, previous
   return { id, label, current, previous, delta: current - previous };
 }
 
-async function countWithThreshold(
-  table: "estimates" | "pickup_requests" | "invoices",
-  filters: <T>(q: T) => T,
-  dateColumn: string,
-  thresholdIso: string,
-): Promise<number> {
-  const q = filters(
-    supabaseExtended.from(table).select("id", { count: "exact", head: true })
-  ).lte(dateColumn, thresholdIso);
-  const { count, error } = await q;
-  if (error) throw error;
-  return count ?? 0;
+function countThresholds(timestamps: string[], thresholds: string[]) {
+  return thresholds.map((thresholdIso) => timestamps.filter((value) => value <= thresholdIso).length);
 }
 
 async function fetchReminderData(): Promise<ReminderData> {
-  // Probe tables first
-  const [estimateProbe, pickupProbe, invoiceProbe, communicationProbe] = await Promise.all([
-    supabaseExtended.from("estimates").select("id", { count: "exact", head: true }).limit(1),
-    supabaseExtended.from("pickup_requests").select("id", { count: "exact", head: true }).limit(1),
-    supabaseExtended.from("invoices").select("id", { count: "exact", head: true }).limit(1),
-    supabaseExtended.from("communication_events").select("id", { count: "exact", head: true }).limit(1),
-  ]);
-
-  const probeErrors = [
-    estimateProbe.error, pickupProbe.error, invoiceProbe.error, communicationProbe.error,
-  ].filter(Boolean);
-
-  if (probeErrors.some((e) => isMissingRelationError(e))) {
-    return {
-      reminders: [], updates: [], trends: [],
-      errorMessage: "Operational reminders are unavailable in this environment because required workflow tables are missing.",
-    };
-  }
-
   const nowMs = Date.now();
   const thresholds = [3, 4, 5, 7].map((d) => new Date(nowMs - d * MS_PER_DAY).toISOString());
   const [t3, t4, t5, t7] = thresholds;
@@ -126,87 +97,82 @@ async function fetchReminderData(): Promise<ReminderData> {
   const updatesCurrentWindowIso = new Date(nowMs - MS_PER_DAY).toISOString();
   const updatesPreviousWindowIso = new Date(nowMs - 2 * MS_PER_DAY).toISOString();
 
-  const estimateFilter = <T extends { eq: (...args: [string, string]) => T }>(q: T) => q.eq("status", "sent");
-  const pickupFilter = <T extends { in: (...args: [string, string[]]) => T }>(q: T) => q.in("status", ["pending", "confirmed", "assigned"]);
-  const overdueDueFilter = <T extends { eq: (...args: [string, string]) => T; not: (...args: [string, string, null]) => T }>(q: T) => q.eq("status", "overdue").not("due_at", "is", null);
-  const overdueNoDueFilter = <T extends { eq: (...args: [string, string]) => T; is: (...args: [string, null]) => T }>(q: T) => q.eq("status", "overdue").is("due_at", null);
-
-  const results = await Promise.allSettled([
-    // Estimates: 3d, 4d, 5d, 7d
-    countWithThreshold("estimates", estimateFilter, "created_at", t3),
-    countWithThreshold("estimates", estimateFilter, "created_at", t4),
-    countWithThreshold("estimates", estimateFilter, "created_at", t5),
-    countWithThreshold("estimates", estimateFilter, "created_at", t7),
-    // Pickups: 3d, 4d, 5d, 7d
-    countWithThreshold("pickup_requests", pickupFilter, "updated_at", t3),
-    countWithThreshold("pickup_requests", pickupFilter, "updated_at", t4),
-    countWithThreshold("pickup_requests", pickupFilter, "updated_at", t5),
-    countWithThreshold("pickup_requests", pickupFilter, "updated_at", t7),
-    // Overdue with due_at: 3d, 4d, 5d, 7d
-    countWithThreshold("invoices", overdueDueFilter, "due_at", t3),
-    countWithThreshold("invoices", overdueDueFilter, "due_at", t4),
-    countWithThreshold("invoices", overdueDueFilter, "due_at", t5),
-    countWithThreshold("invoices", overdueDueFilter, "due_at", t7),
-    // Overdue without due_at: 3d, 4d, 5d, 7d
-    countWithThreshold("invoices", overdueNoDueFilter, "created_at", t3),
-    countWithThreshold("invoices", overdueNoDueFilter, "created_at", t4),
-    countWithThreshold("invoices", overdueNoDueFilter, "created_at", t5),
-    countWithThreshold("invoices", overdueNoDueFilter, "created_at", t7),
-    // Updates
+  const [estimatesResult, pickupsResult, overdueWithDueResult, overdueWithoutDueResult, updatesResult] = await Promise.all([
+    supabaseExtended
+      .from("estimates")
+      .select("id, created_at")
+      .eq("status", "sent")
+      .lte("created_at", t3),
+    supabaseExtended
+      .from("pickup_requests")
+      .select("id, updated_at")
+      .in("status", ["pending", "confirmed", "assigned"])
+      .lte("updated_at", t3),
+    supabaseExtended
+      .from("invoices")
+      .select("id, due_at")
+      .eq("status", "overdue")
+      .not("due_at", "is", null)
+      .lte("due_at", t3),
+    supabaseExtended
+      .from("invoices")
+      .select("id, created_at")
+      .eq("status", "overdue")
+      .is("due_at", null)
+      .lte("created_at", t3),
     supabaseExtended
       .from("communication_events")
       .select("id, event_type, subject, created_at")
       .in("event_type", REMINDER_EVENT_TYPES)
-      .gte("created_at", updatesSinceIso)
-      .order("created_at", { ascending: false })
-      .limit(6)
-      .returns<UpdateReminderRow[]>(),
-    supabaseExtended
-      .from("communication_events")
-      .select("id", { count: "exact", head: true })
-      .in("event_type", REMINDER_EVENT_TYPES)
-      .gte("created_at", updatesCurrentWindowIso),
-    supabaseExtended
-      .from("communication_events")
-      .select("id", { count: "exact", head: true })
-      .in("event_type", REMINDER_EVENT_TYPES)
       .gte("created_at", updatesPreviousWindowIso)
-      .lt("created_at", updatesCurrentWindowIso),
+      .order("created_at", { ascending: false })
+      .returns<UpdateReminderRow[]>(),
   ]);
 
-  const errors: string[] = [];
-  const val = (idx: number): number => {
-    const r = results[idx];
-    if (r.status === "rejected") {
-      errors.push(r.reason instanceof Error ? r.reason.message : "unknown error");
-      return 0;
-    }
-    return typeof r.value === "number" ? r.value : 0;
-  };
+  const allErrors = [
+    estimatesResult.error,
+    pickupsResult.error,
+    overdueWithDueResult.error,
+    overdueWithoutDueResult.error,
+    updatesResult.error,
+  ].filter(Boolean);
 
-  const estimateCount3 = val(0), estimateCount4 = val(1), estimateCount5 = val(2), estimateCount7 = val(3);
-  const pickupCount3 = val(4), pickupCount4 = val(5), pickupCount5 = val(6), pickupCount7 = val(7);
-  const overdueDueCount3 = val(8), overdueDueCount4 = val(9), overdueDueCount5 = val(10), overdueDueCount7 = val(11);
-  const overdueNoDueCount3 = val(12), overdueNoDueCount4 = val(13), overdueNoDueCount5 = val(14), overdueNoDueCount7 = val(15);
+  if (allErrors.some((e) => isMissingRelationError(e))) {
+    return {
+      reminders: [], updates: [], trends: [],
+      errorMessage: "Operational reminders are unavailable in this environment because required workflow tables are missing.",
+    };
+  }
+
+  if (allErrors.length > 0) {
+    return {
+      reminders: [],
+      updates: [],
+      trends: [],
+      errorMessage: allErrors.map((e) => e?.message ?? "unknown error").join(" | "),
+    };
+  }
+
+  const estimateTimes = (estimatesResult.data ?? []).map((row) => row.created_at).filter(Boolean) as string[];
+  const pickupTimes = (pickupsResult.data ?? []).map((row) => row.updated_at).filter(Boolean) as string[];
+  const overdueDueTimes = (overdueWithDueResult.data ?? []).map((row) => row.due_at).filter(Boolean) as string[];
+  const overdueNoDueTimes = (overdueWithoutDueResult.data ?? []).map((row) => row.created_at).filter(Boolean) as string[];
+
+  const [estimateCount3, estimateCount4, estimateCount5, estimateCount7] = countThresholds(estimateTimes, thresholds);
+  const [pickupCount3, pickupCount4, pickupCount5, pickupCount7] = countThresholds(pickupTimes, thresholds);
+  const [overdueDueCount3, overdueDueCount4, overdueDueCount5, overdueDueCount7] = countThresholds(overdueDueTimes, thresholds);
+  const [overdueNoDueCount3, overdueNoDueCount4, overdueNoDueCount5, overdueNoDueCount7] = countThresholds(overdueNoDueTimes, thresholds);
 
   const overdueCount3 = overdueDueCount3 + overdueNoDueCount3;
   const overdueCount4 = overdueDueCount4 + overdueNoDueCount4;
   const overdueCount5 = overdueDueCount5 + overdueNoDueCount5;
   const overdueCount7 = overdueDueCount7 + overdueNoDueCount7;
 
-  // Check communication event results
-  for (let i = 16; i <= 18; i++) {
-    const r = results[i];
-    if (r.status === "rejected") {
-      errors.push(r.reason instanceof Error ? r.reason.message : "unknown error");
-    } else if (typeof r.value === "object" && r.value !== null && "error" in r.value && r.value.error) {
-      errors.push((r.value.error as { message: string }).message);
-    }
-  }
-
-  if (errors.length > 0) {
-    return { reminders: [], updates: [], trends: [], errorMessage: errors.join(" | ") };
-  }
+  const updateRows = ((updatesResult.data ?? []) as UpdateReminderRow[])
+    .filter((event) => event.created_at >= updatesSinceIso)
+    .slice(0, 6);
+  const updatesCurrent = updateRows.filter((event) => event.created_at >= updatesCurrentWindowIso).length;
+  const updatesPrevious = updateRows.filter((event) => event.created_at >= updatesPreviousWindowIso && event.created_at < updatesCurrentWindowIso).length;
 
   const estimateBands = buildSlaBands(estimateCount3, estimateCount5, estimateCount7);
   const pickupBands = buildSlaBands(pickupCount3, pickupCount5, pickupCount7);
@@ -245,22 +211,11 @@ async function fetchReminderData(): Promise<ReminderData> {
     },
   ];
 
-  const updateListResult = results[16];
-  const updateRows = updateListResult.status === "fulfilled" && typeof updateListResult.value === "object" && updateListResult.value !== null && "data" in updateListResult.value
-    ? (updateListResult.value.data ?? []) as UpdateReminderRow[]
-    : [];
   const updates: OperationalUpdate[] = updateRows.map((event) => ({
     id: event.id,
     title: buildEventTitle(event.event_type, event.subject),
     createdAt: event.created_at,
   }));
-
-  const updatesCurrentResult = results[17];
-  const updatesPreviousResult = results[18];
-  const updatesCurrent = updatesCurrentResult.status === "fulfilled" && typeof updatesCurrentResult.value === "object" && updatesCurrentResult.value !== null && "count" in updatesCurrentResult.value
-    ? (updatesCurrentResult.value.count ?? 0) as number : 0;
-  const updatesPrevious = updatesPreviousResult.status === "fulfilled" && typeof updatesPreviousResult.value === "object" && updatesPreviousResult.value !== null && "count" in updatesPreviousResult.value
-    ? (updatesPreviousResult.value.count ?? 0) as number : 0;
 
   const trends: OperationalTrendSnapshot[] = [
     buildTrendSnapshot("estimates", "Stale estimates (3d+)", estimateCount3, estimateCount4),

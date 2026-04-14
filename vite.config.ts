@@ -32,7 +32,6 @@ export default defineConfig(() => ({
           ],
           "vendor-query": ["@tanstack/react-query"],
           "vendor-supabase": ["@supabase/supabase-js"],
-          "vendor-charts": ["recharts"],
           "vendor-date": ["date-fns"],
           "vendor-dnd": ["@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities", "@dnd-kit/modifiers"],
         },
