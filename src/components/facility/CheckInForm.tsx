@@ -65,7 +65,7 @@ interface CheckInFormProps {
     totalPrice: number;
     conditionNotes: string;
     photos: File[];
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
@@ -136,6 +136,24 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setPhotos([]);
     }
   }, [editingEntry, form]);
+
+  useEffect(() => {
+    if (selectedRug || editingEntry) return;
+    form.reset({
+      rugNumber: "",
+      clientName: "",
+      rugType: "",
+      length: undefined,
+      width: undefined,
+      conditionNotes: "",
+      selectedServices: [],
+    });
+    setPhotos([]);
+    setClientTier("standard");
+    setFlatPrices({});
+    setEdgeSelections({});
+    setResolvedClientId(null);
+  }, [selectedRug, editingEntry, form]);
 
   const watchedClient = form.watch("clientName");
   const watchedLength = form.watch("length");
@@ -248,7 +266,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }
   }, [dbServices, form]);
 
-  const onSubmit = (data: CheckInValues) => {
+  const onSubmit = async (data: CheckInValues) => {
     if (!editingEntry && photos.length < 1) {
       toast({ title: "Photos required", description: "Upload at least 1 photo.", variant: "destructive" });
       return;
@@ -271,7 +289,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         })
         .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
 
-      onCheckInComplete({
+      await onCheckInComplete({
         rugId: selectedRug?.id,
         rugNumber: data.rugNumber,
         clientName: data.clientName,
@@ -286,8 +304,20 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       });
     }
 
-    form.reset();
+    form.reset({
+      rugNumber: "",
+      clientName: "",
+      rugType: "",
+      length: undefined,
+      width: undefined,
+      conditionNotes: "",
+      selectedServices: [],
+    });
     setPhotos([]);
+    setFlatPrices({});
+    setEdgeSelections({});
+    setResolvedClientId(null);
+    setClientTier("standard");
   };
 
   const isFromPanel = !!selectedRug;
