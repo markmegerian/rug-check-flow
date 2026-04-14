@@ -125,7 +125,7 @@ export function useCheckInData() {
 
     const { data, error } = await supabase
       .from("rugs")
-      .select("*")
+      .select("id, tag, description, size_length, size_width, services, checked_in_at, client_id")
       .gte("checked_in_at", todayStart.toISOString())
       .order("checked_in_at", { ascending: false });
 

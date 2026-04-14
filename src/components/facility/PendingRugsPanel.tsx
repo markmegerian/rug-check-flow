@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { type PendingRug } from "@/types/pending-rug";
-import { supabase } from "@/integrations/supabase/client";
+import { useClientNames } from "@/hooks/useClients";
 
 interface PendingRugsPanelProps {
   rugs: PendingRug[];
@@ -24,18 +24,9 @@ export function PendingRugsPanel({
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [rugNumber, setRugNumber] = useState("");
-  const [clientNames, setClientNames] = useState<string[]>([]);
   const [queueSearch, setQueueSearch] = useState("");
-
-  useEffect(() => {
-    supabase
-      .from("clients")
-      .select("name")
-      .order("name")
-      .then(({ data }) => {
-        setClientNames((data ?? []).map((c) => c.name));
-      });
-  }, []);
+  const { data: clientRows = [] } = useClientNames();
+  const clientNames = useMemo(() => clientRows.map((client) => client.name).filter(Boolean), [clientRows]);
 
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return [];
