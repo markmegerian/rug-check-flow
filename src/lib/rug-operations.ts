@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTION_STAGES } from "@/data/production";
-import { maybeAutoCreateInvoice } from "@/lib/invoice-automation";
 
 /**
  * Advance a rug to the next production stage.
@@ -20,14 +19,6 @@ export async function advanceRugStage(
 
   const { error } = await supabase.from("rugs").update(updates).eq("id", rugId);
   if (error) return { nextStage, error: error.message };
-
-  // Auto-create invoice when rug reaches "ready" status
-  if (nextStage === "ready") {
-    const invoiceResult = await maybeAutoCreateInvoice(rugId);
-    if (invoiceResult) {
-      return { nextStage, autoInvoice: invoiceResult.invoiceNumber };
-    }
-  }
 
   return { nextStage };
 }
