@@ -266,11 +266,8 @@ Deno.serve(async (req) => {
         sent_to: clientRow?.email ?? null,
       });
 
-      // Update rugs to picked_up status
-      await supabase
-        .from("rugs")
-        .update({ status: "picked_up", picked_up_at: new Date().toISOString() })
-        .in("id", rugIds);
+      // Keep rugs in ready status until the driver actually completes the delivery stop.
+      // Route stop completion is the point that should advance delivered rugs to picked_up.
     }
 
     // Mark delivery list as checked out
