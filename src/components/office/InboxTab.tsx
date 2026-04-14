@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Archive, CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Send, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { useClients } from "@/hooks/useClients";
+import { useClientNames } from "@/hooks/useClients";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,7 @@ function formatWhen(value: string | null) {
 export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | null }) {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { data: clients = [] } = useClients();
+  const { data: clients = [] } = useClientNames();
   const [threads, setThreads] = useState<ThreadWithPreview[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -104,7 +104,8 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
             created_at
           )
         `)
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .limit(50);
 
       if (!active) return;
 
@@ -230,6 +231,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
   useEffect(() => {
     if (!selectedThreadId) return;
     const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       void refreshSelectedThread(selectedThreadId).catch(() => undefined);
     }, 15000);
     return () => window.clearInterval(timer);

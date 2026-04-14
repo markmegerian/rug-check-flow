@@ -97,7 +97,8 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
           )
         `)
         .eq("client_id", clientId)
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .limit(50);
 
       if (!active) return;
 
@@ -199,6 +200,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
   useEffect(() => {
     if (!selectedThreadId) return;
     const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       void refreshThread(selectedThreadId).catch(() => undefined);
     }, 15000);
     return () => window.clearInterval(timer);

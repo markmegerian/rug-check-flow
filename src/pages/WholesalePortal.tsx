@@ -65,13 +65,6 @@ export default function WholesalePortal() {
     setMountedTabs((current) => current[activeTab] ? current : { ...current, [activeTab]: true });
   }, [activeTab]);
 
-  useEffect(() => {
-    if (!clientId || portalClientLoading || requiresPasswordReset) return;
-    const timer = window.setTimeout(() => {
-      setMountedTabs({ rugs: true, pickups: true, estimates: true, invoices: true, messages: true, prices: true });
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [clientId, portalClientLoading, requiresPasswordReset]);
 
   const changeTab = (nextTab: Tab) => {
     setActiveTab(nextTab);

@@ -23,14 +23,14 @@ export function useClients() {
   });
 }
 
-/** Lightweight lookup: id + name only */
+/** Lightweight lookup for selectors and thread creation flows */
 export function useClientNames() {
   return useQuery({
     queryKey: ["clients", "names"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name")
+        .select("id, name, contact_name, email")
         .order("name");
       if (error) throw error;
       return data ?? [];
