@@ -29,7 +29,7 @@ import { NotificationCadenceCard } from "./NotificationCadenceCard";
 import { type BillingReminderPreference, formatInvoiceTermsLabel } from "@/lib/billing";
 
 type PricingTier = "standard" | "preferred" | "vip";
-type PortalUser = Tables<"portal_users">;
+type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status">;
 
 const ROUTE_DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 

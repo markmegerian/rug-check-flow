@@ -27,7 +27,7 @@ import { parseCsvRows } from "@/lib/validation";
 import { DEFAULT_INVOICE_TERMS_DAYS, normalizeInvoiceTermsDays, type BillingReminderPreference } from "@/lib/billing";
 
 type Client = Tables<"clients">;
-type PortalUser = Tables<"portal_users">;
+type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status">;
 
 type FormData = {
   name: string;
@@ -224,8 +224,11 @@ export function ClientsTab() {
   }, [user?.id]);
 
   const fetchPortalUsers = async (clientId: string) => {
-    const { data } = await supabase.from("portal_users").select("*").eq("client_id", clientId);
-    setPortalUsers(data ?? []);
+    const { data } = await supabase
+      .from("portal_users")
+      .select("id, email, status")
+      .eq("client_id", clientId);
+    setPortalUsers((data ?? []) as PortalUser[]);
   };
 
   const openAdd = () => {
