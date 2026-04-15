@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("reminder workflow correctness", () => {
-  it("only seeds estimate cadence on successful provider send", () => {
+  it("queues estimates for the daily batch instead of sending immediately from the office tab", () => {
     const estimates = readFileSync(resolve(process.cwd(), "src/components/office/EstimatesTab.tsx"), "utf-8");
-    expect(estimates).toContain('data?.provider_status === "sent"');
+    expect(estimates).toContain("queueEstimateForBatchSend");
+    expect(estimates).not.toContain("send-estimate-email");
   });
 
   it("does not seed invoice cadence at draft creation", () => {
