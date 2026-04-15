@@ -1,5 +1,5 @@
 import { useState, useCallback, lazy, Suspense } from "react";
-import { ClipboardList, FileText, Plus } from "lucide-react";
+import { ClipboardList, FileText, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
 import { CheckInForm } from "./CheckInForm";
 import { deriveUserRole } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,12 @@ export function CheckInLayout() {
   const { user, roles } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const userRole = deriveUserRole(roles);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
+  const [showDesktopLogPanel, setShowDesktopLogPanel] = useState(false);
+  const shouldLoadTodayLog = isMobile ? mobilePanel === "log" : showDesktopLogPanel;
   const {
     pendingRugs,
     checkInLog,
@@ -44,12 +50,7 @@ export function CheckInLayout() {
     fetchPendingPickupRugs,
     addWalkIn,
     removePendingRug,
-  } = useCheckInData();
-
-  const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
-  const userRole = deriveUserRole(roles);
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
+  } = useCheckInData({ enableTodayLog: shouldLoadTodayLog });
 
   const selectedRug = pendingRugs.find((r) => r.id === selectedRugId) ?? null;
   const editingEntry = checkInLog.find((e) => e.id === editingEntryId) ?? null;
@@ -306,11 +307,13 @@ export function CheckInLayout() {
       }
 
       setSelectedRugId(null);
-      fetchTodayLog();
+      if (shouldLoadTodayLog) {
+        fetchTodayLog();
+      }
       fetchPendingPickupRugs();
       return warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult();
     },
-    [editingEntryId, user, toast, fetchTodayLog, selectedRug?.source, fetchPendingPickupRugs, removePendingRug]
+    [editingEntryId, user, toast, fetchTodayLog, selectedRug?.source, fetchPendingPickupRugs, removePendingRug, shouldLoadTodayLog]
   );
 
   const handleEditEntry = useCallback((entryId: string) => {
@@ -341,7 +344,12 @@ export function CheckInLayout() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setMobilePanel(tab.id)}
+                onClick={() => {
+                  setMobilePanel(tab.id);
+                  if (tab.id === "log") {
+                    fetchTodayLog();
+                  }
+                }}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
                   mobilePanel === tab.id
@@ -401,9 +409,9 @@ export function CheckInLayout() {
     );
   }
 
-  // Desktop: 3-panel layout
+  // Desktop: form with optional right-side log panel
   return (
-    <div className="h-full grid grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr]">
+    <div className={cn("h-full grid", showDesktopLogPanel ? "grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr]" : "grid-cols-[280px_1fr] max-lg:grid-cols-[240px_1fr]")}>
       <Suspense fallback={<PanelFallback label="pending rugs" />}>
         <PendingRugsPanel
           rugs={pendingRugs}
@@ -412,18 +420,36 @@ export function CheckInLayout() {
           onAddWalkIn={handleAddWalkIn}
         />
       </Suspense>
-      <CheckInForm
-        selectedRug={selectedRug}
-        editingEntry={editingEntry}
-        onCheckInComplete={handleCheckInComplete}
-      />
-      <Suspense fallback={<PanelFallback label="check-in log" />}>
-        <CheckInLogPanel
-          entries={checkInLog}
-          userRole={userRole}
-          onEdit={handleEditEntry}
+      <div className="relative min-w-0">
+        <button
+          type="button"
+          onClick={() => {
+            const next = !showDesktopLogPanel;
+            setShowDesktopLogPanel(next);
+            if (next) {
+              fetchTodayLog();
+            }
+          }}
+          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm hover:text-foreground"
+        >
+          {showDesktopLogPanel ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+          {showDesktopLogPanel ? "Hide log" : "Show log"}
+        </button>
+        <CheckInForm
+          selectedRug={selectedRug}
+          editingEntry={editingEntry}
+          onCheckInComplete={handleCheckInComplete}
         />
-      </Suspense>
+      </div>
+      {showDesktopLogPanel && (
+        <Suspense fallback={<PanelFallback label="check-in log" />}>
+          <CheckInLogPanel
+            entries={checkInLog}
+            userRole={userRole}
+            onEdit={handleEditEntry}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

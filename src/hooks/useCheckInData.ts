@@ -143,7 +143,7 @@ function parseRequestedServices(details: string | null | undefined) {
   return servicesMatch[1].split(",").map((service) => service.trim()).filter(Boolean);
 }
 
-export function useCheckInData() {
+export function useCheckInData(options?: { enableTodayLog?: boolean }) {
   const [pendingRugs, setPendingRugs] = useState<PendingRug[]>([]);
   const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>([]);
 
@@ -278,11 +278,15 @@ export function useCheckInData() {
 
   useEffect(() => {
     fetchPendingPickupRugs();
+  }, [fetchPendingPickupRugs]);
+
+  useEffect(() => {
+    if (options?.enableTodayLog === false) return;
     const timer = window.setTimeout(() => {
       fetchTodayLog();
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [fetchTodayLog, fetchPendingPickupRugs]);
+  }, [fetchTodayLog, options?.enableTodayLog]);
 
   const addWalkIn = useCallback((clientName: string, rugNumber: string): string => {
     const id = `walkin-${getNextWalkInCounter()}`;
