@@ -1,7 +1,7 @@
 import { useState, useCallback, lazy, Suspense } from "react";
-import { ClipboardList, FileText, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 import { CheckInForm } from "./CheckInForm";
-import { deriveUserRole, type CheckInEntry } from "@/data/check-in-log";
+import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,12 +18,7 @@ const PendingRugsPanel = lazy(async () => {
   return { default: module.PendingRugsPanel };
 });
 
-const CheckInLogPanel = lazy(async () => {
-  const module = await import("./CheckInLogPanel");
-  return { default: module.CheckInLogPanel };
-});
-
-type MobilePanel = "form" | "pending" | "log";
+type MobilePanel = "form" | "pending";
 
 function PanelFallback({ label }: { label: string }) {
   return (
@@ -34,23 +29,19 @@ function PanelFallback({ label }: { label: string }) {
 }
 
 export function CheckInLayout() {
-  const { user, roles } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
-  const userRole = deriveUserRole(roles);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
-  const [showDesktopLogPanel, setShowDesktopLogPanel] = useState(false);
-  const shouldLoadTodayLog = isMobile ? mobilePanel === "log" : showDesktopLogPanel;
   const {
     pendingRugs,
     checkInLog,
-    fetchTodayLog,
     addWalkIn,
     removePendingRug,
     upsertCheckInLogEntry,
-  } = useCheckInData({ enableTodayLog: shouldLoadTodayLog });
+  } = useCheckInData({ enableTodayLog: false });
 
   const selectedRug = pendingRugs.find((r) => r.id === selectedRugId) ?? null;
   const editingEntry = checkInLog.find((e) => e.id === editingEntryId) ?? null;
@@ -354,7 +345,6 @@ export function CheckInLayout() {
           {([
             { id: "form" as MobilePanel, label: "Check-In", icon: ClipboardList },
             { id: "pending" as MobilePanel, label: `Pending (${pendingRugs.length})`, icon: Plus },
-            { id: "log" as MobilePanel, label: `Log (${checkInLog.length})`, icon: FileText },
           ]).map((tab) => {
             const Icon = tab.icon;
             return (
@@ -362,9 +352,6 @@ export function CheckInLayout() {
                 key={tab.id}
                 onClick={() => {
                   setMobilePanel(tab.id);
-                  if (tab.id === "log") {
-                    fetchTodayLog();
-                  }
                 }}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
@@ -411,23 +398,15 @@ export function CheckInLayout() {
               </button>
             </div>
           )}
-          {mobilePanel === "log" && (
-            <Suspense fallback={<PanelFallback label="check-in log" />}>
-              <CheckInLogPanel
-                entries={checkInLog}
-                userRole={userRole}
-                onEdit={handleEditEntry}
-              />
-            </Suspense>
-          )}
+          {false ? null : null}
         </div>
       </div>
     );
   }
 
-  // Desktop: form with optional right-side log panel
+  // Desktop: form and pending queue only
   return (
-    <div className={cn("h-full grid", showDesktopLogPanel ? "grid-cols-[280px_1fr_260px] max-lg:grid-cols-[240px_1fr]" : "grid-cols-[280px_1fr] max-lg:grid-cols-[240px_1fr]")}>
+    <div className={cn("h-full grid grid-cols-[280px_1fr] max-lg:grid-cols-[240px_1fr]")}>
       <Suspense fallback={<PanelFallback label="pending rugs" />}>
         <PendingRugsPanel
           rugs={pendingRugs}
@@ -437,35 +416,12 @@ export function CheckInLayout() {
         />
       </Suspense>
       <div className="relative min-w-0">
-        <button
-          type="button"
-          onClick={() => {
-            const next = !showDesktopLogPanel;
-            setShowDesktopLogPanel(next);
-            if (next) {
-              fetchTodayLog();
-            }
-          }}
-          className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm hover:text-foreground"
-        >
-          {showDesktopLogPanel ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
-          {showDesktopLogPanel ? "Hide log" : "Show log"}
-        </button>
         <CheckInForm
           selectedRug={selectedRug}
           editingEntry={editingEntry}
           onCheckInComplete={handleCheckInComplete}
         />
       </div>
-      {showDesktopLogPanel && (
-        <Suspense fallback={<PanelFallback label="check-in log" />}>
-          <CheckInLogPanel
-            entries={checkInLog}
-            userRole={userRole}
-            onEdit={handleEditEntry}
-          />
-        </Suspense>
-      )}
     </div>
   );
 }
