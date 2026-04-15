@@ -41,6 +41,14 @@ const STATUS_COLORS: Record<string, string> = {
   picked_up: "bg-muted text-muted-foreground",
 };
 
+const SERVICE_APPROVAL_BADGE_STYLES: Record<RugServiceApprovalStatus, string> = {
+  pending: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+};
+
+type RugServiceApprovalStatus = "pending" | "approved" | "rejected";
+
 type RugServiceRow = {
   id: string;
   rug_id: string;
@@ -49,6 +57,7 @@ type RugServiceRow = {
   unit_price: number;
   line_total: number;
   edges: string[];
+  approval_status: RugServiceApprovalStatus;
 };
 
 type AvailableService = {
@@ -119,10 +128,13 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     setServicesLoading(true);
     const { data } = await supabase
       .from("rug_services")
-      .select("id, rug_id, service_id, service_name, unit_price, line_total, edges")
+      .select("id, rug_id, service_id, service_name, unit_price, line_total, edges, approval_status")
       .eq("rug_id", rugId)
       .order("created_at", { ascending: true });
-    setServices((data ?? []) as RugServiceRow[]);
+    setServices(((data ?? []) as RugServiceRow[]).map((service) => ({
+      ...service,
+      approval_status: service.approval_status ?? "pending",
+    })));
     setServicesLoading(false);
   }, [rugId]);
 
@@ -199,6 +211,7 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
       unit_price: Number(svc.base_price),
       line_total: lineTotal,
       edges: [],
+      approval_status: "pending",
     });
 
     if (error) {
@@ -210,6 +223,22 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
       invalidateRugs();
     }
     setAddingService(false);
+  };
+
+  const handleUpdateServiceApproval = async (serviceRowId: string, approvalStatus: RugServiceApprovalStatus) => {
+    const { error } = await supabase
+      .from("rug_services")
+      .update({ approval_status: approvalStatus })
+      .eq("id", serviceRowId);
+
+    if (error) {
+      toast({ title: "Failed to update service status", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setServices((prev) => prev.map((service) => service.id === serviceRowId ? { ...service, approval_status: approvalStatus } : service));
+    invalidateRugs();
+    toast({ title: `Service marked ${approvalStatus}` });
   };
 
   const handleRemoveService = async (serviceRowId: string) => {
@@ -226,20 +255,25 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
   const [creatingInvoice, setCreatingInvoice] = useState(false);
 
   const handleGenerateInvoice = async () => {
-    if (!rug || services.length === 0) return;
+    if (!rug) return;
+    const approvedServices = services.filter((service) => service.approval_status === "approved");
+    if (approvedServices.length === 0) {
+      toast({ title: "No approved services", description: "Approve at least one service before generating an invoice.", variant: "destructive" });
+      return;
+    }
     setCreatingInvoice(true);
 
     const result = await createDraftInvoice({
       clientId: rug.client_id!,
       rugId: rug.id,
       rugTag: rug.tag,
-      services: services.map((s) => ({ service_name: s.service_name, line_total: Number(s.line_total) })),
+      services: approvedServices.map((s) => ({ service_name: s.service_name, line_total: Number(s.line_total) })),
     });
 
     if (result.error) {
       toast({ title: "Invoice creation failed", description: result.error, variant: "destructive" });
     } else {
-      toast({ title: `Draft invoice ${result.invoiceNumber} created`, description: `$${result.total.toFixed(2)} from ${services.length} service(s)` });
+      toast({ title: `Draft invoice ${result.invoiceNumber} created`, description: `$${result.total.toFixed(2)} from ${approvedServices.length} approved service(s)` });
     }
     setCreatingInvoice(false);
   };
@@ -257,6 +291,7 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
     : [];
 
   const servicesTotal = services.reduce((sum, s) => sum + Number(s.line_total), 0);
+  const approvedServicesTotal = services.filter((service) => service.approval_status === "approved").reduce((sum, s) => sum + Number(s.line_total), 0);
 
   const openReturnEvent = useMemo(() => returnEvents.find((event) => event.event_type !== "rug_return_resolved") ?? null, [returnEvents]);
 
@@ -495,10 +530,25 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
                       ? ` (${s.edges.map(e => e === "end1" ? "E1" : e === "end2" ? "E2" : e === "side1" ? "S1" : "S2").join("+")})`
                       : "";
                     return (
-                      <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm group">
-                        <span>{s.service_name}{edgeLabel}</span>
+                      <div key={s.id} className="flex flex-col gap-2 rounded-md border px-3 py-2 text-sm group md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>{s.service_name}{edgeLabel}</span>
+                            <Badge className={SERVICE_APPROVAL_BADGE_STYLES[s.approval_status]}>{s.approval_status}</Badge>
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">${Number(s.line_total).toFixed(2)}</div>
+                        </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground">${Number(s.line_total).toFixed(2)}</span>
+                          <Select value={s.approval_status} onValueChange={(value) => handleUpdateServiceApproval(s.id, value as RugServiceApprovalStatus)}>
+                            <SelectTrigger className="h-8 w-[140px] text-xs">
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="approved">Approved</SelectItem>
+                              <SelectItem value="rejected">Rejected</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -682,7 +732,7 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
                   className="w-full gap-1.5"
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  {creatingInvoice ? "Creating..." : `Generate Invoice · $${servicesTotal.toFixed(2)}`}
+                  {creatingInvoice ? "Creating..." : `Generate Invoice · $${approvedServicesTotal.toFixed(2)}`}
                 </Button>
               )}
             </div>

@@ -4,7 +4,7 @@ import type { Tables } from "@/integrations/supabase/types";
 export type RugRow = Tables<"rugs">;
 export type RugServiceRow = Pick<
   Tables<"rug_services">,
-  "rug_id" | "service_id" | "unit_price" | "line_total" | "service_name" | "edges"
+  "rug_id" | "service_id" | "unit_price" | "line_total" | "service_name" | "edges" | "approval_status"
 >;
 
 export interface RugWithServices {
@@ -21,7 +21,7 @@ export interface RugWithServices {
   client_id: string | null;
   client_name: string | null;
   photo_url: string | null;
-  services: { name: string; line_total: number; edges?: string[] }[];
+  services: { name: string; line_total: number; edges?: string[]; approval_status: string }[];
 }
 
 const RUGS_KEY = ["rugs"] as const;
@@ -44,16 +44,17 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
 
   const { data: serviceData } = await supabase
     .from("rug_services")
-    .select("rug_id, line_total, service_name, edges")
+    .select("rug_id, line_total, service_name, edges, approval_status")
     .in("rug_id", rugIds);
 
-  const serviceMap = new Map<string, { name: string; line_total: number; edges?: string[] }[]>();
+  const serviceMap = new Map<string, { name: string; line_total: number; edges?: string[]; approval_status: string }[]>();
   for (const row of (serviceData ?? []) as RugServiceRow[]) {
     const list = serviceMap.get(row.rug_id) ?? [];
     list.push({
       name: row.service_name || "Unknown",
       line_total: Number(row.line_total),
       edges: row.edges ?? [],
+      approval_status: row.approval_status ?? "pending",
     });
     serviceMap.set(row.rug_id, list);
   }
@@ -120,13 +121,14 @@ export function useRug(id: string | null) {
 
       const { data: serviceData } = await supabase
         .from("rug_services")
-        .select("rug_id, line_total, service_name, edges")
+        .select("rug_id, line_total, service_name, edges, approval_status")
         .eq("rug_id", id);
 
       const services = ((serviceData ?? []) as RugServiceRow[]).map((s) => ({
         name: s.service_name || "Unknown",
         line_total: Number(s.line_total),
         edges: s.edges ?? [],
+        approval_status: s.approval_status ?? "pending",
       }));
 
       return {

@@ -34,6 +34,7 @@ type EstimateRow = {
 type EstimateItemRow = {
   id: string;
   estimate_id: string;
+  rug_service_id: string | null;
   description: string;
   quantity: number;
   unit_price: number;
@@ -88,7 +89,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
     }
     const { data: itemsData } = await supabaseExtended
       .from("estimate_items")
-      .select("id, estimate_id, description, quantity, unit_price, total, client_approved, client_decision_at, service_category")
+      .select("id, estimate_id, rug_service_id, description, quantity, unit_price, total, client_approved, client_decision_at, service_category")
       .in("estimate_id", pendingIds)
       .order("estimate_id");
     const items = (itemsData ?? []) as unknown as EstimateItemRow[];
@@ -136,6 +137,16 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
         setUpdatingItemId(null);
         return;
       }
+      if (item.rug_service_id) {
+        const { error: serviceError } = await supabaseExtended
+          .from("rug_services")
+          .update({ approval_status: approved ? "approved" : "rejected" })
+          .eq("id", item.rug_service_id);
+        if (serviceError) {
+          toast({ title: "Service status sync failed", description: serviceError.message, variant: "destructive" });
+        }
+      }
+
       setLineItemsByEstimateId((prev) => ({
         ...prev,
         [item.estimate_id]: (prev[item.estimate_id] ?? []).map((i) =>

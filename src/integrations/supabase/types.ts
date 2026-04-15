@@ -2818,6 +2818,7 @@ export type Database = {
       }
       rug_services: {
         Row: {
+          approval_status: string
           created_at: string
           edges: string[]
           id: string
@@ -2828,6 +2829,7 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          approval_status?: string
           created_at?: string
           edges?: string[]
           id?: string
@@ -2838,6 +2840,7 @@ export type Database = {
           unit_price?: number
         }
         Update: {
+          approval_status?: string
           created_at?: string
           edges?: string[]
           id?: string

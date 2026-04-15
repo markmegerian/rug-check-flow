@@ -119,6 +119,7 @@ export function CheckInLayout() {
               unit_price: s.unit_price,
               line_total: s.line_total,
               edges: s.edges,
+              approval_status: "pending",
             }))
           );
           if (insServicesErr) {
@@ -247,6 +248,7 @@ export function CheckInLayout() {
               unit_price: s.unit_price,
               line_total: s.line_total,
               edges: s.edges,
+              approval_status: "pending",
             }))
           );
           if (insServicesErr) {
