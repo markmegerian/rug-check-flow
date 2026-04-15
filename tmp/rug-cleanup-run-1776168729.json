@@ -1,0 +1,35 @@
+{
+  "counts_before": {
+    "target_rugs": 30,
+    "protected_before": 16,
+    "estimates": 32,
+    "estimate_items": 0,
+    "invoice_items": 29,
+    "invoices_to_delete": 12,
+    "invoices_to_recalc": 0,
+    "communication_events_to_delete": 269,
+    "rug_services": 0,
+    "delivery_list_items": 0,
+    "pickup_request_items": 0,
+    "route_stop_items": 0,
+    "disputes": 0,
+    "interactions": 0,
+    "checkin_photos": 0,
+    "empty_intake_jobs": 14
+  },
+  "deleted_counts": {
+    "communication_events": 180,
+    "invoice_items": 0,
+    "estimates": 0,
+    "invoices": 0,
+    "rugs": 0,
+    "intake_jobs": 0
+  },
+  "verify": {
+    "remaining_target_rugs": 0,
+    "protected_before": 16,
+    "protected_after": 16,
+    "protected_unchanged": true
+  },
+  "errors": []
+}
