@@ -5,10 +5,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductionRugCard } from "./ProductionRugCard";
-import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { advanceRugStage } from "@/lib/rug-operations";
-import { useRugs, useInvalidateRugs, type RugWithServices } from "@/hooks/useRugs";
+import { useRugs, type RugWithServices } from "@/hooks/useRugs";
 import { useDeliveryAllocations } from "@/hooks/useDeliveryAllocations";
 import { RugDetailSheet } from "./RugDetailSheet";
 
@@ -37,7 +35,6 @@ function getStageRank(status: string) {
 
 export function ProductionBoard() {
   const { data: rugs = [], isLoading: loading } = useRugs();
-  const invalidateRugs = useInvalidateRugs();
   const { data: deliveryAllocations } = useDeliveryAllocations();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ProductionView>("all");
@@ -102,18 +99,6 @@ export function ProductionBoard() {
       return Date.parse(b.checked_in_at) - Date.parse(a.checked_in_at);
     });
   }, [rugs, search, view]);
-
-  const handleAdvanceStage = async (rugId: string) => {
-    const rug = rugs.find((r) => r.id === rugId);
-    if (!rug) return;
-    const result = await advanceRugStage(rugId, rug.status);
-    if (!result) return;
-    if (result.error) {
-      toast({ title: "Update failed", description: result.error, variant: "destructive" });
-      return;
-    }
-    invalidateRugs();
-  };
 
   const openTopResult = () => {
     if (visibleRugs.length > 0) setDetailRugId(visibleRugs[0].id);
@@ -193,7 +178,6 @@ export function ProductionBoard() {
               <ProductionRugCard
                 key={rug.id}
                 rug={rug}
-                onAdvanceStage={handleAdvanceStage}
                 onViewDetail={setDetailRugId}
                 deliveryDate={deliveryAllocations?.get(rug.id)?.target_date}
                 deliveryStatus={deliveryAllocations?.get(rug.id)?.status}
