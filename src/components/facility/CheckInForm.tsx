@@ -53,6 +53,16 @@ const checkInSchema = z.object({
 
 type CheckInValues = z.infer<typeof checkInSchema>;
 
+const EMPTY_CHECKIN_VALUES: CheckInValues = {
+  rugNumber: "",
+  clientName: "",
+  rugType: "",
+  length: undefined as unknown as number,
+  width: undefined as unknown as number,
+  conditionNotes: "",
+  selectedServices: [],
+};
+
 interface CheckInResult {
   status: "success" | "warning" | "error";
   title: string;
@@ -94,15 +104,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
-    defaultValues: {
-      rugNumber: "",
-      clientName: "",
-      rugType: "",
-      length: undefined,
-      width: undefined,
-      conditionNotes: "",
-      selectedServices: [],
-    },
+    defaultValues: EMPTY_CHECKIN_VALUES,
   });
 
   const { data: dbServices = [] } = useQuery({
@@ -330,8 +332,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     if (result) {
       toast({ title: result.title, description: result.description, variant: result.status === "error" ? "destructive" : undefined });
       if (result.resetForm !== false) {
-        form.reset();
+        form.reset(EMPTY_CHECKIN_VALUES);
         setPhotos([]);
+        setFlatPrices({});
+        setEdgeSelections({});
+        setClientTier("standard");
       }
     }
   };
