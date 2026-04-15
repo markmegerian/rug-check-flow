@@ -37,6 +37,10 @@ import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector
 
 type PricingTier = "standard" | "preferred" | "vip";
 
+type ClientTierCache = Record<string, PricingTier>;
+
+const CLIENT_TIER_CACHE_KEY = "checkin-client-tier-cache-v1";
+
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
   clientName: z.string().min(1, "Client name is required"),
@@ -77,6 +81,14 @@ interface CheckInFormProps {
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
+  const [clientTierCache, setClientTierCache] = useState<ClientTierCache>(() => {
+    try {
+      const raw = localStorage.getItem(CLIENT_TIER_CACHE_KEY);
+      return raw ? JSON.parse(raw) as ClientTierCache : {};
+    } catch {
+      return {};
+    }
+  });
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
 
@@ -148,26 +160,48 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const watchedServices = form.watch("selectedServices");
 
   useEffect(() => {
-    if (!watchedClient) {
+    const normalizedClient = watchedClient.trim().toLowerCase();
+    if (!normalizedClient) {
       setClientTier("standard");
       return;
     }
+
+    const cachedTier = clientTierCache[normalizedClient];
+    if (cachedTier) {
+      setClientTier(cachedTier);
+      return;
+    }
+
+    if (normalizedClient.length < 3) {
+      setClientTier("standard");
+      return;
+    }
+
     let cancelled = false;
     const lookup = async () => {
       const { data } = await supabase
         .from("clients")
-        .select("id, pricing_tier")
-        .ilike("name", watchedClient)
+        .select("pricing_tier")
+        .ilike("name", watchedClient.trim())
         .limit(1);
-      if (!cancelled && data?.[0]) {
-        setClientTier(data[0].pricing_tier as PricingTier);
-      } else if (!cancelled) {
-        setClientTier("standard");
-      }
+
+      const resolvedTier = (data?.[0]?.pricing_tier as PricingTier | undefined) ?? "standard";
+      if (cancelled) return;
+
+      setClientTier(resolvedTier);
+      setClientTierCache((prev) => {
+        const next = { ...prev, [normalizedClient]: resolvedTier };
+        localStorage.setItem(CLIENT_TIER_CACHE_KEY, JSON.stringify(next));
+        return next;
+      });
     };
-    const timer = setTimeout(lookup, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [watchedClient]);
+
+    const timer = window.setTimeout(lookup, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [clientTierCache, watchedClient]);
 
   const sqft = useMemo(() => {
     const l = Number(watchedLength) || 0;
