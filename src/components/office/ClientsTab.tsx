@@ -374,15 +374,25 @@ export function ClientsTab() {
     return true;
   };
 
-  const activatePortalUser = async (portalUser: PortalUser, sendEmail: boolean) => {
+  const activatePortalUser = async (portalUser: PortalUser, sendEmail = true) => {
     if (!editingId) return;
     setPortalActionId(portalUser.id);
     if (portalUser.status !== "active") {
       const { error: activateError } = await supabase.from("portal_users").update({ status: "active" }).eq("id", portalUser.id);
       if (activateError) { toast({ title: "Activation failed", description: activateError.message, variant: "destructive" }); setPortalActionId(null); return; }
     }
-    if (sendEmail) await sendOnboardingEmail(portalUser.id);
-    else toast({ title: "Portal user activated", description: `${portalUser.email} can now sign in.` });
+
+    let emailSent = false;
+    if (sendEmail) {
+      emailSent = await sendOnboardingEmail(portalUser.id);
+    }
+
+    if (!sendEmail) {
+      toast({ title: "Portal user activated", description: `${portalUser.email} can now sign in.` });
+    } else if (!emailSent) {
+      toast({ title: "Portal user activated", description: `${portalUser.email} is active, but the onboarding email still needs attention.`, variant: "destructive" });
+    }
+
     await fetchPortalUsers(editingId);
     setPortalActionId(null);
   };
