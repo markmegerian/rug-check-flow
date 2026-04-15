@@ -339,7 +339,7 @@ export function ClientsTab() {
     const { error } = await supabase.from("portal_users").insert({ client_id: editingId, company_id: currentCompanyId, email, status: "invited" });
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); return; }
     setNewPortalEmail("");
-    toast({ title: "Portal login staged", description: `${email} added as invited. Activate and send onboarding when ready.` });
+    toast({ title: "Portal login staged", description: `${email} added as invited. Activate manually when you're ready. No email will be sent.` });
     fetchPortalUsers(editingId);
   };
 
@@ -374,15 +374,14 @@ export function ClientsTab() {
     return true;
   };
 
-  const activatePortalUser = async (portalUser: PortalUser, sendEmail: boolean) => {
+  const activatePortalUser = async (portalUser: PortalUser, _sendEmail?: boolean) => {
     if (!editingId) return;
     setPortalActionId(portalUser.id);
     if (portalUser.status !== "active") {
       const { error: activateError } = await supabase.from("portal_users").update({ status: "active" }).eq("id", portalUser.id);
       if (activateError) { toast({ title: "Activation failed", description: activateError.message, variant: "destructive" }); setPortalActionId(null); return; }
     }
-    if (sendEmail) await sendOnboardingEmail(portalUser.id);
-    else toast({ title: "Portal user activated", description: `${portalUser.email} can now sign in.` });
+    toast({ title: "Portal user activated", description: `${portalUser.email} is active. Onboarding emails are disabled for now.` });
     await fetchPortalUsers(editingId);
     setPortalActionId(null);
   };

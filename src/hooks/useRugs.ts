@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { fetchRugServicesByRugId, fetchRugServicesForRugIds } from "@/lib/rug-service-approval";
 export type RugRow = Tables<"rugs">;
 export type RugServiceRow = Pick<
   Tables<"rug_services">,
@@ -42,10 +43,8 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
   const rugIds = rugRows.map((r) => r.id);
   if (rugIds.length === 0) return [];
 
-  const { data: serviceData } = await supabase
-    .from("rug_services")
-    .select("rug_id, line_total, service_name, edges, approval_status")
-    .in("rug_id", rugIds);
+  const { data: serviceData, error: serviceError } = await fetchRugServicesForRugIds(rugIds);
+  if (serviceError) throw serviceError;
 
   const serviceMap = new Map<string, { name: string; line_total: number; edges?: string[]; approval_status: string }[]>();
   for (const row of (serviceData ?? []) as RugServiceRow[]) {
@@ -54,7 +53,7 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
       name: row.service_name || "Unknown",
       line_total: Number(row.line_total),
       edges: row.edges ?? [],
-      approval_status: row.approval_status ?? "pending",
+      approval_status: row.approval_status ?? "approved",
     });
     serviceMap.set(row.rug_id, list);
   }
@@ -119,16 +118,14 @@ export function useRug(id: string | null) {
         "id" | "tag" | "description" | "status" | "size_length" | "size_width" | "checked_in_at" | "completed_at" | "picked_up_at" | "notes" | "client_id" | "photo_url"
       > & { clients: { name: string } | null };
 
-      const { data: serviceData } = await supabase
-        .from("rug_services")
-        .select("rug_id, line_total, service_name, edges, approval_status")
-        .eq("rug_id", id);
+      const { data: serviceData, error: serviceError } = await fetchRugServicesByRugId(id);
+      if (serviceError) throw serviceError;
 
       const services = ((serviceData ?? []) as RugServiceRow[]).map((s) => ({
         name: s.service_name || "Unknown",
         line_total: Number(s.line_total),
         edges: s.edges ?? [],
-        approval_status: s.approval_status ?? "pending",
+        approval_status: s.approval_status ?? "approved",
       }));
 
       return {

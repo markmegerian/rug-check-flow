@@ -1,37 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
-
-/**
- * Auto-send an estimate by calling the send-estimate-email edge function.
- * Missing email or provider failures must not be treated as sent.
- */
-async function autoSendEstimate(estimateId: string): Promise<{ success: boolean; providerStatus?: string | null; error?: string | null; actionHint?: string | null }> {
-  try {
-    const { data, error } = await supabase.functions.invoke("send-estimate-email", {
-      body: { estimate_id: estimateId },
-    });
-
-    if (error || data?.success === false) {
-      console.warn("Auto-send estimate failed for", estimateId, error ?? data);
-      return {
-        success: false,
-        providerStatus: data?.provider_status ?? null,
-        error: data?.error ?? error?.message ?? "Unknown error",
-        actionHint: data?.action_hint ?? null,
-      };
-    }
-
-    return {
-      success: true,
-      providerStatus: data?.provider_status ?? null,
-      error: null,
-      actionHint: data?.action_hint ?? null,
-    };
-  } catch (error) {
-    console.warn("Auto-send estimate failed for", estimateId, error);
-    return { success: false, providerStatus: null, error: "Unknown error", actionHint: null };
-  }
-}
+import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 
 /** Upload a single check-in photo to storage. Returns the public URL or null on failure. */
 export async function uploadCheckinPhoto(rugId: string, file: File): Promise<string | null> {
@@ -40,6 +9,18 @@ export async function uploadCheckinPhoto(rugId: string, file: File): Promise<str
     .from("checkin-photos")
     .upload(path, file, { upsert: false });
   if (uploadError) return null;
+
+  const { error: recordError } = await supabase.from("checkin_photos").insert({
+    rug_id: rugId,
+    storage_path: path,
+    retention_policy: "permanent",
+    expires_at: null,
+  });
+
+  if (recordError) {
+    console.error("Failed to record persistent check-in photo metadata", recordError);
+  }
+
   const { data: publicUrl } = supabase.storage.from("checkin-photos").getPublicUrl(path);
   return publicUrl.publicUrl;
 }
@@ -57,6 +38,16 @@ interface ServiceSnapshot {
   edges: string[];
 }
 
+let estimateDraftCreationAvailable: boolean | null = null;
+
+function isEstimateDraftRlsError(message: string | undefined) {
+  return /row-level security|permission denied|not allowed/i.test(message ?? "") && /estimate/i.test(message ?? "");
+}
+
+export function isEstimateDraftCreationAvailable() {
+  return estimateDraftCreationAvailable !== false;
+}
+
 /**
  * Auto-create an estimate draft if any selected services require one.
  * Returns the estimate number if created, null otherwise.
@@ -69,7 +60,7 @@ export async function maybeAutoCreateEstimateDraft(
   onError: (title: string, description: string) => void,
   onSuccess: (title: string, description: string) => void,
 ): Promise<string | null> {
-  if (serviceSnapshots.length === 0) return null;
+  if (serviceSnapshots.length === 0 || estimateDraftCreationAvailable === false) return null;
 
   const serviceIds = serviceSnapshots.map((s) => s.service_id);
   const { data: serviceRows, error: serviceError } = await supabase
@@ -103,9 +94,17 @@ export async function maybeAutoCreateEstimateDraft(
     .single();
 
   if (estimateError || !insertedEstimate) {
-    onError("Estimate draft auto-create failed", estimateError?.message ?? "Unknown error");
+    const message = estimateError?.message ?? "Unknown error";
+    if (isEstimateDraftRlsError(message)) {
+      estimateDraftCreationAvailable = false;
+      console.warn("Estimate draft auto-create unavailable in this environment:", message);
+      return null;
+    }
+    onError("Estimate draft auto-create failed", message);
     return null;
   }
+
+  estimateDraftCreationAvailable = true;
 
   const idsForCategory = serviceIds.filter(Boolean);
   let categoryByServiceId: Record<string, string> = {};
@@ -142,15 +141,20 @@ export async function maybeAutoCreateEstimateDraft(
     body: `Estimate ${estimateNumber} was auto-created from check-in service selections.`,
   });
 
-  // Auto-send the estimate to the client
-  const sendResult = await autoSendEstimate(insertedEstimate.id);
-
-  if (sendResult.success) {
-    onSuccess("Estimate auto-created & sent", `${estimateNumber} has been sent to the client.`);
-  } else if (sendResult.providerStatus === "no_email") {
-    onError("Estimate auto-send blocked", `${estimateNumber} was created as a draft, but the client email is missing. Add an email before sending.${sendResult.actionHint ? ` ${sendResult.actionHint}` : ""}`);
+  if (clientId) {
+    try {
+      await queueEstimateForBatchSend({
+        clientId,
+        estimateId: insertedEstimate.id,
+        queuedAt: new Date().toISOString(),
+      });
+      onSuccess("Estimate auto-created & queued", `${estimateNumber} will send in the daily 3:00 PM Eastern batch.`);
+    } catch (queueError) {
+      const message = queueError instanceof Error ? queueError.message : "Unknown error";
+      onError("Estimate queue failed", `${estimateNumber} was created as a draft, but could not be added to the 3:00 PM Eastern send batch. ${message}`);
+    }
   } else {
-    onError("Estimate auto-send failed", `${estimateNumber} was created as a draft, but sending failed.${sendResult.error ? ` ${sendResult.error}` : ""}${sendResult.actionHint ? ` ${sendResult.actionHint}` : ""}`);
+    onError("Estimate queued manually", `${estimateNumber} was created as a draft, but no client is linked yet, so it was not queued for the 3:00 PM Eastern send batch.`);
   }
 
   return estimateNumber;

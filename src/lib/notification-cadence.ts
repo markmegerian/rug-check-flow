@@ -1,7 +1,7 @@
 import { addDays, subDays } from "date-fns";
 
 export type NotificationEntityType = "estimate" | "invoice";
-export type EstimateNotificationType = "estimate_reminder_24h" | "estimate_reminder_72h" | "estimate_reminder_7d";
+export type EstimateNotificationType = "estimate_batch_send" | "estimate_reminder_24h" | "estimate_reminder_72h" | "estimate_reminder_7d";
 export type InvoiceNotificationType =
   | "invoice_reminder_3d_before_due"
   | "invoice_reminder_due_date"
@@ -30,6 +30,97 @@ function toIso(date: Date) {
 
 function computeWeeklyStatementAnchor(dueAt: Date) {
   return addDays(dueAt, 21);
+}
+
+function getTimeZoneParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? "0");
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+    second: get("second"),
+  };
+}
+
+function zonedTimeToUtc(params: { year: number; month: number; day: number; hour: number; minute?: number; second?: number; timeZone: string }) {
+  let guess = Date.UTC(params.year, params.month - 1, params.day, params.hour, params.minute ?? 0, params.second ?? 0);
+
+  for (let i = 0; i < 5; i += 1) {
+    const actual = getTimeZoneParts(new Date(guess), params.timeZone);
+    const desiredUtc = Date.UTC(params.year, params.month - 1, params.day, params.hour, params.minute ?? 0, params.second ?? 0);
+    const actualUtc = Date.UTC(actual.year, actual.month - 1, actual.day, actual.hour, actual.minute, actual.second);
+    const diff = desiredUtc - actualUtc;
+    guess += diff;
+    if (diff === 0) break;
+  }
+
+  return new Date(guess);
+}
+
+export function computeNextDailyAnchorInEastern(hour = 15, minute = 0, now = new Date()) {
+  const easternNow = getTimeZoneParts(now, "America/New_York");
+  let target = zonedTimeToUtc({
+    year: easternNow.year,
+    month: easternNow.month,
+    day: easternNow.day,
+    hour,
+    minute,
+    second: 0,
+    timeZone: "America/New_York",
+  });
+
+  if (target.getTime() <= now.getTime()) {
+    const nextDayNoonUtc = zonedTimeToUtc({
+      year: easternNow.year,
+      month: easternNow.month,
+      day: easternNow.day,
+      hour: 12,
+      minute: 0,
+      second: 0,
+      timeZone: "America/New_York",
+    });
+    const nextEasternDay = getTimeZoneParts(addDays(nextDayNoonUtc, 1), "America/New_York");
+    target = zonedTimeToUtc({
+      year: nextEasternDay.year,
+      month: nextEasternDay.month,
+      day: nextEasternDay.day,
+      hour,
+      minute,
+      second: 0,
+      timeZone: "America/New_York",
+    });
+  }
+
+  return target;
+}
+
+export function buildEstimateBatchSendSchedule(params: {
+  clientId: string;
+  estimateId: string;
+  queuedAt?: string | Date;
+}): NotificationCadenceRow[] {
+  const queuedAt = typeof params.queuedAt === "string" ? new Date(params.queuedAt) : params.queuedAt ?? new Date();
+  return [{
+    client_id: params.clientId,
+    entity_type: "estimate",
+    entity_id: params.estimateId,
+    notification_type: "estimate_batch_send",
+    scheduled_for: toIso(computeNextDailyAnchorInEastern(15, 0, queuedAt)),
+    throttle_key: `estimate-batch:${params.clientId}`,
+  }];
 }
 
 export function buildEstimateReminderSchedule(params: {
@@ -113,6 +204,8 @@ export function shouldThrottleCollectionsReminder(params: {
 
 export function describeNotificationType(type: NotificationType) {
   switch (type) {
+    case "estimate_batch_send":
+      return "Estimate queued · 3:00 PM ET batch";
     case "estimate_reminder_24h":
       return "Estimate reminder · 24h";
     case "estimate_reminder_72h":

@@ -15,6 +15,7 @@ import {
   type ExtendedTableInsert,
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
+import { isRugServiceApprovalStatusAvailable } from "@/lib/rug-service-approval";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import type { Tables } from "@/integrations/supabase/types";
@@ -137,13 +138,17 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
         setUpdatingItemId(null);
         return;
       }
-      if (item.rug_service_id) {
+      if (item.rug_service_id && isRugServiceApprovalStatusAvailable()) {
         const { error: serviceError } = await supabaseExtended
           .from("rug_services")
           .update({ approval_status: approved ? "approved" : "rejected" })
           .eq("id", item.rug_service_id);
         if (serviceError) {
-          toast({ title: "Service status sync failed", description: serviceError.message, variant: "destructive" });
+          if (/approval_status/i.test(serviceError.message)) {
+            console.warn("Service approval sync skipped because approval_status is not live in this environment yet.");
+          } else {
+            toast({ title: "Service status sync failed", description: serviceError.message, variant: "destructive" });
+          }
         }
       }
 

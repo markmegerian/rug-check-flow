@@ -45,6 +45,7 @@ set search_path = public
 as $$
 declare
   resolved_company_id uuid;
+  invoice_ref uuid;
 begin
   if new.company_id is not null then
     return new;
@@ -64,11 +65,13 @@ begin
      where j.id = new.job_id;
   end if;
 
-  if resolved_company_id is null and new.invoice_id is not null then
+  invoice_ref := nullif(to_jsonb(new) ->> 'invoice_id', '')::uuid;
+
+  if resolved_company_id is null and invoice_ref is not null then
     select i.company_id
       into resolved_company_id
       from public.invoices i
-     where i.id = new.invoice_id;
+     where i.id = invoice_ref;
   end if;
 
   if resolved_company_id is null then
@@ -129,6 +132,7 @@ declare
   client_account_company_id uuid;
   job_company_id uuid;
   invoice_company_id uuid;
+  invoice_ref uuid;
 begin
   if new.client_id is not null then
     select ca.company_id
@@ -154,11 +158,13 @@ begin
     end if;
   end if;
 
-  if new.invoice_id is not null then
+  invoice_ref := nullif(to_jsonb(new) ->> 'invoice_id', '')::uuid;
+
+  if invoice_ref is not null then
     select i.company_id
       into invoice_company_id
       from public.invoices i
-     where i.id = new.invoice_id;
+     where i.id = invoice_ref;
 
     if invoice_company_id is not null and new.company_id is distinct from invoice_company_id then
       raise exception 'payments.company_id must match invoices.company_id'
@@ -184,18 +190,44 @@ update public.rugs r
    and source.company_id is not null
    and (r.company_id is null or r.company_id <> source.company_id);
 
-update public.payments p
-   set company_id = source.company_id
-  from (
-    select p_inner.id,
-           coalesce(ca.company_id, j.company_id, i.company_id) as company_id
-      from public.payments p_inner
-      left join public.client_accounts ca on ca.id = p_inner.client_id
-      left join public.jobs j on j.id = p_inner.job_id
-      left join public.invoices i on i.id = p_inner.invoice_id
-  ) as source
- where p.id = source.id
-   and source.company_id is not null
-   and (p.company_id is null or p.company_id <> source.company_id);
+do $$
+begin
+  if exists (
+    select 1
+      from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'payments'
+       and column_name = 'invoice_id'
+  ) then
+    execute $sql$
+      update public.payments p
+         set company_id = source.company_id
+        from (
+          select p_inner.id,
+                 coalesce(ca.company_id, j.company_id, i.company_id) as company_id
+            from public.payments p_inner
+            left join public.client_accounts ca on ca.id = p_inner.client_id
+            left join public.jobs j on j.id = p_inner.job_id
+            left join public.invoices i on i.id = p_inner.invoice_id
+        ) as source
+       where p.id = source.id
+         and source.company_id is not null
+         and (p.company_id is null or p.company_id <> source.company_id)
+    $sql$;
+  else
+    update public.payments p
+       set company_id = source.company_id
+      from (
+        select p_inner.id,
+               coalesce(ca.company_id, j.company_id) as company_id
+          from public.payments p_inner
+          left join public.client_accounts ca on ca.id = p_inner.client_id
+          left join public.jobs j on j.id = p_inner.job_id
+      ) as source
+     where p.id = source.id
+       and source.company_id is not null
+       and (p.company_id is null or p.company_id <> source.company_id);
+  end if;
+end $$;
 
 commit;

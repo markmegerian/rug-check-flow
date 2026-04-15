@@ -11,6 +11,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useCheckInData } from "@/hooks/useCheckInData";
 import { uploadCheckinPhoto, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
 import { advanceRugStage } from "@/lib/rug-operations";
+import { insertRugServices, isRugServiceApprovalStatusAvailable } from "@/lib/rug-service-approval";
 
 const PendingRugsPanel = lazy(async () => {
   const module = await import("./PendingRugsPanel");
@@ -73,8 +74,20 @@ export function CheckInLayout() {
       conditionNotes: string;
       photos: File[];
     }) => {
-      const toastError = (title: string, description: string) => toast({ title, description, variant: "destructive" });
-      const toastSuccess = (title: string, description: string) => toast({ title, description });
+      const warnings: string[] = [];
+      const isEditing = !!editingEntryId;
+      const successTitle = isEditing ? "Entry updated" : "Check-in complete";
+      const successDescription = `Rug ${data.rugNumber} ${isEditing ? "updated" : "checked in"}.`;
+      const errorResult = (title: string, description: string) => ({ status: "error" as const, title, description, resetForm: false });
+      const warningResult = (description: string) => ({
+        status: "warning" as const,
+        title: `${successTitle} with issues`,
+        description,
+        resetForm: true,
+      });
+      const successResult = () => ({ status: "success" as const, title: successTitle, description: successDescription, resetForm: true });
+      const toastError = (title: string, description: string) => warnings.push(`${title}: ${description}`);
+      const toastSuccess = (title: string, description: string) => warnings.push(`${title}: ${description}`);
 
       let clientId: string | null = null;
       if (data.clientName) {
@@ -102,16 +115,15 @@ export function CheckInLayout() {
           .eq("id", editingEntryId);
 
         if (error) {
-          toast({ title: "Update failed", description: error.message, variant: "destructive" });
-          return;
+          return errorResult("Update failed", error.message);
         }
 
         const { error: delServicesErr } = await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
         if (delServicesErr) {
-          toast({ title: "Failed to update services", description: delServicesErr.message, variant: "destructive" });
+          return errorResult("Failed to update services", delServicesErr.message);
         }
         if (data.serviceSnapshots.length > 0) {
-          const { error: insServicesErr } = await supabase.from("rug_services").insert(
+          const { error: insServicesErr, approvalStatusAvailable } = await insertRugServices(
             data.serviceSnapshots.map((s) => ({
               rug_id: editingEntryId,
               service_id: s.service_id,
@@ -123,7 +135,10 @@ export function CheckInLayout() {
             }))
           );
           if (insServicesErr) {
-            toast({ title: "Failed to save services", description: insServicesErr.message, variant: "destructive" });
+            return errorResult("Failed to save services", insServicesErr.message);
+          }
+          if (!approvalStatusAvailable) {
+            warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
           }
         }
 
@@ -132,6 +147,8 @@ export function CheckInLayout() {
           const firstUrl = uploadResults.find(Boolean);
           if (firstUrl) {
             await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", editingEntryId);
+          } else {
+            warnings.push("Required photos did not finish uploading.");
           }
         }
 
@@ -158,14 +175,9 @@ export function CheckInLayout() {
         if (jobError) {
           const missingIntakeJobs = /intake_jobs|schema cache|relation .*intake_jobs.* does not exist/i.test(jobError.message);
           if (!missingIntakeJobs) {
-            toast({ title: "Job creation failed", description: jobError.message, variant: "destructive" });
-            return;
+            return errorResult("Job creation failed", jobError.message);
           }
-          toast({
-            title: "Job tracking unavailable",
-            description: "Check-in will continue, but intake job tracking is not yet provisioned in this environment.",
-            variant: "destructive",
-          });
+          warnings.push("Intake job tracking is not yet provisioned in this environment.");
         } else {
           jobId = jobInsert?.id ?? null;
         }
@@ -204,8 +216,7 @@ export function CheckInLayout() {
         }
 
         if (error || !inserted) {
-          toast({ title: "Check-in failed", description: error?.message, variant: "destructive" });
-          return;
+          return errorResult("Check-in failed", error?.message ?? "Unknown error");
         }
 
         const { data: priorSameTagRugs } = await supabase
@@ -240,7 +251,7 @@ export function CheckInLayout() {
         }
 
         if (data.serviceSnapshots.length > 0) {
-          const { error: insServicesErr } = await supabase.from("rug_services").insert(
+          const { error: insServicesErr, approvalStatusAvailable } = await insertRugServices(
             data.serviceSnapshots.map((s) => ({
               rug_id: inserted.id,
               service_id: s.service_id,
@@ -252,7 +263,10 @@ export function CheckInLayout() {
             }))
           );
           if (insServicesErr) {
-            toast({ title: "Failed to save services", description: insServicesErr.message, variant: "destructive" });
+            return warningResult(`Rug ${data.rugNumber} was created, but services could not be saved: ${insServicesErr.message}`);
+          }
+          if (!approvalStatusAvailable) {
+            warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
           }
         }
 
@@ -261,6 +275,8 @@ export function CheckInLayout() {
           const firstUrl = uploadResults.find(Boolean);
           if (firstUrl) {
             await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", inserted.id);
+          } else {
+            warnings.push("Required photos did not finish uploading.");
           }
         }
 
@@ -273,15 +289,13 @@ export function CheckInLayout() {
             .eq("id", data.rugId);
 
           if (pickupItemUpdateError) {
-            toast({
-              title: "Pickup item linking failed",
-              description: pickupItemUpdateError.message,
-              variant: "destructive",
-            });
+            warnings.push(`Pickup item linking failed: ${pickupItemUpdateError.message}`);
           }
         }
 
-        await maybeAutoCreateEstimateDraft(inserted.id, clientId, data.rugNumber, data.serviceSnapshots, toastError, toastSuccess);
+        if (isRugServiceApprovalStatusAvailable()) {
+          await maybeAutoCreateEstimateDraft(inserted.id, clientId, data.rugNumber, data.serviceSnapshots, toastError, toastSuccess);
+        }
 
         // Auto-advance rug from checked_in → in_production
         await advanceRugStage(inserted.id, "checked_in");
@@ -294,6 +308,7 @@ export function CheckInLayout() {
       setSelectedRugId(null);
       fetchTodayLog();
       fetchPendingPickupRugs();
+      return warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult();
     },
     [editingEntryId, user, toast, fetchTodayLog, selectedRug?.source, fetchPendingPickupRugs, removePendingRug]
   );

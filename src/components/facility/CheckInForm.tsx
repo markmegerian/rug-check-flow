@@ -34,8 +34,6 @@ import { applyCleaningServiceMinimum, isCleaningCategory } from "@/lib/service-p
 
 import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
-import { RugHistoryCard } from "./RugHistoryCard";
-import { useRugHistory } from "@/hooks/useRugHistory";
 
 type PricingTier = "standard" | "preferred" | "vip";
 
@@ -50,6 +48,13 @@ const checkInSchema = z.object({
 });
 
 type CheckInValues = z.infer<typeof checkInSchema>;
+
+interface CheckInResult {
+  status: "success" | "warning" | "error";
+  title: string;
+  description: string;
+  resetForm?: boolean;
+}
 
 interface CheckInFormProps {
   selectedRug?: PendingRug | null;
@@ -66,7 +71,7 @@ interface CheckInFormProps {
     totalPrice: number;
     conditionNotes: string;
     photos: File[];
-  }) => void;
+  }) => Promise<CheckInResult | void>;
 }
 
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
@@ -74,7 +79,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
-  const [resolvedClientId, setResolvedClientId] = useState<string | null>(null);
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -146,7 +150,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   useEffect(() => {
     if (!watchedClient) {
       setClientTier("standard");
-      setResolvedClientId(null);
       return;
     }
     let cancelled = false;
@@ -158,10 +161,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         .limit(1);
       if (!cancelled && data?.[0]) {
         setClientTier(data[0].pricing_tier as PricingTier);
-        setResolvedClientId(data[0].id);
       } else if (!cancelled) {
         setClientTier("standard");
-        setResolvedClientId(null);
       }
     };
     const timer = setTimeout(lookup, 300);
@@ -255,25 +256,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     form.setValue("selectedServices", next, { shouldValidate: true });
   };
 
-  const watchedRugType = form.watch("rugType");
-  const { similarRugs } = useRugHistory(
-    resolvedClientId,
-    watchedRugType,
-    Number(watchedLength) || 0,
-    Number(watchedWidth) || 0
-  );
-
-  const handleCopyServices = useCallback((services: string[]) => {
-    const matchedIds = services
-      .map((name) => dbServices.find((s) => s.name.toLowerCase() === name.toLowerCase())?.id)
-      .filter(Boolean) as string[];
-    if (matchedIds.length > 0) {
-      form.setValue("selectedServices", matchedIds, { shouldValidate: true });
-      toast({ title: "Services applied", description: `Copied ${matchedIds.length} service(s) from previous rug.` });
-    }
-  }, [dbServices, form]);
-
-  const onSubmit = (data: CheckInValues) => {
+  const onSubmit = async (data: CheckInValues) => {
     if (!editingEntry && photos.length < 1) {
       toast({ title: "Photos required", description: "Upload at least 1 photo.", variant: "destructive" });
       return;
@@ -282,38 +265,41 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     const isEditing = !!editingEntry;
     const label = isEditing ? "updated" : "checked in";
 
-    toast({ title: isEditing ? "Entry updated" : "Check-in complete", description: `Rug ${data.rugNumber} ${label}.` });
+    const serviceSnapshots = data.selectedServices
+      .map((id) => {
+        const svc = serviceById.get(id);
+        if (!svc) return null;
+        const lt = getLineTotal(svc);
+        const rawUnitPrice = svc.unit === "flat" ? lt : getUnitPrice(svc);
+        const up = isCleaningCategory(svc.category) ? lt : rawUnitPrice;
+        const edges = svc.unit === "per linear ft" ? (edgeSelections[id] ?? []) : [];
+        return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
+      })
+      .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
 
-    if (onCheckInComplete) {
-      const serviceSnapshots = data.selectedServices
-        .map((id) => {
-          const svc = serviceById.get(id);
-          if (!svc) return null;
-          const lt = getLineTotal(svc);
-          const rawUnitPrice = svc.unit === "flat" ? lt : getUnitPrice(svc);
-          const up = isCleaningCategory(svc.category) ? lt : rawUnitPrice;
-          const edges = svc.unit === "per linear ft" ? (edgeSelections[id] ?? []) : [];
-          return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
+    const result = onCheckInComplete
+      ? await onCheckInComplete({
+          rugId: selectedRug?.id,
+          rugNumber: data.rugNumber,
+          clientName: data.clientName,
+          rugType: data.rugType,
+          length: data.length,
+          width: data.width,
+          selectedServices: data.selectedServices,
+          serviceSnapshots,
+          totalPrice,
+          conditionNotes: data.conditionNotes?.trim() ?? "",
+          photos: photos.map((photo) => photo.file),
         })
-        .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
+      : { status: "success", title: isEditing ? "Entry updated" : "Check-in complete", description: `Rug ${data.rugNumber} ${label}.`, resetForm: true };
 
-      onCheckInComplete({
-        rugId: selectedRug?.id,
-        rugNumber: data.rugNumber,
-        clientName: data.clientName,
-        rugType: data.rugType,
-        length: data.length,
-        width: data.width,
-        selectedServices: data.selectedServices,
-        serviceSnapshots,
-        totalPrice,
-        conditionNotes: data.conditionNotes?.trim() ?? "",
-        photos: photos.map((photo) => photo.file),
-      });
+    if (result) {
+      toast({ title: result.title, description: result.description, variant: result.status === "error" ? "destructive" : undefined });
+      if (result.resetForm !== false) {
+        form.reset();
+        setPhotos([]);
+      }
     }
-
-    form.reset();
-    setPhotos([]);
   };
 
   const isFromPanel = !!selectedRug;
@@ -365,8 +351,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               </AlertDescription>
             </Alert>
           )}
-
-          <RugHistoryCard similarRugs={similarRugs} onCopyServices={handleCopyServices} />
 
           {/* Identity row */}
           {isReadOnlyIdentity ? (

@@ -24,7 +24,7 @@ import { EstimateStatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/date-helpers";
 import { MS_PER_DAY } from "@/lib/constants";
 import { openOrCreateThread } from "@/lib/thread-navigation";
-import { seedEstimateReminderCadence } from "@/lib/notification-cadence-store";
+import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -312,75 +312,29 @@ export function EstimatesTab() {
 
   const sendEstimate = async (estimate: EstimateRow) => {
     if (estimate.status !== "draft") return;
-
-    setSendingEstimateId(estimate.id);
-
-    type SendEstimateResponse = {
-      success?: boolean;
-      provider_status?: string;
-      provider_response?: unknown;
-      action_hint?: string;
-      error?: string;
-      details?: unknown;
-    };
-
-    const { data, error } = await supabaseExtended.functions.invoke<SendEstimateResponse>("send-estimate-email", {
-      body: { estimate_id: estimate.id },
-    });
-
-    const providerDetail = (() => {
-      if (!data?.details) return null;
-      if (typeof data.details === "string") return data.details;
-      if (typeof data.details === "object") {
-        const candidate = data.details as Record<string, unknown>;
-        if (typeof candidate.message === "string") return candidate.message;
-        if (typeof candidate.error === "string") return candidate.error;
-      }
-      return null;
-    })();
-
-    if (error || data?.error) {
-      toast({
-        title: "Estimate send failed",
-        description: providerDetail
-          ? `${data?.error || error?.message || "Unknown error"} (${providerDetail})`
-          : data?.error || error?.message || "Unknown error",
-        variant: "destructive",
-      });
-      setSendingEstimateId(null);
+    if (!estimate.client_id) {
+      toast({ title: "Cannot queue estimate", description: "This estimate is missing a client link.", variant: "destructive" });
       return;
     }
 
-    const refreshed = await fetchData();
-    const sentAt = new Date().toISOString();
-    if (estimate.client_id && data?.provider_status === "sent") {
-      try {
-        await seedEstimateReminderCadence({
-          clientId: estimate.client_id,
-          estimateId: estimate.id,
-          sentAt,
-        });
-      } catch (cadenceError) {
-        console.error("Failed to seed estimate reminder cadence", cadenceError);
-      }
+    setSendingEstimateId(estimate.id);
+    try {
+      await queueEstimateForBatchSend({
+        clientId: estimate.client_id,
+        estimateId: estimate.id,
+        queuedAt: new Date().toISOString(),
+      });
+      await fetchData();
+      toast({
+        title: "Estimate queued",
+        description: `${estimate.estimate_number} will send in the daily 3:00 PM Eastern batch.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Queue failed", description: message, variant: "destructive" });
+    } finally {
+      setSendingEstimateId(null);
     }
-    setSendingEstimateId(null);
-    const providerMessage = (() => {
-      if (!data?.provider_response || typeof data.provider_response !== "object") return null;
-      const candidate = data.provider_response as Record<string, unknown>;
-      if (typeof candidate.message === "string") return candidate.message;
-      if (typeof candidate.error === "string") return candidate.error;
-      return null;
-    })();
-    toast({
-      title: "Estimate sent",
-      description:
-        data?.provider_status === "sent"
-          ? `${estimate.estimate_number} email delivered to client.`
-          : data?.provider_status === "failed"
-            ? `${estimate.estimate_number} marked sent, but email delivery failed${providerMessage ? `: ${providerMessage}` : "."}${data?.action_hint ? ` ${data.action_hint}` : ""}`
-            : `${estimate.estimate_number} marked sent (email provider not configured).`,
-    });
   };
 
   const setEstimateStatus = async (estimate: EstimateRow, status: EstimateStatus) => {
@@ -555,7 +509,7 @@ export function EstimatesTab() {
                         onClick={() => sendEstimate(estimate)}
                         disabled={sendingEstimateId === estimate.id || !estimate.clients?.email?.trim()}
                       >
-                        {sendingEstimateId === estimate.id ? "Sending..." : !estimate.clients?.email?.trim() ? "Email required" : "Mark sent"}
+                        {sendingEstimateId === estimate.id ? "Queueing..." : !estimate.clients?.email?.trim() ? "Email required" : "Queue for 3 PM ET"}
                       </Button>
                     )}
                     {estimate.status === "sent" && (

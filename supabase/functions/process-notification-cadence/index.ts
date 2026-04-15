@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { addDays } from "https://esm.sh/date-fns@3.6.0";
 import { buildReminderDeliveryCopy } from "../_shared/reminder-delivery.ts";
 
 const corsHeaders = {
@@ -37,6 +38,116 @@ function isCollectionsNotification(type: string) {
 function shouldThrottle(lastSentAt: string | null | undefined, scheduledFor: string) {
   if (!lastSentAt) return false;
   return new Date(scheduledFor).getTime() - new Date(lastSentAt).getTime() < 72 * 60 * 60 * 1000;
+}
+
+function buildEstimateReminderRows(params: { clientId: string; estimateId: string; sentAt: string }) {
+  const sentAt = new Date(params.sentAt);
+  const throttleKey = `estimate:${params.clientId}`;
+  return [
+    { client_id: params.clientId, entity_type: "estimate", entity_id: params.estimateId, notification_type: "estimate_reminder_24h", scheduled_for: new Date(sentAt.getTime() + 24 * 60 * 60 * 1000).toISOString(), throttle_key: throttleKey },
+    { client_id: params.clientId, entity_type: "estimate", entity_id: params.estimateId, notification_type: "estimate_reminder_72h", scheduled_for: new Date(sentAt.getTime() + 72 * 60 * 60 * 1000).toISOString(), throttle_key: throttleKey },
+    { client_id: params.clientId, entity_type: "estimate", entity_id: params.estimateId, notification_type: "estimate_reminder_7d", scheduled_for: addDays(sentAt, 7).toISOString(), throttle_key: throttleKey },
+  ];
+}
+
+async function processEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: { estimateId: string; actorUserId: string | null }) {
+  const nowIso = new Date().toISOString();
+  const { data: estimate, error: estErr } = await adminClient
+    .from("estimates")
+    .select("id, estimate_number, status, total, client_id, rug_id, clients(name,email), rugs(tag)")
+    .eq("id", params.estimateId)
+    .single();
+
+  if (estErr || !estimate) return { status: "skipped", reason: "Estimate not found" };
+  if (!estimate.client_id) return { status: "failed", reason: "Estimate missing client link" };
+  if (estimate.status !== "draft") return { status: "skipped", reason: `Estimate already ${estimate.status}` };
+
+  const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
+  const subject = `Estimate ${estimate.estimate_number} from RugBoost`;
+  const body = [
+    `Hello ${estimate.clients?.name ?? "client"},`,
+    "",
+    `Your estimate ${estimate.estimate_number} is ready.`,
+    `Rug: ${estimate.rugs?.tag ?? "N/A"}`,
+    `Total: $${Number(estimate.total ?? 0).toFixed(2)}`,
+    "",
+    `Please sign in to the portal to approve or reject this estimate: ${portalUrl}`,
+  ].join("\n");
+
+  const clientEmail = estimate.clients?.email ?? null;
+  if (!clientEmail) {
+    await adminClient.from("communication_events").insert({
+      client_id: estimate.client_id,
+      rug_id: estimate.rug_id,
+      estimate_id: estimate.id,
+      channel: "email",
+      direction: "outbound",
+      event_type: "estimate_send_failed",
+      subject: `Estimate ${estimate.estimate_number} send blocked`,
+      body: "Estimate send was blocked because the client email is missing.",
+      created_by: params.actorUserId,
+    });
+    return { status: "failed", reason: "Client email is missing" };
+  }
+
+  let providerStatus: "sent" | "failed" | "not_configured" = "not_configured";
+  let providerMessage = "Estimate marked sent without email provider";
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  const fromEmail = Deno.env.get("ESTIMATE_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
+
+  if (resendApiKey) {
+    const resendResp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [clientEmail],
+        subject,
+        text: body,
+      }),
+    });
+    providerStatus = resendResp.ok ? "sent" : "failed";
+    providerMessage = resendResp.ok ? "Estimate email delivered" : `Resend failed (${resendResp.status})`;
+  }
+
+  if (providerStatus === "failed") {
+    await adminClient.from("communication_events").insert({
+      client_id: estimate.client_id,
+      rug_id: estimate.rug_id,
+      estimate_id: estimate.id,
+      channel: "email",
+      direction: "outbound",
+      event_type: "estimate_send_failed",
+      subject,
+      body,
+      sent_to: clientEmail,
+      created_by: params.actorUserId,
+    });
+    return { status: "failed", reason: providerMessage };
+  }
+
+  await adminClient.from("estimates").update({ status: "sent", sent_at: nowIso }).eq("id", estimate.id);
+  await adminClient.from("notification_cadence").upsert(
+    buildEstimateReminderRows({ clientId: estimate.client_id, estimateId: estimate.id, sentAt: nowIso }),
+    { onConflict: "client_id,entity_type,entity_id,notification_type" },
+  );
+  await adminClient.from("communication_events").insert({
+    client_id: estimate.client_id,
+    rug_id: estimate.rug_id,
+    estimate_id: estimate.id,
+    channel: "email",
+    direction: "outbound",
+    event_type: "estimate_sent",
+    subject,
+    body,
+    sent_to: clientEmail,
+    created_by: params.actorUserId,
+  });
+
+  return { status: providerStatus, reason: providerMessage };
 }
 
 Deno.serve(async (req) => {
@@ -127,6 +238,18 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      if (row.notification_type === "estimate_batch_send" && row.entity_type === "estimate" && row.entity_id) {
+        if (!dryRun) {
+          const result = await processEstimateBatchSend(adminClient, { estimateId: row.entity_id, actorUserId });
+          await adminClient.from("notification_cadence").update({ sent_at: nowIso }).eq("id", row.id);
+          processed.push({ id: row.id, status: result.status, reason: result.reason });
+          continue;
+        }
+
+        processed.push({ id: row.id, status: "due" });
+        continue;
+      }
+
       const { data: throttle } = await adminClient
         .from("notification_throttles")
         .select("id, client_id, throttle_key, last_sent_at")
@@ -140,7 +263,7 @@ Deno.serve(async (req) => {
       }
 
       const copy = buildReminderDeliveryCopy({
-        notificationType: row.notification_type,
+        notificationType: row.notification_type as "estimate_reminder_24h" | "estimate_reminder_72h" | "estimate_reminder_7d" | "invoice_reminder_3d_before_due" | "invoice_reminder_due_date" | "invoice_reminder_7d_overdue" | "invoice_reminder_14d_overdue" | "invoice_weekly_statement",
         clientName: client.name ?? null,
         entityLabel: row.entity_id,
       });

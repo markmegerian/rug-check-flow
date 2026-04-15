@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
+  buildEstimateBatchSendSchedule,
   buildEstimateReminderSchedule,
   buildInvoiceReminderSchedule,
   type NotificationCadenceRow,
@@ -29,6 +30,19 @@ async function upsertCadenceRows(rows: NotificationCadenceRow[]) {
     .upsert(payload, { onConflict: "client_id,entity_type,entity_id,notification_type" });
 
   if (error) throw error;
+}
+
+export async function queueEstimateForBatchSend(params: {
+  clientId: string;
+  estimateId: string;
+  queuedAt?: string;
+}) {
+  const rows = buildEstimateBatchSendSchedule({
+    clientId: params.clientId,
+    estimateId: params.estimateId,
+    queuedAt: params.queuedAt,
+  });
+  await upsertCadenceRows(rows);
 }
 
 export async function seedEstimateReminderCadence(params: {
