@@ -185,6 +185,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const [jobs, setJobs] = useState<JobView[]>([]);
   const [search, setSearch] = useState("");
   const [sourceTab, setSourceTab] = useState<"pickup" | "walkin">("pickup");
+  const [sourceTabTouched, setSourceTabTouched] = useState(false);
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
   const [jobFilters, setJobFilters] = useState<Record<string, JobFilter>>({});
   const [editor, setEditor] = useState<ItemEditorState | null>(null);
@@ -478,6 +479,12 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         .sort((a, b) => Date.parse(`${b.scheduledDate}T12:00:00`) - Date.parse(`${a.scheduledDate}T12:00:00`));
 
       setJobs(nextJobs);
+      if (!sourceTabTouched) {
+        const newestSource = nextJobs[0]?.sourceType;
+        if (newestSource === "pickup" || newestSource === "walkin") {
+          setSourceTab(newestSource);
+        }
+      }
       setExpandedJobs((prev) => {
         const next: Record<string, boolean> = {};
         for (const job of nextJobs) {
@@ -494,7 +501,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [sourceTabTouched, toast]);
 
   useEffect(() => {
     void loadJobs();
@@ -695,7 +702,10 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="overflow-x-auto">
-              <Tabs value={sourceTab} onValueChange={(value) => setSourceTab(value as "pickup" | "walkin") }>
+              <Tabs value={sourceTab} onValueChange={(value) => {
+                setSourceTabTouched(true);
+                setSourceTab(value as "pickup" | "walkin");
+              }}>
                 <TabsList>
                   <TabsTrigger value="pickup" className="gap-1.5">
                     Pickups
