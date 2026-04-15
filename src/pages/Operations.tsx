@@ -128,7 +128,7 @@ export default function Operations() {
       onSearchOpen={() => setSearchOpen(true)}
       actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
     >
-      {isSuperAdmin ? (
+      {(isSuperAdmin || isOffice) ? (
         <WorkspaceTabs
           tabs={[]}
           groups={groups}
