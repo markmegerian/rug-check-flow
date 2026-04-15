@@ -1,7 +1,7 @@
 import { useState, useCallback, lazy, Suspense } from "react";
 import { ClipboardList, FileText, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
 import { CheckInForm } from "./CheckInForm";
-import { deriveUserRole } from "@/data/check-in-log";
+import { deriveUserRole, type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,9 +47,9 @@ export function CheckInLayout() {
     pendingRugs,
     checkInLog,
     fetchTodayLog,
-    fetchPendingPickupRugs,
     addWalkIn,
     removePendingRug,
+    upsertCheckInLogEntry,
   } = useCheckInData({ enableTodayLog: shouldLoadTodayLog });
 
   const selectedRug = pendingRugs.find((r) => r.id === selectedRugId) ?? null;
@@ -99,6 +99,23 @@ export function CheckInLayout() {
           .limit(1);
         clientId = clients?.[0]?.id ?? null;
       }
+
+      const buildLogEntry = (rugId: string, checkedInAt: string): CheckInEntry => ({
+        id: rugId,
+        rugNumber: data.rugNumber,
+        clientName: data.clientName,
+        rugType: data.rugType,
+        length: Number(data.length) || 0,
+        width: Number(data.width) || 0,
+        services: data.serviceSnapshots.map((service) => ({
+          id: service.service_id,
+          name: service.service_name,
+          price: Number(service.line_total) || 0,
+        })),
+        totalPrice: data.totalPrice,
+        checkedInAt: new Date(checkedInAt),
+        checkedInBy: "Staff",
+      });
 
       if (editingEntryId) {
         const { error } = await supabase
@@ -153,6 +170,7 @@ export function CheckInLayout() {
           }
         }
 
+        upsertCheckInLogEntry(buildLogEntry(editingEntryId, new Date().toISOString()));
         setEditingEntryId(null);
       } else {
         const source = data.rugId ? (selectedRug?.source === "pickup" ? "pickup" : "dropoff") : "dropoff";
@@ -304,16 +322,14 @@ export function CheckInLayout() {
         if (data.rugId) {
           removePendingRug(data.rugId);
         }
+
+        upsertCheckInLogEntry(buildLogEntry(inserted.id, intakeDate));
       }
 
       setSelectedRugId(null);
-      if (shouldLoadTodayLog) {
-        fetchTodayLog();
-      }
-      fetchPendingPickupRugs();
       return warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult();
     },
-    [editingEntryId, user, toast, fetchTodayLog, selectedRug?.source, fetchPendingPickupRugs, removePendingRug, shouldLoadTodayLog]
+    [editingEntryId, user, toast, selectedRug?.source, removePendingRug, upsertCheckInLogEntry]
   );
 
   const handleEditEntry = useCallback((entryId: string) => {

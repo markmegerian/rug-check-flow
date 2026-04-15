@@ -325,6 +325,14 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     setPendingRugs((prev) => prev.filter((r) => r.id !== rugId));
   }, []);
 
+  const upsertCheckInLogEntry = useCallback((entry: CheckInEntry) => {
+    setCheckInLog((prev) => {
+      const next = [entry, ...prev.filter((existing) => existing.id !== entry.id)];
+      next.sort((a, b) => b.checkedInAt.getTime() - a.checkedInAt.getTime());
+      return next.slice(0, 100);
+    });
+  }, []);
+
   return {
     pendingRugs,
     checkInLog,
@@ -332,5 +340,6 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     fetchPendingPickupRugs,
     addWalkIn,
     removePendingRug,
+    upsertCheckInLogEntry,
   };
 }
