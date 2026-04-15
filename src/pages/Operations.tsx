@@ -15,7 +15,6 @@ import {
   Inbox,
 } from "lucide-react";
 const CheckInLayout = lazy(() => import("@/components/facility/CheckInLayout").then((m) => ({ default: m.CheckInLayout })));
-const ProductionBoard = lazy(() => import("@/components/facility/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
 const InvoiceGeneratorPanel = lazy(() => import("@/components/facility/InvoiceGeneratorPanel").then((m) => ({ default: m.InvoiceGeneratorPanel })));
 const DeliveryPrepTab = lazy(() => import("@/components/facility/DeliveryPrepTab").then((m) => ({ default: m.DeliveryPrepTab })));
 const PricingTab = lazy(() => import("@/components/office/PricingTab").then((m) => ({ default: m.PricingTab })));
@@ -27,6 +26,7 @@ const JobsTab = lazy(() => import("@/components/office/JobsTab").then((m) => ({ 
 const RouteBuilder = lazy(() => import("@/components/office/RouteBuilder").then((m) => ({ default: m.RouteBuilder })));
 const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then((m) => ({ default: m.EstimatesTab })));
 const InboxTab = lazy(() => import("@/components/office/InboxTab").then((m) => ({ default: m.InboxTab })));
+import { ProductionBoard } from "@/components/facility/ProductionBoard";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { AppShell } from "@/components/layout/AppShell";
