@@ -7,10 +7,10 @@ test.describe("public smoke", () => {
   test("loads sign-in page", async ({ page }) => {
     await page.goto("/auth");
 
-    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
+    await expect(page.getByText(/sign in to your workspace/i)).toBeVisible();
   });
 
   test("redirects protected ops route to auth when signed out", async ({ page }) => {
