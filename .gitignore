@@ -30,3 +30,7 @@ dist-ssr
 
 # Supabase CLI local cache/temp artifacts
 supabase/.temp/
+
+# Playwright
+playwright-report/
+test-results/
