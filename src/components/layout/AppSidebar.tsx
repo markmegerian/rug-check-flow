@@ -44,8 +44,9 @@ const SUPERADMIN_NAV_ITEMS = [
   { title: "Mission Control", url: "/admin", icon: ShieldCheck, active: (path: string) => path.startsWith("/admin") },
 ] as const;
 
+const CHECKIN_ITEM = { title: "Check-In", url: "/checkin", icon: ClipboardCheck } as const;
+
 const OPS_FLOOR_ITEMS = [
-  { id: "checkin", label: "Check-In", icon: ClipboardCheck },
   { id: "production", label: "Production", icon: Factory },
   { id: "delivery-prep", label: "Delivery Prep", icon: Package },
   { id: "invoice-generator", label: "Invoice", icon: Receipt },
@@ -101,17 +102,25 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         active: location.pathname.startsWith("/portal") && (currentTab ?? "rugs") === item.id,
       }))
     : [
-        ...OPS_FLOOR_ITEMS,
-        ...(isOffice ? [
-          ...(canManagePricing ? [PRICING_ITEM] : []),
-          ...OPS_BUSINESS_ITEMS,
-        ] : []),
-      ].map((item) => ({
-        title: item.label,
-        url: `/ops?tab=${item.id}`,
-        icon: item.icon,
-        active: location.pathname.startsWith("/ops") && (currentTab ?? "checkin") === item.id,
-      }));
+        {
+          title: CHECKIN_ITEM.title,
+          url: CHECKIN_ITEM.url,
+          icon: CHECKIN_ITEM.icon,
+          active: location.pathname.startsWith("/checkin"),
+        },
+        ...[
+          ...OPS_FLOOR_ITEMS,
+          ...(isOffice ? [
+            ...(canManagePricing ? [PRICING_ITEM] : []),
+            ...OPS_BUSINESS_ITEMS,
+          ] : []),
+        ].map((item) => ({
+          title: item.label,
+          url: `/ops?tab=${item.id}`,
+          icon: item.icon,
+          active: location.pathname.startsWith("/ops") && (currentTab ?? "production") === item.id,
+        })),
+      ];
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">

@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ClipboardCheck,
   Factory,
   Truck,
   Package,
@@ -14,7 +13,6 @@ import {
   FolderOpen,
   Inbox,
 } from "lucide-react";
-const CheckInLayout = lazy(() => import("@/components/facility/CheckInLayout").then((m) => ({ default: m.CheckInLayout })));
 const InvoiceGeneratorPanel = lazy(() => import("@/components/facility/InvoiceGeneratorPanel").then((m) => ({ default: m.InvoiceGeneratorPanel })));
 const DeliveryPrepTab = lazy(() => import("@/components/facility/DeliveryPrepTab").then((m) => ({ default: m.DeliveryPrepTab })));
 const PricingTab = lazy(() => import("@/components/office/PricingTab").then((m) => ({ default: m.PricingTab })));
@@ -35,7 +33,6 @@ import { ClientPricingDialog } from "@/components/pricing/ClientPricingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 
 const FLOOR_TABS = [
-  { id: "checkin", label: "Check-In", icon: ClipboardCheck },
   { id: "production", label: "Production", icon: Factory },
   { id: "delivery-prep", label: "Delivery Prep", icon: Package },
   { id: "invoice-generator", label: "Invoice", icon: Receipt },
@@ -59,6 +56,7 @@ type BusinessTabId = "pricing" | (typeof BUSINESS_TABS_BASE)[number]["id"];
 type TabId = FloorTabId | BusinessTabId;
 
 export default function Operations() {
+  const navigate = useNavigate();
   const { hasRole, isSuperAdmin } = useAuth();
   const canManagePricing = hasRole("admin");
   const isOffice = hasRole("admin") || hasRole("office");
@@ -78,7 +76,7 @@ export default function Operations() {
     [availableTabs],
   );
 
-  const defaultTab: TabId = "checkin";
+  const defaultTab: TabId = "production";
 
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
@@ -99,17 +97,21 @@ export default function Operations() {
   };
 
   useEffect(() => {
+    if (requestedTab === "checkin") {
+      navigate("/checkin", { replace: true });
+      return;
+    }
     if (requestedTab && allTabIds.has(requestedTab)) {
       setActiveTab((cur) => (cur === requestedTab ? cur : (requestedTab as TabId)));
     }
-  }, [requestedTab, allTabIds]);
+  }, [requestedTab, allTabIds, navigate]);
 
   const activeLabel = useMemo(
     () => availableTabs.find((tab) => tab.id === activeTab)?.label ?? "",
     [availableTabs, activeTab],
   );
 
-  const showStatusBar = activeTab !== "checkin";
+  const showStatusBar = true;
 
   return (
     <AppShell
@@ -123,7 +125,6 @@ export default function Operations() {
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-[1.25rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4 md:mt-4">
         <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading workspace…</div>}>
           {/* Floor tabs */}
-          {activeTab === "checkin" && <CheckInLayout />}
           {activeTab === "production" && <ProductionBoard />}
           {activeTab === "delivery-prep" && <DeliveryPrepTab />}
           {activeTab === "invoice-generator" && <InvoiceGeneratorPanel />}
