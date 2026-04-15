@@ -247,6 +247,11 @@ Deno.serve(async (req) => {
     const portalUserId = typeof body?.portal_user_id === "string" ? body.portal_user_id : "";
     if (!portalUserId) return json({ error: "portal_user_id is required" }, 400);
 
+    return json({
+      error: "Portal onboarding emails are temporarily disabled. Activate accounts manually.",
+      details: { portal_user_id: portalUserId, mode: "manual_activation_only" },
+    }, 403);
+
     const { data: portalUser, error: portalUserError } = await adminClient
       .from("portal_users")
       .select("id, client_id, email, status, onboarding_completed_at, clients(name, contact_name, phone, address)")
