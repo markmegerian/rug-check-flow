@@ -63,7 +63,9 @@ export async function maybeAutoCreateEstimateDraft(
 ): Promise<string | null> {
   if (serviceSnapshots.length === 0 || estimateDraftCreationAvailable === false) return null;
 
-  const serviceIds = eligibleSnapshots.map((s) => s.service_id);
+  const serviceIds = [...new Set(serviceSnapshots.map((s) => s.service_id).filter(Boolean))];
+  if (serviceIds.length === 0) return null;
+
   const { data: serviceRows, error: serviceError } = await supabase
     .from("services")
     .select("id, name, requires_estimate, category")
