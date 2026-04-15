@@ -39,6 +39,12 @@ type PricingTier = "standard" | "preferred" | "vip";
 
 type ClientTierCache = Record<string, PricingTier>;
 
+type IdleHandle = number;
+type WindowWithIdleCallback = Window & typeof globalThis & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => IdleHandle;
+  cancelIdleCallback?: (handle: IdleHandle) => void;
+};
+
 const CLIENT_TIER_CACHE_KEY = "checkin-client-tier-cache-v1";
 
 const checkInSchema = z.object({
@@ -91,6 +97,7 @@ interface CheckInFormProps {
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
+  const [shouldLoadServices, setShouldLoadServices] = useState(false);
   const [clientTierCache, setClientTierCache] = useState<ClientTierCache>(() => {
     try {
       const raw = localStorage.getItem(CLIENT_TIER_CACHE_KEY);
@@ -119,7 +126,65 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       return (data ?? []) as DbService[];
     },
     staleTime: 5 * 60_000,
+    enabled: shouldLoadServices,
   });
+
+  useEffect(() => {
+    if (selectedRug || editingEntry) {
+      setShouldLoadServices(true);
+      return;
+    }
+
+    const win = window as WindowWithIdleCallback;
+    if (typeof win.requestIdleCallback === "function") {
+      const handle = win.requestIdleCallback(() => {
+        setShouldLoadServices(true);
+      }, { timeout: 1200 });
+      return () => {
+        if (typeof win.cancelIdleCallback === "function") {
+          win.cancelIdleCallback(handle);
+        }
+      };
+    }
+
+    const timer = window.setTimeout(() => {
+      setShouldLoadServices(true);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [selectedRug, editingEntry]);
+
+  const resolveClientTier = useCallback(async (clientName: string) => {
+    const normalizedClient = clientName.trim().toLowerCase();
+    if (!normalizedClient) {
+      setClientTier("standard");
+      return;
+    }
+
+    const cachedTier = clientTierCache[normalizedClient];
+    if (cachedTier) {
+      setClientTier(cachedTier);
+      return;
+    }
+
+    if (normalizedClient.length < 3) {
+      setClientTier("standard");
+      return;
+    }
+
+    const { data } = await supabase
+      .from("clients")
+      .select("pricing_tier")
+      .ilike("name", clientName.trim())
+      .limit(1);
+
+    const resolvedTier = (data?.[0]?.pricing_tier as PricingTier | undefined) ?? "standard";
+    setClientTier(resolvedTier);
+    setClientTierCache((prev) => {
+      const next = { ...prev, [normalizedClient]: resolvedTier };
+      localStorage.setItem(CLIENT_TIER_CACHE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [clientTierCache]);
 
   useEffect(() => {
     if (selectedRug) {
@@ -138,8 +203,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         selectedServices: preSelectedIds,
       });
       setPhotos([]);
+      void resolveClientTier(selectedRug.clientName);
     }
-  }, [selectedRug, form, dbServices]);
+  }, [selectedRug, form, dbServices, resolveClientTier]);
 
   useEffect(() => {
     if (editingEntry) {
@@ -153,57 +219,15 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         selectedServices: editingEntry.services.map((s) => s.id),
       });
       setPhotos([]);
+      void resolveClientTier(editingEntry.clientName);
     }
-  }, [editingEntry, form]);
+  }, [editingEntry, form, resolveClientTier]);
 
+  const watchedRugNumber = form.watch("rugNumber");
   const watchedClient = form.watch("clientName");
   const watchedLength = form.watch("length");
   const watchedWidth = form.watch("width");
   const watchedServices = form.watch("selectedServices");
-
-  useEffect(() => {
-    const normalizedClient = watchedClient.trim().toLowerCase();
-    if (!normalizedClient) {
-      setClientTier("standard");
-      return;
-    }
-
-    const cachedTier = clientTierCache[normalizedClient];
-    if (cachedTier) {
-      setClientTier(cachedTier);
-      return;
-    }
-
-    if (normalizedClient.length < 3) {
-      setClientTier("standard");
-      return;
-    }
-
-    let cancelled = false;
-    const lookup = async () => {
-      const { data } = await supabase
-        .from("clients")
-        .select("pricing_tier")
-        .ilike("name", watchedClient.trim())
-        .limit(1);
-
-      const resolvedTier = (data?.[0]?.pricing_tier as PricingTier | undefined) ?? "standard";
-      if (cancelled) return;
-
-      setClientTier(resolvedTier);
-      setClientTierCache((prev) => {
-        const next = { ...prev, [normalizedClient]: resolvedTier };
-        localStorage.setItem(CLIENT_TIER_CACHE_KEY, JSON.stringify(next));
-        return next;
-      });
-    };
-
-    const timer = window.setTimeout(lookup, 500);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [clientTierCache, watchedClient]);
 
   const sqft = useMemo(() => {
     const l = Number(watchedLength) || 0;
@@ -355,10 +379,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         }`}>
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <span className="text-base md:text-lg font-bold font-mono truncate">
-              {form.watch("rugNumber") || "—"}
+              {watchedRugNumber || "—"}
             </span>
             <span className="text-xs md:text-sm opacity-80 truncate hidden sm:inline">
-              {form.watch("clientName") || "No client"}
+              {watchedClient || "No client"}
             </span>
             {tierLabel && (
               <span className="text-xs bg-white/20 px-2 py-0.5 rounded shrink-0">{tierLabel}</span>
@@ -396,11 +420,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             <div className="grid grid-cols-2 gap-3 md:gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Rug #</Label>
-                <p className="font-mono font-bold text-base md:text-lg">{form.watch("rugNumber")}</p>
+                <p className="font-mono font-bold text-base md:text-lg">{watchedRugNumber}</p>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">Client</Label>
-                <p className="font-medium text-sm md:text-base">{form.watch("clientName")}</p>
+                <p className="font-medium text-sm md:text-base">{watchedClient}</p>
               </div>
             </div>
           ) : (
@@ -425,7 +449,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                   <FormItem>
                     <FormLabel>Client Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Client name" {...field} />
+                      <Input
+                        placeholder="Client name"
+                        {...field}
+                        onBlur={(event) => {
+                          field.onBlur();
+                          void resolveClientTier(event.target.value);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -522,27 +553,33 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
 
           {/* Service selection */}
-          <CheckInServiceSelector
-            dbServices={dbServices}
-            watchedServices={watchedServices}
-            toggleService={toggleService}
-            clearAll={() => {
-              form.setValue("selectedServices", [], { shouldValidate: true });
-              setFlatPrices({});
-              setEdgeSelections({});
-            }}
-            setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-            getUnitPrice={getUnitPrice}
-            getLineTotal={getLineTotal}
-            edgeSelections={edgeSelections}
-            setEdgeSelections={setEdgeSelections}
-            flatPrices={flatPrices}
-            setFlatPrices={setFlatPrices}
-            watchedLength={watchedLength}
-            watchedWidth={watchedWidth}
-            tierLabel={tierLabel}
-            error={form.formState.errors.selectedServices?.message}
-          />
+          {shouldLoadServices ? (
+            <CheckInServiceSelector
+              dbServices={dbServices}
+              watchedServices={watchedServices}
+              toggleService={toggleService}
+              clearAll={() => {
+                form.setValue("selectedServices", [], { shouldValidate: true });
+                setFlatPrices({});
+                setEdgeSelections({});
+              }}
+              setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+              getUnitPrice={getUnitPrice}
+              getLineTotal={getLineTotal}
+              edgeSelections={edgeSelections}
+              setEdgeSelections={setEdgeSelections}
+              flatPrices={flatPrices}
+              setFlatPrices={setFlatPrices}
+              watchedLength={watchedLength}
+              watchedWidth={watchedWidth}
+              tierLabel={tierLabel}
+              error={form.formState.errors.selectedServices?.message}
+            />
+          ) : (
+            <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+              Loading services…
+            </div>
+          )}
         </div>
 
         {/* Sticky review / action footer */}
