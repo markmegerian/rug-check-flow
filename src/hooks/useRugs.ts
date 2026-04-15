@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import type { ProductionStage } from "@/data/production";
-
 export type RugRow = Tables<"rugs">;
 export type RugServiceRow = Pick<
   Tables<"rug_services">,
@@ -13,7 +11,7 @@ export interface RugWithServices {
   id: string;
   tag: string;
   description: string;
-  status: ProductionStage;
+  status: string;
   size_length: number | null;
   size_width: number | null;
   checked_in_at: string;
@@ -32,7 +30,6 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
   const { data, error } = await supabase
     .from("rugs")
     .select("id, tag, description, status, size_length, size_width, checked_in_at, notes, client_id, photo_url, clients(name)")
-    .in("status", PRODUCTION_STAGES.map((stage) => stage.id))
     .order("checked_in_at", { ascending: false });
 
   if (error) throw error;
@@ -65,7 +62,7 @@ async function fetchRugsWithServices(): Promise<RugWithServices[]> {
     id: rug.id,
     tag: rug.tag,
     description: rug.description,
-    status: rug.status as ProductionStage,
+    status: rug.status,
     size_length: rug.size_length,
     size_width: rug.size_width,
     checked_in_at: rug.checked_in_at,
@@ -136,7 +133,7 @@ export function useRug(id: string | null) {
         id: row.id,
         tag: row.tag,
         description: row.description,
-        status: row.status as ProductionStage,
+        status: row.status,
         size_length: row.size_length,
         size_width: row.size_width,
         checked_in_at: row.checked_in_at,

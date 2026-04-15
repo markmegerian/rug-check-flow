@@ -40,7 +40,7 @@ export function ProductionBoard() {
   const invalidateRugs = useInvalidateRugs();
   const { data: deliveryAllocations } = useDeliveryAllocations();
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<ProductionView>("active");
+  const [view, setView] = useState<ProductionView>("all");
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
 
   const visibleRugs = useMemo(() => {
