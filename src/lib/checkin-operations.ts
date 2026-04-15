@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
+import { isCleaningCategory } from "@/lib/service-pricing";
 
 /** Upload a single check-in photo to storage. Returns the public URL or null on failure. */
 export async function uploadCheckinPhoto(rugId: string, file: File): Promise<string | null> {
@@ -62,10 +63,10 @@ export async function maybeAutoCreateEstimateDraft(
 ): Promise<string | null> {
   if (serviceSnapshots.length === 0 || estimateDraftCreationAvailable === false) return null;
 
-  const serviceIds = serviceSnapshots.map((s) => s.service_id);
+  const serviceIds = eligibleSnapshots.map((s) => s.service_id);
   const { data: serviceRows, error: serviceError } = await supabase
     .from("services")
-    .select("id, name, requires_estimate")
+    .select("id, name, requires_estimate, category")
     .in("id", serviceIds);
 
   if (serviceError) {
@@ -73,12 +74,16 @@ export async function maybeAutoCreateEstimateDraft(
     return null;
   }
 
-  const rows = (serviceRows ?? []) as unknown as Array<{ id: string; name: string; requires_estimate: boolean | null }>;
-  const requiresEstimate = rows.some((row) => Boolean(row.requires_estimate));
-  if (!requiresEstimate) return null;
+  const rows = (serviceRows ?? []) as unknown as Array<{ id: string; name: string; requires_estimate: boolean | null; category: string | null }>;
+  const eligibleSnapshots = serviceSnapshots.filter((snapshot) => {
+    const serviceRow = rows.find((row) => row.id === snapshot.service_id);
+    return Boolean(serviceRow?.requires_estimate) && !isCleaningCategory(serviceRow?.category);
+  });
+
+  if (eligibleSnapshots.length === 0) return null;
 
   const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
-  const total = serviceSnapshots.reduce((sum, s) => sum + Number(s.line_total ?? 0), 0);
+  const total = eligibleSnapshots.reduce((sum, s) => sum + Number(s.line_total ?? 0), 0);
 
   const { data: insertedEstimate, error: estimateError } = await supabaseExtended
     .from("estimates")
@@ -113,7 +118,7 @@ export async function maybeAutoCreateEstimateDraft(
     categoryByServiceId = Object.fromEntries(((catRows ?? []) as { id: string; category: string }[]).map((r) => [r.id, r.category ?? ""]));
   }
 
-  const estimateItems = serviceSnapshots.map((s) => ({
+  const estimateItems = eligibleSnapshots.map((s) => ({
     estimate_id: insertedEstimate.id,
     rug_service_id: null,
     description: `${rugNumber} — ${s.service_name}`,

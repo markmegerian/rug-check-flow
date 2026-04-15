@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isCleaningCategory } from "@/lib/service-pricing";
 
 type BaseRugServiceRow = {
   id?: string;
@@ -108,11 +109,30 @@ export async function fetchRugServicesForRugIds(rugIds: string[]) {
 export async function insertRugServices(rows: BaseRugServiceRow[]) {
   if (rows.length === 0) return { error: null, approvalStatusAvailable: approvalStatusColumnAvailable !== false };
 
-  const rowsWithStatus = rows.map((row) => ({
-    ...row,
-    edges: row.edges ?? [],
-    approval_status: row.approval_status ?? "pending",
-  }));
+  const serviceIds = [...new Set(rows.map((row) => row.service_id).filter(Boolean))] as string[];
+  let categoryByServiceId: Record<string, string> = {};
+
+  if (serviceIds.length > 0) {
+    const { data } = await supabase
+      .from("services")
+      .select("id, category")
+      .in("id", serviceIds);
+    categoryByServiceId = Object.fromEntries(((data ?? []) as Array<{ id: string; category: string | null }>).map((row) => [row.id, row.category ?? ""]));
+  }
+
+  const rowsWithStatus = rows.map((row) => {
+    const category = row.service_id ? categoryByServiceId[row.service_id] : null;
+    const defaultApprovalStatus = isCleaningCategory(category) ? "approved" : "pending";
+    return {
+      ...row,
+      edges: row.edges ?? [],
+      approval_status: row.approval_status === "rejected"
+        ? "rejected"
+        : row.approval_status === "approved"
+          ? "approved"
+          : defaultApprovalStatus,
+    };
+  });
 
   if (approvalStatusColumnAvailable === false) {
     const { error } = await supabase.from("rug_services").insert(
