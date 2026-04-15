@@ -37,6 +37,23 @@ type DeliveryInstructions = {
   note: string | null;
 };
 
+type JwtPayload = {
+  role?: string;
+  email?: string;
+};
+
+const decodeJwtPayload = (token: string): JwtPayload | null => {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    return JSON.parse(atob(padded)) as JwtPayload;
+  } catch {
+    return null;
+  }
+};
+
 const BOOTSTRAP_PREFIX = "RugBoost!";
 
 const escapeHtml = (value: string) =>
@@ -166,17 +183,27 @@ const generatePasswordResetLink = async (
   email: string,
   portalUrl: string
 ) => {
+  const redirectTo = buildResetRedirectUrl(portalUrl);
   const { data, error } = await adminClient.auth.admin.generateLink({
     type: "recovery",
     email,
     options: {
-      redirectTo: buildResetRedirectUrl(portalUrl),
+      redirectTo,
     },
   });
 
   if (error) throw new Error(error.message);
 
-  return data.properties?.action_link ?? null;
+  const actionLink = data.properties?.action_link ?? null;
+  if (!actionLink) return null;
+
+  try {
+    const url = new URL(actionLink);
+    url.searchParams.set("redirect_to", redirectTo);
+    return url.toString();
+  } catch {
+    return actionLink;
+  }
 };
 
 Deno.serve(async (req) => {
@@ -195,29 +222,30 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const anonClient = createClient(supabaseUrl, anonKey);
-    const token = authHeader.replace("Bearer ", "");
+    const token = authHeader.replace("Bearer ", "").trim();
+    const jwtPayload = decodeJwtPayload(token);
+    const isServiceRole = jwtPayload?.role === "service_role";
 
-    const { data: userData, error: userError } = await anonClient.auth.getUser(token);
-    if (userError || !userData.user) return json({ error: "Unauthorized" }, 401);
-    const actor = userData.user;
+    let actor: { id: string; email?: string | null } | null = null;
 
-    const { data: roleRows, error: roleError } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", actor.id)
-      .in("role", ["admin", "office"])
-      .limit(1);
-    if (roleError) return json({ error: roleError.message }, 500);
-    if (!roleRows || roleRows.length === 0) return json({ error: "Forbidden" }, 403);
+    if (!isServiceRole) {
+      const { data: userData, error: userError } = await anonClient.auth.getUser(token);
+      if (userError || !userData.user) return json({ error: "Unauthorized" }, 401);
+      actor = userData.user;
+
+      const { data: roleRows, error: roleError } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", actor.id)
+        .in("role", ["admin", "office"])
+        .limit(1);
+      if (roleError) return json({ error: roleError.message }, 500);
+      if (!roleRows || roleRows.length === 0) return json({ error: "Forbidden" }, 403);
+    }
 
     const body = await req.json().catch(() => null);
     const portalUserId = typeof body?.portal_user_id === "string" ? body.portal_user_id : "";
     if (!portalUserId) return json({ error: "portal_user_id is required" }, 400);
-
-    return json({
-      error: "Portal onboarding emails are temporarily disabled. Activate accounts manually.",
-      details: { portal_user_id: portalUserId, mode: "manual_activation_only" },
-    }, 403);
 
     const { data: portalUser, error: portalUserError } = await adminClient
       .from("portal_users")
@@ -344,8 +372,8 @@ Deno.serve(async (req) => {
     });
 
     await adminClient.from("audit_log").insert({
-      user_id: actor.id,
-      user_name: actor.email ?? "System",
+      user_id: actor?.id ?? null,
+      user_name: actor?.email ?? "service_role",
       action: `Processed wholesale onboarding email for ${typedPortalUser.email} (${providerStatus})`,
     });
 

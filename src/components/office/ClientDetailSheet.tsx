@@ -208,7 +208,7 @@ export function ClientDetailSheet({
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">Portal Users</h3>
                 <p className="text-xs text-muted-foreground">
-                  New logins stay invited until you activate them. Onboarding emails are disabled for now, so activation is manual only.
+                  New logins stay invited until you activate them. Activation now sends the onboarding email when the email provider is configured.
                 </p>
                 {portalUsers.length === 0 && (
                   <p className="text-sm text-muted-foreground">No portal users yet.</p>
@@ -244,13 +244,13 @@ export function ClientDetailSheet({
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs"
-                          onClick={() => onActivatePortalUser(u, false)}
+                          onClick={() => onActivatePortalUser(u, true)}
                           disabled={portalActionId === u.id}
                         >
-                          Activate
+                          Activate & email
                         </Button>
                       ) : (
-                        <span className="text-xs text-muted-foreground">Active manually — email disabled</span>
+                        <span className="text-xs text-muted-foreground">Active</span>
                       )}
                     </div>
                   </div>
