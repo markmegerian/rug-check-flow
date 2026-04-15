@@ -23,7 +23,16 @@ type CompletedPickupRequestRow = Pick<
 type CompletedPickupItemRow = Pick<
   ExtendedTableRow<"pickup_request_items">,
   "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "checked_in_rug_id" | "estimate_requested" | "estimate_request_details"
->;
+> & {
+  pickup_requests?: CompletedPickupRequestRow | null;
+};
+
+type IdleHandle = number;
+
+type WindowWithIdleCallback = Window & typeof globalThis & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => IdleHandle;
+  cancelIdleCallback?: (handle: IdleHandle) => void;
+};
 
 type PickupSnapshotCache = {
   targetDate: string;
@@ -159,31 +168,11 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
       return;
     }
 
-    const { data: requestRows, error: requestError } = await supabaseExtended
-      .from("pickup_requests")
-      .select("id, client_id, scheduled_date, status, clients(name)")
-      .eq("status", "completed")
-      .eq("scheduled_date", targetDate)
-      .order("scheduled_date", { ascending: true })
-      .limit(150);
-
-    if (requestError) {
-      console.error("Failed to fetch completed pickup requests", requestError);
-      return;
-    }
-
-    const completedRequests = (requestRows ?? []) as CompletedPickupRequestRow[];
-    if (completedRequests.length === 0) {
-      writePickupSnapshotCache(targetDate, []);
-      setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
-      return;
-    }
-
-    const requestIds = completedRequests.map((request) => request.id);
     const { data: itemRows, error: itemError } = await supabaseExtended
       .from("pickup_request_items")
-      .select("id, pickup_request_id, rug_number, rug_type, length, width, checked_in_rug_id, estimate_requested, estimate_request_details")
-      .in("pickup_request_id", requestIds)
+      .select("id, pickup_request_id, rug_number, rug_type, length, width, checked_in_rug_id, estimate_requested, estimate_request_details, pickup_requests!inner(id, client_id, scheduled_date, status, clients(name))")
+      .eq("pickup_requests.status", "completed")
+      .eq("pickup_requests.scheduled_date", targetDate)
       .is("checked_in_rug_id", null)
       .limit(400);
 
@@ -193,10 +182,14 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     }
 
     const pendingItems = (itemRows ?? []) as CompletedPickupItemRow[];
-    const requestById = new Map(completedRequests.map((request) => [request.id, request]));
+    if (pendingItems.length === 0) {
+      writePickupSnapshotCache(targetDate, []);
+      setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
+      return;
+    }
 
     const mappedPending: PendingRug[] = pendingItems.map((item) => {
-      const request = requestById.get(item.pickup_request_id);
+      const request = item.pickup_requests;
       return {
         id: item.id,
         rugNumber: item.rug_number,
@@ -277,7 +270,33 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
   }, []);
 
   useEffect(() => {
-    fetchPendingPickupRugs();
+    const targetDate = getPickupSnapshotTargetDate();
+    const cachedItems = readPickupSnapshotCache(targetDate);
+
+    if (cachedItems) {
+      setPendingRugs((prev) => {
+        const walkIns = prev.filter((rug) => rug.source === "walkin");
+        return [...cachedItems, ...walkIns];
+      });
+      return;
+    }
+
+    const win = window as WindowWithIdleCallback;
+    if (typeof win.requestIdleCallback === "function") {
+      const handle = win.requestIdleCallback(() => {
+        void fetchPendingPickupRugs();
+      }, { timeout: 800 });
+      return () => {
+        if (typeof win.cancelIdleCallback === "function") {
+          win.cancelIdleCallback(handle);
+        }
+      };
+    }
+
+    const timer = window.setTimeout(() => {
+      void fetchPendingPickupRugs();
+    }, 250);
+    return () => window.clearTimeout(timer);
   }, [fetchPendingPickupRugs]);
 
   useEffect(() => {
