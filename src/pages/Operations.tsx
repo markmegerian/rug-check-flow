@@ -13,6 +13,7 @@ import {
   Receipt,
   FolderOpen,
   Inbox,
+  Beaker,
 } from "lucide-react";
 const CheckInLayout = lazy(() => import("@/components/facility/CheckInLayout").then((m) => ({ default: m.CheckInLayout })));
 const InvoiceGeneratorPanel = lazy(() => import("@/components/facility/InvoiceGeneratorPanel").then((m) => ({ default: m.InvoiceGeneratorPanel })));
@@ -26,6 +27,7 @@ const JobsTab = lazy(() => import("@/components/office/JobsTab").then((m) => ({ 
 const RouteBuilder = lazy(() => import("@/components/office/RouteBuilder").then((m) => ({ default: m.RouteBuilder })));
 const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then((m) => ({ default: m.EstimatesTab })));
 const InboxTab = lazy(() => import("@/components/office/InboxTab").then((m) => ({ default: m.InboxTab })));
+const WorkflowLabTab = lazy(() => import("@/components/office/WorkflowLabTab").then((m) => ({ default: m.WorkflowLabTab })));
 import { ProductionBoard } from "@/components/facility/ProductionBoard";
 import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
@@ -54,9 +56,10 @@ const BUSINESS_TABS_BASE = [
 ] as const;
 
 const PRICING_TAB = { id: "pricing", label: "Pricing", icon: DollarSign } as const;
+const LAB_TAB = { id: "workflow-lab", label: "Lab", icon: Beaker } as const;
 
 type FloorTabId = (typeof FLOOR_TABS)[number]["id"];
-type BusinessTabId = "pricing" | (typeof BUSINESS_TABS_BASE)[number]["id"];
+type BusinessTabId = "pricing" | "workflow-lab" | (typeof BUSINESS_TABS_BASE)[number]["id"];
 type TabId = FloorTabId | BusinessTabId;
 
 export default function Operations() {
@@ -65,7 +68,7 @@ export default function Operations() {
   const isOffice = hasRole("admin") || hasRole("office");
 
   const businessTabs = useMemo(
-    () => (canManagePricing ? [PRICING_TAB, ...BUSINESS_TABS_BASE] : [...BUSINESS_TABS_BASE]),
+    () => (canManagePricing ? [PRICING_TAB, LAB_TAB, ...BUSINESS_TABS_BASE] : [...BUSINESS_TABS_BASE]),
     [canManagePricing],
   );
 
@@ -144,6 +147,7 @@ export default function Operations() {
 
           {/* Business tabs */}
           {activeTab === "pricing" && canManagePricing && <PricingTab />}
+          {activeTab === "workflow-lab" && canManagePricing && <WorkflowLabTab onOpenRug={handleRugSelect} />}
           {activeTab === "accounts-receivable" && <InvoicesTab />}
           {activeTab === "estimates" && <EstimatesTab />}
           {activeTab === "clients" && <ClientsTab />}
