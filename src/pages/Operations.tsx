@@ -26,9 +26,9 @@ const JobsTab = lazy(() => import("@/components/office/JobsTab").then((m) => ({ 
 const RouteBuilder = lazy(() => import("@/components/office/RouteBuilder").then((m) => ({ default: m.RouteBuilder })));
 const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then((m) => ({ default: m.EstimatesTab })));
 const InboxTab = lazy(() => import("@/components/office/InboxTab").then((m) => ({ default: m.InboxTab })));
-import { ProductionBoard } from "@/components/facility/ProductionBoard";
-import { RugSearchDialog } from "@/components/facility/RugSearchDialog";
-import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
+const ProductionBoard = lazy(() => import("@/components/facility/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
+const RugSearchDialog = lazy(() => import("@/components/facility/RugSearchDialog").then((m) => ({ default: m.RugSearchDialog })));
+const RugDetailSheet = lazy(() => import("@/components/facility/RugDetailSheet").then((m) => ({ default: m.RugDetailSheet })));
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceTabs, type WorkspaceTabGroup } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
@@ -116,12 +116,14 @@ export default function Operations() {
     return "";
   }, [groups, activeTab]);
 
+  const showStatusBar = activeTab !== "checkin";
+
   return (
     <AppShell
       title="Operations"
       subtitle={activeLabel}
       contentClassName="overflow-hidden flex flex-col"
-      statusBar={<WorkspaceStatusBar />}
+      statusBar={showStatusBar ? <WorkspaceStatusBar /> : undefined}
       onSearchOpen={() => setSearchOpen(true)}
       actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
     >
@@ -155,8 +157,16 @@ export default function Operations() {
         </Suspense>
       </div>
 
-      <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
-      <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
+      {searchOpen ? (
+        <Suspense fallback={null}>
+          <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
+        </Suspense>
+      ) : null}
+      {detailRugId ? (
+        <Suspense fallback={null}>
+          <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
+        </Suspense>
+      ) : null}
     </AppShell>
   );
 }
