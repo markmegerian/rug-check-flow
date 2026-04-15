@@ -36,7 +36,7 @@ export function AppShell({
   }, [onSearchOpen]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <div className="min-h-screen w-full bg-transparent">
         <div className="flex min-h-screen w-full bg-transparent">
           <AppSidebar onSearchOpen={onSearchOpen} />

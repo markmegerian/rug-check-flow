@@ -30,7 +30,6 @@ const ProductionBoard = lazy(() => import("@/components/facility/ProductionBoard
 const RugSearchDialog = lazy(() => import("@/components/facility/RugSearchDialog").then((m) => ({ default: m.RugSearchDialog })));
 const RugDetailSheet = lazy(() => import("@/components/facility/RugDetailSheet").then((m) => ({ default: m.RugDetailSheet })));
 import { AppShell } from "@/components/layout/AppShell";
-import { WorkspaceTabs, type WorkspaceTabGroup } from "@/components/layout/WorkspaceTabs";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 import { ClientPricingDialog } from "@/components/pricing/ClientPricingDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,17 +68,14 @@ export default function Operations() {
     [canManagePricing],
   );
 
-  const groups = useMemo(() => {
-    const g: WorkspaceTabGroup<TabId>[] = [{ label: "Floor", tabs: FLOOR_TABS }];
-    if (isOffice) {
-      g.push({ label: "Business", tabs: businessTabs });
-    }
-    return g;
-  }, [isOffice, businessTabs]);
+  const availableTabs = useMemo(
+    () => [...FLOOR_TABS, ...(isOffice ? businessTabs : [])],
+    [businessTabs, isOffice],
+  );
 
   const allTabIds = useMemo(
-    () => new Set<string>(groups.flatMap((g) => g.tabs.map((t) => t.id))),
-    [groups],
+    () => new Set<string>(availableTabs.map((tab) => tab.id)),
+    [availableTabs],
   );
 
   const defaultTab: TabId = "checkin";
@@ -108,13 +104,10 @@ export default function Operations() {
     }
   }, [requestedTab, allTabIds]);
 
-  const activeLabel = useMemo(() => {
-    for (const g of groups) {
-      const found = g.tabs.find((t) => t.id === activeTab);
-      if (found) return found.label;
-    }
-    return "";
-  }, [groups, activeTab]);
+  const activeLabel = useMemo(
+    () => availableTabs.find((tab) => tab.id === activeTab)?.label ?? "",
+    [availableTabs, activeTab],
+  );
 
   const showStatusBar = activeTab !== "checkin";
 
@@ -127,16 +120,7 @@ export default function Operations() {
       onSearchOpen={() => setSearchOpen(true)}
       actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
     >
-      {(isSuperAdmin || isOffice) ? (
-        <WorkspaceTabs
-          tabs={[]}
-          groups={groups}
-          activeTab={activeTab}
-          onTabChange={(tabId) => handleTabChange(tabId as TabId)}
-        />
-      ) : null}
-
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-[1.25rem] md:rounded-t-[1.75rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-[1.25rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4 md:mt-4">
         <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading workspace…</div>}>
           {/* Floor tabs */}
           {activeTab === "checkin" && <CheckInLayout />}
