@@ -16,6 +16,10 @@ export type DbRug = RugWithServices;
 
 type ProductionView = "active" | "ready" | "all";
 
+function normalizeSearchValue(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function getStageRank(status: string) {
   switch (status) {
     case "checked_in":
@@ -41,6 +45,10 @@ export function ProductionBoard() {
 
   const visibleRugs = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchValue(q);
+    const queryTokens = q.split(/\s+/).filter(Boolean);
+    const normalizedTokens = queryTokens.map((token) => normalizeSearchValue(token)).filter(Boolean);
+
     const base = rugs.filter((rug) => {
       if (view === "active") return rug.status === "checked_in" || rug.status === "in_production";
       if (view === "ready") return rug.status === "ready";
@@ -48,20 +56,45 @@ export function ProductionBoard() {
     });
 
     const filtered = q
-      ? base.filter((rug) =>
-          rug.tag.toLowerCase().includes(q) ||
-          (rug.client_name ?? "").toLowerCase().includes(q) ||
-          (rug.description ?? "").toLowerCase().includes(q)
-        )
+      ? base.filter((rug) => {
+          const rawValues = [
+            rug.tag,
+            rug.client_name ?? "",
+            rug.description ?? "",
+            rug.notes ?? "",
+            ...rug.services.map((service) => service.name),
+          ];
+          const haystack = rawValues.join(" ").toLowerCase();
+          const normalizedHaystack = normalizeSearchValue(haystack);
+
+          return queryTokens.every((token) => haystack.includes(token)) ||
+            normalizedTokens.every((token) => normalizedHaystack.includes(token));
+        })
       : base;
 
     return [...filtered].sort((a, b) => {
       if (q) {
         const aTag = a.tag.toLowerCase();
         const bTag = b.tag.toLowerCase();
-        const aExact = aTag === q ? 0 : aTag.startsWith(q) ? 1 : 2;
-        const bExact = bTag === q ? 0 : bTag.startsWith(q) ? 1 : 2;
-        if (aExact !== bExact) return aExact - bExact;
+        const aClient = (a.client_name ?? "").toLowerCase();
+        const bClient = (b.client_name ?? "").toLowerCase();
+        const aTagNormalized = normalizeSearchValue(a.tag);
+        const bTagNormalized = normalizeSearchValue(b.tag);
+        const aClientNormalized = normalizeSearchValue(a.client_name);
+        const bClientNormalized = normalizeSearchValue(b.client_name);
+
+        const getSearchRank = (rawTag: string, rawClient: string, normalizedTag: string, normalizedClient: string) => {
+          if (rawTag === q || normalizedTag === normalizedQuery) return 0;
+          if (rawTag.startsWith(q) || normalizedTag.startsWith(normalizedQuery)) return 1;
+          if (rawClient === q || normalizedClient === normalizedQuery) return 2;
+          if (rawClient.startsWith(q) || normalizedClient.startsWith(normalizedQuery)) return 3;
+          if (rawClient.includes(q) || normalizedClient.includes(normalizedQuery)) return 4;
+          return 5;
+        };
+
+        const aRank = getSearchRank(aTag, aClient, aTagNormalized, aClientNormalized);
+        const bRank = getSearchRank(bTag, bClient, bTagNormalized, bClientNormalized);
+        if (aRank !== bRank) return aRank - bRank;
       }
 
       const stageDiff = getStageRank(a.status) - getStageRank(b.status);
@@ -119,7 +152,7 @@ export function ProductionBoard() {
                 openTopResult();
               }
             }}
-            placeholder="Search rug tag, client, or description..."
+            placeholder="Search client name or rug number..."
             className="h-11 pl-9 text-base"
           />
         </div>
