@@ -52,6 +52,12 @@ type ServiceRuleRow = {
   requires_estimate: boolean | null;
 };
 
+type IdempotencyRow = {
+  id: string;
+  status: "processing" | "completed";
+  response_payload: Record<string, unknown> | null;
+};
+
 const ALLOWED_ROLES: AppRole[] = ["admin", "office", "checkin_staff"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -115,6 +121,74 @@ function normalizePhotos(value: unknown): WorkflowPhotoInput[] {
 
 function isMissingTableOrColumnError(message: string | undefined, target: string) {
   return new RegExp(`${target}|schema cache|relation .*${target}.* does not exist|column .*${target}`, "i").test(message ?? "");
+}
+
+function isUniqueViolation(message: string | undefined) {
+  return /duplicate key value|unique constraint|23505/i.test(message ?? "");
+}
+
+async function claimIdempotencyKey(adminClient: ReturnType<typeof createClient>, params: {
+  actorUserId: string;
+  idempotencyKey: string;
+  workflowMode: WorkflowMode;
+}) {
+  const { data, error } = await adminClient
+    .from("checkin_idempotency_keys")
+    .insert({
+      actor_user_id: params.actorUserId,
+      idempotency_key: params.idempotencyKey,
+      workflow_mode: params.workflowMode,
+      status: "processing",
+    })
+    .select("id, status, response_payload")
+    .single();
+
+  if (!error && data) {
+    return { kind: "claimed" as const, rowId: data.id };
+  }
+
+  if (error && !isUniqueViolation(error.message)) throw error;
+
+  const { data: existing, error: existingError } = await adminClient
+    .from("checkin_idempotency_keys")
+    .select("id, status, response_payload")
+    .eq("actor_user_id", params.actorUserId)
+    .eq("idempotency_key", params.idempotencyKey)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (!existing) return { kind: "missing" as const };
+  if (existing.status === "completed" && existing.response_payload) {
+    return { kind: "replay" as const, response: existing.response_payload };
+  }
+
+  return { kind: "in_flight" as const };
+}
+
+async function completeIdempotencyKey(adminClient: ReturnType<typeof createClient>, params: {
+  rowId: string;
+  responsePayload: Record<string, unknown>;
+  rugId: string | null;
+  intakeJobId: string | null;
+}) {
+  const { error } = await adminClient
+    .from("checkin_idempotency_keys")
+    .update({
+      status: "completed",
+      response_payload: params.responsePayload,
+      rug_id: params.rugId,
+      intake_job_id: params.intakeJobId,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", params.rowId);
+
+  if (error) throw error;
+}
+
+async function releaseIdempotencyKey(adminClient: ReturnType<typeof createClient>, rowId: string | null) {
+  if (!rowId) return;
+  const { error } = await adminClient.from("checkin_idempotency_keys").delete().eq("id", rowId);
+  if (error) throw error;
 }
 
 function nextStageFromCheckedIn(currentStatus: string | null | undefined) {
@@ -532,6 +606,7 @@ Deno.serve(async (req) => {
     const intakeDate = request.intakeDate && !Number.isNaN(new Date(request.intakeDate).getTime())
       ? new Date(request.intakeDate).toISOString()
       : new Date().toISOString();
+    const idempotencyKey = req.headers.get("x-idempotency-key")?.trim() || null;
 
     const resolvedClient = await resolveClient(adminClient, {
       clientId: request.clientId ?? null,
@@ -619,40 +694,63 @@ Deno.serve(async (req) => {
       });
     }
 
-    const intakeJob = await tryCreateIntakeJob(adminClient, {
-      clientId,
-      source: request.source,
-      intakeDate,
-      actorUserId: actor.user.id,
-    });
-    if (intakeJob.warning) warnings.push(intakeJob.warning);
-
-    const baseRugPayload = {
-      tag: request.rugNumber,
-      description: request.rugType,
-      size_length: request.length,
-      size_width: request.width,
-      services: request.services.map((service) => service.service_name),
-      client_id: clientId,
-      checked_in_by: actor.user.id,
-      checked_in_at: intakeDate,
-      notes: request.conditionNotes,
-    };
-
-    const rugInsert = await insertRugWithFallback(adminClient, {
-      base: baseRugPayload,
-      extended: {
-        ...baseRugPayload,
-        job_id: intakeJob.jobId,
-        intake_source: request.source,
-        intake_date: intakeDate,
-      },
-    });
-    if (rugInsert.warning) warnings.push(rugInsert.warning);
-    const rugId = rugInsert.rugId;
-    if (!rugId) return json({ error: "Check-in failed" }, 500);
+    let claimedIdempotencyRowId: string | null = null;
+    let intakeJobIdForRollback: string | null = null;
+    let rugIdForRollback: string | null = null;
 
     try {
+      if (request.mode === "create" && idempotencyKey) {
+        const idempotencyClaim = await claimIdempotencyKey(adminClient, {
+          actorUserId: actor.user.id,
+          idempotencyKey,
+          workflowMode: request.mode,
+        });
+
+        if (idempotencyClaim.kind === "replay") {
+          return json(idempotencyClaim.response);
+        }
+        if (idempotencyClaim.kind === "in_flight") {
+          return json({ error: "A matching check-in is already processing. Retry in a moment." }, 409);
+        }
+        if (idempotencyClaim.kind === "claimed") {
+          claimedIdempotencyRowId = idempotencyClaim.rowId;
+        }
+      }
+
+      const intakeJob = await tryCreateIntakeJob(adminClient, {
+        clientId,
+        source: request.source,
+        intakeDate,
+        actorUserId: actor.user.id,
+      });
+      intakeJobIdForRollback = intakeJob.jobId;
+      if (intakeJob.warning) warnings.push(intakeJob.warning);
+
+      const baseRugPayload = {
+        tag: request.rugNumber,
+        description: request.rugType,
+        size_length: request.length,
+        size_width: request.width,
+        services: request.services.map((service) => service.service_name),
+        client_id: clientId,
+        checked_in_by: actor.user.id,
+        checked_in_at: intakeDate,
+        notes: request.conditionNotes,
+      };
+
+      const rugInsert = await insertRugWithFallback(adminClient, {
+        base: baseRugPayload,
+        extended: {
+          ...baseRugPayload,
+          job_id: intakeJob.jobId,
+          intake_source: request.source,
+          intake_date: intakeDate,
+        },
+      });
+      if (rugInsert.warning) warnings.push(rugInsert.warning);
+      const rugId = rugInsert.rugId;
+      rugIdForRollback = rugId;
+      if (!rugId) return json({ error: "Check-in failed" }, 500);
       const serviceInsert = await insertRugServices(adminClient, rugId, request.services, serviceRules);
       if (serviceInsert.error) throw new Error(serviceInsert.error);
       if (!serviceInsert.approvalStatusAvailable) {
@@ -781,7 +879,7 @@ Deno.serve(async (req) => {
         if (result.status === "rejected") warnings.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
       }
 
-      return json({
+      const responsePayload = {
         status: warnings.length > 0 ? "warning" : "success",
         rugId,
         intakeJobId: intakeJob.jobId,
@@ -795,9 +893,21 @@ Deno.serve(async (req) => {
           checkedInAt: intakeDate,
           totalPrice: request.services.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0),
         },
-      });
+      };
+
+      if (claimedIdempotencyRowId) {
+        await completeIdempotencyKey(adminClient, {
+          rowId: claimedIdempotencyRowId,
+          responsePayload,
+          rugId,
+          intakeJobId: intakeJob.jobId,
+        });
+      }
+
+      return json(responsePayload);
     } catch (error) {
-      await rollbackCreate(adminClient, { rugId, intakeJobId: intakeJob.jobId });
+      await rollbackCreate(adminClient, { rugId: rugIdForRollback, intakeJobId: intakeJobIdForRollback });
+      await releaseIdempotencyKey(adminClient, claimedIdempotencyRowId);
       return json({ error: error instanceof Error ? error.message : "Check-in workflow failed" }, 500);
     }
   } catch (error) {

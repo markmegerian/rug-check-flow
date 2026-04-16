@@ -502,8 +502,8 @@ Direct company ownership columns are now present on:
 2. Verify scheduler wiring / real production execution for reminder cadence once a company-linked office/admin smoke account or scheduler-secret path is available
 3. Capture fuller production smoke evidence for messaging/reminder flows
 4. Tighten DB-native authority for remaining stop workflow invariants where valuable
-5. Add durable idempotency persistence for repeated Check-In submissions / retries
-6. Repair or backfill the 10 prod `rugs` rows that still have null `company_id`
+5. Repair or backfill the 10 prod `rugs` rows that still have null `company_id`
+6. Capture clean post-deploy UI success-path evidence for `generate-invoice-workflow` when a fresh uninvoiced ready rug is available
 7. Keep release evidence and rollout docs current as real deployments happen
 
 ---

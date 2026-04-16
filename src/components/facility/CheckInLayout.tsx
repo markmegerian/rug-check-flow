@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy, Suspense } from "react";
+import { useState, useCallback, lazy, Suspense, useRef } from "react";
 import { ClipboardList, Plus } from "lucide-react";
 import { CheckInForm } from "./CheckInForm";
 import { type CheckInEntry } from "@/data/check-in-log";
@@ -52,6 +52,7 @@ export function CheckInLayout() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
+  const checkInIdempotencyKeyRef = useRef<string | null>(null);
   const {
     pendingRugs,
     checkInLog,
@@ -103,6 +104,7 @@ export function CheckInLayout() {
       });
       const finalizeResult = <T extends { resetForm?: boolean }>(result: T) => {
         if (result.resetForm !== false) {
+          checkInIdempotencyKeyRef.current = null;
           setSelectedRugId(null);
           setEditingEntryId(null);
           setFormResetKey((current) => current + 1);
@@ -128,6 +130,13 @@ export function CheckInLayout() {
         return finalizeResult(errorResult("Unauthorized", "Sign in again and retry."));
       }
 
+      const idempotencyKey = editingEntryId
+        ? null
+        : (checkInIdempotencyKeyRef.current ??= globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const workflowHeaders = idempotencyKey
+        ? { ...authHeaders, "x-idempotency-key": idempotencyKey }
+        : authHeaders;
+
       const workflow = await safeInvoke<CheckInWorkflowResponse>("check-in-workflow", {
         mode: editingEntryId ? "edit" : "create",
         rugId: editingEntryId ?? undefined,
@@ -143,7 +152,7 @@ export function CheckInLayout() {
         source: selectedRug?.source === "pickup" ? "pickup" : "dropoff",
         services: data.serviceSnapshots,
         photos: photoPayload,
-      }, authHeaders);
+      }, workflowHeaders);
 
       if (!workflow.success) {
         return finalizeResult(errorResult(isEditing ? "Update failed" : "Check-in failed", workflow.error));

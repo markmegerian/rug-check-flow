@@ -17,12 +17,18 @@ describe("check-in workflow edge function", () => {
     expect(fn).toContain('notification_type: "estimate_batch_send"');
   });
 
-  it("documents idempotency header support and manual auth config registration", () => {
+  it("documents durable idempotency support and manual auth config registration", () => {
     const fn = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
     const config = readFileSync(resolve(process.cwd(), "supabase/config.toml"), "utf-8");
+    const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260416230000_add_checkin_idempotency_keys.sql"), "utf-8");
     expect(fn).toContain('x-idempotency-key');
+    expect(fn).toContain('claimIdempotencyKey');
+    expect(fn).toContain('completeIdempotencyKey');
+    expect(fn).toContain('from("checkin_idempotency_keys")');
     expect(fn).toContain('anonClient.auth.getUser(token)');
     expect(config).toContain('[functions.check-in-workflow]');
     expect(config).toContain('verify_jwt = false');
+    expect(migration).toContain('create table if not exists public.checkin_idempotency_keys');
+    expect(migration).toContain('unique (actor_user_id, idempotency_key)');
   });
 });
