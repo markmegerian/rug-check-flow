@@ -48,7 +48,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Live verification that new company-scope consistency triggers are pushed and green in prod
 - Live scheduler wiring / production execution verification for reminder cadence
 - Full production smoke evidence for the newly shipped messaging/reminder flows
-- Check-In backend workflow endpoint is not built yet; contract now defined in `docs/check-in-backend-workflow-contract.md`
+- Check-In backend workflow edge function now exists at `supabase/functions/check-in-workflow/index.ts`, but the frontend is not switched over yet
 
 ### Recently clarified
 - Check-In frontend submit-path stabilization shipped several low-risk reductions, but the remaining synchronous work is mostly essential workflow.
@@ -77,17 +77,21 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
   - locked cleaning auto-approval behavior with tests
 - New contract doc:
   - `docs/check-in-backend-workflow-contract.md`
+- Initial backend workflow implementation:
+  - `supabase/functions/check-in-workflow/index.ts`
+  - `supabase/config.toml`
+  - `src/test/check-in-workflow-edge.test.ts`
 
 ### What is still missing
-- Dedicated backend endpoint for authoritative Check-In orchestration
+- Frontend cutover from `CheckInLayout.tsx` to the backend workflow endpoint
 - Transactional core write path for create/edit Check-In
-- Idempotency support for repeated submissions / retries
+- Durable idempotency persistence for repeated submissions / retries
 - Production rollout and live verification of the backend workflow path
 
 ### Notes
-- The frontend still owns too much orchestration.
-- Further frontend-only async cuts are now riskier and less valuable than moving the workflow into a backend endpoint.
-- This workstream should now shift from UI-side micro-optimization to backend workflow implementation.
+- The new edge function covers create/edit orchestration, company-scoped auth, backend-owned approval defaults, estimate draft creation, and estimate batch queue seeding.
+- The frontend still owns the live submit path until cutover lands.
+- Further frontend-only async cuts are still the wrong direction; the next correct step is wiring the UI to this backend workflow and then trimming obsolete client orchestration.
 
 ---
 

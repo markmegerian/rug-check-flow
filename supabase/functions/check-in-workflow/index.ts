@@ -1,0 +1,807 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-idempotency-key",
+};
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+type AppRole = "admin" | "office" | "checkin_staff";
+type WorkflowMode = "create" | "edit";
+type WorkflowSource = "pickup" | "dropoff";
+
+type WorkflowServiceInput = {
+  service_id: string;
+  service_name: string;
+  unit_price: number;
+  line_total: number;
+  edges?: string[] | null;
+};
+
+type WorkflowPhotoInput = {
+  storage_path: string;
+  public_url?: string | null;
+};
+
+type WorkflowRequest = {
+  mode: WorkflowMode;
+  rugId?: string;
+  sourceRugId?: string | null;
+  actorUserId?: string | null;
+  clientId?: string | null;
+  clientName: string;
+  rugNumber: string;
+  rugType: string;
+  length: number;
+  width: number;
+  conditionNotes: string;
+  source: WorkflowSource;
+  intakeDate?: string;
+  services: WorkflowServiceInput[];
+  photos?: WorkflowPhotoInput[];
+};
+
+type ServiceRuleRow = {
+  id: string;
+  category: string | null;
+  requires_estimate: boolean | null;
+};
+
+const ALLOWED_ROLES: AppRole[] = ["admin", "office", "checkin_staff"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined) {
+  return Boolean(value && UUID_PATTERN.test(value));
+}
+
+function isCleaningCategory(category: string | null | undefined) {
+  return (category ?? "").trim().toLowerCase() === "cleaning";
+}
+
+function generateJobCode() {
+  return `JOB-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+function generateEstimateNumber() {
+  return `EST-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function normalizeText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+
+function normalizeNumber(value: unknown) {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : 0;
+}
+
+function normalizeServices(value: unknown): WorkflowServiceInput[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((row) => row && typeof row === "object")
+    .map((row) => {
+      const service = row as Record<string, unknown>;
+      return {
+        service_id: normalizeText(service.service_id),
+        service_name: normalizeText(service.service_name),
+        unit_price: normalizeNumber(service.unit_price),
+        line_total: normalizeNumber(service.line_total),
+        edges: Array.isArray(service.edges)
+          ? service.edges.filter((edge): edge is string => typeof edge === "string")
+          : [],
+      };
+    })
+    .filter((row) => row.service_id && row.service_name);
+}
+
+function normalizePhotos(value: unknown): WorkflowPhotoInput[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((row) => row && typeof row === "object")
+    .map((row) => {
+      const photo = row as Record<string, unknown>;
+      return {
+        storage_path: normalizeText(photo.storage_path),
+        public_url: typeof photo.public_url === "string" ? photo.public_url : null,
+      };
+    })
+    .filter((row) => row.storage_path);
+}
+
+function isMissingTableOrColumnError(message: string | undefined, target: string) {
+  return new RegExp(`${target}|schema cache|relation .*${target}.* does not exist|column .*${target}`, "i").test(message ?? "");
+}
+
+function nextStageFromCheckedIn(currentStatus: string | null | undefined) {
+  if ((currentStatus ?? "") !== "checked_in") return null;
+  return "in_production";
+}
+
+async function resolveCallerCompanyId(adminClient: ReturnType<typeof createClient>, userId: string) {
+  const { data, error } = await adminClient.rpc("get_user_company_id", { _user_id: userId });
+  if (error) throw error;
+  return data ?? null;
+}
+
+async function resolveActor(adminClient: ReturnType<typeof createClient>, anonClient: ReturnType<typeof createClient>, authHeader: string | null) {
+  if (!authHeader) return { error: json({ error: "Unauthorized" }, 401), user: null, companyId: null };
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data: userData, error: userError } = await anonClient.auth.getUser(token);
+  if (userError || !userData.user) return { error: json({ error: "Unauthorized" }, 401), user: null, companyId: null };
+
+  const user = userData.user;
+  const { data: roleRows, error: roleError } = await adminClient
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .in("role", ALLOWED_ROLES)
+    .limit(1);
+
+  if (roleError) return { error: json({ error: roleError.message }, 500), user: null, companyId: null };
+  if (!roleRows || roleRows.length === 0) return { error: json({ error: "Forbidden" }, 403), user: null, companyId: null };
+
+  try {
+    const companyId = await resolveCallerCompanyId(adminClient, user.id);
+    return { error: null, user, companyId };
+  } catch (error) {
+    return { error: json({ error: error instanceof Error ? error.message : "Failed to resolve company" }, 500), user: null, companyId: null };
+  }
+}
+
+async function resolveClient(adminClient: ReturnType<typeof createClient>, params: {
+  clientId: string | null;
+  clientName: string;
+  callerCompanyId: string | null;
+}) {
+  if (params.clientId) {
+    let query = adminClient
+      .from("clients")
+      .select("id, name, email, company_id")
+      .eq("id", params.clientId)
+      .limit(1)
+      .maybeSingle();
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data) return null;
+    if (params.callerCompanyId && data.company_id !== params.callerCompanyId) {
+      throw new Error("Client does not belong to your company");
+    }
+    return data;
+  }
+
+  const trimmedName = params.clientName.trim();
+  if (!trimmedName) return null;
+
+  let query = adminClient
+    .from("clients")
+    .select("id, name, email, company_id")
+    .ilike("name", trimmedName)
+    .limit(1);
+
+  if (params.callerCompanyId) query = query.eq("company_id", params.callerCompanyId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
+
+async function fetchServiceRules(adminClient: ReturnType<typeof createClient>, services: WorkflowServiceInput[]) {
+  const serviceIds = [...new Set(services.map((service) => service.service_id).filter(Boolean))];
+  if (serviceIds.length === 0) return new Map<string, ServiceRuleRow>();
+
+  const { data, error } = await adminClient
+    .from("services")
+    .select("id, category, requires_estimate")
+    .in("id", serviceIds);
+
+  if (error) throw error;
+  return new Map((data ?? []).map((row) => [row.id, row as ServiceRuleRow]));
+}
+
+async function insertRugServices(adminClient: ReturnType<typeof createClient>, rugId: string, services: WorkflowServiceInput[], rules: Map<string, ServiceRuleRow>) {
+  if (services.length === 0) return { approvalStatusAvailable: true, error: null as string | null };
+
+  const rows = services.map((service) => {
+    const rule = rules.get(service.service_id);
+    return {
+      rug_id: rugId,
+      service_id: service.service_id,
+      service_name: service.service_name,
+      unit_price: normalizeNumber(service.unit_price),
+      line_total: normalizeNumber(service.line_total),
+      edges: service.edges ?? [],
+      approval_status: isCleaningCategory(rule?.category) ? "approved" : "pending",
+    };
+  });
+
+  const withStatus = await adminClient.from("rug_services").insert(rows);
+  if (!withStatus.error) return { approvalStatusAvailable: true, error: null as string | null };
+  if (!isMissingTableOrColumnError(withStatus.error.message, "approval_status")) {
+    return { approvalStatusAvailable: true, error: withStatus.error.message };
+  }
+
+  const fallback = await adminClient.from("rug_services").insert(
+    rows.map(({ approval_status: _approvalStatus, ...row }) => row),
+  );
+  return { approvalStatusAvailable: false, error: fallback.error?.message ?? null };
+}
+
+async function persistCheckinPhotos(adminClient: ReturnType<typeof createClient>, params: {
+  rugId: string;
+  clientId: string | null;
+  jobId: string | null;
+  actorUserId: string | null;
+  photos: WorkflowPhotoInput[];
+}) {
+  if (params.photos.length === 0) return null;
+
+  const { error } = await adminClient.from("checkin_photos").insert(
+    params.photos.map((photo) => ({
+      rug_id: params.rugId,
+      client_id: params.clientId,
+      job_id: params.jobId,
+      storage_path: photo.storage_path,
+      retention_policy: "permanent",
+      expires_at: null,
+      created_by: params.actorUserId,
+    })),
+  );
+
+  if (!error) return null;
+  if (isMissingTableOrColumnError(error.message, "checkin_photos")) return "Check-in photos metadata table is not provisioned in this environment.";
+  throw error;
+}
+
+async function createDraftEstimate(adminClient: ReturnType<typeof createClient>, params: {
+  rugId: string;
+  clientId: string | null;
+  rugNumber: string;
+  actorUserId: string | null;
+  services: WorkflowServiceInput[];
+  rules: Map<string, ServiceRuleRow>;
+}) {
+  const eligible = params.services.filter((service) => {
+    const rule = params.rules.get(service.service_id);
+    return Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category);
+  });
+
+  if (eligible.length === 0) {
+    return { estimateId: null, estimateNumber: null, warning: null as string | null };
+  }
+
+  const total = eligible.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0);
+  const estimateNumber = generateEstimateNumber();
+
+  const { data: estimate, error: estimateError } = await adminClient
+    .from("estimates")
+    .insert({
+      rug_id: params.rugId,
+      client_id: params.clientId,
+      estimate_number: estimateNumber,
+      status: "draft",
+      version: 1,
+      total,
+      created_by: params.actorUserId,
+    })
+    .select("id")
+    .single();
+
+  if (estimateError || !estimate) {
+    throw new Error(estimateError?.message ?? "Failed to create estimate draft");
+  }
+
+  const estimateItems = eligible.map((service) => ({
+    estimate_id: estimate.id,
+    rug_service_id: null,
+    description: `${params.rugNumber} — ${service.service_name}`,
+    quantity: 1,
+    unit_price: normalizeNumber(service.unit_price),
+    total: normalizeNumber(service.line_total),
+    service_category: params.rules.get(service.service_id)?.category ?? "",
+  }));
+
+  const { error: itemError } = await adminClient.from("estimate_items").insert(estimateItems);
+  if (itemError) {
+    await adminClient.from("estimates").delete().eq("id", estimate.id);
+    throw new Error(itemError.message);
+  }
+
+  return { estimateId: estimate.id, estimateNumber, warning: null as string | null };
+}
+
+async function appendContinuityNote(adminClient: ReturnType<typeof createClient>, params: {
+  rugId: string;
+  rugNumber: string;
+  clientId: string | null;
+  existingNotes: string;
+}) {
+  if (!params.clientId) return null;
+
+  const { data: priorSameTagRugs, error } = await adminClient
+    .from("rugs")
+    .select("id, tag, status, checked_in_at, picked_up_at")
+    .eq("client_id", params.clientId)
+    .eq("tag", params.rugNumber)
+    .neq("id", params.rugId)
+    .order("checked_in_at", { ascending: false })
+    .limit(3);
+
+  if (error) throw error;
+
+  const latestPriorSameTagRug = (priorSameTagRugs ?? [])[0] ?? null;
+  if (!latestPriorSameTagRug) return null;
+
+  const priorStateDate = latestPriorSameTagRug.picked_up_at ?? latestPriorSameTagRug.checked_in_at;
+  const continuityNote = `Return continuity: prior same-tag rug ${latestPriorSameTagRug.tag} (${latestPriorSameTagRug.id}) last status ${latestPriorSameTagRug.status}${priorStateDate ? ` on ${new Date(priorStateDate).toLocaleString()}` : ""}.`;
+  const mergedNotes = [params.existingNotes, continuityNote].filter(Boolean).join("\n\n");
+
+  const { error: updateError } = await adminClient
+    .from("rugs")
+    .update({ notes: mergedNotes })
+    .eq("id", params.rugId);
+
+  if (updateError) throw updateError;
+  return latestPriorSameTagRug;
+}
+
+async function recordCommunicationEvent(adminClient: ReturnType<typeof createClient>, payload: Record<string, unknown>) {
+  const { error } = await adminClient.from("communication_events").insert(payload);
+  if (error) throw error;
+}
+
+async function queueEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: {
+  clientId: string;
+  estimateId: string;
+  queuedAt: string;
+}) {
+  const queuedAt = new Date(params.queuedAt);
+  const easternTarget = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(queuedAt);
+
+  const get = (type: string) => Number(easternTarget.find((part) => part.type === type)?.value ?? "0");
+  const toUtc = (year: number, month: number, day: number, hour: number, minute: number) => {
+    let guess = Date.UTC(year, month - 1, day, hour, minute, 0);
+    for (let i = 0; i < 5; i += 1) {
+      const actual = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      }).formatToParts(new Date(guess));
+      const actualValue = (kind: string) => Number(actual.find((part) => part.type === kind)?.value ?? "0");
+      const desiredUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
+      const actualUtc = Date.UTC(actualValue("year"), actualValue("month") - 1, actualValue("day"), actualValue("hour"), actualValue("minute"), actualValue("second"));
+      const diff = desiredUtc - actualUtc;
+      guess += diff;
+      if (diff === 0) break;
+    }
+    return new Date(guess);
+  };
+
+  let scheduledFor = toUtc(get("year"), get("month"), get("day"), 15, 0);
+  if (scheduledFor.getTime() <= queuedAt.getTime()) {
+    const nextDayAnchor = new Date(queuedAt.getTime() + 24 * 60 * 60 * 1000);
+    const nextParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(nextDayAnchor);
+    const next = (type: string) => Number(nextParts.find((part) => part.type === type)?.value ?? "0");
+    scheduledFor = toUtc(next("year"), next("month"), next("day"), 15, 0);
+  }
+
+  const { error } = await adminClient.from("notification_cadence").upsert({
+    client_id: params.clientId,
+    entity_type: "estimate",
+    entity_id: params.estimateId,
+    notification_type: "estimate_batch_send",
+    scheduled_for: scheduledFor.toISOString(),
+    throttle_key: `estimate-batch:${params.clientId}`,
+  }, {
+    onConflict: "client_id,entity_type,entity_id,notification_type",
+  });
+
+  if (error) throw error;
+}
+
+async function tryCreateIntakeJob(adminClient: ReturnType<typeof createClient>, params: {
+  clientId: string | null;
+  source: WorkflowSource;
+  intakeDate: string;
+  actorUserId: string | null;
+}) {
+  const { data, error } = await adminClient
+    .from("intake_jobs")
+    .insert({
+      job_code: generateJobCode(),
+      client_id: params.clientId,
+      source: params.source,
+      intake_date: params.intakeDate,
+      checkin_date: params.intakeDate,
+      created_by: params.actorUserId,
+    })
+    .select("id")
+    .single();
+
+  if (!error) return { jobId: data?.id ?? null, warning: null as string | null };
+  if (isMissingTableOrColumnError(error.message, "intake_jobs")) {
+    return { jobId: null, warning: "Intake job tracking is not yet provisioned in this environment." };
+  }
+  throw error;
+}
+
+async function insertRugWithFallback(adminClient: ReturnType<typeof createClient>, payload: {
+  base: Record<string, unknown>;
+  extended: Record<string, unknown>;
+}) {
+  const extendedInsert = await adminClient.from("rugs").insert(payload.extended).select("id").single();
+  if (!extendedInsert.error) return { rugId: extendedInsert.data?.id ?? null, warning: null as string | null };
+
+  if (!/column .*job_id|column .*intake_source|column .*intake_date/i.test(extendedInsert.error.message)) {
+    throw extendedInsert.error;
+  }
+
+  const fallbackInsert = await adminClient.from("rugs").insert(payload.base).select("id").single();
+  if (fallbackInsert.error) throw fallbackInsert.error;
+  return { rugId: fallbackInsert.data?.id ?? null, warning: "Extended intake columns are not yet provisioned in this environment." };
+}
+
+async function rollbackCreate(adminClient: ReturnType<typeof createClient>, params: {
+  rugId: string | null;
+  intakeJobId: string | null;
+}) {
+  if (params.rugId) {
+    await adminClient.from("rugs").delete().eq("id", params.rugId);
+  }
+  if (params.intakeJobId) {
+    await adminClient.from("intake_jobs").delete().eq("id", params.intakeJobId);
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+      return json({ error: "Function environment is not fully configured." }, 500);
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const anonClient = createClient(supabaseUrl, anonKey);
+
+    const actor = await resolveActor(adminClient, anonClient, req.headers.get("Authorization"));
+    if (actor.error || !actor.user) return actor.error;
+
+    const rawBody = await req.json().catch(() => null);
+    const body = (rawBody ?? {}) as Record<string, unknown>;
+    const mode = body.mode === "edit" ? "edit" : body.mode === "create" ? "create" : null;
+    if (!mode) return json({ error: "mode must be create or edit" }, 400);
+
+    const request: WorkflowRequest = {
+      mode,
+      rugId: normalizeText(body.rugId) || undefined,
+      sourceRugId: typeof body.sourceRugId === "string" ? body.sourceRugId : null,
+      actorUserId: typeof body.actorUserId === "string" ? body.actorUserId : actor.user.id,
+      clientId: typeof body.clientId === "string" ? body.clientId : null,
+      clientName: normalizeText(body.clientName),
+      rugNumber: normalizeText(body.rugNumber),
+      rugType: normalizeText(body.rugType),
+      length: normalizeNumber(body.length),
+      width: normalizeNumber(body.width),
+      conditionNotes: normalizeText(body.conditionNotes),
+      source: body.source === "pickup" ? "pickup" : "dropoff",
+      intakeDate: typeof body.intakeDate === "string" ? body.intakeDate : undefined,
+      services: normalizeServices(body.services),
+      photos: normalizePhotos(body.photos),
+    };
+
+    if (request.mode === "edit" && !request.rugId) return json({ error: "rugId is required for edit mode" }, 400);
+    if (!request.rugNumber) return json({ error: "rugNumber is required" }, 400);
+    if (!request.rugType) return json({ error: "rugType is required" }, 400);
+    if (!request.clientName && !request.clientId) return json({ error: "clientName or clientId is required" }, 400);
+
+    const warnings: string[] = [];
+    const intakeDate = request.intakeDate && !Number.isNaN(new Date(request.intakeDate).getTime())
+      ? new Date(request.intakeDate).toISOString()
+      : new Date().toISOString();
+
+    const resolvedClient = await resolveClient(adminClient, {
+      clientId: request.clientId ?? null,
+      clientName: request.clientName,
+      callerCompanyId: actor.companyId,
+    });
+    const clientId = resolvedClient?.id ?? request.clientId ?? null;
+
+    if (request.clientId && !resolvedClient) {
+      return json({ error: "Client not found" }, 404);
+    }
+
+    const serviceRules = await fetchServiceRules(adminClient, request.services);
+
+    if (request.mode === "edit") {
+      const { data: existingRug, error: rugError } = await adminClient
+        .from("rugs")
+        .select("id, client_id, notes, checked_in_at")
+        .eq("id", request.rugId)
+        .maybeSingle();
+
+      if (rugError) return json({ error: rugError.message }, 500);
+      if (!existingRug) return json({ error: "Rug not found" }, 404);
+
+      if (existingRug.client_id) {
+        const { data: existingClient, error: existingClientError } = await adminClient
+          .from("clients")
+          .select("id, company_id")
+          .eq("id", existingRug.client_id)
+          .maybeSingle();
+        if (existingClientError) return json({ error: existingClientError.message }, 500);
+        if (actor.companyId && existingClient && existingClient.company_id !== actor.companyId) {
+          return json({ error: "Forbidden" }, 403);
+        }
+      }
+
+      const { error: updateError } = await adminClient
+        .from("rugs")
+        .update({
+          tag: request.rugNumber,
+          description: request.rugType,
+          size_length: request.length,
+          size_width: request.width,
+          services: request.services.map((service) => service.service_name),
+          client_id: clientId,
+          notes: request.conditionNotes,
+          checked_in_at: intakeDate,
+        })
+        .eq("id", request.rugId);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      const { error: deleteServicesError } = await adminClient.from("rug_services").delete().eq("rug_id", request.rugId);
+      if (deleteServicesError) return json({ error: deleteServicesError.message }, 500);
+
+      const serviceInsert = await insertRugServices(adminClient, request.rugId, request.services, serviceRules);
+      if (serviceInsert.error) return json({ error: serviceInsert.error }, 500);
+      if (!serviceInsert.approvalStatusAvailable) {
+        warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
+      }
+
+      const photoWarning = await persistCheckinPhotos(adminClient, {
+        rugId: request.rugId,
+        clientId,
+        jobId: null,
+        actorUserId: actor.user.id,
+        photos: request.photos ?? [],
+      });
+      if (photoWarning) warnings.push(photoWarning);
+
+      return json({
+        status: warnings.length > 0 ? "warning" : "success",
+        rugId: request.rugId,
+        intakeJobId: null,
+        estimateId: null,
+        estimateNumber: null,
+        warnings,
+        resetForm: true,
+        summary: {
+          rugNumber: request.rugNumber,
+          clientName: resolvedClient?.name ?? request.clientName,
+          checkedInAt: intakeDate,
+          totalPrice: request.services.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0),
+        },
+      });
+    }
+
+    const intakeJob = await tryCreateIntakeJob(adminClient, {
+      clientId,
+      source: request.source,
+      intakeDate,
+      actorUserId: actor.user.id,
+    });
+    if (intakeJob.warning) warnings.push(intakeJob.warning);
+
+    const baseRugPayload = {
+      tag: request.rugNumber,
+      description: request.rugType,
+      size_length: request.length,
+      size_width: request.width,
+      services: request.services.map((service) => service.service_name),
+      client_id: clientId,
+      checked_in_by: actor.user.id,
+      checked_in_at: intakeDate,
+      notes: request.conditionNotes,
+    };
+
+    const rugInsert = await insertRugWithFallback(adminClient, {
+      base: baseRugPayload,
+      extended: {
+        ...baseRugPayload,
+        job_id: intakeJob.jobId,
+        intake_source: request.source,
+        intake_date: intakeDate,
+      },
+    });
+    if (rugInsert.warning) warnings.push(rugInsert.warning);
+    const rugId = rugInsert.rugId;
+    if (!rugId) return json({ error: "Check-in failed" }, 500);
+
+    try {
+      const serviceInsert = await insertRugServices(adminClient, rugId, request.services, serviceRules);
+      if (serviceInsert.error) throw new Error(serviceInsert.error);
+      if (!serviceInsert.approvalStatusAvailable) {
+        warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
+      }
+
+      const photoWarning = await persistCheckinPhotos(adminClient, {
+        rugId,
+        clientId,
+        jobId: intakeJob.jobId,
+        actorUserId: actor.user.id,
+        photos: request.photos ?? [],
+      });
+      if (photoWarning) warnings.push(photoWarning);
+
+      const nextStage = nextStageFromCheckedIn("checked_in");
+      if (nextStage) {
+        const { error: advanceError } = await adminClient.from("rugs").update({ status: nextStage }).eq("id", rugId);
+        if (advanceError) throw advanceError;
+      }
+
+      const estimate = await createDraftEstimate(adminClient, {
+        rugId,
+        clientId,
+        rugNumber: request.rugNumber,
+        actorUserId: actor.user.id,
+        services: request.services,
+        rules: serviceRules,
+      });
+
+      const postSubmitTasks: Promise<unknown>[] = [];
+
+      if ((request.photos ?? []).length > 0) {
+        const firstPhotoUrl = (request.photos ?? []).find((photo) => photo.public_url)?.public_url ?? null;
+        if (firstPhotoUrl) {
+          postSubmitTasks.push(
+            adminClient
+              .from("rugs")
+              .update({ photo_url: firstPhotoUrl })
+              .eq("id", rugId)
+              .then(({ error }) => {
+                if (error) throw error;
+              }),
+          );
+        }
+      }
+
+      if (request.sourceRugId && isUuid(request.sourceRugId)) {
+        postSubmitTasks.push((async () => {
+          const { data: pickupItem, error: pickupItemError } = await adminClient
+            .from("pickup_request_items")
+            .select("id, pickup_request_id")
+            .eq("id", request.sourceRugId)
+            .maybeSingle();
+          if (pickupItemError) throw pickupItemError;
+          if (!pickupItem) return;
+
+          const { data: pickupRequest, error: pickupRequestError } = await adminClient
+            .from("pickup_requests")
+            .select("id, client_id")
+            .eq("id", pickupItem.pickup_request_id)
+            .maybeSingle();
+          if (pickupRequestError) throw pickupRequestError;
+          if (actor.companyId && pickupRequest?.client_id) {
+            const { data: pickupClient, error: pickupClientError } = await adminClient
+              .from("clients")
+              .select("id, company_id")
+              .eq("id", pickupRequest.client_id)
+              .maybeSingle();
+            if (pickupClientError) throw pickupClientError;
+            if (pickupClient && pickupClient.company_id !== actor.companyId) throw new Error("Forbidden pickup item link");
+          }
+
+          const { error: linkError } = await adminClient
+            .from("pickup_request_items")
+            .update({ checked_in_rug_id: rugId })
+            .eq("id", request.sourceRugId);
+          if (linkError) throw linkError;
+        })());
+      }
+
+      postSubmitTasks.push((async () => {
+        const priorSameTagRug = await appendContinuityNote(adminClient, {
+          rugId,
+          rugNumber: request.rugNumber,
+          clientId,
+          existingNotes: request.conditionNotes,
+        });
+        if (!priorSameTagRug || !clientId) return;
+        await recordCommunicationEvent(adminClient, {
+          client_id: clientId,
+          rug_id: rugId,
+          channel: "in_app_chat",
+          direction: "outbound",
+          event_type: "rug_continuity_linked",
+          subject: `${request.rugNumber} linked to prior same-tag history`,
+          body: `New intake ${rugId} matches prior rug ${priorSameTagRug.id} for the same client and tag. Prior status: ${priorSameTagRug.status}.`,
+          created_by: actor.user.id,
+        });
+      })());
+
+      if (estimate.estimateId) {
+        postSubmitTasks.push(recordCommunicationEvent(adminClient, {
+          client_id: clientId,
+          rug_id: rugId,
+          estimate_id: estimate.estimateId,
+          channel: "in_app_chat",
+          direction: "outbound",
+          event_type: "estimate_auto_drafted_from_checkin",
+          subject: `${estimate.estimateNumber} auto-drafted`,
+          body: `Estimate ${estimate.estimateNumber} was auto-created from check-in service selections.`,
+          created_by: actor.user.id,
+        }));
+      }
+
+      if (clientId && estimate.estimateId) {
+        postSubmitTasks.push(queueEstimateBatchSend(adminClient, {
+          clientId,
+          estimateId: estimate.estimateId,
+          queuedAt: intakeDate,
+        }));
+      }
+
+      const sideEffectResults = await Promise.allSettled(postSubmitTasks);
+      for (const result of sideEffectResults) {
+        if (result.status === "rejected") warnings.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
+      }
+
+      return json({
+        status: warnings.length > 0 ? "warning" : "success",
+        rugId,
+        intakeJobId: intakeJob.jobId,
+        estimateId: estimate.estimateId,
+        estimateNumber: estimate.estimateNumber,
+        warnings,
+        resetForm: true,
+        summary: {
+          rugNumber: request.rugNumber,
+          clientName: resolvedClient?.name ?? request.clientName,
+          checkedInAt: intakeDate,
+          totalPrice: request.services.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0),
+        },
+      });
+    } catch (error) {
+      await rollbackCreate(adminClient, { rugId, intakeJobId: intakeJob.jobId });
+      return json({ error: error instanceof Error ? error.message : "Check-in workflow failed" }, 500);
+    }
+  } catch (error) {
+    console.error(error);
+    return json({ error: error instanceof Error ? error.message : "Internal server error" }, 500);
+  }
+});

@@ -35,6 +35,9 @@ Recommended implementation:
 - Supabase Edge Function
 - name: `check-in-workflow`
 
+Initial implementation now exists at:
+- `supabase/functions/check-in-workflow/index.ts`
+
 The frontend should submit a single workflow request and receive a structured result.
 
 ## Scope
@@ -189,7 +192,7 @@ Frontend responsibilities should be reduced to:
 - keep current frontend flow live
 
 ### Phase 2
-- implement `check-in-workflow` Edge Function
+- implement `check-in-workflow` Edge Function ✅
 - keep frontend behind a feature flag or fallback path
 
 ### Phase 3
