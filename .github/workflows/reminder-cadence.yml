@@ -1,0 +1,47 @@
+name: reminder-cadence
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: reminder-cadence
+  cancel-in-progress: false
+
+jobs:
+  run-reminder-cadence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Invoke process-notification-cadence
+        env:
+          FUNCTION_URL: https://toitgmaeuscrdwbpntda.functions.supabase.co/process-notification-cadence
+          CRON_SECRET: ${{ secrets.PROCESS_NOTIFICATION_CADENCE_SECRET }}
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST "$FUNCTION_URL" \
+            -H 'Content-Type: application/json' \
+            -H "x-cron-secret: $CRON_SECRET" \
+            --data '{}')
+
+          echo "HTTP $status"
+          cat response.json
+
+          STATUS="$status" python3 - <<'PY'
+          import json
+          import os
+
+          status = os.environ['STATUS']
+          with open('response.json', 'r', encoding='utf-8') as fh:
+              body = json.load(fh)
+
+          if status != '200':
+              raise SystemExit(f"unexpected status {status}: {body}")
+          if body.get('success') is not True:
+              raise SystemExit(f"success flag missing: {body}")
+          if body.get('mode') != 'scheduler':
+              raise SystemExit(f"wrong invocation mode: {body}")
+          print(f"processed_count={len(body.get('processed', []))}")
+          PY
