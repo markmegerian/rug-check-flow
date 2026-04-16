@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   SERVICES,
   SERVICE_CATEGORIES,
@@ -80,5 +82,12 @@ describe("RUG_TYPES", () => {
 
   it("types are unique", () => {
     expect(new Set(RUG_TYPES).size).toBe(RUG_TYPES.length);
+  });
+});
+
+describe("cleaning approval defaults", () => {
+  it("defaults cleaning rug services to approved during check-in inserts", () => {
+    const approvalFile = readFileSync(resolve(process.cwd(), "src/lib/rug-service-approval.ts"), "utf-8");
+    expect(approvalFile).toContain('const defaultApprovalStatus = isCleaningCategory(category) ? "approved" : "pending";');
   });
 });
