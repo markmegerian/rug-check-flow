@@ -161,7 +161,15 @@ export function CheckInLayout() {
         const firstUploadedPhotoUrl = photoUploadResults.find(Boolean);
         if (data.photos.length > 0) {
           if (firstUploadedPhotoUrl) {
-            await supabase.from("rugs").update({ photo_url: firstUploadedPhotoUrl }).eq("id", editingEntryId);
+            void supabase
+              .from("rugs")
+              .update({ photo_url: firstUploadedPhotoUrl })
+              .eq("id", editingEntryId)
+              .then(({ error: photoUrlUpdateError }) => {
+                if (photoUrlUpdateError) {
+                  console.warn("Failed to update rug photo_url after check-in edit", photoUrlUpdateError);
+                }
+              });
           } else {
             warnings.push("Required photos did not finish uploading.");
           }
@@ -314,7 +322,15 @@ export function CheckInLayout() {
         const firstUploadedPhotoUrl = photoUploadResults.find(Boolean);
         if (data.photos.length > 0) {
           if (firstUploadedPhotoUrl) {
-            await supabase.from("rugs").update({ photo_url: firstUploadedPhotoUrl }).eq("id", inserted.id);
+            void supabase
+              .from("rugs")
+              .update({ photo_url: firstUploadedPhotoUrl })
+              .eq("id", inserted.id)
+              .then(({ error: photoUrlUpdateError }) => {
+                if (photoUrlUpdateError) {
+                  console.warn("Failed to update rug photo_url after check-in", photoUrlUpdateError);
+                }
+              });
           } else {
             warnings.push("Required photos did not finish uploading.");
           }
@@ -322,23 +338,29 @@ export function CheckInLayout() {
 
         // Only link to pickup_request_items for real pickup IDs (UUIDs), not walk-in IDs
         const isWalkIn = data.rugId?.startsWith("walkin-");
-        if (data.rugId && !isWalkIn) {
-          const { error: pickupItemUpdateError } = await supabaseExtended
-            .from("pickup_request_items")
-            .update({ checked_in_rug_id: inserted.id })
-            .eq("id", data.rugId);
+        const postSubmitTasks: Promise<unknown>[] = [advanceRugStage(inserted.id, "checked_in")];
 
-          if (pickupItemUpdateError) {
-            warnings.push(`Pickup item linking failed: ${pickupItemUpdateError.message}`);
-          }
+        if (data.rugId && !isWalkIn) {
+          postSubmitTasks.push(
+            supabaseExtended
+              .from("pickup_request_items")
+              .update({ checked_in_rug_id: inserted.id })
+              .eq("id", data.rugId)
+              .then(({ error: pickupItemUpdateError }) => {
+                if (pickupItemUpdateError) {
+                  warnings.push(`Pickup item linking failed: ${pickupItemUpdateError.message}`);
+                }
+              })
+          );
         }
 
         if (isRugServiceApprovalStatusAvailable()) {
-          await maybeAutoCreateEstimateDraft(inserted.id, clientId, data.rugNumber, data.serviceSnapshots, toastError, toastSuccess);
+          postSubmitTasks.push(
+            maybeAutoCreateEstimateDraft(inserted.id, clientId, data.rugNumber, data.serviceSnapshots, toastError, toastSuccess)
+          );
         }
 
-        // Auto-advance rug from checked_in → in_production
-        await advanceRugStage(inserted.id, "checked_in");
+        await Promise.all(postSubmitTasks);
 
         if (data.rugId) {
           removePendingRug(data.rugId);
