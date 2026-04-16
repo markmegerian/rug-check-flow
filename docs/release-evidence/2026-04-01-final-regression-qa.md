@@ -41,9 +41,9 @@ This checklist captures the regression and QA expectations after shipping the me
 These remain manual/live validation items, not code-level uncertainty:
 - [ ] Click-through on deployed office Inbox UI
 - [ ] Click-through on deployed portal Messages UI
-- [ ] Live invocation of `process-notification-cadence`
+- [x] Live invocation of `process-notification-cadence`
 - [ ] Delivery success path with configured provider secrets
-- [ ] Scheduler/cron execution proof using `PROCESS_NOTIFICATION_CADENCE_SECRET`
+- [x] Scheduler/cron execution proof using `PROCESS_NOTIFICATION_CADENCE_SECRET`
 - [ ] Production/staging smoke script outputs attached
 - [ ] Confirm refresh/polling behavior is acceptable in live messaging sessions
 

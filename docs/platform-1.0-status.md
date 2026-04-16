@@ -382,9 +382,9 @@ Direct company ownership columns are now present on:
   - remain retryable on failure
 
 ### What is still missing
-- Deployment-side scheduler/cron wiring to run the reminder processor automatically in each live environment
 - Final row-claiming/locking hardening if you want fully robust concurrent processor execution
 - Optional manual suppression/override UX if product wants operator-level snooze controls
+- Delivery/provider cleanup for reminder emails that currently fail downstream in prod (`Resend failed (403)` / `Resend failed (422)`)
 
 ### Notes
 - The cadence/delivery model now exists in app code, tests, UI, and edge function processing.
@@ -392,8 +392,9 @@ Direct company ownership columns are now present on:
 - Prod verification on 2026-04-16 exposed two separate manual-path blockers and both were fixed: internal office smoke users were missing `company_memberships`, and large-company manual runs were building an oversized `client_id in (...)` filter that PostgREST rejected with `400 Bad Request`.
 - A live migration (`20260416225000_backfill_internal_company_memberships.sql`) was pushed to backfill facility `company_memberships` for internal `user_roles` (`admin`, `office`, `checkin_staff`, `driver`, `staff`) in the single-company RugBoost tenant.
 - After the migration and function redeploy, prod manual dry-run invocation from `test@office.com` succeeded with `200 { success: true, dry_run: true, mode: "manual", processed: [...] }` and returned 50 due cadence rows for the linked facility company. `codex@gpt.com` also now resolves to the same facility `company_id` in prod.
-- Live data query on 2026-04-16 still only showed test-artifact evidence for already-sent cadence rows (`entity_type = test`, `notification_type = test_notification`), so automatic scheduler execution in prod is still not fully proven.
-- The main remaining operational gaps are environment-level scheduler wiring, live execution proof, and deeper concurrency hardening.
+- Scheduler wiring is now live in the default branch via GitHub Actions workflow `.github/workflows/reminder-cadence.yml`, with `PROCESS_NOTIFICATION_CADENCE_SECRET` configured both in Supabase function secrets and GitHub Actions secrets.
+- Live scheduler-mode proof was captured on 2026-04-16 via GitHub Actions run `24538081808`, which invoked `process-notification-cadence` with `x-cron-secret` and returned `200 { success: true, dry_run: false, mode: "scheduler", processed: [...] }` with `processed_count=50`.
+- The remaining reminder risk is no longer scheduler wiring. It is downstream delivery quality and provider acceptance, because the live scheduler run produced reminder attempts but many rows failed with `Resend failed (403)` or `Resend failed (422)`.
 
 ---
 
