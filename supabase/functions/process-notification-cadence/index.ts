@@ -189,6 +189,7 @@ Deno.serve(async (req) => {
       const { data: companyRows, error: companyError } = await adminClient.rpc("get_user_company_id", { _user_id: user.id });
       if (companyError) return json({ error: companyError.message }, 500);
       callerCompanyId = companyRows ?? null;
+      if (!callerCompanyId) return json({ error: "Forbidden: user is not linked to a company" }, 403);
     }
 
     const body = await req.json().catch(() => ({}));

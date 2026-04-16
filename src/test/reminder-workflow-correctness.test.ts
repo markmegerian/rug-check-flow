@@ -36,4 +36,14 @@ describe("reminder workflow correctness", () => {
     expect(workflow).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
     expect(workflow).toContain('notification_type: "estimate_batch_send"');
   });
+
+  it("allows manual and scheduler auth paths for reminder cadence processing", () => {
+    const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/process-notification-cadence/index.ts"), "utf-8");
+    const config = readFileSync(resolve(process.cwd(), "supabase/config.toml"), "utf-8");
+    expect(workflow).toContain('x-cron-secret');
+    expect(workflow).toContain('let invocationMode: "manual" | "scheduler" = "manual"');
+    expect(workflow).toContain('Forbidden: user is not linked to a company');
+    expect(config).toContain('[functions.process-notification-cadence]');
+    expect(config).toContain('verify_jwt = false');
+  });
 });

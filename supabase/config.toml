@@ -25,7 +25,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.process-notification-cadence]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-in-workflow]
 verify_jwt = false

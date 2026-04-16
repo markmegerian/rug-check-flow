@@ -45,10 +45,9 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Phase B company scope rollout for `approved_estimates`, `service_completions`, and `client_service_selections` (migration + autofill triggers)
 
 ### Still incomplete / ongoing
-- Company scoping mostly complete; only the single intentional orphan invoice remains without `company_id`
+- Company scoping mostly complete, but live audit on 2026-04-16 found `rugs.company_id` still has 10 null rows in prod even though the newer consistency triggers are active
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
 - Release evidence / rollout discipline beyond branch deploy health
-- Live verification that new company-scope consistency triggers are pushed and green in prod
 - Live scheduler wiring / production execution verification for reminder cadence
 - Full production smoke evidence for the newly shipped messaging/reminder flows
 - Durable idempotency persistence for repeated Check-In submissions / retries remains open
@@ -276,8 +275,11 @@ Direct company ownership columns are now present on:
 - Detailed rollout plan now lives in `docs/company-scope-rollout-plan.md`.
 - Repeatable audit scripts: `scripts/company-scope-audit.sh` and `scripts/company-ownership-bootstrap-audit.sh`.
 - Phase 0 bootstrap artifacts live in repo: `scripts/sql/bootstrap-company-ownership.sql` and `scripts/company-ownership-bootstrap-smoke.sh`.
-- Phase 0 bootstrap is completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 901 clients now have non-null `company_id`.
-- Current live audit state: `rugs`, `payments`, `approved_estimates`, `client_service_selections`, and `service_completions` have 0 null `company_id` rows; `invoices` has 1 intentional legacy orphan remaining (`client_id = null`, `clients/unlinked/1.pdf`).
+- Phase 0 bootstrap is completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 902 clients now have non-null `company_id`.
+- Live audit on 2026-04-16 showed: `clients.company_id` null rows = 0, `invoices.company_id` null rows = 0, `payments.company_id` null rows = 0, `approved_estimates.company_id` null rows = 0, `client_service_selections.company_id` null rows = 0, `service_completions.company_id` null rows = 0, and `rugs.company_id` null rows = 10.
+- Prod trigger enforcement was verified directly on 2026-04-16 with authenticated office-token insert attempts that were rejected with DB constraint `23514`:
+  - `invoices.company_id must match clients.company_id`
+  - `rugs.company_id must match clients.company_id`
 - New DB consistency triggers now enforce that company-scoped workflow rows cannot drift away from their parent company linkage on insert/update, even if application code passes the wrong `company_id`.
 
 ---
@@ -383,10 +385,13 @@ Direct company ownership columns are now present on:
 - Deployment-side scheduler/cron wiring to run the reminder processor automatically in each live environment
 - Final row-claiming/locking hardening if you want fully robust concurrent processor execution
 - Optional manual suppression/override UX if product wants operator-level snooze controls
+- A company-linked office/admin test account or scheduler secret path that can be used to prove live prod execution cleanly
 
 ### Notes
 - The cadence/delivery model now exists in app code, tests, UI, and edge function processing.
-- The processor now supports both manual office/admin invocation and scheduler/service invocation via `x-cron-secret` + `PROCESS_NOTIFICATION_CADENCE_SECRET`.
+- `process-notification-cadence` was corrected on 2026-04-16 to use `verify_jwt = false`, matching its intended dual auth model (`Authorization` for manual office/admin invocation, `x-cron-secret` for scheduler invocation). Before that fix, the prod gateway rejected manual invocation with `UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM`.
+- After the fix and redeploy, prod manual invocation reached the function successfully, but the available office smoke account `codex@gpt.com` returned `403 Forbidden: user is not linked to a company`, which means the remaining proof gap is now environment/account setup rather than gateway config.
+- Live data query on 2026-04-16 showed at least one `notification_cadence` row with `sent_at`, but it appeared to be a test artifact (`entity_type = test`, `notification_type = test_notification`), not enough to claim production reminder cadence execution is fully proven.
 - The main remaining operational gaps are environment-level scheduler wiring, live execution proof, and deeper concurrency hardening.
 
 ---
@@ -492,11 +497,11 @@ Direct company ownership columns are now present on:
 ## Recommended next priority order
 
 1. Capture clean post-deploy UI success-path evidence for `generate-invoice-workflow` when a fresh uninvoiced ready rug is available
-2. Verify live company-scope consistency triggers are pushed and green in prod
-3. Verify scheduler wiring / real production execution for reminder cadence
-4. Capture fuller production smoke evidence for messaging/reminder flows
-5. Tighten DB-native authority for remaining stop workflow invariants where valuable
-6. Add durable idempotency persistence for repeated Check-In submissions / retries
+2. Verify scheduler wiring / real production execution for reminder cadence once a company-linked office/admin smoke account or scheduler-secret path is available
+3. Capture fuller production smoke evidence for messaging/reminder flows
+4. Tighten DB-native authority for remaining stop workflow invariants where valuable
+5. Add durable idempotency persistence for repeated Check-In submissions / retries
+6. Repair or backfill the 10 prod `rugs` rows that still have null `company_id`
 7. Keep release evidence and rollout docs current as real deployments happen
 
 ---
