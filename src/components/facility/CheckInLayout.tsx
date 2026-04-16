@@ -34,6 +34,7 @@ export function CheckInLayout() {
   const isMobile = useIsMobile();
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [formResetKey, setFormResetKey] = useState(0);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
   const {
     pendingRugs,
@@ -79,6 +80,14 @@ export function CheckInLayout() {
         resetForm: true,
       });
       const successResult = () => ({ status: "success" as const, title: successTitle, description: successDescription, resetForm: true });
+      const finalizeResult = <T extends { resetForm?: boolean }>(result: T) => {
+        if (result.resetForm !== false) {
+          setSelectedRugId(null);
+          setEditingEntryId(null);
+          setFormResetKey((current) => current + 1);
+        }
+        return result;
+      };
       const toastError = (title: string, description: string) => warnings.push(`${title}: ${description}`);
       const toastSuccess = (title: string, description: string) => warnings.push(`${title}: ${description}`);
 
@@ -125,12 +134,12 @@ export function CheckInLayout() {
           .eq("id", editingEntryId);
 
         if (error) {
-          return errorResult("Update failed", error.message);
+          return finalizeResult(errorResult("Update failed", error.message));
         }
 
         const { error: delServicesErr } = await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
         if (delServicesErr) {
-          return errorResult("Failed to update services", delServicesErr.message);
+          return finalizeResult(errorResult("Failed to update services", delServicesErr.message));
         }
         const [serviceSaveResult, photoUploadResults] = await Promise.all([
           data.serviceSnapshots.length > 0
@@ -152,7 +161,7 @@ export function CheckInLayout() {
         ]);
 
         if (serviceSaveResult.error) {
-          return errorResult("Failed to save services", serviceSaveResult.error.message);
+          return finalizeResult(errorResult("Failed to save services", serviceSaveResult.error.message));
         }
         if (!serviceSaveResult.approvalStatusAvailable) {
           warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
@@ -177,6 +186,7 @@ export function CheckInLayout() {
 
         upsertCheckInLogEntry(buildLogEntry(editingEntryId, new Date().toISOString()));
         setEditingEntryId(null);
+        setFormResetKey((current) => current + 1);
       } else {
         const source = data.rugId ? (selectedRug?.source === "pickup" ? "pickup" : "dropoff") : "dropoff";
         const jobCode = generateJobCode();
@@ -199,7 +209,7 @@ export function CheckInLayout() {
         if (jobError) {
           const missingIntakeJobs = /intake_jobs|schema cache|relation .*intake_jobs.* does not exist/i.test(jobError.message);
           if (!missingIntakeJobs) {
-            return errorResult("Job creation failed", jobError.message);
+            return finalizeResult(errorResult("Job creation failed", jobError.message));
           }
           warnings.push("Intake job tracking is not yet provisioned in this environment.");
         } else {
@@ -240,7 +250,7 @@ export function CheckInLayout() {
         }
 
         if (error || !inserted) {
-          return errorResult("Check-in failed", error?.message ?? "Unknown error");
+          return finalizeResult(errorResult("Check-in failed", error?.message ?? "Unknown error"));
         }
 
         const queueContinuityLinking = () => {
@@ -313,7 +323,7 @@ export function CheckInLayout() {
         ]);
 
         if (serviceSaveResult.error) {
-          return warningResult(`Rug ${data.rugNumber} was created, but services could not be saved: ${serviceSaveResult.error.message}`);
+          return finalizeResult(warningResult(`Rug ${data.rugNumber} was created, but services could not be saved: ${serviceSaveResult.error.message}`));
         }
         if (!serviceSaveResult.approvalStatusAvailable) {
           warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
@@ -368,8 +378,9 @@ export function CheckInLayout() {
         queueContinuityLinking();
       }
 
-      setSelectedRugId(null);
-      return warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult();
+      return finalizeResult(
+        warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult()
+      );
     },
     [editingEntryId, user, toast, selectedRug?.source, selectedRug?.clientId, removePendingRug, upsertCheckInLogEntry]
   );
@@ -422,6 +433,7 @@ export function CheckInLayout() {
         <div className="flex-1 min-h-0 overflow-hidden">
           {mobilePanel === "form" && (
             <CheckInForm
+              key={`mobile-${formResetKey}-${selectedRugId ?? "blank"}-${editingEntryId ?? "new"}`}
               selectedRug={selectedRug}
               editingEntry={editingEntry}
               onCheckInComplete={handleCheckInComplete}
@@ -468,6 +480,7 @@ export function CheckInLayout() {
       </Suspense>
       <div className="relative min-w-0">
         <CheckInForm
+          key={`desktop-${formResetKey}-${selectedRugId ?? "blank"}-${editingEntryId ?? "new"}`}
           selectedRug={selectedRug}
           editingEntry={editingEntry}
           onCheckInComplete={handleCheckInComplete}
