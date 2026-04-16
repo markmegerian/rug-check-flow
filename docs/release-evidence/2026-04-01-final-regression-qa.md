@@ -1,5 +1,29 @@
 # Final Regression / Release QA — 2026-04-01
 
+## 2026-04-16 prod addendum, invoice generator UI
+- Live environment: `https://mr.rugboost.com`
+- Operator account: `codex@gpt.com`
+- UI path: `/ops?tab=invoice-generator`
+- Controlled smoke prep:
+  - client: `test` (`83c9b68d-d497-4058-b076-b3c461ac054a`)
+  - rug: `INVUI-303211` (`200fd393-521b-4658-9f28-4609274079ff`)
+  - prep method: created via `check-in-workflow` with one cleaning service (`Standard Wash`, $35), then status updated to `ready`
+- UI observed before submit:
+  - selected client `test`
+  - message `1 uninvoiced ready rug available for handoff`
+  - rug row `INVUI-303211`, status `ready`, total `$35.00`
+  - CTA label `Generate Handoff Invoice`
+- Workflow result:
+  - HTTP 200 from `generate-invoice-workflow`
+  - invoice id `60c23c3d-b06a-4072-a10a-4617d50f8190`
+  - invoice number `INV-MO23T19B`
+  - total `$35.00`
+  - rug count `1`
+- UI observed after submit:
+  - success toast `Handoff invoice generated`
+  - toast detail `INV-MO23T19B — $35.00 for 1 ready rug(s). Pickup handoff remains a separate action.`
+  - empty state `No uninvoiced ready rugs are available for handoff for this client.`
+
 ## Scope
 This checklist captures the regression and QA expectations after shipping the messaging + reminder workflow workstream.
 

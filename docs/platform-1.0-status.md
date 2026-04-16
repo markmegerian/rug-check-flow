@@ -506,6 +506,13 @@ Direct company ownership columns are now present on:
 4. Tighten DB-native authority for remaining stop workflow invariants where valuable
 5. Keep release evidence and rollout docs current as real deployments happen
 
+## Fresh live evidence added on 2026-04-16
+- Invoice generator UI success path is now live-verified in prod.
+- Because there was no naturally available uninvoiced ready rug at 2026-04-16 23:10 UTC, a controlled smoke candidate was created for client `test` (`83c9b68d-d497-4058-b076-b3c461ac054a`): rug `INVUI-303211` (`200fd393-521b-4658-9f28-4609274079ff`), created through `check-in-workflow`, then marked `ready`.
+- Live UI flow at `https://mr.rugboost.com/ops?tab=invoice-generator` selected that client, showed `1 uninvoiced ready rug available for handoff`, selected the rug, and triggered `Generate Handoff Invoice`.
+- The live `generate-invoice-workflow` response returned HTTP 200 with invoice `INV-MO23T19B` (`60c23c3d-b06a-4072-a10a-4617d50f8190`), total `$35.00`, client `test`, and rug `200fd393-521b-4658-9f28-4609274079ff`.
+- The UI then showed the success toast `Handoff invoice generated` and the post-success empty state `No uninvoiced ready rugs are available for handoff for this client.`, confirming the selected rug left the eligible list immediately after invoicing.
+
 ---
 
 ## Maintenance note
