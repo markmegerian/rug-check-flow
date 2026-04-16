@@ -50,6 +50,14 @@ function buildEstimateReminderRows(params: { clientId: string; estimateId: strin
   ];
 }
 
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
 async function processEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: { estimateId: string; actorUserId: string | null }) {
   const nowIso = new Date().toISOString();
   const { data: estimate, error: estErr } = await adminClient
@@ -196,33 +204,49 @@ Deno.serve(async (req) => {
     const dryRun = Boolean(body.dry_run);
     const nowIso = new Date().toISOString();
 
-    let clientIds: string[] | null = null;
+    let rows: CadenceRow[] = [];
     if (invocationMode === "manual") {
       const { data: clientRows, error: clientErr } = await adminClient
         .from("clients")
         .select("id")
         .eq("company_id", callerCompanyId);
       if (clientErr) return json({ error: clientErr.message }, 500);
-      clientIds = (clientRows ?? []).map((row) => row.id);
+
+      const clientIds = (clientRows ?? []).map((row) => row.id);
       if (clientIds.length === 0) return json({ success: true, dry_run: dryRun, processed: [] });
+
+      const chunkedRows: CadenceRow[] = [];
+      for (const clientIdChunk of chunkArray(clientIds, 100)) {
+        const { data: chunkRows, error: chunkError } = await adminClient
+          .from("notification_cadence")
+          .select("id, client_id, entity_type, entity_id, notification_type, scheduled_for, sent_at, throttle_key")
+          .is("sent_at", null)
+          .lte("scheduled_for", nowIso)
+          .in("client_id", clientIdChunk)
+          .order("scheduled_for", { ascending: true })
+          .limit(50);
+        if (chunkError) return json({ error: chunkError.message }, 500);
+        chunkedRows.push(...((chunkRows ?? []) as CadenceRow[]));
+      }
+
+      rows = chunkedRows
+        .sort((left, right) => new Date(left.scheduled_for).getTime() - new Date(right.scheduled_for).getTime())
+        .slice(0, 50);
+    } else {
+      const { data: schedulerRows, error: cadenceError } = await adminClient
+        .from("notification_cadence")
+        .select("id, client_id, entity_type, entity_id, notification_type, scheduled_for, sent_at, throttle_key")
+        .is("sent_at", null)
+        .lte("scheduled_for", nowIso)
+        .order("scheduled_for", { ascending: true })
+        .limit(50);
+      if (cadenceError) return json({ error: cadenceError.message }, 500);
+      rows = (schedulerRows ?? []) as CadenceRow[];
     }
-
-    let cadenceQuery = adminClient
-      .from("notification_cadence")
-      .select("id, client_id, entity_type, entity_id, notification_type, scheduled_for, sent_at, throttle_key")
-      .is("sent_at", null)
-      .lte("scheduled_for", nowIso)
-      .order("scheduled_for", { ascending: true })
-      .limit(50);
-
-    if (clientIds) cadenceQuery = cadenceQuery.in("client_id", clientIds);
-
-    const { data: rows, error: cadenceError } = await cadenceQuery;
-    if (cadenceError) return json({ error: cadenceError.message }, 500);
 
     const processed: Array<{ id: string; status: string; reason?: string }> = [];
 
-    for (const row of (rows ?? []) as CadenceRow[]) {
+    for (const row of rows) {
       const { data: client } = await adminClient
         .from("clients")
         .select("id, company_id, name, email")

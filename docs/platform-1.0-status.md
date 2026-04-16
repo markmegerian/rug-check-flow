@@ -385,13 +385,14 @@ Direct company ownership columns are now present on:
 - Deployment-side scheduler/cron wiring to run the reminder processor automatically in each live environment
 - Final row-claiming/locking hardening if you want fully robust concurrent processor execution
 - Optional manual suppression/override UX if product wants operator-level snooze controls
-- A company-linked office/admin test account or scheduler secret path that can be used to prove live prod execution cleanly
 
 ### Notes
 - The cadence/delivery model now exists in app code, tests, UI, and edge function processing.
 - `process-notification-cadence` was corrected on 2026-04-16 to use `verify_jwt = false`, matching its intended dual auth model (`Authorization` for manual office/admin invocation, `x-cron-secret` for scheduler invocation). Before that fix, the prod gateway rejected manual invocation with `UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM`.
-- After the fix and redeploy, prod manual invocation reached the function successfully, but the available office smoke account `codex@gpt.com` returned `403 Forbidden: user is not linked to a company`, which means the remaining proof gap is now environment/account setup rather than gateway config.
-- Live data query on 2026-04-16 showed at least one `notification_cadence` row with `sent_at`, but it appeared to be a test artifact (`entity_type = test`, `notification_type = test_notification`), not enough to claim production reminder cadence execution is fully proven.
+- Prod verification on 2026-04-16 exposed two separate manual-path blockers and both were fixed: internal office smoke users were missing `company_memberships`, and large-company manual runs were building an oversized `client_id in (...)` filter that PostgREST rejected with `400 Bad Request`.
+- A live migration (`20260416225000_backfill_internal_company_memberships.sql`) was pushed to backfill facility `company_memberships` for internal `user_roles` (`admin`, `office`, `checkin_staff`, `driver`, `staff`) in the single-company RugBoost tenant.
+- After the migration and function redeploy, prod manual dry-run invocation from `test@office.com` succeeded with `200 { success: true, dry_run: true, mode: "manual", processed: [...] }` and returned 50 due cadence rows for the linked facility company. `codex@gpt.com` also now resolves to the same facility `company_id` in prod.
+- Live data query on 2026-04-16 still only showed test-artifact evidence for already-sent cadence rows (`entity_type = test`, `notification_type = test_notification`), so automatic scheduler execution in prod is still not fully proven.
 - The main remaining operational gaps are environment-level scheduler wiring, live execution proof, and deeper concurrency hardening.
 
 ---
