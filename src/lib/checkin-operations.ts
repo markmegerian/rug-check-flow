@@ -113,12 +113,9 @@ export async function maybeAutoCreateEstimateDraft(
 
   estimateDraftCreationAvailable = true;
 
-  const idsForCategory = serviceIds.filter(Boolean);
-  let categoryByServiceId: Record<string, string> = {};
-  if (idsForCategory.length > 0) {
-    const { data: catRows } = await supabaseExtended.from("services").select("id, category").in("id", idsForCategory);
-    categoryByServiceId = Object.fromEntries(((catRows ?? []) as { id: string; category: string }[]).map((r) => [r.id, r.category ?? ""]));
-  }
+  const categoryByServiceId = Object.fromEntries(
+    rows.map((row) => [row.id, row.category ?? ""]),
+  );
 
   const estimateItems = eligibleSnapshots.map((s) => ({
     estimate_id: insertedEstimate.id,

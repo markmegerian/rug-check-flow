@@ -55,6 +55,7 @@ export function CheckInLayout() {
   const handleCheckInComplete = useCallback(
     async (data: {
       rugId?: string;
+      clientId?: string | null;
       rugNumber: string;
       clientName: string;
       rugType: string;
@@ -81,8 +82,8 @@ export function CheckInLayout() {
       const toastError = (title: string, description: string) => warnings.push(`${title}: ${description}`);
       const toastSuccess = (title: string, description: string) => warnings.push(`${title}: ${description}`);
 
-      let clientId: string | null = null;
-      if (data.clientName) {
+      let clientId: string | null = data.clientId ?? selectedRug?.clientId ?? null;
+      if (!clientId && data.clientName) {
         const { data: clients } = await supabase
           .from("clients")
           .select("id")
@@ -320,7 +321,7 @@ export function CheckInLayout() {
       setSelectedRugId(null);
       return warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult();
     },
-    [editingEntryId, user, toast, selectedRug?.source, removePendingRug, upsertCheckInLogEntry]
+    [editingEntryId, user, toast, selectedRug?.source, selectedRug?.clientId, removePendingRug, upsertCheckInLogEntry]
   );
 
   const handleEditEntry = useCallback((entryId: string) => {
@@ -329,8 +330,8 @@ export function CheckInLayout() {
     if (isMobile) setMobilePanel("form");
   }, [isMobile]);
 
-  const handleAddWalkIn = useCallback((clientName: string, rugNumber: string) => {
-    const id = addWalkIn(clientName, rugNumber);
+  const handleAddWalkIn = useCallback((clientName: string, rugNumber: string, clientId?: string | null) => {
+    const id = addWalkIn(clientName, rugNumber, clientId);
     setSelectedRugId(id);
     setEditingEntryId(null);
     if (isMobile) setMobilePanel("form");

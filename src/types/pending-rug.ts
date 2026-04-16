@@ -1,6 +1,7 @@
 export interface PendingRug {
   id: string;
   rugNumber: string;
+  clientId?: string | null;
   clientName: string;
   rugType?: string;
   length?: number;

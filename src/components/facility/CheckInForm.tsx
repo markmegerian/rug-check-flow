@@ -37,7 +37,7 @@ import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector
 
 type PricingTier = "standard" | "preferred" | "vip";
 
-type ClientTierCache = Record<string, PricingTier>;
+type ClientLookupCache = Record<string, { id: string | null; tier: PricingTier }>;
 
 type IdleHandle = number;
 type WindowWithIdleCallback = Window & typeof globalThis & {
@@ -45,7 +45,7 @@ type WindowWithIdleCallback = Window & typeof globalThis & {
   cancelIdleCallback?: (handle: IdleHandle) => void;
 };
 
-const CLIENT_TIER_CACHE_KEY = "checkin-client-tier-cache-v1";
+const CLIENT_LOOKUP_CACHE_KEY = "checkin-client-lookup-cache-v1";
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -81,6 +81,7 @@ interface CheckInFormProps {
   editingEntry?: CheckInEntry | null;
   onCheckInComplete?: (data: {
     rugId?: string;
+    clientId?: string | null;
     rugNumber: string;
     clientName: string;
     rugType: string;
@@ -97,11 +98,12 @@ interface CheckInFormProps {
 export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: CheckInFormProps) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
+  const [knownClientId, setKnownClientId] = useState<string | null>(selectedRug?.clientId ?? null);
   const [shouldLoadServices, setShouldLoadServices] = useState(false);
-  const [clientTierCache, setClientTierCache] = useState<ClientTierCache>(() => {
+  const [clientLookupCache, setClientLookupCache] = useState<ClientLookupCache>(() => {
     try {
-      const raw = localStorage.getItem(CLIENT_TIER_CACHE_KEY);
-      return raw ? JSON.parse(raw) as ClientTierCache : {};
+      const raw = localStorage.getItem(CLIENT_LOOKUP_CACHE_KEY);
+      return raw ? JSON.parse(raw) as ClientLookupCache : {};
     } catch {
       return {};
     }
@@ -153,38 +155,44 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return () => window.clearTimeout(timer);
   }, [selectedRug, editingEntry]);
 
-  const resolveClientTier = useCallback(async (clientName: string) => {
+  const resolveClientLookup = useCallback(async (clientName: string, preferredClientId?: string | null) => {
     const normalizedClient = clientName.trim().toLowerCase();
     if (!normalizedClient) {
       setClientTier("standard");
+      setKnownClientId(null);
       return;
     }
 
-    const cachedTier = clientTierCache[normalizedClient];
-    if (cachedTier) {
-      setClientTier(cachedTier);
+    const cachedClient = clientLookupCache[normalizedClient];
+    if (cachedClient) {
+      setClientTier(cachedClient.tier);
+      setKnownClientId(preferredClientId ?? cachedClient.id ?? null);
       return;
     }
 
     if (normalizedClient.length < 3) {
       setClientTier("standard");
+      setKnownClientId(preferredClientId ?? null);
       return;
     }
 
     const { data } = await supabase
       .from("clients")
-      .select("pricing_tier")
+      .select("id, pricing_tier")
       .ilike("name", clientName.trim())
       .limit(1);
 
-    const resolvedTier = (data?.[0]?.pricing_tier as PricingTier | undefined) ?? "standard";
+    const resolvedClient = data?.[0] ?? null;
+    const resolvedTier = (resolvedClient?.pricing_tier as PricingTier | undefined) ?? "standard";
+    const resolvedId = preferredClientId ?? resolvedClient?.id ?? null;
     setClientTier(resolvedTier);
-    setClientTierCache((prev) => {
-      const next = { ...prev, [normalizedClient]: resolvedTier };
-      localStorage.setItem(CLIENT_TIER_CACHE_KEY, JSON.stringify(next));
+    setKnownClientId(resolvedId);
+    setClientLookupCache((prev) => {
+      const next = { ...prev, [normalizedClient]: { id: resolvedId, tier: resolvedTier } };
+      localStorage.setItem(CLIENT_LOOKUP_CACHE_KEY, JSON.stringify(next));
       return next;
     });
-  }, [clientTierCache]);
+  }, [clientLookupCache]);
 
   useEffect(() => {
     if (selectedRug) {
@@ -203,9 +211,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         selectedServices: preSelectedIds,
       });
       setPhotos([]);
-      void resolveClientTier(selectedRug.clientName);
+      setKnownClientId(selectedRug.clientId ?? null);
+      void resolveClientLookup(selectedRug.clientName, selectedRug.clientId ?? null);
     }
-  }, [selectedRug, form, dbServices, resolveClientTier]);
+  }, [selectedRug, form, dbServices, resolveClientLookup]);
 
   useEffect(() => {
     if (editingEntry) {
@@ -219,9 +228,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         selectedServices: editingEntry.services.map((s) => s.id),
       });
       setPhotos([]);
-      void resolveClientTier(editingEntry.clientName);
+      setKnownClientId(null);
+      void resolveClientLookup(editingEntry.clientName);
     }
-  }, [editingEntry, form, resolveClientTier]);
+  }, [editingEntry, form, resolveClientLookup]);
 
   const watchedRugNumber = form.watch("rugNumber");
   const watchedClient = form.watch("clientName");
@@ -340,6 +350,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     const result = onCheckInComplete
       ? await onCheckInComplete({
           rugId: selectedRug?.id,
+          clientId: knownClientId ?? selectedRug?.clientId ?? null,
           rugNumber: data.rugNumber,
           clientName: data.clientName,
           rugType: data.rugType,
@@ -361,6 +372,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         setFlatPrices({});
         setEdgeSelections({});
         setClientTier("standard");
+        setKnownClientId(null);
       }
     }
   };
@@ -452,9 +464,13 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                       <Input
                         placeholder="Client name"
                         {...field}
+                        onChange={(event) => {
+                          setKnownClientId(null);
+                          field.onChange(event);
+                        }}
                         onBlur={(event) => {
                           field.onBlur();
-                          void resolveClientTier(event.target.value);
+                          void resolveClientLookup(event.target.value);
                         }}
                       />
                     </FormControl>

@@ -148,10 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      void syncAuthState(s);
-    });
-
+    // Supabase emits an initial auth event after subscribing, so avoid an extra
+    // getSession() bootstrap that would duplicate the same user_roles/portal_users lookups.
     return () => subscription.unsubscribe();
   }, [syncAuthState]);
 

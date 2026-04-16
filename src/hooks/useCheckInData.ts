@@ -193,6 +193,7 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
       return {
         id: item.id,
         rugNumber: item.rug_number,
+        clientId: request?.client_id ?? null,
         clientName: request?.clients?.name ?? "Unknown client",
         rugType: item.rug_type ?? "",
         length: Number(item.length ?? 0) || undefined,
@@ -307,11 +308,12 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     return () => window.clearTimeout(timer);
   }, [fetchTodayLog, options?.enableTodayLog]);
 
-  const addWalkIn = useCallback((clientName: string, rugNumber: string): string => {
+  const addWalkIn = useCallback((clientName: string, rugNumber: string, clientId?: string | null): string => {
     const id = `walkin-${getNextWalkInCounter()}`;
     const newRug: PendingRug = {
       id,
       rugNumber,
+      clientId: clientId ?? null,
       clientName,
       requestedServices: [],
       source: "walkin",

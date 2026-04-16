@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ interface PendingRugsPanelProps {
   rugs: PendingRug[];
   selectedRugId: string | null;
   onSelectRug: (id: string) => void;
-  onAddWalkIn: (clientName: string, rugNumber: string) => void;
+  onAddWalkIn: (clientName: string, rugNumber: string, clientId?: string | null) => void;
 }
 
 export function PendingRugsPanel({
@@ -23,23 +23,32 @@ export function PendingRugsPanel({
 }: PendingRugsPanelProps) {
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
-  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<{ id: string | null; name: string } | null>(null);
   const [rugNumber, setRugNumber] = useState("");
   const [queueSearch, setQueueSearch] = useState("");
+  const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
+
+  useEffect(() => {
+    const trimmed = clientSearch.trim();
+    const timer = window.setTimeout(() => {
+      setDebouncedClientSearch(trimmed);
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [clientSearch]);
 
   const { data: filteredClients = [] } = useQuery({
-    queryKey: ["pending-rugs-panel", "client-search", clientSearch.trim()],
+    queryKey: ["pending-rugs-panel", "client-search", debouncedClientSearch],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("name")
-        .ilike("name", `%${clientSearch.trim()}%`)
+        .select("id, name")
+        .ilike("name", `%${debouncedClientSearch}%`)
         .order("name")
         .limit(8);
       if (error) throw error;
-      return (data ?? []).map((client) => client.name).filter(Boolean);
+      return (data ?? []).filter((client) => client.name);
     },
-    enabled: walkInOpen && clientSearch.trim().length >= 2 && !selectedClient,
+    enabled: walkInOpen && debouncedClientSearch.length >= 2 && !selectedClient,
     staleTime: 30_000,
   });
 
@@ -66,7 +75,7 @@ export function PendingRugsPanel({
 
   const handleAddWalkIn = () => {
     if (!selectedClient || !rugNumber.trim()) return;
-    onAddWalkIn(selectedClient, rugNumber.trim());
+    onAddWalkIn(selectedClient.name, rugNumber.trim(), selectedClient.id);
     setSelectedClient(null);
     setClientSearch("");
     setRugNumber("");
@@ -109,16 +118,16 @@ export function PendingRugsPanel({
               />
               {filteredClients.length > 0 && (
                 <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
-                  {filteredClients.map((c) => (
+                  {filteredClients.map((client) => (
                     <button
-                      key={c}
+                      key={client.id ?? client.name}
                       onClick={() => {
-                        setSelectedClient(c);
-                        setClientSearch(c);
+                        setSelectedClient({ id: client.id ?? null, name: client.name });
+                        setClientSearch(client.name);
                       }}
                       className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors"
                     >
-                      {c}
+                      {client.name}
                     </button>
                   ))}
                 </div>
@@ -127,7 +136,7 @@ export function PendingRugsPanel({
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                Client: <span className="text-foreground font-medium">{selectedClient}</span>
+                Client: <span className="text-foreground font-medium">{selectedClient.name}</span>
                 <button
                   onClick={() => { setSelectedClient(null); setClientSearch(""); }}
                   className="ml-2 text-primary text-xs underline"
