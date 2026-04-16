@@ -37,6 +37,9 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Invoice immutability and balance sync triggers
 - Invoice PDF generation/download path
 - Invoice client-link guard + automated smoke coverage
+- Check-In backend workflow edge function plus frontend cutover (`check-in-workflow`)
+- Estimate backend workflow edge function plus frontend cutover (`estimate-workflow`)
+- Handoff invoice backend workflow edge function plus frontend cutover (`generate-invoice-workflow`)
 - `clients.company_id` and `portal_users.company_id` rollout + type sync + CI smoke
 - Phase A company scope rollout for `rugs`, `invoices`, and `payments` (migration + autofill triggers)
 - Phase B company scope rollout for `approved_estimates`, `service_completions`, and `client_service_selections` (migration + autofill triggers)
@@ -48,11 +51,12 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Live verification that new company-scope consistency triggers are pushed and green in prod
 - Live scheduler wiring / production execution verification for reminder cadence
 - Full production smoke evidence for the newly shipped messaging/reminder flows
-- Check-In backend workflow edge function exists and `CheckInLayout.tsx` is now cut over to call it, but production deploy/live verification is still outstanding
+- Check-In backend workflow still needs its production deploy and authenticated live verification captured cleanly in tracker evidence
+- Cleanup of now-obsolete client-side Check-In orchestration/helpers remains open
 
 ### Recently clarified
-- Check-In frontend submit-path stabilization shipped several low-risk reductions, but the remaining synchronous work is mostly essential workflow.
-- The correct next step is a backend-owned Check-In workflow endpoint instead of continuing to push more critical orchestration into frontend fire-and-forget behavior.
+- The backend-owned workflow pattern is now the practical direction for critical multi-step write flows, not just Check-In.
+- Check-In, estimate creation/revision, and handoff invoice generation are now all cut over in the app code, but rollout evidence quality still varies by workflow.
 
 ---
 
@@ -62,10 +66,13 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 **Status:** Partial
 
 ### What exists
-- Current frontend-owned workflow:
+- Frontend submit path is now cut over:
+  - `src/components/facility/CheckInLayout.tsx`
+  - uses `safeInvoke<CheckInWorkflowResponse>("check-in-workflow", ...)`
+- Check-In UI/form components still in use:
   - `src/components/facility/CheckInLayout.tsx`
   - `src/components/facility/CheckInForm.tsx`
-- Supporting helpers:
+- Supporting helpers still present around the workflow:
   - `src/lib/checkin-operations.ts`
   - `src/lib/rug-service-approval.ts`
   - `src/lib/rug-operations.ts`
@@ -75,23 +82,22 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
   - guaranteed full form reset after success
   - locked cleaning-only estimate skip behavior with tests
   - locked cleaning auto-approval behavior with tests
-- New contract doc:
+- Contract + backend workflow implementation:
   - `docs/check-in-backend-workflow-contract.md`
-- Initial backend workflow implementation:
   - `supabase/functions/check-in-workflow/index.ts`
   - `supabase/config.toml`
   - `src/test/check-in-workflow-edge.test.ts`
+  - `src/test/check-in-frontend-cutover.test.ts`
 
 ### What is still missing
-- Frontend cutover from `CheckInLayout.tsx` to the backend workflow endpoint
-- Transactional core write path for create/edit Check-In
 - Durable idempotency persistence for repeated submissions / retries
-- Production rollout and live verification of the backend workflow path
+- Production deploy confirmation and authenticated live verification captured cleanly as evidence
+- Cleanup/removal of now-obsolete client-side orchestration helpers if they are no longer needed
 
 ### Notes
-- The new edge function covers create/edit orchestration, company-scoped auth, backend-owned approval defaults, estimate draft creation, and estimate batch queue seeding.
-- The live submit path now routes through the backend workflow endpoint with frontend photo upload prep kept client-side.
-- The next correct step is deployment plus live verification, then cleanup of now-obsolete client-side helper code.
+- The edge function now owns create/edit orchestration, company-scoped auth, backend-owned approval defaults, estimate draft creation, and estimate batch queue seeding.
+- Photo upload prep remains client-side by design.
+- This workstream is no longer blocked on frontend cutover; the remaining gap is rollout proof plus cleanup/hardening.
 
 ---
 
@@ -403,7 +409,58 @@ Direct company ownership columns are now present on:
 
 ---
 
-## 12) March 28 stabilization work
+## 12) Estimate backend workflow
+**Status:** Built and live-verified
+
+### What exists
+- Backend workflow:
+  - `supabase/functions/estimate-workflow/index.ts`
+  - `supabase/config.toml`
+- Frontend cutover:
+  - `src/components/office/EstimatesTab.tsx`
+- Coverage:
+  - `src/test/estimate-workflow-edge.test.ts`
+  - `src/test/estimates-frontend-cutover.test.ts`
+
+### Live verification status
+- Local tests and build passed on 2026-04-16.
+- Function was deployed live to project `toitgmaeuscrdwbpntda` on 2026-04-16.
+- Authenticated office Playwright smoke passed on 2026-04-16:
+  - create path from `https://mr.rugboost.com/ops?tab=estimates` created `EST-MO1O135A`
+  - revise path for rejected estimate `EST-MNY8GD0G` created `EST-MNY8GD0G-R2`
+
+### Notes
+- This is now a real backend-owned workflow in production, not just a contract or local implementation.
+
+---
+
+## 13) Handoff invoice backend workflow
+**Status:** Built, deployed, and partially live-verified
+
+### What exists
+- Backend workflow:
+  - `supabase/functions/generate-invoice-workflow/index.ts`
+  - `supabase/config.toml`
+- Frontend cutover:
+  - `src/components/facility/InvoiceGeneratorPanel.tsx`
+- Coverage:
+  - `src/test/generate-invoice-workflow-edge.test.ts`
+  - `src/test/invoice-generator-frontend-cutover.test.ts`
+
+### Live verification status
+- Local tests and build passed on 2026-04-16.
+- Function was deployed live to project `toitgmaeuscrdwbpntda` on 2026-04-16.
+- The live frontend bundle was confirmed after deploy to contain `generate-invoice-workflow`.
+- Authenticated prod function smoke passed to the expected validation boundary on 2026-04-16, returning duplicate-invoice guardrail error `400 {"error":"One or more selected rugs already have invoice items"}` for a rug that had already been invoiced.
+- A real office UI success-path invoice generation for rug `182081` created `INV-MO1OGL6R`, but that happened just before the frontend deploy finished, so it validated the business flow while still using the old browser-owned write path.
+
+### Notes
+- Backend cutover is live in production code, but the evidence is slightly uneven because the only available uninvoiced ready rug was consumed before the post-deploy UI success-path rerun.
+- If a fresh uninvoiced ready rug becomes available, rerun one authenticated office UI smoke to close this evidence gap cleanly.
+
+---
+
+## 14) March 28 stabilization work
 **Status:** Built and deployed on branch workflow
 
 ### Delivered
@@ -435,12 +492,13 @@ Direct company ownership columns are now present on:
 
 ## Recommended next priority order
 
-1. Bootstrap upstream company ownership (`companies`, `company_memberships`, and real `clients.company_id` assignment)
-2. Finish company scoping on remaining legacy tables
-3. Build Office Inbox / thread model
-4. Implement full reminder cadence automation
-5. Tighten DB-native authority for remaining stop workflow invariants where valuable
-6. Keep release evidence and rollout docs current as real deployments happen
+1. Finish Check-In rollout evidence in production and remove now-obsolete client-side orchestration/helpers
+2. Capture clean post-deploy UI success-path evidence for `generate-invoice-workflow` when a fresh uninvoiced ready rug is available
+3. Verify live company-scope consistency triggers are pushed and green in prod
+4. Verify scheduler wiring / real production execution for reminder cadence
+5. Capture fuller production smoke evidence for messaging/reminder flows
+6. Tighten DB-native authority for remaining stop workflow invariants where valuable
+7. Keep release evidence and rollout docs current as real deployments happen
 
 ---
 
