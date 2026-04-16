@@ -31,9 +31,9 @@ describe("reminder workflow correctness", () => {
     expect(edge).not.toContain('estimate_marked_sent_without_email');
   });
 
-  it("skips estimate creation and queueing for cleaning-only check-ins", () => {
-    const checkinOps = readFileSync(resolve(process.cwd(), "src/lib/checkin-operations.ts"), "utf-8");
-    expect(checkinOps).toContain("return Boolean(serviceRow?.requires_estimate) && !isCleaningCategory(serviceRow?.category);");
-    expect(checkinOps).toContain("if (eligibleSnapshots.length === 0) return null;");
+  it("keeps check-in estimate gating on the backend workflow", () => {
+    const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
+    expect(workflow).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
+    expect(workflow).toContain('notification_type: "estimate_batch_send"');
   });
 });

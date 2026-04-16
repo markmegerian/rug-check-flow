@@ -51,8 +51,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Live verification that new company-scope consistency triggers are pushed and green in prod
 - Live scheduler wiring / production execution verification for reminder cadence
 - Full production smoke evidence for the newly shipped messaging/reminder flows
-- Check-In backend workflow still needs its production deploy and authenticated live verification captured cleanly in tracker evidence
-- Cleanup of now-obsolete client-side Check-In orchestration/helpers remains open
+- Durable idempotency persistence for repeated Check-In submissions / retries remains open
 
 ### Recently clarified
 - The backend-owned workflow pattern is now the practical direction for critical multi-step write flows, not just Check-In.
@@ -91,13 +90,13 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 
 ### What is still missing
 - Durable idempotency persistence for repeated submissions / retries
-- Production deploy confirmation and authenticated live verification captured cleanly as evidence
-- Cleanup/removal of now-obsolete client-side orchestration helpers if they are no longer needed
 
 ### Notes
 - The edge function now owns create/edit orchestration, company-scoped auth, backend-owned approval defaults, estimate draft creation, and estimate batch queue seeding.
 - Photo upload prep remains client-side by design.
-- This workstream is no longer blocked on frontend cutover; the remaining gap is rollout proof plus cleanup/hardening.
+- Authenticated production UI smoke passed on 2026-04-16 from `https://mr.rugboost.com/checkin` using the check-in staff account, creating walk-in rug `E2E-CI-899980` via `functions/v1/check-in-workflow` and returning success with rug id `86d31747-71b8-4a32-a02e-adf3ff904dd8` and intake job id `1a22cb68-79b1-4a36-ac8e-2f7934b4ccf4`.
+- Obsolete browser-owned estimate-draft orchestration was removed from `src/lib/checkin-operations.ts`; the file now only handles photo upload prep.
+- This workstream is no longer blocked on frontend cutover or rollout proof. The remaining gap is idempotency hardening.
 
 ---
 
@@ -492,12 +491,12 @@ Direct company ownership columns are now present on:
 
 ## Recommended next priority order
 
-1. Finish Check-In rollout evidence in production and remove now-obsolete client-side orchestration/helpers
-2. Capture clean post-deploy UI success-path evidence for `generate-invoice-workflow` when a fresh uninvoiced ready rug is available
-3. Verify live company-scope consistency triggers are pushed and green in prod
-4. Verify scheduler wiring / real production execution for reminder cadence
-5. Capture fuller production smoke evidence for messaging/reminder flows
-6. Tighten DB-native authority for remaining stop workflow invariants where valuable
+1. Capture clean post-deploy UI success-path evidence for `generate-invoice-workflow` when a fresh uninvoiced ready rug is available
+2. Verify live company-scope consistency triggers are pushed and green in prod
+3. Verify scheduler wiring / real production execution for reminder cadence
+4. Capture fuller production smoke evidence for messaging/reminder flows
+5. Tighten DB-native authority for remaining stop workflow invariants where valuable
+6. Add durable idempotency persistence for repeated Check-In submissions / retries
 7. Keep release evidence and rollout docs current as real deployments happen
 
 ---
