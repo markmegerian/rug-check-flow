@@ -10,11 +10,12 @@ describe("check-in workflow edge function", () => {
     expect(fn).toContain('eq("company_id", params.callerCompanyId)');
   });
 
-  it("keeps cleaning approval defaults and estimate skip logic on the backend", () => {
+  it("keeps cleaning approval defaults, walk-in company stamping, and estimate skip logic on the backend", () => {
     const fn = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
     expect(fn).toContain('approval_status: isCleaningCategory(rule?.category) ? "approved" : "pending"');
     expect(fn).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
     expect(fn).toContain('notification_type: "estimate_batch_send"');
+    expect(fn).toContain('company_id: actor.companyId');
   });
 
   it("documents durable idempotency support and manual auth config registration", () => {
@@ -30,5 +31,13 @@ describe("check-in workflow edge function", () => {
     expect(config).toContain('verify_jwt = false');
     expect(migration).toContain('create table if not exists public.checkin_idempotency_keys');
     expect(migration).toContain('unique (actor_user_id, idempotency_key)');
+  });
+
+  it("documents walk-in rug company backfill for rows without clients", () => {
+    const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260416231500_fix_walkin_rug_company_scope.sql"), "utf-8");
+    expect(migration).toContain('new.checked_in_by is not null');
+    expect(migration).toContain('from public.company_memberships cm');
+    expect(migration).toContain('update public.rugs r');
+    expect(migration).toContain('r.company_id is null');
   });
 });

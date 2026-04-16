@@ -45,7 +45,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Phase B company scope rollout for `approved_estimates`, `service_completions`, and `client_service_selections` (migration + autofill triggers)
 
 ### Still incomplete / ongoing
-- Company scoping mostly complete, but live audit on 2026-04-16 found `rugs.company_id` still has 10 null rows in prod even though the newer consistency triggers are active
+- Company scoping cleanup is now complete for current audited tables. The earlier prod gap on walk-in `rugs.company_id` was repaired on 2026-04-16, including live backfill of null rows and a check-in workflow fix so new walk-in rugs stamp the facility company automatically.
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
 - Release evidence / rollout discipline beyond branch deploy health
 - Live scheduler wiring / production execution verification for reminder cadence
@@ -276,7 +276,9 @@ Direct company ownership columns are now present on:
 - Repeatable audit scripts: `scripts/company-scope-audit.sh` and `scripts/company-ownership-bootstrap-audit.sh`.
 - Phase 0 bootstrap artifacts live in repo: `scripts/sql/bootstrap-company-ownership.sql` and `scripts/company-ownership-bootstrap-smoke.sh`.
 - Phase 0 bootstrap is completed in prod: `companies` has 1 row, `company_memberships` has an initial `company_admin`, and all 902 clients now have non-null `company_id`.
-- Live audit on 2026-04-16 showed: `clients.company_id` null rows = 0, `invoices.company_id` null rows = 0, `payments.company_id` null rows = 0, `approved_estimates.company_id` null rows = 0, `client_service_selections.company_id` null rows = 0, `service_completions.company_id` null rows = 0, and `rugs.company_id` null rows = 10.
+- Live audit on 2026-04-16 originally showed: `clients.company_id` null rows = 0, `invoices.company_id` null rows = 0, `payments.company_id` null rows = 0, `approved_estimates.company_id` null rows = 0, `client_service_selections.company_id` null rows = 0, `service_completions.company_id` null rows = 0, and `rugs.company_id` null rows = 10.
+- That remaining `rugs.company_id` gap was closed later on 2026-04-16. The null rows were all walk-in/no-client rugs created through backend-owned check-in paths where `auth.uid()` fallback was ineffective under service-role writes. Migration `20260416231500_fix_walkin_rug_company_scope.sql` backfilled those rows from staff company membership / single-company fallback and hardened `autofill_rug_company_id()`. `check-in-workflow` was also patched to write `company_id: actor.companyId` directly on rug create.
+- Live verification after that fix showed `rugs.company_id` null rows = 0, and a new walk-in smoke rug `COMPANY-782604` was created in prod with `company_id = b6b163b9-923a-4325-a824-e3b025e15e03` and `client_id = null`.
 - Prod trigger enforcement was verified directly on 2026-04-16 with authenticated office-token insert attempts that were rejected with DB constraint `23514`:
   - `invoices.company_id must match clients.company_id`
   - `rugs.company_id must match clients.company_id`
@@ -502,9 +504,7 @@ Direct company ownership columns are now present on:
 2. Verify scheduler wiring / real production execution for reminder cadence once a company-linked office/admin smoke account or scheduler-secret path is available
 3. Capture fuller production smoke evidence for messaging/reminder flows
 4. Tighten DB-native authority for remaining stop workflow invariants where valuable
-5. Repair or backfill the 10 prod `rugs` rows that still have null `company_id`
-6. Capture clean post-deploy UI success-path evidence for `generate-invoice-workflow` when a fresh uninvoiced ready rug is available
-7. Keep release evidence and rollout docs current as real deployments happen
+5. Keep release evidence and rollout docs current as real deployments happen
 
 ---
 

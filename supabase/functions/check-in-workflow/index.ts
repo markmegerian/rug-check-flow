@@ -733,6 +733,7 @@ Deno.serve(async (req) => {
         size_width: request.width,
         services: request.services.map((service) => service.service_name),
         client_id: clientId,
+        company_id: actor.companyId,
         checked_in_by: actor.user.id,
         checked_in_at: intakeDate,
         notes: request.conditionNotes,
