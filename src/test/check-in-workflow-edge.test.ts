@@ -17,10 +17,12 @@ describe("check-in workflow edge function", () => {
     expect(fn).toContain('notification_type: "estimate_batch_send"');
   });
 
-  it("documents idempotency header support and config registration", () => {
+  it("documents idempotency header support and manual auth config registration", () => {
     const fn = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
     const config = readFileSync(resolve(process.cwd(), "supabase/config.toml"), "utf-8");
     expect(fn).toContain('x-idempotency-key');
+    expect(fn).toContain('anonClient.auth.getUser(token)');
     expect(config).toContain('[functions.check-in-workflow]');
+    expect(config).toContain('verify_jwt = false');
   });
 });
