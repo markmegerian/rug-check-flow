@@ -1,6 +1,6 @@
 # Platform 1.0 Status Tracker
 
-_Last updated: 2026-04-02_
+_Last updated: 2026-04-16_
 
 This is the living reality-check document for the project.
 
@@ -48,10 +48,49 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Live verification that new company-scope consistency triggers are pushed and green in prod
 - Live scheduler wiring / production execution verification for reminder cadence
 - Full production smoke evidence for the newly shipped messaging/reminder flows
+- Check-In backend workflow endpoint is not built yet; contract now defined in `docs/check-in-backend-workflow-contract.md`
+
+### Recently clarified
+- Check-In frontend submit-path stabilization shipped several low-risk reductions, but the remaining synchronous work is mostly essential workflow.
+- The correct next step is a backend-owned Check-In workflow endpoint instead of continuing to push more critical orchestration into frontend fire-and-forget behavior.
 
 ---
 
 ## Workstream review
+
+## 0) Facility Check-In workflow
+**Status:** Partial
+
+### What exists
+- Current frontend-owned workflow:
+  - `src/components/facility/CheckInLayout.tsx`
+  - `src/components/facility/CheckInForm.tsx`
+- Supporting helpers:
+  - `src/lib/checkin-operations.ts`
+  - `src/lib/rug-service-approval.ts`
+  - `src/lib/rug-operations.ts`
+- Recent shipped stabilization work on branch `claude/codebase-analysis-ideas-JJIeo`:
+  - reduced repeated queries
+  - reduced blocking submit-path work
+  - guaranteed full form reset after success
+  - locked cleaning-only estimate skip behavior with tests
+  - locked cleaning auto-approval behavior with tests
+- New contract doc:
+  - `docs/check-in-backend-workflow-contract.md`
+
+### What is still missing
+- Dedicated backend endpoint for authoritative Check-In orchestration
+- Transactional core write path for create/edit Check-In
+- Idempotency support for repeated submissions / retries
+- Production rollout and live verification of the backend workflow path
+
+### Notes
+- The frontend still owns too much orchestration.
+- Further frontend-only async cuts are now riskier and less valuable than moving the workflow into a backend endpoint.
+- This workstream should now shift from UI-side micro-optimization to backend workflow implementation.
+
+---
+
 
 ## 1) Unified Stop model
 **Status:** Built
