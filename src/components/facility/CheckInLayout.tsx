@@ -132,31 +132,36 @@ export function CheckInLayout() {
         if (delServicesErr) {
           return errorResult("Failed to update services", delServicesErr.message);
         }
-        if (data.serviceSnapshots.length > 0) {
-          const { error: insServicesErr, approvalStatusAvailable } = await insertRugServices(
-            data.serviceSnapshots.map((s) => ({
-              rug_id: editingEntryId,
-              service_id: s.service_id,
-              service_name: s.service_name,
-              unit_price: s.unit_price,
-              line_total: s.line_total,
-              edges: s.edges,
-              approval_status: "pending",
-            }))
-          );
-          if (insServicesErr) {
-            return errorResult("Failed to save services", insServicesErr.message);
-          }
-          if (!approvalStatusAvailable) {
-            warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
-          }
+        const [serviceSaveResult, photoUploadResults] = await Promise.all([
+          data.serviceSnapshots.length > 0
+            ? insertRugServices(
+                data.serviceSnapshots.map((s) => ({
+                  rug_id: editingEntryId,
+                  service_id: s.service_id,
+                  service_name: s.service_name,
+                  unit_price: s.unit_price,
+                  line_total: s.line_total,
+                  edges: s.edges,
+                  approval_status: "pending",
+                }))
+              )
+            : Promise.resolve({ error: null, approvalStatusAvailable: true }),
+          data.photos.length > 0
+            ? Promise.all(data.photos.map((file) => uploadCheckinPhoto(editingEntryId, file)))
+            : Promise.resolve([] as Array<string | null>),
+        ]);
+
+        if (serviceSaveResult.error) {
+          return errorResult("Failed to save services", serviceSaveResult.error.message);
+        }
+        if (!serviceSaveResult.approvalStatusAvailable) {
+          warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
         }
 
+        const firstUploadedPhotoUrl = photoUploadResults.find(Boolean);
         if (data.photos.length > 0) {
-          const uploadResults = await Promise.all(data.photos.map((file) => uploadCheckinPhoto(editingEntryId, file)));
-          const firstUrl = uploadResults.find(Boolean);
-          if (firstUrl) {
-            await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", editingEntryId);
+          if (firstUploadedPhotoUrl) {
+            await supabase.from("rugs").update({ photo_url: firstUploadedPhotoUrl }).eq("id", editingEntryId);
           } else {
             warnings.push("Required photos did not finish uploading.");
           }
@@ -230,62 +235,86 @@ export function CheckInLayout() {
           return errorResult("Check-in failed", error?.message ?? "Unknown error");
         }
 
-        const { data: priorSameTagRugs } = await supabase
-          .from("rugs")
-          .select("id, tag, status, checked_in_at, picked_up_at")
-          .eq("client_id", clientId)
-          .eq("tag", data.rugNumber)
-          .neq("id", inserted.id)
-          .order("checked_in_at", { ascending: false })
-          .limit(3);
+        const queueContinuityLinking = () => {
+          if (!clientId) return;
 
-        const latestPriorSameTagRug = (priorSameTagRugs ?? [])[0] ?? null;
-        if (latestPriorSameTagRug) {
-          const priorStateDate = latestPriorSameTagRug.picked_up_at ?? latestPriorSameTagRug.checked_in_at;
-          const continuityNote = `Return continuity: prior same-tag rug ${latestPriorSameTagRug.tag} (${latestPriorSameTagRug.id}) last status ${latestPriorSameTagRug.status}${priorStateDate ? ` on ${new Date(priorStateDate).toLocaleString()}` : ""}.`;
-          const mergedContinuityNotes = [data.conditionNotes, continuityNote].filter(Boolean).join("\n\n");
+          void (async () => {
+            const { data: priorSameTagRugs, error: priorSameTagError } = await supabase
+              .from("rugs")
+              .select("id, tag, status, checked_in_at, picked_up_at")
+              .eq("client_id", clientId)
+              .eq("tag", data.rugNumber)
+              .neq("id", inserted.id)
+              .order("checked_in_at", { ascending: false })
+              .limit(3);
 
-          await supabase
-            .from("rugs")
-            .update({ notes: mergedContinuityNotes })
-            .eq("id", inserted.id);
+            if (priorSameTagError) {
+              console.warn("Failed to load prior same-tag rugs", priorSameTagError);
+              return;
+            }
 
-          await supabaseExtended.from("communication_events").insert({
-            client_id: clientId,
-            rug_id: inserted.id,
-            channel: "in_app_chat",
-            direction: "outbound",
-            event_type: "rug_continuity_linked",
-            subject: `${data.rugNumber} linked to prior same-tag history`,
-            body: `New intake ${inserted.id} matches prior rug ${latestPriorSameTagRug.id} for the same client and tag. Prior status: ${latestPriorSameTagRug.status}.`,
-          });
+            const latestPriorSameTagRug = (priorSameTagRugs ?? [])[0] ?? null;
+            if (!latestPriorSameTagRug) return;
+
+            const priorStateDate = latestPriorSameTagRug.picked_up_at ?? latestPriorSameTagRug.checked_in_at;
+            const continuityNote = `Return continuity: prior same-tag rug ${latestPriorSameTagRug.tag} (${latestPriorSameTagRug.id}) last status ${latestPriorSameTagRug.status}${priorStateDate ? ` on ${new Date(priorStateDate).toLocaleString()}` : ""}.`;
+            const mergedContinuityNotes = [data.conditionNotes, continuityNote].filter(Boolean).join("\n\n");
+
+            const [{ error: notesUpdateError }, { error: communicationEventError }] = await Promise.all([
+              supabase
+                .from("rugs")
+                .update({ notes: mergedContinuityNotes })
+                .eq("id", inserted.id),
+              supabaseExtended.from("communication_events").insert({
+                client_id: clientId,
+                rug_id: inserted.id,
+                channel: "in_app_chat",
+                direction: "outbound",
+                event_type: "rug_continuity_linked",
+                subject: `${data.rugNumber} linked to prior same-tag history`,
+                body: `New intake ${inserted.id} matches prior rug ${latestPriorSameTagRug.id} for the same client and tag. Prior status: ${latestPriorSameTagRug.status}.`,
+              }),
+            ]);
+
+            if (notesUpdateError) {
+              console.warn("Failed to update rug continuity notes", notesUpdateError);
+            }
+            if (communicationEventError) {
+              console.warn("Failed to record rug continuity event", communicationEventError);
+            }
+          })();
+        };
+
+        const [serviceSaveResult, photoUploadResults] = await Promise.all([
+          data.serviceSnapshots.length > 0
+            ? insertRugServices(
+                data.serviceSnapshots.map((s) => ({
+                  rug_id: inserted.id,
+                  service_id: s.service_id,
+                  service_name: s.service_name,
+                  unit_price: s.unit_price,
+                  line_total: s.line_total,
+                  edges: s.edges,
+                  approval_status: "pending",
+                }))
+              )
+            : Promise.resolve({ error: null, approvalStatusAvailable: true }),
+          data.photos.length > 0
+            ? Promise.all(data.photos.map((file) => uploadCheckinPhoto(inserted.id, file)))
+            : Promise.resolve([] as Array<string | null>),
+        ]);
+
+        if (serviceSaveResult.error) {
+          return warningResult(`Rug ${data.rugNumber} was created, but services could not be saved: ${serviceSaveResult.error.message}`);
+        }
+        if (!serviceSaveResult.approvalStatusAvailable) {
+          warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
         }
 
-        if (data.serviceSnapshots.length > 0) {
-          const { error: insServicesErr, approvalStatusAvailable } = await insertRugServices(
-            data.serviceSnapshots.map((s) => ({
-              rug_id: inserted.id,
-              service_id: s.service_id,
-              service_name: s.service_name,
-              unit_price: s.unit_price,
-              line_total: s.line_total,
-              edges: s.edges,
-              approval_status: "pending",
-            }))
-          );
-          if (insServicesErr) {
-            return warningResult(`Rug ${data.rugNumber} was created, but services could not be saved: ${insServicesErr.message}`);
-          }
-          if (!approvalStatusAvailable) {
-            warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
-          }
-        }
-
+        const firstUploadedPhotoUrl = photoUploadResults.find(Boolean);
         if (data.photos.length > 0) {
-          const uploadResults = await Promise.all(data.photos.map((file) => uploadCheckinPhoto(inserted.id, file)));
-          const firstUrl = uploadResults.find(Boolean);
-          if (firstUrl) {
-            await supabase.from("rugs").update({ photo_url: firstUrl }).eq("id", inserted.id);
+          if (firstUploadedPhotoUrl) {
+            await supabase.from("rugs").update({ photo_url: firstUploadedPhotoUrl }).eq("id", inserted.id);
           } else {
             warnings.push("Required photos did not finish uploading.");
           }
@@ -316,6 +345,7 @@ export function CheckInLayout() {
         }
 
         upsertCheckInLogEntry(buildLogEntry(inserted.id, intakeDate));
+        queueContinuityLinking();
       }
 
       setSelectedRugId(null);

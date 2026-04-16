@@ -134,29 +134,43 @@ export async function maybeAutoCreateEstimateDraft(
     return null;
   }
 
-  await supabaseExtended.from("communication_events").insert({
-    client_id: clientId,
-    rug_id: rugId,
-    estimate_id: insertedEstimate.id,
-    channel: "in_app_chat",
-    direction: "outbound",
-    event_type: "estimate_auto_drafted_from_checkin",
-    subject: `${estimateNumber} auto-drafted`,
-    body: `Estimate ${estimateNumber} was auto-created from check-in service selections.`,
-  });
+  void (async () => {
+    const tasks: Promise<unknown>[] = [
+      supabaseExtended.from("communication_events").insert({
+        client_id: clientId,
+        rug_id: rugId,
+        estimate_id: insertedEstimate.id,
+        channel: "in_app_chat",
+        direction: "outbound",
+        event_type: "estimate_auto_drafted_from_checkin",
+        subject: `${estimateNumber} auto-drafted`,
+        body: `Estimate ${estimateNumber} was auto-created from check-in service selections.`,
+      }),
+    ];
 
-  if (clientId) {
-    try {
-      await queueEstimateForBatchSend({
+    if (clientId) {
+      tasks.push(queueEstimateForBatchSend({
         clientId,
         estimateId: insertedEstimate.id,
         queuedAt: new Date().toISOString(),
-      });
-      onSuccess("Estimate auto-created & queued", `${estimateNumber} will send in the daily 3:00 PM Eastern batch.`);
-    } catch (queueError) {
-      const message = queueError instanceof Error ? queueError.message : "Unknown error";
-      onError("Estimate queue failed", `${estimateNumber} was created as a draft, but could not be added to the 3:00 PM Eastern send batch. ${message}`);
+      }));
     }
+
+    const [communicationEventResult, queueResult] = await Promise.allSettled(tasks);
+
+    if (communicationEventResult.status === "fulfilled" && communicationEventResult.value?.error) {
+      console.warn("Estimate auto-draft communication event failed", communicationEventResult.value.error);
+    } else if (communicationEventResult.status === "rejected") {
+      console.warn("Estimate auto-draft communication event failed", communicationEventResult.reason);
+    }
+
+    if (queueResult?.status === "rejected") {
+      console.warn("Estimate batch queue failed", queueResult.reason);
+    }
+  })();
+
+  if (clientId) {
+    onSuccess("Estimate auto-created", `${estimateNumber} was created and batch queueing started.`);
   } else {
     onError("Estimate queued manually", `${estimateNumber} was created as a draft, but no client is linked yet, so it was not queued for the 3:00 PM Eastern send batch.`);
   }
