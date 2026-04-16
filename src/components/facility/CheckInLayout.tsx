@@ -341,17 +341,15 @@ export function CheckInLayout() {
         const postSubmitTasks: Promise<unknown>[] = [advanceRugStage(inserted.id, "checked_in")];
 
         if (data.rugId && !isWalkIn) {
-          postSubmitTasks.push(
-            supabaseExtended
-              .from("pickup_request_items")
-              .update({ checked_in_rug_id: inserted.id })
-              .eq("id", data.rugId)
-              .then(({ error: pickupItemUpdateError }) => {
-                if (pickupItemUpdateError) {
-                  warnings.push(`Pickup item linking failed: ${pickupItemUpdateError.message}`);
-                }
-              })
-          );
+          void supabaseExtended
+            .from("pickup_request_items")
+            .update({ checked_in_rug_id: inserted.id })
+            .eq("id", data.rugId)
+            .then(({ error: pickupItemUpdateError }) => {
+              if (pickupItemUpdateError) {
+                console.warn("Pickup item linking failed after check-in", pickupItemUpdateError);
+              }
+            });
         }
 
         if (isRugServiceApprovalStatusAvailable()) {
