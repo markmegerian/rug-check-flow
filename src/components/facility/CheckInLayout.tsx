@@ -2,16 +2,12 @@ import { useState, useCallback, lazy, Suspense } from "react";
 import { ClipboardList, Plus } from "lucide-react";
 import { CheckInForm } from "./CheckInForm";
 import { type CheckInEntry } from "@/data/check-in-log";
-import { supabase } from "@/integrations/supabase/client";
-import { supabaseExtended } from "@/integrations/supabase/extended";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCheckInData } from "@/hooks/useCheckInData";
-import { uploadCheckinPhoto, generateJobCode, maybeAutoCreateEstimateDraft } from "@/lib/checkin-operations";
-import { advanceRugStage } from "@/lib/rug-operations";
-import { insertRugServices, isRugServiceApprovalStatusAvailable } from "@/lib/rug-service-approval";
+import { uploadCheckinPhotoFile } from "@/lib/checkin-operations";
+import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 
 const PendingRugsPanel = lazy(async () => {
   const module = await import("./PendingRugsPanel");
@@ -19,6 +15,27 @@ const PendingRugsPanel = lazy(async () => {
 });
 
 type MobilePanel = "form" | "pending";
+
+type CheckInWorkflowPhoto = {
+  storage_path: string;
+  public_url?: string | null;
+};
+
+type CheckInWorkflowResponse = {
+  status: "success" | "warning" | "error";
+  rugId?: string;
+  intakeJobId?: string | null;
+  estimateId?: string | null;
+  estimateNumber?: string | null;
+  warnings?: string[];
+  resetForm?: boolean;
+  summary?: {
+    rugNumber: string;
+    clientName: string;
+    checkedInAt: string;
+    totalPrice: number;
+  };
+};
 
 function PanelFallback({ label }: { label: string }) {
   return (
@@ -30,7 +47,6 @@ function PanelFallback({ label }: { label: string }) {
 
 export function CheckInLayout() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const isMobile = useIsMobile();
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -79,7 +95,12 @@ export function CheckInLayout() {
         description,
         resetForm: true,
       });
-      const successResult = () => ({ status: "success" as const, title: successTitle, description: successDescription, resetForm: true });
+      const successResult = (description = successDescription) => ({
+        status: "success" as const,
+        title: successTitle,
+        description,
+        resetForm: true,
+      });
       const finalizeResult = <T extends { resetForm?: boolean }>(result: T) => {
         if (result.resetForm !== false) {
           setSelectedRugId(null);
@@ -88,23 +109,62 @@ export function CheckInLayout() {
         }
         return result;
       };
-      const toastError = (title: string, description: string) => warnings.push(`${title}: ${description}`);
-      const toastSuccess = (title: string, description: string) => warnings.push(`${title}: ${description}`);
 
-      let clientId: string | null = data.clientId ?? selectedRug?.clientId ?? null;
-      if (!clientId && data.clientName) {
-        const { data: clients } = await supabase
-          .from("clients")
-          .select("id")
-          .ilike("name", data.clientName)
-          .limit(1);
-        clientId = clients?.[0]?.id ?? null;
+      const uploadTarget = editingEntryId ?? `${data.rugNumber.replace(/[^a-zA-Z0-9_-]+/g, "-") || "staged"}-${Date.now()}`;
+      const uploadedPhotos = data.photos.length > 0
+        ? await Promise.all(data.photos.map((file) => uploadCheckinPhotoFile(uploadTarget, file)))
+        : [];
+      const photoPayload = uploadedPhotos.filter(Boolean) as CheckInWorkflowPhoto[];
+
+      if (data.photos.length > 0 && photoPayload.length === 0) {
+        return finalizeResult(errorResult("Photo upload failed", "Required photos did not finish uploading."));
+      }
+      if (photoPayload.length < data.photos.length) {
+        warnings.push("Some photos did not finish uploading.");
       }
 
-      const buildLogEntry = (rugId: string, checkedInAt: string): CheckInEntry => ({
-        id: rugId,
-        rugNumber: data.rugNumber,
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders) {
+        return finalizeResult(errorResult("Unauthorized", "Sign in again and retry."));
+      }
+
+      const workflow = await safeInvoke<CheckInWorkflowResponse>("check-in-workflow", {
+        mode: editingEntryId ? "edit" : "create",
+        rugId: editingEntryId ?? undefined,
+        sourceRugId: selectedRug?.pickupRequestItemId ?? (data.rugId?.startsWith("walkin-") ? null : data.rugId ?? null),
+        actorUserId: user?.id ?? null,
+        clientId: data.clientId ?? selectedRug?.clientId ?? null,
         clientName: data.clientName,
+        rugNumber: data.rugNumber,
+        rugType: data.rugType,
+        length: data.length,
+        width: data.width,
+        conditionNotes: data.conditionNotes,
+        source: selectedRug?.source === "pickup" ? "pickup" : "dropoff",
+        services: data.serviceSnapshots,
+        photos: photoPayload,
+      }, authHeaders);
+
+      if (!workflow.success) {
+        return finalizeResult(errorResult(isEditing ? "Update failed" : "Check-in failed", workflow.error));
+      }
+
+      const workflowResult = workflow.data;
+      const workflowWarnings = workflowResult.warnings ?? [];
+      if (workflowResult.status === "error") {
+        return finalizeResult(errorResult(isEditing ? "Update failed" : "Check-in failed", workflowWarnings.join(" ") || "Workflow failed."));
+      }
+
+      const checkedInAt = workflowResult.summary?.checkedInAt ?? new Date().toISOString();
+      const rugId = workflowResult.rugId ?? editingEntryId;
+      if (!rugId) {
+        return finalizeResult(errorResult("Check-in failed", "Workflow did not return a rug id."));
+      }
+
+      const buildLogEntry = (resolvedRugId: string): CheckInEntry => ({
+        id: resolvedRugId,
+        rugNumber: workflowResult.summary?.rugNumber ?? data.rugNumber,
+        clientName: workflowResult.summary?.clientName ?? data.clientName,
         rugType: data.rugType,
         length: Number(data.length) || 0,
         width: Number(data.width) || 0,
@@ -113,276 +173,29 @@ export function CheckInLayout() {
           name: service.service_name,
           price: Number(service.line_total) || 0,
         })),
-        totalPrice: data.totalPrice,
+        totalPrice: workflowResult.summary?.totalPrice ?? data.totalPrice,
         checkedInAt: new Date(checkedInAt),
         checkedInBy: "Staff",
       });
 
-      if (editingEntryId) {
-        const { error } = await supabase
-          .from("rugs")
-          .update({
-            tag: data.rugNumber,
-            description: data.rugType,
-            size_length: data.length,
-            size_width: data.width,
-            services: data.selectedServices,
-            client_id: clientId,
-            notes: data.conditionNotes,
-            checked_in_at: new Date().toISOString(),
-          })
-          .eq("id", editingEntryId);
-
-        if (error) {
-          return finalizeResult(errorResult("Update failed", error.message));
-        }
-
-        const { error: delServicesErr } = await supabase.from("rug_services").delete().eq("rug_id", editingEntryId);
-        if (delServicesErr) {
-          return finalizeResult(errorResult("Failed to update services", delServicesErr.message));
-        }
-        const [serviceSaveResult, photoUploadResults] = await Promise.all([
-          data.serviceSnapshots.length > 0
-            ? insertRugServices(
-                data.serviceSnapshots.map((s) => ({
-                  rug_id: editingEntryId,
-                  service_id: s.service_id,
-                  service_name: s.service_name,
-                  unit_price: s.unit_price,
-                  line_total: s.line_total,
-                  edges: s.edges,
-                  approval_status: "pending",
-                }))
-              )
-            : Promise.resolve({ error: null, approvalStatusAvailable: true }),
-          data.photos.length > 0
-            ? Promise.all(data.photos.map((file) => uploadCheckinPhoto(editingEntryId, file)))
-            : Promise.resolve([] as Array<string | null>),
-        ]);
-
-        if (serviceSaveResult.error) {
-          return finalizeResult(errorResult("Failed to save services", serviceSaveResult.error.message));
-        }
-        if (!serviceSaveResult.approvalStatusAvailable) {
-          warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
-        }
-
-        const firstUploadedPhotoUrl = photoUploadResults.find(Boolean);
-        if (data.photos.length > 0) {
-          if (firstUploadedPhotoUrl) {
-            void supabase
-              .from("rugs")
-              .update({ photo_url: firstUploadedPhotoUrl })
-              .eq("id", editingEntryId)
-              .then(({ error: photoUrlUpdateError }) => {
-                if (photoUrlUpdateError) {
-                  console.warn("Failed to update rug photo_url after check-in edit", photoUrlUpdateError);
-                }
-              });
-          } else {
-            warnings.push("Required photos did not finish uploading.");
-          }
-        }
-
-        upsertCheckInLogEntry(buildLogEntry(editingEntryId, new Date().toISOString()));
-        setEditingEntryId(null);
-        setFormResetKey((current) => current + 1);
-      } else {
-        const source = data.rugId ? (selectedRug?.source === "pickup" ? "pickup" : "dropoff") : "dropoff";
-        const jobCode = generateJobCode();
-        const intakeDate = new Date().toISOString();
-
-        let jobId: string | null = null;
-        // intake_jobs table may not exist in all environments — graceful fallback below
-        const { data: jobInsert, error: jobError } = await supabase
-          .from("intake_jobs" as "rugs")
-          .insert({
-            job_code: jobCode,
-            client_id: clientId,
-            source,
-            intake_date: intakeDate,
-            checkin_date: intakeDate,
-          } as Record<string, unknown> as never)
-          .select("id")
-          .single();
-
-        if (jobError) {
-          const missingIntakeJobs = /intake_jobs|schema cache|relation .*intake_jobs.* does not exist/i.test(jobError.message);
-          if (!missingIntakeJobs) {
-            return finalizeResult(errorResult("Job creation failed", jobError.message));
-          }
-          warnings.push("Intake job tracking is not yet provisioned in this environment.");
-        } else {
-          jobId = jobInsert?.id ?? null;
-        }
-
-        const baseRugPayload = {
-          tag: data.rugNumber,
-          description: data.rugType,
-          size_length: data.length,
-          size_width: data.width,
-          services: data.selectedServices,
-          client_id: clientId,
-          checked_in_by: user?.id ?? null,
-          checked_in_at: intakeDate,
-          notes: data.conditionNotes,
-        };
-
-        const extendedRugPayload = {
-          ...baseRugPayload,
-          job_id: jobId,
-          intake_source: source,
-          intake_date: intakeDate,
-        };
-
-        let inserted: { id: string } | null = null;
-        let error: { message: string } | null = null;
-
-        // Extended rug columns (job_id, intake_source, intake_date) may not exist — graceful fallback below
-        const extendedInsert = await supabase.from("rugs").insert(extendedRugPayload as Record<string, unknown> as never).select("id").single();
-        inserted = extendedInsert.data;
-        error = extendedInsert.error;
-
-        if (error && /column .*job_id|column .*intake_source|column .*intake_date/i.test(error.message)) {
-          const fallbackInsert = await supabase.from("rugs").insert(baseRugPayload).select("id").single();
-          inserted = fallbackInsert.data as { id: string } | null;
-          error = fallbackInsert.error as { message: string } | null;
-        }
-
-        if (error || !inserted) {
-          return finalizeResult(errorResult("Check-in failed", error?.message ?? "Unknown error"));
-        }
-
-        const queueContinuityLinking = () => {
-          if (!clientId) return;
-
-          void (async () => {
-            const { data: priorSameTagRugs, error: priorSameTagError } = await supabase
-              .from("rugs")
-              .select("id, tag, status, checked_in_at, picked_up_at")
-              .eq("client_id", clientId)
-              .eq("tag", data.rugNumber)
-              .neq("id", inserted.id)
-              .order("checked_in_at", { ascending: false })
-              .limit(3);
-
-            if (priorSameTagError) {
-              console.warn("Failed to load prior same-tag rugs", priorSameTagError);
-              return;
-            }
-
-            const latestPriorSameTagRug = (priorSameTagRugs ?? [])[0] ?? null;
-            if (!latestPriorSameTagRug) return;
-
-            const priorStateDate = latestPriorSameTagRug.picked_up_at ?? latestPriorSameTagRug.checked_in_at;
-            const continuityNote = `Return continuity: prior same-tag rug ${latestPriorSameTagRug.tag} (${latestPriorSameTagRug.id}) last status ${latestPriorSameTagRug.status}${priorStateDate ? ` on ${new Date(priorStateDate).toLocaleString()}` : ""}.`;
-            const mergedContinuityNotes = [data.conditionNotes, continuityNote].filter(Boolean).join("\n\n");
-
-            const [{ error: notesUpdateError }, { error: communicationEventError }] = await Promise.all([
-              supabase
-                .from("rugs")
-                .update({ notes: mergedContinuityNotes })
-                .eq("id", inserted.id),
-              supabaseExtended.from("communication_events").insert({
-                client_id: clientId,
-                rug_id: inserted.id,
-                channel: "in_app_chat",
-                direction: "outbound",
-                event_type: "rug_continuity_linked",
-                subject: `${data.rugNumber} linked to prior same-tag history`,
-                body: `New intake ${inserted.id} matches prior rug ${latestPriorSameTagRug.id} for the same client and tag. Prior status: ${latestPriorSameTagRug.status}.`,
-              }),
-            ]);
-
-            if (notesUpdateError) {
-              console.warn("Failed to update rug continuity notes", notesUpdateError);
-            }
-            if (communicationEventError) {
-              console.warn("Failed to record rug continuity event", communicationEventError);
-            }
-          })();
-        };
-
-        const [serviceSaveResult, photoUploadResults] = await Promise.all([
-          data.serviceSnapshots.length > 0
-            ? insertRugServices(
-                data.serviceSnapshots.map((s) => ({
-                  rug_id: inserted.id,
-                  service_id: s.service_id,
-                  service_name: s.service_name,
-                  unit_price: s.unit_price,
-                  line_total: s.line_total,
-                  edges: s.edges,
-                  approval_status: "pending",
-                }))
-              )
-            : Promise.resolve({ error: null, approvalStatusAvailable: true }),
-          data.photos.length > 0
-            ? Promise.all(data.photos.map((file) => uploadCheckinPhoto(inserted.id, file)))
-            : Promise.resolve([] as Array<string | null>),
-        ]);
-
-        if (serviceSaveResult.error) {
-          return finalizeResult(warningResult(`Rug ${data.rugNumber} was created, but services could not be saved: ${serviceSaveResult.error.message}`));
-        }
-        if (!serviceSaveResult.approvalStatusAvailable) {
-          warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
-        }
-
-        const firstUploadedPhotoUrl = photoUploadResults.find(Boolean);
-        if (data.photos.length > 0) {
-          if (firstUploadedPhotoUrl) {
-            void supabase
-              .from("rugs")
-              .update({ photo_url: firstUploadedPhotoUrl })
-              .eq("id", inserted.id)
-              .then(({ error: photoUrlUpdateError }) => {
-                if (photoUrlUpdateError) {
-                  console.warn("Failed to update rug photo_url after check-in", photoUrlUpdateError);
-                }
-              });
-          } else {
-            warnings.push("Required photos did not finish uploading.");
-          }
-        }
-
-        // Only link to pickup_request_items for real pickup IDs (UUIDs), not walk-in IDs
-        const isWalkIn = data.rugId?.startsWith("walkin-");
-        const postSubmitTasks: Promise<unknown>[] = [advanceRugStage(inserted.id, "checked_in")];
-
-        if (data.rugId && !isWalkIn) {
-          void supabaseExtended
-            .from("pickup_request_items")
-            .update({ checked_in_rug_id: inserted.id })
-            .eq("id", data.rugId)
-            .then(({ error: pickupItemUpdateError }) => {
-              if (pickupItemUpdateError) {
-                console.warn("Pickup item linking failed after check-in", pickupItemUpdateError);
-              }
-            });
-        }
-
-        if (isRugServiceApprovalStatusAvailable()) {
-          postSubmitTasks.push(
-            maybeAutoCreateEstimateDraft(inserted.id, clientId, data.rugNumber, data.serviceSnapshots, toastError, toastSuccess)
-          );
-        }
-
-        await Promise.all(postSubmitTasks);
-
-        if (data.rugId) {
-          removePendingRug(data.rugId);
-        }
-
-        upsertCheckInLogEntry(buildLogEntry(inserted.id, intakeDate));
-        queueContinuityLinking();
+      if (!editingEntryId && data.rugId) {
+        removePendingRug(data.rugId);
       }
 
-      return finalizeResult(
-        warnings.length > 0 ? warningResult(`${successDescription} ${warnings.join(" ")}`) : successResult()
-      );
+      upsertCheckInLogEntry(buildLogEntry(rugId));
+
+      const combinedWarnings = [...warnings, ...workflowWarnings];
+      if (workflowResult.status === "warning" || combinedWarnings.length > 0) {
+        return finalizeResult(warningResult(`${successDescription} ${combinedWarnings.join(" ")}`.trim()));
+      }
+
+      const resultDescription = workflowResult.estimateNumber
+        ? `${successDescription} Draft estimate ${workflowResult.estimateNumber} created.`
+        : successDescription;
+
+      return finalizeResult(successResult(resultDescription));
     },
-    [editingEntryId, user, toast, selectedRug?.source, selectedRug?.clientId, removePendingRug, upsertCheckInLogEntry]
+    [editingEntryId, removePendingRug, selectedRug?.clientId, selectedRug?.pickupRequestItemId, selectedRug?.source, upsertCheckInLogEntry, user?.id]
   );
 
   const handleEditEntry = useCallback((entryId: string) => {
@@ -398,11 +211,9 @@ export function CheckInLayout() {
     if (isMobile) setMobilePanel("form");
   }, [isMobile, addWalkIn]);
 
-  // Mobile: tabbed view
   if (isMobile) {
     return (
       <div className="h-full flex flex-col">
-        {/* Sub-tab bar */}
         <div className="flex border-b border-border bg-muted/30 shrink-0">
           {([
             { id: "form" as MobilePanel, label: "Check-In", icon: ClipboardList },
@@ -429,7 +240,6 @@ export function CheckInLayout() {
           })}
         </div>
 
-        {/* Panel content */}
         <div className="flex-1 min-h-0 overflow-hidden">
           {mobilePanel === "form" && (
             <CheckInForm
@@ -467,7 +277,6 @@ export function CheckInLayout() {
     );
   }
 
-  // Desktop: form and pending queue only
   return (
     <div className={cn("h-full grid grid-cols-[280px_1fr] max-lg:grid-cols-[240px_1fr]")}>
       <Suspense fallback={<PanelFallback label="pending rugs" />}>

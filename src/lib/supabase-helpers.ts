@@ -33,10 +33,11 @@ export async function safeMutation<T = null>(
  */
 export async function safeInvoke<T = Record<string, unknown>>(
   functionName: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  headers?: Record<string, string>
 ): Promise<MutationResult<T>> {
   try {
-    const { data, error } = await supabase.functions.invoke<T>(functionName, { body });
+    const { data, error } = await supabase.functions.invoke<T>(functionName, { body, headers });
     if (error) return { success: false, error: error.message };
     if (!data) return { success: false, error: "No data returned from function" };
     // Check for error in response body

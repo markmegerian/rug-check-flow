@@ -3,27 +3,16 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { isCleaningCategory } from "@/lib/service-pricing";
 
-/** Upload a single check-in photo to storage. Returns the public URL or null on failure. */
-export async function uploadCheckinPhoto(rugId: string, file: File): Promise<string | null> {
+/** Upload a single check-in photo to storage. Returns storage metadata for workflow submission or null on failure. */
+export async function uploadCheckinPhotoFile(rugId: string, file: File): Promise<{ storage_path: string; public_url: string } | null> {
   const path = `rugs/${rugId}/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
   const { error: uploadError } = await supabase.storage
     .from("checkin-photos")
     .upload(path, file, { upsert: false });
   if (uploadError) return null;
 
-  const { error: recordError } = await supabase.from("checkin_photos").insert({
-    rug_id: rugId,
-    storage_path: path,
-    retention_policy: "permanent",
-    expires_at: null,
-  });
-
-  if (recordError) {
-    console.error("Failed to record persistent check-in photo metadata", recordError);
-  }
-
   const { data: publicUrl } = supabase.storage.from("checkin-photos").getPublicUrl(path);
-  return publicUrl.publicUrl;
+  return { storage_path: path, public_url: publicUrl.publicUrl };
 }
 
 /** Generate a unique job code for an intake job. */

@@ -48,7 +48,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Live verification that new company-scope consistency triggers are pushed and green in prod
 - Live scheduler wiring / production execution verification for reminder cadence
 - Full production smoke evidence for the newly shipped messaging/reminder flows
-- Check-In backend workflow edge function now exists at `supabase/functions/check-in-workflow/index.ts`, but the frontend is not switched over yet
+- Check-In backend workflow edge function exists and `CheckInLayout.tsx` is now cut over to call it, but production deploy/live verification is still outstanding
 
 ### Recently clarified
 - Check-In frontend submit-path stabilization shipped several low-risk reductions, but the remaining synchronous work is mostly essential workflow.
@@ -90,8 +90,8 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 
 ### Notes
 - The new edge function covers create/edit orchestration, company-scoped auth, backend-owned approval defaults, estimate draft creation, and estimate batch queue seeding.
-- The frontend still owns the live submit path until cutover lands.
-- Further frontend-only async cuts are still the wrong direction; the next correct step is wiring the UI to this backend workflow and then trimming obsolete client orchestration.
+- The live submit path now routes through the backend workflow endpoint with frontend photo upload prep kept client-side.
+- The next correct step is deployment plus live verification, then cleanup of now-obsolete client-side helper code.
 
 ---
 
