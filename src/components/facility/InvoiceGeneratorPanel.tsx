@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { RugDetailSheet } from "./RugDetailSheet";
 import { applyCleaningServiceMinimum } from "@/lib/service-pricing";
+import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 
 type ClientOption = {
   id: string;
@@ -30,6 +31,17 @@ type UninvoicedRug = {
   services: string[];
   serviceTotal: number;
   cleaningMinimumApplied: boolean;
+};
+
+type GenerateInvoiceWorkflowResponse = {
+  status: "success";
+  invoiceId: string;
+  invoiceNumber: string;
+  total: number;
+  clientId: string;
+  clientName: string;
+  rugIds: string[];
+  rugCount: number;
 };
 
 export function InvoiceGeneratorPanel() {
@@ -196,99 +208,27 @@ export function InvoiceGeneratorPanel() {
 
     setGenerating(true);
     try {
-      const rugIdsToInvoice = Array.from(selectedRugIds);
-
-      // Fetch rug_services for selected rugs
-      const { data: rugServices, error: svcError } = await supabase
-        .from("rug_services")
-        .select("rug_id, service_id, service_name, unit_price, line_total")
-        .in("rug_id", rugIdsToInvoice);
-
-      if (svcError || !rugServices || rugServices.length === 0) {
-        toast({ title: "No services found", description: "Selected rugs have no services to invoice.", variant: "destructive" });
-        setGenerating(false);
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders) {
+        toast({ title: "Not signed in", description: "Please sign in again.", variant: "destructive" });
         return;
       }
 
-      // Get rug tags for descriptions
-      const rugTagMap: Record<string, string> = {};
-      rugs.forEach((r) => { rugTagMap[r.id] = r.tag; });
+      const workflow = await safeInvoke<GenerateInvoiceWorkflowResponse>("generate-invoice-workflow", {
+        clientId: selectedClientId,
+        rugIds: Array.from(selectedRugIds),
+      }, authHeaders);
 
-      const serviceIds = Array.from(new Set((rugServices ?? []).map((s) => s.service_id).filter(Boolean)));
-      let categoryByServiceId: Record<string, string> = {};
-      if (serviceIds.length > 0) {
-        const { data: serviceRows } = await supabase
-          .from("services")
-          .select("id, category")
-          .in("id", serviceIds);
-        categoryByServiceId = Object.fromEntries((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
-      }
-
-      const normalizedRugServices = rugServices.map((s) => {
-        const adjustedTotal = applyCleaningServiceMinimum(Number(s.line_total), categoryByServiceId[s.service_id] ?? null);
-        return {
-          ...s,
-          unit_price: adjustedTotal,
-          line_total: adjustedTotal,
-        };
-      });
-
-      const total = normalizedRugServices.reduce((sum, s) => sum + Number(s.line_total), 0);
-      const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
-
-      // Create invoice
-      const { data: invoice, error: invError } = await supabase
-        .from("invoices")
-        .insert({
-          invoice_number: invoiceNumber,
-          client_id: selectedClientId,
-          status: "draft" as const,
-          total,
-          pdf_storage_path: `clients/${selectedClientId}/${invoiceNumber}.pdf`,
-        })
-        .select("id")
-        .single();
-
-      if (invError || !invoice) {
-        toast({ title: "Failed to create invoice", description: invError?.message, variant: "destructive" });
-        setGenerating(false);
+      if (!workflow.success) {
+        toast({ title: "Failed to generate invoice", description: workflow.error, variant: "destructive" });
         return;
       }
-
-      // Create line items
-      const lineItems = normalizedRugServices.map((s) => ({
-        invoice_id: invoice.id,
-        rug_id: s.rug_id,
-        description: `${rugTagMap[s.rug_id] ?? "Rug"} — ${s.service_name}`,
-        quantity: 1,
-        unit_price: Number(s.unit_price),
-        total: Number(s.line_total),
-      }));
-
-      const { error: itemsError } = await supabase.from("invoice_items").insert(lineItems);
-
-      if (itemsError) {
-        toast({ title: "Failed to add line items", description: itemsError.message, variant: "destructive" });
-        setGenerating(false);
-        return;
-      }
-
-      await supabase.from("communication_events").insert({
-        client_id: selectedClientId,
-        invoice_id: invoice.id,
-        channel: "in_app_chat",
-        direction: "outbound",
-        event_type: "walkin_invoice_created",
-        subject: `${invoiceNumber} created for handoff`,
-        body: `Invoice ${invoiceNumber} was created from the walk-in / on-site pickup handoff flow for ${selectedRugIds.size} ready rug(s).`,
-      });
 
       toast({
         title: "Handoff invoice generated",
-        description: `${invoiceNumber} — $${total.toFixed(2)} for ${selectedRugIds.size} ready rug(s). Pickup handoff remains a separate action.`,
+        description: `${workflow.data.invoiceNumber} — $${workflow.data.total.toFixed(2)} for ${workflow.data.rugCount} ready rug(s). Pickup handoff remains a separate action.`,
       });
 
-      // Refresh the list
       fetchUninvoicedRugs(selectedClientId);
     } catch {
       toast({ title: "Failed to generate invoice", description: "An unexpected error occurred", variant: "destructive" });
