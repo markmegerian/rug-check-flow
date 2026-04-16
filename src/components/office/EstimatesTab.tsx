@@ -15,7 +15,6 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   supabaseExtended,
-  type ExtendedTableInsert,
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
@@ -25,6 +24,7 @@ import { formatDateTime } from "@/lib/date-helpers";
 import { MS_PER_DAY } from "@/lib/constants";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
+import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -48,8 +48,19 @@ type RugOption = {
   client_id: Tables<"rugs">["client_id"];
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
-type RugServiceSnapshot = Pick<Tables<"rug_services">, "id" | "service_id" | "service_name" | "unit_price" | "line_total">;
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "sent", "approved", "rejected", "expired"]);
+
+type EstimateWorkflowResponse = {
+  status: "success";
+  mode: "create" | "revise";
+  estimateId: string;
+  estimateNumber: string;
+  version: number;
+  total: number;
+  rugId: string;
+  clientName: string | null;
+  rugTag: string | null;
+};
 
 export function EstimatesTab() {
   const navigate = useNavigate();
@@ -125,96 +136,31 @@ export function EstimatesTab() {
       return;
     }
 
-    const selectedRug = rugOptions.find((r) => r.id === selectedRugId);
-    if (!selectedRug) return;
-
     setCreating(true);
 
-    const { data: serviceRows, error: svcErr } = await supabaseExtended
-      .from("rug_services")
-      .select("id, service_id, service_name, unit_price, line_total")
-      .eq("rug_id", selectedRugId);
+    try {
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders) {
+        toast({ title: "Not signed in", description: "Please sign in again.", variant: "destructive" });
+        return;
+      }
 
-    if (svcErr) {
-      toast({ title: "Failed to load rug services", description: svcErr.message, variant: "destructive" });
+      const workflow = await safeInvoke<EstimateWorkflowResponse>("estimate-workflow", {
+        mode: "create",
+        rugId: selectedRugId,
+      }, authHeaders);
+
+      if (!workflow.success) {
+        toast({ title: "Estimate creation failed", description: workflow.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Estimate created", description: `${workflow.data.estimateNumber} created.` });
+      setSelectedRugId("none");
+      await fetchData();
+    } finally {
       setCreating(false);
-      return;
     }
-
-    const services = (serviceRows ?? []) as RugServiceSnapshot[];
-    if (services.length === 0) {
-      toast({ title: "No service snapshots", description: "This rug has no captured service pricing yet.", variant: "destructive" });
-      setCreating(false);
-      return;
-    }
-
-    const serviceIds = [...new Set(services.map((s) => s.service_id).filter(Boolean))] as string[];
-    let categoryByServiceId: Record<string, string> = {};
-    if (serviceIds.length > 0) {
-      const { data: catRows } = await supabaseExtended.from("services").select("id, category").in("id", serviceIds);
-      categoryByServiceId = Object.fromEntries(((catRows ?? []) as { id: string; category: string }[]).map((r) => [r.id, r.category ?? ""]));
-    }
-
-    const total = services.reduce((sum, service) => sum + Number(service.line_total ?? 0), 0);
-    const estimateNumber = `EST-${Date.now().toString(36).toUpperCase()}`;
-
-    const { data: insertedEstimate, error: estErr } = await supabaseExtended
-      .from("estimates")
-      .insert({
-        rug_id: selectedRugId,
-        client_id: selectedRug.client_id,
-        estimate_number: estimateNumber,
-        status: "draft",
-        version: 1,
-        total,
-      })
-      .select("id")
-      .single();
-
-    if (estErr || !insertedEstimate) {
-      toast({ title: "Estimate creation failed", description: estErr?.message ?? "Unknown error", variant: "destructive" });
-      setCreating(false);
-      return;
-    }
-
-    const items: ExtendedTableInsert<"estimate_items">[] = services.map((service) => ({
-      estimate_id: insertedEstimate.id,
-      rug_service_id: service.id,
-      description: `${selectedRug.tag} — ${service.service_name}`,
-      quantity: 1,
-      unit_price: Number(service.unit_price ?? 0),
-      total: Number(service.line_total ?? 0),
-      service_category: service.service_id ? (categoryByServiceId[service.service_id] ?? "") : "",
-    }));
-
-    const { error: itemErr } = await supabaseExtended.from("estimate_items").insert(items);
-    if (itemErr) {
-      await supabaseExtended.from("estimates").delete().eq("id", insertedEstimate.id);
-      toast({ title: "Estimate items failed", description: itemErr.message, variant: "destructive" });
-      setCreating(false);
-      return;
-    }
-
-    await logCommunicationEvent({
-      id: insertedEstimate.id,
-      rug_id: selectedRugId,
-      client_id: selectedRug.client_id,
-      estimate_number: estimateNumber,
-      status: "draft",
-      version: 1,
-      total,
-      created_at: new Date().toISOString(),
-      sent_at: null,
-      approved_at: null,
-      rejected_at: null,
-      clients: { name: selectedRug.clients?.name ?? "", email: null },
-      rugs: { tag: selectedRug.tag },
-    }, "estimate_created", `${estimateNumber} created`, `Estimate ${estimateNumber} created from service snapshot.`);
-
-    toast({ title: "Estimate created", description: `${estimateNumber} created.` });
-    setSelectedRugId("none");
-    await fetchData();
-    setCreating(false);
   };
 
 
@@ -246,68 +192,28 @@ export function EstimatesTab() {
     if (estimate.status !== "rejected") return;
     setCreating(true);
 
-    // Fetch original estimate items to copy
-    const { data: origItems } = await supabaseExtended
-      .from("estimate_items")
-      .select("description, quantity, unit_price, total, service_category, rug_service_id")
-      .eq("estimate_id", estimate.id);
+    try {
+      const authHeaders = await getAuthHeaders();
+      if (!authHeaders) {
+        toast({ title: "Not signed in", description: "Please sign in again.", variant: "destructive" });
+        return;
+      }
 
-    if (!origItems || origItems.length === 0) {
-      toast({ title: "No items to revise", description: "Original estimate has no line items.", variant: "destructive" });
+      const workflow = await safeInvoke<EstimateWorkflowResponse>("estimate-workflow", {
+        mode: "revise",
+        estimateId: estimate.id,
+      }, authHeaders);
+
+      if (!workflow.success) {
+        toast({ title: "Revision failed", description: workflow.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "Revision created", description: `${workflow.data.estimateNumber} is ready to edit and resend.` });
+      await fetchData();
+    } finally {
       setCreating(false);
-      return;
     }
-
-    const newVersion = (estimate.version ?? 1) + 1;
-    const newNumber = `${estimate.estimate_number}-R${newVersion}`;
-    const total = (origItems as Array<{ total: number }>).reduce((sum, i) => sum + Number(i.total), 0);
-
-    const { data: newEst, error: estErr } = await supabaseExtended
-      .from("estimates")
-      .insert({
-        rug_id: estimate.rug_id,
-        client_id: estimate.client_id,
-        estimate_number: newNumber,
-        status: "draft",
-        version: newVersion,
-        total,
-      })
-      .select("id")
-      .single();
-
-    if (estErr || !newEst) {
-      toast({ title: "Revision failed", description: estErr?.message, variant: "destructive" });
-      setCreating(false);
-      return;
-    }
-
-    const items = (origItems as Array<{
-      description: string; quantity: number; unit_price: number;
-      total: number; service_category: string; rug_service_id: string | null;
-    }>).map((item) => ({
-      estimate_id: newEst.id,
-      rug_service_id: item.rug_service_id,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total: item.total,
-      service_category: item.service_category,
-    }));
-
-    await supabaseExtended.from("estimate_items").insert(items as ExtendedTableInsert<"estimate_items">[]);
-
-    await logCommunicationEvent({
-      ...estimate,
-      id: newEst.id,
-      estimate_number: newNumber,
-      status: "draft",
-      version: newVersion,
-      total,
-    } as EstimateRow, "estimate_revised", `${newNumber} revised from ${estimate.estimate_number}`, `Revised estimate created from rejected ${estimate.estimate_number}.`);
-
-    toast({ title: "Revision created", description: `${newNumber} is ready to edit and resend.` });
-    await fetchData();
-    setCreating(false);
   };
 
   const sendEstimate = async (estimate: EstimateRow) => {
