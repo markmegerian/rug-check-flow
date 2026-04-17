@@ -48,9 +48,9 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Company scoping cleanup is now complete for current audited tables. The earlier prod gap on walk-in `rugs.company_id` was repaired on 2026-04-16, including live backfill of null rows and a check-in workflow fix so new walk-in rugs stamp the facility company automatically.
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
 - Release evidence / rollout discipline beyond branch deploy health
-- Live scheduler wiring / production execution verification for reminder cadence
+- Reminder email provider acceptance/config cleanup still remains open in prod
+- Release evidence / rollout discipline beyond branch deploy health
 - Full production smoke evidence for the newly shipped messaging/reminder flows
-- Durable idempotency persistence for repeated Check-In submissions / retries remains open
 
 ### Recently clarified
 - The backend-owned workflow pattern is now the practical direction for critical multi-step write flows, not just Check-In.
@@ -88,14 +88,14 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
   - `src/test/check-in-frontend-cutover.test.ts`
 
 ### What is still missing
-- Durable idempotency persistence for repeated submissions / retries
+- No major correctness gap remains in the workflow itself. Ongoing risk is rollout/operational quality rather than missing orchestration.
 
 ### Notes
 - The edge function now owns create/edit orchestration, company-scoped auth, backend-owned approval defaults, estimate draft creation, and estimate batch queue seeding.
 - Photo upload prep remains client-side by design.
 - Authenticated production UI smoke passed on 2026-04-16 from `https://mr.rugboost.com/checkin` using the check-in staff account, creating walk-in rug `E2E-CI-899980` via `functions/v1/check-in-workflow` and returning success with rug id `86d31747-71b8-4a32-a02e-adf3ff904dd8` and intake job id `1a22cb68-79b1-4a36-ac8e-2f7934b4ccf4`.
 - Obsolete browser-owned estimate-draft orchestration was removed from `src/lib/checkin-operations.ts`; the file now only handles photo upload prep.
-- This workstream is no longer blocked on frontend cutover or rollout proof. The remaining gap is idempotency hardening.
+- This workstream is no longer blocked on frontend cutover, rollout proof, or idempotency hardening. Durable idempotency was shipped and live-verified on 2026-04-16.
 
 ---
 
@@ -386,7 +386,8 @@ Direct company ownership columns are now present on:
 ### What is still missing
 - Final row-claiming/locking hardening if you want fully robust concurrent processor execution
 - Optional manual suppression/override UX if product wants operator-level snooze controls
-- Delivery/provider cleanup for reminder emails that currently fail downstream in prod (`Resend failed (403)` / `Resend failed (422)`)
+- Delivery/provider cleanup for reminder emails that still fail downstream in prod
+- Final live reminder provider success proof after sender/domain acceptance is corrected
 
 ### Notes
 - The cadence/delivery model now exists in app code, tests, UI, and edge function processing.
@@ -396,7 +397,9 @@ Direct company ownership columns are now present on:
 - After the migration and function redeploy, prod manual dry-run invocation from `test@office.com` succeeded with `200 { success: true, dry_run: true, mode: "manual", processed: [...] }` and returned 50 due cadence rows for the linked facility company. `codex@gpt.com` also now resolves to the same facility `company_id` in prod.
 - Scheduler wiring is now live in the default branch via GitHub Actions workflow `.github/workflows/reminder-cadence.yml`, with `PROCESS_NOTIFICATION_CADENCE_SECRET` configured both in Supabase function secrets and GitHub Actions secrets.
 - Live scheduler-mode proof was captured on 2026-04-16 via GitHub Actions run `24538081808`, which invoked `process-notification-cadence` with `x-cron-secret` and returned `200 { success: true, dry_run: false, mode: "scheduler", processed: [...] }` with `processed_count=50`.
-- The remaining reminder risk is no longer scheduler wiring. It is downstream delivery quality and provider acceptance, because the live scheduler run produced reminder attempts but many rows failed with `Resend failed (403)` or `Resend failed (422)`.
+- The remaining reminder risk is no longer scheduler wiring. It is downstream delivery quality and provider acceptance. The live scheduler run on 2026-04-16 produced reminder attempts, but many failed at the email provider layer.
+- Reminder processing was further hardened after that finding: `process-notification-cadence` now normalizes and validates recipient emails before calling Resend, logs richer provider failure details from the response body instead of only status codes, and resolves human-friendly estimate/invoice labels for reminder subjects instead of raw entity UUIDs. This improves triage and avoids wasting provider calls on obviously invalid addresses.
+- Live manual invocation after the hardening deploy on 2026-04-17 exposed the exact current prod blocker: Resend is rejecting reminder sends with `403` because the fallback sender domain `rugboost.local` is not verified. The same run also surfaced a secondary data-quality bucket where some client emails are literal placeholder values like `NULL`, which are now explicitly reported as invalid instead of disappearing into generic provider failures.
 
 ---
 

@@ -31,6 +31,38 @@ type ThrottleRow = {
   last_sent_at: string;
 };
 
+function normalizeEmail(email: string | null | undefined) {
+  return email?.trim().toLowerCase() ?? "";
+}
+
+function isValidEmail(email: string | null | undefined) {
+  const normalized = normalizeEmail(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+}
+
+async function readResponseBody(response: Response) {
+  const text = await response.text().catch(() => "");
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function describeProviderFailure(provider: string, status: number, payload: unknown) {
+  if (payload && typeof payload === "object") {
+    const message = (payload as { message?: unknown; error?: unknown }).message ?? (payload as { error?: unknown }).error;
+    if (typeof message === "string" && message.trim()) {
+      return `${provider} failed (${status}): ${message.trim()}`;
+    }
+  }
+  if (typeof payload === "string" && payload.trim()) {
+    return `${provider} failed (${status}): ${payload.trim()}`;
+  }
+  return `${provider} failed (${status})`;
+}
+
 function isCollectionsNotification(type: string) {
   return type.startsWith("invoice_");
 }
@@ -58,6 +90,19 @@ function chunkArray<T>(items: T[], size: number) {
   return chunks;
 }
 
+async function loadEntityLabel(adminClient: ReturnType<typeof createClient>, row: CadenceRow) {
+  if (!row.entity_id) return null;
+  if (row.entity_type === "estimate") {
+    const { data } = await adminClient.from("estimates").select("estimate_number").eq("id", row.entity_id).maybeSingle();
+    return data?.estimate_number ?? row.entity_id;
+  }
+  if (row.entity_type === "invoice") {
+    const { data } = await adminClient.from("invoices").select("invoice_number").eq("id", row.entity_id).maybeSingle();
+    return data?.invoice_number ?? row.entity_id;
+  }
+  return row.entity_id;
+}
+
 async function processEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: { estimateId: string; actorUserId: string | null }) {
   const nowIso = new Date().toISOString();
   const { data: estimate, error: estErr } = await adminClient
@@ -82,7 +127,7 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
     `Please sign in to the portal to approve or reject this estimate: ${portalUrl}`,
   ].join("\n");
 
-  const clientEmail = estimate.clients?.email ?? null;
+  const clientEmail = normalizeEmail(estimate.clients?.email ?? null);
   if (!clientEmail) {
     await adminClient.from("communication_events").insert({
       client_id: estimate.client_id,
@@ -96,6 +141,22 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
       created_by: params.actorUserId,
     });
     return { status: "failed", reason: "Client email is missing" };
+  }
+
+  if (!isValidEmail(clientEmail)) {
+    await adminClient.from("communication_events").insert({
+      client_id: estimate.client_id,
+      rug_id: estimate.rug_id,
+      estimate_id: estimate.id,
+      channel: "email",
+      direction: "outbound",
+      event_type: "estimate_send_failed",
+      subject: `Estimate ${estimate.estimate_number} send blocked`,
+      body: `Estimate send was blocked because the client email is invalid: ${clientEmail}`,
+      sent_to: clientEmail,
+      created_by: params.actorUserId,
+    });
+    return { status: "failed", reason: "Client email is invalid" };
   }
 
   let providerStatus: "sent" | "failed" | "not_configured" = "not_configured";
@@ -117,8 +178,9 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
         text: body,
       }),
     });
+    const resendPayload = await readResponseBody(resendResp);
     providerStatus = resendResp.ok ? "sent" : "failed";
-    providerMessage = resendResp.ok ? "Estimate email delivered" : `Resend failed (${resendResp.status})`;
+    providerMessage = resendResp.ok ? "Estimate email delivered" : describeProviderFailure("Resend", resendResp.status, resendPayload);
   }
 
   if (providerStatus === "failed") {
@@ -287,10 +349,11 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      const entityLabel = await loadEntityLabel(adminClient, row);
       const copy = buildReminderDeliveryCopy({
         notificationType: row.notification_type as "estimate_reminder_24h" | "estimate_reminder_72h" | "estimate_reminder_7d" | "invoice_reminder_3d_before_due" | "invoice_reminder_due_date" | "invoice_reminder_7d_overdue" | "invoice_reminder_14d_overdue" | "invoice_weekly_statement",
         clientName: client.name ?? null,
-        entityLabel: row.entity_id,
+        entityLabel,
       });
 
       if (!dryRun) {
@@ -298,23 +361,30 @@ Deno.serve(async (req) => {
         let providerMessage = "Reminder logged without email provider";
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
         const fromEmail = Deno.env.get("REMINDER_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
+        const recipientEmail = normalizeEmail(client.email ?? null);
 
-        if (resendApiKey && client.email) {
-          const resendResp = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: fromEmail,
-              to: [client.email],
-              subject: copy.subject,
-              text: copy.body,
-            }),
-          });
-          providerStatus = resendResp.ok ? "sent" : "failed";
-          providerMessage = resendResp.ok ? "Reminder email delivered" : `Resend failed (${resendResp.status})`;
+        if (resendApiKey && recipientEmail) {
+          if (!isValidEmail(recipientEmail)) {
+            providerStatus = "failed";
+            providerMessage = `Client email is invalid: ${recipientEmail}`;
+          } else {
+            const resendResp = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${resendApiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: fromEmail,
+                to: [recipientEmail],
+                subject: copy.subject,
+                text: copy.body,
+              }),
+            });
+            const resendPayload = await readResponseBody(resendResp);
+            providerStatus = resendResp.ok ? "sent" : "failed";
+            providerMessage = resendResp.ok ? "Reminder email delivered" : describeProviderFailure("Resend", resendResp.status, resendPayload);
+          }
         }
 
         const { data: thread } = await adminClient
@@ -344,7 +414,7 @@ Deno.serve(async (req) => {
           event_type: providerStatus === "failed" ? `${row.notification_type}_failed` : row.notification_type,
           subject: copy.subject,
           body: `${copy.body}\n\nProvider: ${providerStatus} · ${providerMessage}`,
-          sent_to: client.email ?? null,
+          sent_to: recipientEmail || null,
           created_by: actorUserId,
         });
 

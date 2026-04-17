@@ -46,4 +46,13 @@ describe("reminder workflow correctness", () => {
     expect(config).toContain('[functions.process-notification-cadence]');
     expect(config).toContain('verify_jwt = false');
   });
+
+  it("hardens reminder delivery with email validation, provider detail logging, and human labels", () => {
+    const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/process-notification-cadence/index.ts"), "utf-8");
+    expect(workflow).toContain('function normalizeEmail(email: string | null | undefined)');
+    expect(workflow).toContain('function isValidEmail(email: string | null | undefined)');
+    expect(workflow).toContain('describeProviderFailure("Resend", resendResp.status, resendPayload)');
+    expect(workflow).toContain('const entityLabel = await loadEntityLabel(adminClient, row);');
+    expect(workflow).toContain('Client email is invalid');
+  });
 });
