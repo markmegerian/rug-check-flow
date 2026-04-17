@@ -4,6 +4,8 @@ _Last updated: 2026-04-16_
 
 This is the living reality-check document for the project.
 
+Operational setup baseline for how the assistant should validate, what is already available, and which production boundaries remain intentionally gated lives in `docs/agent-ops-setup.md`.
+
 Use this as the **current implementation status**, not the older roadmap docs alone. The roadmap docs still matter for intent and sequencing, but they can lag behind the actual codebase.
 
 ## Update rules
