@@ -49,6 +49,7 @@ If a roadmap item is now outdated, do **not** silently delete history. Instead:
 - Stronger “pure DB” enforcement for some stop workflow invariants if desired
 - Release evidence / rollout discipline beyond branch deploy health
 - Reminder email provider acceptance/config cleanup still remains open in prod
+- Client-email go-live is intentionally deferred until onboarding is complete
 - Release evidence / rollout discipline beyond branch deploy health
 - Full production smoke evidence for the newly shipped messaging/reminder flows
 
@@ -400,6 +401,7 @@ Direct company ownership columns are now present on:
 - The remaining reminder risk is no longer scheduler wiring. It is downstream delivery quality and provider acceptance. The live scheduler run on 2026-04-16 produced reminder attempts, but many failed at the email provider layer.
 - Reminder processing was further hardened after that finding: `process-notification-cadence` now normalizes and validates recipient emails before calling Resend, logs richer provider failure details from the response body instead of only status codes, and resolves human-friendly estimate/invoice labels for reminder subjects instead of raw entity UUIDs. This improves triage and avoids wasting provider calls on obviously invalid addresses.
 - Live manual invocation after the hardening deploy on 2026-04-17 exposed the exact current prod blocker: Resend is rejecting reminder sends with `403` because the fallback sender domain `rugboost.local` is not verified. The same run also surfaced a secondary data-quality bucket where some client emails are literal placeholder values like `NULL`, which are now explicitly reported as invalid instead of disappearing into generic provider failures.
+- On 2026-04-17 the reminder processor was additionally put behind an explicit opt-in gate: `CLIENT_EMAIL_DELIVERY_ENABLED` must be set to `true` before batch estimate emails or reminder emails will attempt real outbound delivery. Default behavior is now safe-off for not-yet-onboarded client lists: the processor reports delivery as disabled and avoids creating outbound reminder thread/system-message noise while the gate is off.
 
 ---
 

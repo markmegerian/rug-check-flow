@@ -47,12 +47,15 @@ describe("reminder workflow correctness", () => {
     expect(config).toContain('verify_jwt = false');
   });
 
-  it("hardens reminder delivery with email validation, provider detail logging, and human labels", () => {
+  it("hardens reminder delivery with email validation, provider detail logging, human labels, and an explicit live-send gate", () => {
     const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/process-notification-cadence/index.ts"), "utf-8");
     expect(workflow).toContain('function normalizeEmail(email: string | null | undefined)');
     expect(workflow).toContain('function isValidEmail(email: string | null | undefined)');
     expect(workflow).toContain('describeProviderFailure("Resend", resendResp.status, resendPayload)');
     expect(workflow).toContain('const entityLabel = await loadEntityLabel(adminClient, row);');
     expect(workflow).toContain('Client email is invalid');
+    expect(workflow).toContain('const emailDeliveryEnabled = Deno.env.get("CLIENT_EMAIL_DELIVERY_ENABLED") === "true";');
+    expect(workflow).toContain('Client email delivery is disabled until onboarding is complete');
+    expect(workflow).toContain('if (providerStatus !== "disabled") {');
   });
 });

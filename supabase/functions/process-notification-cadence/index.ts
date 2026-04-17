@@ -103,7 +103,7 @@ async function loadEntityLabel(adminClient: ReturnType<typeof createClient>, row
   return row.entity_id;
 }
 
-async function processEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: { estimateId: string; actorUserId: string | null }) {
+async function processEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: { estimateId: string; actorUserId: string | null; emailDeliveryEnabled: boolean }) {
   const nowIso = new Date().toISOString();
   const { data: estimate, error: estErr } = await adminClient
     .from("estimates")
@@ -159,10 +159,14 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
     return { status: "failed", reason: "Client email is invalid" };
   }
 
-  let providerStatus: "sent" | "failed" | "not_configured" = "not_configured";
+  let providerStatus: "sent" | "failed" | "not_configured" | "disabled" = "not_configured";
   let providerMessage = "Estimate marked sent without email provider";
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   const fromEmail = Deno.env.get("ESTIMATE_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
+
+  if (!params.emailDeliveryEnabled) {
+    return { status: "disabled", reason: "Client email delivery is disabled until onboarding is complete" };
+  }
 
   if (resendApiKey) {
     const resendResp = await fetch("https://api.resend.com/emails", {
@@ -265,6 +269,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const dryRun = Boolean(body.dry_run);
     const nowIso = new Date().toISOString();
+    const emailDeliveryEnabled = Deno.env.get("CLIENT_EMAIL_DELIVERY_ENABLED") === "true";
 
     let rows: CadenceRow[] = [];
     if (invocationMode === "manual") {
@@ -327,8 +332,10 @@ Deno.serve(async (req) => {
 
       if (row.notification_type === "estimate_batch_send" && row.entity_type === "estimate" && row.entity_id) {
         if (!dryRun) {
-          const result = await processEstimateBatchSend(adminClient, { estimateId: row.entity_id, actorUserId });
-          await adminClient.from("notification_cadence").update({ sent_at: nowIso }).eq("id", row.id);
+          const result = await processEstimateBatchSend(adminClient, { estimateId: row.entity_id, actorUserId, emailDeliveryEnabled });
+          if (result.status !== "failed" && result.status !== "disabled") {
+            await adminClient.from("notification_cadence").update({ sent_at: nowIso }).eq("id", row.id);
+          }
           processed.push({ id: row.id, status: result.status, reason: result.reason });
           continue;
         }
@@ -357,13 +364,16 @@ Deno.serve(async (req) => {
       });
 
       if (!dryRun) {
-        let providerStatus: "sent" | "failed" | "not_configured" = "not_configured";
+        let providerStatus: "sent" | "failed" | "not_configured" | "disabled" = "not_configured";
         let providerMessage = "Reminder logged without email provider";
         const resendApiKey = Deno.env.get("RESEND_API_KEY");
         const fromEmail = Deno.env.get("REMINDER_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
         const recipientEmail = normalizeEmail(client.email ?? null);
 
-        if (resendApiKey && recipientEmail) {
+        if (!emailDeliveryEnabled) {
+          providerStatus = "disabled";
+          providerMessage = "Client email delivery is disabled until onboarding is complete";
+        } else if (resendApiKey && recipientEmail) {
           if (!isValidEmail(recipientEmail)) {
             providerStatus = "failed";
             providerMessage = `Client email is invalid: ${recipientEmail}`;
@@ -387,38 +397,40 @@ Deno.serve(async (req) => {
           }
         }
 
-        const { data: thread } = await adminClient
-          .from("message_threads")
-          .select("id")
-          .eq("client_id", row.client_id)
-          .eq("thread_type", row.entity_type)
-          .eq("entity_id", row.entity_id)
-          .limit(1)
-          .maybeSingle();
+        if (providerStatus !== "disabled") {
+          const { data: thread } = await adminClient
+            .from("message_threads")
+            .select("id")
+            .eq("client_id", row.client_id)
+            .eq("thread_type", row.entity_type)
+            .eq("entity_id", row.entity_id)
+            .limit(1)
+            .maybeSingle();
 
-        if (thread?.id) {
-          await adminClient.from("messages").insert({
-            thread_id: thread.id,
-            sender: null,
-            body: `${copy.subject}\n\n${copy.body}\n\nDelivery status: ${providerMessage}`,
-            attachments: [],
+          if (thread?.id) {
+            await adminClient.from("messages").insert({
+              thread_id: thread.id,
+              sender: null,
+              body: `${copy.subject}\n\n${copy.body}\n\nDelivery status: ${providerMessage}`,
+              attachments: [],
+            });
+          }
+
+          await adminClient.from("communication_events").insert({
+            client_id: row.client_id,
+            estimate_id: row.entity_type === "estimate" ? row.entity_id : null,
+            invoice_id: row.entity_type === "invoice" ? row.entity_id : null,
+            channel: "email",
+            direction: "outbound",
+            event_type: providerStatus === "failed" ? `${row.notification_type}_failed` : row.notification_type,
+            subject: copy.subject,
+            body: `${copy.body}\n\nProvider: ${providerStatus} · ${providerMessage}`,
+            sent_to: recipientEmail || null,
+            created_by: actorUserId,
           });
         }
 
-        await adminClient.from("communication_events").insert({
-          client_id: row.client_id,
-          estimate_id: row.entity_type === "estimate" ? row.entity_id : null,
-          invoice_id: row.entity_type === "invoice" ? row.entity_id : null,
-          channel: "email",
-          direction: "outbound",
-          event_type: providerStatus === "failed" ? `${row.notification_type}_failed` : row.notification_type,
-          subject: copy.subject,
-          body: `${copy.body}\n\nProvider: ${providerStatus} · ${providerMessage}`,
-          sent_to: recipientEmail || null,
-          created_by: actorUserId,
-        });
-
-        if (providerStatus !== "failed") {
+        if (providerStatus !== "failed" && providerStatus !== "disabled") {
           await adminClient.from("notification_cadence").update({ sent_at: nowIso }).eq("id", row.id);
 
           if (throttle) {
