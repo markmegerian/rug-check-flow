@@ -24,6 +24,7 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/ui/form";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { RUG_TYPES } from "@/data/services";
 import { type PendingRug } from "@/types/pending-rug";
@@ -39,6 +40,8 @@ const MemoizedCheckInPhotoSection = memo(CheckInPhotoSection);
 const MemoizedCheckInServiceSelector = memo(CheckInServiceSelector);
 
 type PricingTier = "standard" | "preferred" | "vip";
+type IntakeStep = "details" | "services";
+type WashDecision = "standard" | "custom";
 
 type ClientLookupCache = Record<string, { id: string | null; tier: PricingTier }>;
 
@@ -49,6 +52,7 @@ type WindowWithIdleCallback = Window & typeof globalThis & {
 };
 
 const CLIENT_LOOKUP_CACHE_KEY = "checkin-client-lookup-cache-v1";
+const STANDARD_WASH_SERVICE_NAME = "Standard Wash";
 
 const checkInSchema = z.object({
   rugNumber: z.string().min(1, "Rug number is required"),
@@ -57,7 +61,7 @@ const checkInSchema = z.object({
   length: z.coerce.number().positive("Length must be positive"),
   width: z.coerce.number().positive("Width must be positive"),
   conditionNotes: z.string().optional(),
-  selectedServices: z.array(z.string()).min(1, "Select at least one service"),
+  selectedServices: z.array(z.string()),
 });
 
 type CheckInValues = z.infer<typeof checkInSchema>;
@@ -106,7 +110,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const clientLookupCacheRef = useRef<ClientLookupCache>({});
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
-  const [servicesExpanded, setServicesExpanded] = useState(false);
+  const [step, setStep] = useState<IntakeStep>("details");
+  const [washDecision, setWashDecision] = useState<WashDecision>("standard");
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -129,7 +134,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   });
 
   useEffect(() => {
-    if (selectedRug || editingEntry) {
+    if (selectedRug || editingEntry || step === "services") {
       setShouldLoadServices(true);
       return;
     }
@@ -150,7 +155,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setShouldLoadServices(true);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [selectedRug, editingEntry]);
+  }, [selectedRug, editingEntry, step]);
 
   useEffect(() => {
     try {
@@ -202,7 +207,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   useEffect(() => {
     if (selectedRug) {
-      // Match requested service names to DB service IDs for pre-selection
       const preSelectedIds = (selectedRug.requestedServices ?? [])
         .map((name) => dbServices.find((s) => s.name.toLowerCase() === name.toLowerCase())?.id)
         .filter(Boolean) as string[];
@@ -218,7 +222,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       });
       setPhotos([]);
       setKnownClientId(selectedRug.clientId ?? null);
-      setServicesExpanded(preSelectedIds.length > 0);
+      setStep(preSelectedIds.length > 0 ? "services" : "details");
+      setWashDecision(preSelectedIds.length > 0 ? "custom" : "standard");
       void resolveClientLookup(selectedRug.clientName, selectedRug.clientId ?? null);
     }
   }, [selectedRug, form, dbServices, resolveClientLookup]);
@@ -236,7 +241,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       });
       setPhotos([]);
       setKnownClientId(null);
-      setServicesExpanded(editingEntry.services.length > 0);
+      setStep(editingEntry.services.length > 1 ? "services" : "details");
+      setWashDecision(editingEntry.services.some((s) => s.name !== STANDARD_WASH_SERVICE_NAME) ? "custom" : "standard");
       void resolveClientLookup(editingEntry.clientName);
     }
   }, [editingEntry, form, resolveClientLookup]);
@@ -307,6 +313,11 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return map;
   }, [dbServices]);
 
+  const standardWashService = useMemo(
+    () => dbServices.find((svc) => svc.name.toLowerCase() === STANDARD_WASH_SERVICE_NAME.toLowerCase()) ?? null,
+    [dbServices]
+  );
+
   const hasSelectedServices = watchedServices.length > 0;
 
   const toggleService = (serviceId: string) => {
@@ -317,16 +328,19 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     form.setValue("selectedServices", next, { shouldValidate: true });
   };
 
-  const onSubmit = async (data: CheckInValues) => {
-    if (!editingEntry && photos.length < 1) {
-      toast({ title: "Photos required", description: "Upload at least 1 photo.", variant: "destructive" });
-      return;
-    }
+  const resetIntakeState = useCallback(() => {
+    form.reset(EMPTY_CHECKIN_VALUES);
+    setPhotos([]);
+    setFlatPrices({});
+    setEdgeSelections({});
+    setClientTier("standard");
+    setKnownClientId(null);
+    setStep("details");
+    setWashDecision("standard");
+  }, [form]);
 
-    const isEditing = !!editingEntry;
-    const label = isEditing ? "updated" : "checked in";
-
-    const serviceSnapshots = data.selectedServices
+  const buildServiceSnapshots = useCallback((selectedServiceIds: string[]) => {
+    return selectedServiceIds
       .map((id) => {
         const svc = serviceById.get(id);
         if (!svc) return null;
@@ -338,6 +352,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
       })
       .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
+  }, [edgeSelections, getUnitPrice, serviceById, servicePricing]);
+
+  const submitCheckIn = useCallback(async (data: CheckInValues, selectedServiceIds: string[]) => {
+    if (!editingEntry && photos.length < 1) {
+      toast({ title: "Photos required", description: "Upload at least 1 photo.", variant: "destructive" });
+      return;
+    }
+
+    const isEditing = !!editingEntry;
+    const label = isEditing ? "updated" : "checked in";
+    const serviceSnapshots = buildServiceSnapshots(selectedServiceIds);
+
+    if (serviceSnapshots.length === 0) {
+      toast({ title: "Select a service", description: "Choose Standard Wash or open additional services.", variant: "destructive" });
+      return;
+    }
 
     const result = onCheckInComplete
       ? await onCheckInComplete({
@@ -348,7 +378,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           rugType: data.rugType,
           length: data.length,
           width: data.width,
-          selectedServices: data.selectedServices,
+          selectedServices: selectedServiceIds,
           serviceSnapshots,
           totalPrice: serviceSnapshots.reduce((sum, service) => sum + service.line_total, 0),
           conditionNotes: data.conditionNotes?.trim() ?? "",
@@ -359,16 +389,27 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     if (result) {
       toast({ title: result.title, description: result.description, variant: result.status === "error" ? "destructive" : undefined });
       if (result.resetForm !== false) {
-        form.reset(EMPTY_CHECKIN_VALUES);
-        setPhotos([]);
-        setFlatPrices({});
-        setEdgeSelections({});
-        setClientTier("standard");
-        setKnownClientId(null);
-        setServicesExpanded(false);
+        resetIntakeState();
       }
     }
-  };
+  }, [buildServiceSnapshots, editingEntry, knownClientId, onCheckInComplete, photos, resetIntakeState, selectedRug?.clientId, selectedRug?.id]);
+
+  const handleDetailsSubmit = form.handleSubmit(async (data) => {
+    if (washDecision === "standard") {
+      if (!standardWashService) {
+        toast({ title: "Standard Wash unavailable", description: "The Standard Wash service was not found.", variant: "destructive" });
+        return;
+      }
+      await submitCheckIn(data, [standardWashService.id]);
+      return;
+    }
+
+    setStep("services");
+  });
+
+  const handleServicesSubmit = form.handleSubmit(async (data) => {
+    await submitCheckIn(data, data.selectedServices);
+  });
 
   const isFromPanel = !!selectedRug;
   const isEditing = !!editingEntry;
@@ -377,8 +418,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
-        {/* Sticky header */}
+      <form onSubmit={(event) => event.preventDefault()} className="flex flex-col h-full">
         <div className={`sticky top-0 z-10 px-3 md:px-4 py-2.5 md:py-3 rounded-t-lg flex items-center justify-between ${
           isEditing ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
         }`}>
@@ -397,7 +437,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             )}
           </div>
           <span className="text-xs md:text-sm font-medium shrink-0 opacity-90">
-            {hasSelectedServices ? `${watchedServices.length} selected` : "Ready"}
+            {step === "details" ? "Intake details" : hasSelectedServices ? `${watchedServices.length} selected` : "Additional services"}
           </span>
         </div>
 
@@ -413,8 +453,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </Alert>
           )}
 
-
-          {/* Identity row */}
           {isReadOnlyIdentity ? (
             <div className="grid grid-cols-2 gap-3 md:gap-4">
               <div>
@@ -468,7 +506,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </div>
           )}
 
-          {/* Rug details */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
             <FormField
               control={form.control}
@@ -531,7 +568,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </p>
           )}
 
-          {/* Condition notes */}
           <FormField
             control={form.control}
             name="conditionNotes"
@@ -549,77 +585,101 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             )}
           />
 
-          {/* Photo upload */}
           <MemoizedCheckInPhotoSection
             photos={photos}
             onPhotosChange={setPhotos}
           />
 
-          {/* Service selection */}
-          <div className="rounded-md border border-border bg-background">
-            <button
-              type="button"
-              onClick={() => setServicesExpanded((current) => !current)}
-              className="w-full flex items-center justify-between px-3 py-3 text-left"
-            >
+          {step === "details" ? (
+            <div className="rounded-md border border-border bg-background px-4 py-4 space-y-3">
               <div>
-                <p className="text-sm font-medium">Services</p>
-                <p className="text-xs text-muted-foreground">
-                  {hasSelectedServices
-                    ? `${watchedServices.length} selected`
-                    : "Open only when you’re ready to choose services"}
-                </p>
+                <p className="text-sm font-medium">Standard wash?</p>
+                <p className="text-xs text-muted-foreground">Most rugs should finish here. Choose No only if you need extra services.</p>
               </div>
-              <span className="text-xs text-primary font-medium">
-                {servicesExpanded ? "Hide" : "Choose services"}
-              </span>
-            </button>
-
-            {servicesExpanded && (
-              <div className="border-t border-border px-3 py-3">
-                {shouldLoadServices ? (
-                  <MemoizedCheckInServiceSelector
-                    dbServices={dbServices}
-                    watchedServices={watchedServices}
-                    toggleService={toggleService}
-                    clearAll={() => {
-                      form.setValue("selectedServices", [], { shouldValidate: true });
-                      setFlatPrices({});
-                      setEdgeSelections({});
-                    }}
-                    setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-                    getUnitPrice={getUnitPrice}
-                    getLineTotal={getLineTotal}
-                    edgeSelections={edgeSelections}
-                    setEdgeSelections={setEdgeSelections}
-                    flatPrices={flatPrices}
-                    setFlatPrices={setFlatPrices}
-                    watchedLength={dimensions.length}
-                    watchedWidth={dimensions.width}
-                    tierLabel={tierLabel}
-                    error={form.formState.errors.selectedServices?.message}
-                  />
-                ) : (
-                  <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
-                    Loading services…
+              <RadioGroup value={washDecision} onValueChange={(value) => setWashDecision(value as WashDecision)} className="space-y-2">
+                <label className="flex items-center gap-3 rounded-md border border-border px-3 py-3 cursor-pointer hover:bg-muted/30">
+                  <RadioGroupItem value="standard" id="wash-standard" />
+                  <div>
+                    <p className="text-sm font-medium">Yes, standard wash only</p>
+                    <p className="text-xs text-muted-foreground">Auto-uses the existing Standard Wash service and submits immediately.</p>
                   </div>
-                )}
+                </label>
+                <label className="flex items-center gap-3 rounded-md border border-border px-3 py-3 cursor-pointer hover:bg-muted/30">
+                  <RadioGroupItem value="custom" id="wash-custom" />
+                  <div>
+                    <p className="text-sm font-medium">No, additional services needed</p>
+                    <p className="text-xs text-muted-foreground">Continue to the services page for special wash, repairs, protection, or custom pricing.</p>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-3">
+                <div>
+                  <p className="text-sm font-medium">Additional services</p>
+                  <p className="text-xs text-muted-foreground">
+                    {hasSelectedServices
+                      ? `${watchedServices.length} selected`
+                      : "Choose all services needed for this rug"}
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => setStep("details")}>
+                  Back
+                </Button>
               </div>
-            )}
-          </div>
+
+              {shouldLoadServices ? (
+                <MemoizedCheckInServiceSelector
+                  dbServices={dbServices}
+                  watchedServices={watchedServices}
+                  toggleService={toggleService}
+                  clearAll={() => {
+                    form.setValue("selectedServices", [], { shouldValidate: true });
+                    setFlatPrices({});
+                    setEdgeSelections({});
+                  }}
+                  setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+                  getUnitPrice={getUnitPrice}
+                  getLineTotal={getLineTotal}
+                  edgeSelections={edgeSelections}
+                  setEdgeSelections={setEdgeSelections}
+                  flatPrices={flatPrices}
+                  setFlatPrices={setFlatPrices}
+                  watchedLength={dimensions.length}
+                  watchedWidth={dimensions.width}
+                  tierLabel={tierLabel}
+                  error={form.formState.errors.selectedServices?.message}
+                />
+              ) : (
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+                  Loading services…
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Sticky action footer */}
         <div className="sticky bottom-0 border-t border-border bg-background rounded-b-lg shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
           <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between gap-3">
             <div className="text-sm text-muted-foreground">
-              {hasSelectedServices
-                ? `${watchedServices.length} service${watchedServices.length !== 1 ? "s" : ""} selected`
-                : "Select at least one service"}
+              {step === "details"
+                ? washDecision === "standard"
+                  ? "Standard wash fast path"
+                  : "Continue to additional services"
+                : hasSelectedServices
+                  ? `${watchedServices.length} service${watchedServices.length !== 1 ? "s" : ""} selected`
+                  : "Select at least one service"}
             </div>
-            <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6">
-              {isEditing ? "Update" : "Complete Check-In"}
-            </Button>
+            {step === "details" ? (
+              <Button type="button" size="lg" className="h-10 md:h-11 px-4 md:px-6" onClick={() => void handleDetailsSubmit()}>
+                {washDecision === "standard" ? (isEditing ? "Update" : "Complete Check-In") : "Continue to Services"}
+              </Button>
+            ) : (
+              <Button type="button" size="lg" className="h-10 md:h-11 px-4 md:px-6" onClick={() => void handleServicesSubmit()}>
+                {isEditing ? "Update" : "Complete Check-In"}
+              </Button>
+            )}
           </div>
         </div>
       </form>

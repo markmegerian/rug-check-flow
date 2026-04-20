@@ -59,6 +59,9 @@ Status legend:
   - [x] Stop force-remounting Check In form when switching selected queue items
   - [x] Memoize heavy Check In photo/service sections to cut unnecessary parent-driven rerenders
   - [x] Collapse heavy service-selection UI behind an explicit fast-intake toggle so the screen stays light by default
+  - [x] Restructure Check In into a lighter multi-step fast-intake flow instead of one giant live form tree
+  - [x] Implement the desired fast path: details/photos/condition first, then "Standard wash?" yes/no
+  - [x] Wire the fast path to reuse the existing DB `Standard Wash` service through the current `check-in-workflow` path
   - [ ] Profile and cut any remaining interaction lag in form editing and submission path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 
