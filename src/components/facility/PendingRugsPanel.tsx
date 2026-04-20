@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, X } from "lucide-react";
+import { Loader2, Plus, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -36,7 +36,9 @@ export function PendingRugsPanel({
     return () => window.clearTimeout(timer);
   }, [clientSearch]);
 
-  const { data: filteredClients = [] } = useQuery({
+  const canSearchClients = walkInOpen && debouncedClientSearch.length >= 2 && !selectedClient;
+
+  const { data: filteredClients = [], isFetching: searchingClients } = useQuery({
     queryKey: ["pending-rugs-panel", "client-search", debouncedClientSearch],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -48,7 +50,7 @@ export function PendingRugsPanel({
       if (error) throw error;
       return (data ?? []).filter((client) => client.name);
     },
-    enabled: walkInOpen && debouncedClientSearch.length >= 2 && !selectedClient,
+    enabled: canSearchClients,
     staleTime: 30_000,
   });
 
@@ -107,17 +109,27 @@ export function PendingRugsPanel({
       {walkInOpen && (
         <div className="border-b border-border p-3 space-y-2">
           {!selectedClient ? (
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search client…"
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                className="pl-7 h-8 text-sm"
-                autoFocus
-              />
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search client…"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  className="pl-7 pr-8 h-8 text-sm"
+                  autoFocus
+                />
+                {searchingClients && (
+                  <Loader2 className="absolute right-2 top-2.5 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                )}
+              </div>
+
+              {clientSearch.trim().length > 0 && clientSearch.trim().length < 2 && (
+                <p className="text-[11px] text-muted-foreground">Type at least 2 letters to search existing clients.</p>
+              )}
+
               {filteredClients.length > 0 && (
-                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
+                <div className="bg-popover border border-border rounded-md shadow-sm overflow-hidden max-h-48 overflow-y-auto">
                   {filteredClients.map((client) => (
                     <button
                       key={client.id ?? client.name}
@@ -125,11 +137,17 @@ export function PendingRugsPanel({
                         setSelectedClient({ id: client.id ?? null, name: client.name });
                         setClientSearch(client.name);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
                     >
                       {client.name}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {canSearchClients && !searchingClients && filteredClients.length === 0 && (
+                <div className="rounded-md border border-dashed border-border px-3 py-2 text-[11px] text-muted-foreground">
+                  No matching client found yet.
                 </div>
               )}
             </div>

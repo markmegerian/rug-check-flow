@@ -62,7 +62,8 @@ Status legend:
   - [x] Restructure Check In into a lighter multi-step fast-intake flow instead of one giant live form tree
   - [x] Implement the desired fast path: details/photos/condition first, then "Standard wash?" yes/no
   - [x] Wire the fast path to reuse the existing DB `Standard Wash` service through the current `check-in-workflow` path
-  - [ ] Profile and cut any remaining interaction lag in form editing and submission path
+  - [~] Profile and cut any remaining interaction lag in form editing and submission path
+    - [x] Tighten walk-in client search affordances so the lightweight intake path gives clearer loading/empty states without extra UI jumpiness
 - [ ] Remove broad `select(*)` hot-path reads where not required
 
 ## Phase 3. Database performance hardening

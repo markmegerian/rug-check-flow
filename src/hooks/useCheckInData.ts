@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
