@@ -341,6 +341,24 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       if (!deliveryListId) return;
 
       try {
+        const existing = rugs.find((entry) => entry.rugId === rug.rugId && entry.deliveryListItemId);
+        if (existing?.deliveryListItemId) {
+          setRugs((prev) =>
+            prev.map((r) =>
+              r.rugId === rug.rugId
+                ? {
+                    ...r,
+                    confirmedForDelivery: true,
+                    isMorningAddition: false,
+                  }
+                : r,
+            ),
+          );
+          setAddedSet((prev) => new Set(prev).add(rug.rugId));
+          toast({ title: "Already on truck list", description: `${rug.rugTag} was already added.` });
+          return;
+        }
+
         const { data: inserted, error } = await supabase
           .from("delivery_list_items")
           .insert({
@@ -350,19 +368,27 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
             confirmed_for_delivery: true,
             loaded_on_truck: false,
           })
-          .select("id")
+          .select("id, confirmed_for_delivery, loaded_on_truck")
           .single();
 
-        if (error) throw error;
+        if (error) {
+          if (/duplicate key value|unique constraint|23505/i.test(error.message ?? "")) {
+            await fetchData();
+            setAddedSet((prev) => new Set(prev).add(rug.rugId));
+            toast({ title: "Already added", description: `${rug.rugTag} is already on this truck list.` });
+            return;
+          }
+          throw error;
+        }
 
-        // Update local state: move from morning addition to active
         setRugs((prev) =>
           prev.map((r) =>
             r.rugId === rug.rugId
               ? {
                   ...r,
                   deliveryListItemId: inserted.id,
-                  confirmedForDelivery: true,
+                  confirmedForDelivery: inserted.confirmed_for_delivery ?? true,
+                  loadedOnTruck: inserted.loaded_on_truck ?? false,
                   isMorningAddition: false,
                 }
               : r,
@@ -376,7 +402,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         toast({ title: "Error", description: message, variant: "destructive" });
       }
     },
-    [deliveryListId, toast],
+    [deliveryListId, fetchData, rugs, toast],
   );
 
   const handleSubmit = useCallback(async () => {
