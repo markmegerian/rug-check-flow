@@ -1,18 +1,16 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { useClientNames } from "@/hooks/useClients";
 import { calculateInvoiceDueDate, formatInvoiceTermsLabel, type BillingReminderPreference } from "@/lib/billing";
 import { applyCleaningServiceMinimum } from "@/lib/service-pricing";
 import type { Tables } from "@/integrations/supabase/types";
@@ -36,18 +34,48 @@ interface InvoiceCreateSheetProps {
 }
 
 export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCreateSheetProps) {
-  const { data: clientRows = [] } = useClientNames();
-  const clients = useMemo(() => clientRows.map((c) => ({ id: c.id, name: c.name, pricing_tier: c.pricing_tier, invoice_terms_days: c.invoice_terms_days, billing_reminder_preference: c.billing_reminder_preference as BillingReminderPreference })), [clientRows]);
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
   const [clientRugs, setClientRugs] = useState<RugOption[]>([]);
   const [selectedRugIds, setSelectedRugIds] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
-  const selectedClient = useMemo(() => clients.find((client) => client.id === selectedClientId) ?? null, [clients, selectedClientId]);
+
+  useEffect(() => {
+    const trimmed = clientSearch.trim();
+    const timer = window.setTimeout(() => {
+      setDebouncedClientSearch(trimmed);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [clientSearch]);
+
+  const { data: clientResults = [], isFetching: searchingClients } = useQuery({
+    queryKey: ["invoice-create-sheet", "client-search", debouncedClientSearch],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name, pricing_tier, invoice_terms_days, billing_reminder_preference")
+        .ilike("name", `%${debouncedClientSearch}%`)
+        .order("name")
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []).filter((client) => client.name);
+    },
+    enabled: open && debouncedClientSearch.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const selectedClient = useMemo(
+    () => clientResults.find((client) => client.id === selectedClientId) ?? null,
+    [clientResults, selectedClientId],
+  );
   const draftDueAt = useMemo(() => calculateInvoiceDueDate(new Date(), selectedClient?.invoice_terms_days), [selectedClient?.invoice_terms_days]);
 
   useEffect(() => {
     if (!open) return;
     setSelectedClientId("");
+    setClientSearch("");
+    setDebouncedClientSearch("");
     setClientRugs([]);
     setSelectedRugIds(new Set());
   }, [open]);
@@ -148,16 +176,93 @@ export function InvoiceCreateSheet({ open, onOpenChange, onCreated }: InvoiceCre
         <div className="space-y-5 py-6">
           <div className="space-y-2">
             <Label>Client</Label>
-            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a client" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search client name..."
+                  value={clientSearch}
+                  onChange={(e) => {
+                    setClientSearch(e.target.value);
+                    if (selectedClientId) {
+                      setSelectedClientId("");
+                      setClientRugs([]);
+                      setSelectedRugIds(new Set());
+                    }
+                  }}
+                  className="pl-8 pr-8"
+                />
+                {clientSearch && !searchingClients && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientSearch("");
+                      setDebouncedClientSearch("");
+                      setSelectedClientId("");
+                      setClientRugs([]);
+                      setSelectedRugIds(new Set());
+                    }}
+                    className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear client search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+                {searchingClients && <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+
+              <div className="min-h-[7rem] rounded-lg border border-border/70 bg-muted/20">
+                {selectedClient ? (
+                  <div className="flex items-start justify-between gap-3 p-3">
+                    <div>
+                      <p className="font-medium text-foreground">{selectedClient.name}</p>
+                      <p className="text-xs text-muted-foreground">Client selected for draft invoicing.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedClientId("");
+                        setClientRugs([]);
+                        setSelectedRugIds(new Set());
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                ) : clientSearch.trim().length < 2 ? (
+                  <div className="flex h-full min-h-[7rem] items-center px-3 text-sm text-muted-foreground">
+                    Type at least 2 letters to search clients.
+                  </div>
+                ) : clientResults.length === 0 ? (
+                  <div className="flex h-full min-h-[7rem] items-center px-3 text-sm text-muted-foreground">
+                    {searchingClients ? "Searching clients..." : "No matching clients found."}
+                  </div>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto">
+                    {clientResults.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedClientId(client.id);
+                          setClientSearch(client.name);
+                        }}
+                        className="flex w-full items-center justify-between gap-3 border-b border-border/60 px-3 py-2 text-left hover:bg-accent/50 last:border-b-0"
+                      >
+                        <span className="font-medium text-foreground">{client.name}</span>
+                        {client.pricing_tier && client.pricing_tier !== "standard" && (
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                            {client.pricing_tier}
+                          </Badge>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           {selectedClient && (
             <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm space-y-1">
