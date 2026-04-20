@@ -25,6 +25,7 @@ import { APP_NAME } from "@/lib/branding";
 import { type PricingTier, TIER_LABELS, TIER_COLORS, ROUTE_DAYS } from "@/lib/constants";
 import { parseCsvRows } from "@/lib/validation";
 import { DEFAULT_INVOICE_TERMS_DAYS, normalizeInvoiceTermsDays, type BillingReminderPreference } from "@/lib/billing";
+import { logger } from "@/lib/logger";
 
 type Client = Tables<"clients">;
 type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status">;
@@ -209,7 +210,7 @@ export function ClientsTab() {
       const { data, error } = await supabase.rpc("get_user_company_id", { _user_id: user.id });
       if (cancelled) return;
       if (error) {
-        console.warn("Failed to resolve current company id for client writes", error.message);
+        logger.warn("clients_tab_company_id_failed", { userId: user.id, error: error.message });
         setCurrentCompanyId(null);
         return;
       }

@@ -1,4 +1,5 @@
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { logger } from "./logger";
 
 /**
  * Auto-create a route_stop for a pickup request when it gets a driver assigned.
@@ -17,7 +18,7 @@ export async function ensureRouteStopForPickup(pickupRequestId: string): Promise
     .single();
 
   if (reqError || !request) {
-    console.warn("Failed to fetch pickup request for auto-scheduling:", reqError?.message);
+    logger.warn("pickup_auto_schedule_fetch_failed", { pickupRequestId, error: reqError?.message });
     return null;
   }
 
@@ -55,7 +56,7 @@ export async function ensureRouteStopForPickup(pickupRequestId: string): Promise
       .update({ pickup_request_id: pickupRequestId })
       .eq("id", stopId);
     if (updateError) {
-      console.warn("Failed to update route stop:", updateError.message);
+      logger.warn("pickup_auto_schedule_update_stop_failed", { stopId, error: updateError.message });
     }
   } else {
     // Create a new route_stop
@@ -72,7 +73,7 @@ export async function ensureRouteStopForPickup(pickupRequestId: string): Promise
       .single();
 
     if (createError || !newStop) {
-      console.warn("Failed to create route_stop for pickup:", createError?.message);
+      logger.warn("pickup_auto_schedule_create_stop_failed", { pickupRequestId, error: createError?.message });
       return null;
     }
 
@@ -118,7 +119,7 @@ export async function ensureRouteStopForPickup(pickupRequestId: string): Promise
         .from("route_stop_items")
         .insert(newStopItems);
       if (itemsError) {
-        console.warn("Failed to create route stop items:", itemsError.message);
+        logger.warn("pickup_auto_schedule_items_failed", { stopId, error: itemsError.message });
       }
     }
   }

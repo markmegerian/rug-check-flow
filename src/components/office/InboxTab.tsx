@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Archive, CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Send, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { logger } from "@/lib/logger";
 import { useClientNames } from "@/hooks/useClients";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -110,7 +111,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
       if (!active) return;
 
       if (error) {
-        console.error("Failed to load inbox threads", error);
+        logger.error("inbox_threads_load_failed", error);
         toast({
           title: "Could not load inbox",
           description: error.message,
@@ -189,7 +190,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
       if (!active) return;
 
       if (error) {
-        console.error("Failed to load thread messages", error);
+        logger.error("inbox_thread_messages_load_failed", error);
         toast({
           title: "Could not load thread",
           description: error.message,

@@ -13,6 +13,7 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { toast } from "@/hooks/use-toast";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 import { InvoiceFilters } from "@/components/office/InvoiceFilters";
+import { logger } from "@/lib/logger";
 import { InvoiceDetailSheet } from "@/components/office/InvoiceDetailSheet";
 import { InvoiceCreateSheet } from "@/components/office/InvoiceCreateSheet";
 import { LoadingState } from "@/components/states/PageState";
@@ -196,7 +197,7 @@ export function InvoicesTab() {
             dueAt: updates.due_at,
           });
         } catch (cadenceError) {
-          console.error("Failed to seed invoice reminder cadence", cadenceError);
+          logger.error("invoice_reminder_cadence_seed_failed", cadenceError, { invoiceId: selected.id });
         }
       }
     }

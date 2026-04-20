@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { isCleaningCategory } from "@/lib/service-pricing";
+import { logger } from "@/lib/logger";
 
 /** Upload a single check-in photo to storage. Returns storage metadata for workflow submission or null on failure. */
 export async function uploadCheckinPhotoFile(rugId: string, file: File): Promise<{ storage_path: string; public_url: string } | null> {
@@ -93,7 +94,7 @@ export async function maybeAutoCreateEstimateDraft(
     const message = estimateError?.message ?? "Unknown error";
     if (isEstimateDraftRlsError(message)) {
       estimateDraftCreationAvailable = false;
-      console.warn("Estimate draft auto-create unavailable in this environment:", message);
+      logger.warn("estimate_draft_auto_create_unavailable", { message });
       return null;
     }
     onError("Estimate draft auto-create failed", message);
@@ -148,13 +149,22 @@ export async function maybeAutoCreateEstimateDraft(
     const [communicationEventResult, queueResult] = await Promise.allSettled(tasks);
 
     if (communicationEventResult.status === "fulfilled" && communicationEventResult.value?.error) {
-      console.warn("Estimate auto-draft communication event failed", communicationEventResult.value.error);
+      logger.warn("estimate_auto_draft_comm_event_error", {
+        estimateId: insertedEstimate.id,
+        error: communicationEventResult.value.error,
+      });
     } else if (communicationEventResult.status === "rejected") {
-      console.warn("Estimate auto-draft communication event failed", communicationEventResult.reason);
+      logger.warn("estimate_auto_draft_comm_event_rejected", {
+        estimateId: insertedEstimate.id,
+        reason: communicationEventResult.reason,
+      });
     }
 
     if (queueResult?.status === "rejected") {
-      console.warn("Estimate batch queue failed", queueResult.reason);
+      logger.warn("estimate_batch_queue_failed", {
+        estimateId: insertedEstimate.id,
+        reason: queueResult.reason,
+      });
     }
   })();
 

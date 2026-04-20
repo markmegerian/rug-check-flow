@@ -6,6 +6,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import type { ExtendedTableRow } from "@/integrations/supabase/extended";
 import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
+import { logger } from "@/lib/logger";
 
 type RugRow = Pick<Tables<"rugs">, "id" | "tag" | "description" | "size_length" | "size_width" | "services" | "checked_in_at" | "client_id"> & {
   clients?: Pick<Tables<"clients">, "name"> | null;
@@ -177,7 +178,7 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
       .limit(400);
 
     if (itemError) {
-      console.error("Failed to fetch completed pickup items", itemError);
+      logger.error("pickup_items_fetch_failed", itemError);
       return;
     }
 
@@ -227,7 +228,7 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
       .limit(100);
 
     if (error) {
-      console.error("Failed to fetch log", error);
+      logger.error("checkin_log_fetch_failed", error);
       return;
     }
 

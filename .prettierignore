@@ -1,0 +1,9 @@
+dist
+build
+coverage
+playwright-report
+test-results
+node_modules
+public
+*.md
+src/integrations/supabase/types.ts

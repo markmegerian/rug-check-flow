@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { OfflineEvent, PendingPhoto } from "./offline-queue";
+import { logger } from "./logger";
+import { classifyRpcError } from "./rpc-errors";
 
 const BATCH_SIZE = 10;
 const BASE_SYNC_INTERVAL_MS = 5000;
@@ -49,7 +51,7 @@ export async function syncPendingPhotos(): Promise<{ uploaded: number; failed: n
 
       uploaded++;
     } catch (error) {
-      console.error(`Failed to upload photo ${photo.id}:`, error);
+      logger.error("offline_photo_upload_failed", error, { photoId: photo.id });
       failed++;
     }
   }
@@ -108,17 +110,22 @@ export async function syncPendingEvents(): Promise<{
         }
 
         if (data?.error) {
-          // Handle completion failure (409)
-          if (data.error.includes("Cannot complete stop")) {
-            // Mark events as failed but don't retry automatically
+          const classified = classifyRpcError(data.error);
+          if (!classified.retryable) {
             for (const event of stopEvents) {
-              await markEventFailed(event.offline_event_id, data.error);
+              await markEventFailed(event.offline_event_id, classified.message);
               failed++;
-              errors.push({ offline_event_id: event.offline_event_id, error: data.error });
+              errors.push({ offline_event_id: event.offline_event_id, error: classified.message });
             }
+            logger.warn("offline_event_batch_rejected", {
+              stopId,
+              kind: classified.kind,
+              message: classified.message,
+              count: stopEvents.length,
+            });
             continue;
           }
-          throw new Error(data.error);
+          throw new Error(classified.message);
         }
 
         // Mark all events as synced
@@ -127,14 +134,17 @@ export async function syncPendingEvents(): Promise<{
           synced++;
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`Failed to sync events for stop ${stopId}:`, error);
+        const classified = classifyRpcError(error);
+        logger.error("offline_event_batch_failed", error, {
+          stopId,
+          kind: classified.kind,
+          count: stopEvents.length,
+        });
 
-        // Mark events as failed (will retry later)
         for (const event of stopEvents) {
-          await markEventFailed(event.offline_event_id, errorMessage);
+          await markEventFailed(event.offline_event_id, classified.message);
           failed++;
-          errors.push({ offline_event_id: event.offline_event_id, error: errorMessage });
+          errors.push({ offline_event_id: event.offline_event_id, error: classified.message });
         }
       }
     }
@@ -189,7 +199,7 @@ export function startAutoSync(
       currentInterval = BASE_SYNC_INTERVAL_MS;
       onSyncComplete?.(result);
     } catch (error) {
-      console.error("Auto sync failed:", error);
+      logger.error("offline_auto_sync_failed", error);
       currentInterval = Math.min(currentInterval * BACKOFF_MULTIPLIER, MAX_SYNC_INTERVAL_MS);
     }
     scheduleNext();

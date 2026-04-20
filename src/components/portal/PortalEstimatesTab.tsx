@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { PortalTabProps } from "./portal-tab-props";
+import { logger } from "@/lib/logger";
 import { Check, FileText, X } from "lucide-react";
 import {
   supabaseExtended,
@@ -145,7 +146,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
           .eq("id", item.rug_service_id);
         if (serviceError) {
           if (/approval_status/i.test(serviceError.message)) {
-            console.warn("Service approval sync skipped because approval_status is not live in this environment yet.");
+            logger.warn("rug_service_approval_status_unavailable");
           } else {
             toast({ title: "Service status sync failed", description: serviceError.message, variant: "destructive" });
           }
@@ -217,10 +218,10 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
     try {
       const { error: eventError } = await supabaseExtended.from("communication_events").insert(eventPayload);
       if (eventError) {
-        console.warn("Communication event insert failed (non-blocking):", eventError.message);
+        logger.warn("portal_estimate_comm_event_failed", { estimateId: estimate.id, error: eventError.message });
       }
     } catch (eventErr) {
-      console.warn("Communication event insert threw (non-blocking):", eventErr);
+      logger.warn("portal_estimate_comm_event_threw", { estimateId: estimate.id, error: String(eventErr) });
     }
 
     setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));

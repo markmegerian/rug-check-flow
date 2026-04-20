@@ -13,6 +13,7 @@ import {
 import { RugStatusBadge } from "@/components/shared/StatusBadge";
 import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/lib/logger";
 import { useToast } from "@/hooks/use-toast";
 import { DAYS_OF_WEEK } from "@/lib/constants";
 import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES } from "@/lib/delivery-lists";
@@ -123,7 +124,7 @@ export function DeliveryPrepTab() {
       setAllRugs(eligibleRugs);
       setRugMap(Object.fromEntries(eligibleRugs.map((rug) => [rug.id, rug])) as Record<string, RugInfo>);
     } catch (error) {
-      console.error("Failed to fetch delivery prep data:", error);
+      logger.error("delivery_prep_fetch_failed", error);
       toast({ title: "Failed to load data", description: "An unexpected error occurred", variant: "destructive" });
     } finally {
       setLoading(false);

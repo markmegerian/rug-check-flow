@@ -6,6 +6,7 @@ import { useOfflineQueueContext } from "@/contexts/OfflineQueueContext";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { supabase } from "@/integrations/supabase/client";
 import { type Stop, type StopItem, type RouteStopRow, type RouteStopItemRow } from "@/types/route-stop";
+import { logger } from "@/lib/logger";
 
 export function useRouteStops() {
   const { user, signOut } = useAuth();
@@ -144,7 +145,7 @@ export function useRouteStops() {
 
       setStops(mapped);
     } catch (error) {
-      console.error("Failed to fetch stops:", error);
+      logger.error("route_stops_fetch_failed", error);
       toast({ title: "Failed to load stops", description: "An unexpected error occurred", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -190,10 +191,10 @@ export function useRouteStops() {
             .eq("id", item.deliveryListItemId);
 
           if (error) {
-            console.error("Failed to mark item as loaded:", error);
+            logger.error("delivery_item_mark_loaded_failed", error, { deliveryListItemId: item.deliveryListItemId });
           }
         } catch (err) {
-          console.error("Error marking item as loaded:", err);
+          logger.error("delivery_item_mark_loaded_threw", err, { deliveryListItemId: item.deliveryListItemId });
         }
       }
 

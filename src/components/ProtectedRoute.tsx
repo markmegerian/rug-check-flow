@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AppRole } from "@/types/app-roles";
+import { LoadingState } from "@/components/states/PageState";
 
 interface Props {
   children: React.ReactNode;
@@ -13,7 +14,7 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading…</p>
+        <LoadingState className="w-full max-w-sm" title="Checking your session" description="One moment…" />
       </div>
     );
   }

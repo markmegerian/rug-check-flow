@@ -1,0 +1,80 @@
+Unused dependencies (20)
+@radix-ui/react-accordion        package.json:29:6
+@radix-ui/react-aspect-ratio     package.json:31:6
+@radix-ui/react-avatar           package.json:32:6
+@radix-ui/react-collapsible      package.json:34:6
+@radix-ui/react-context-menu     package.json:35:6
+@radix-ui/react-dropdown-menu    package.json:37:6
+@radix-ui/react-hover-card       package.json:38:6
+@radix-ui/react-menubar          package.json:40:6
+@radix-ui/react-navigation-menu  package.json:41:6
+@radix-ui/react-progress         package.json:43:6
+@radix-ui/react-radio-group      package.json:44:6
+@radix-ui/react-slider           package.json:48:6
+@radix-ui/react-toast            package.json:52:6
+@radix-ui/react-toggle           package.json:53:6
+@radix-ui/react-toggle-group     package.json:54:6
+embla-carousel-react             package.json:63:6
+input-otp                        package.json:64:6
+react-resizable-panels           package.json:71:6
+recharts                         package.json:73:6
+vaul                             package.json:77:6
+Unused exports (12)
+ErrorState                        function  src/components/states/PageState.tsx:70:17  
+SEED_CHECK_IN_LOG                           src/data/check-in-log.ts:43:14             
+useInvalidateAuditLog             function  src/hooks/useAuditLog.ts:35:17             
+INVOICES_PAGE_SIZE                          src/hooks/useInvoices.ts:37:23             
+useUpdateRugNotes                 function  src/hooks/useRugs.ts:154:17                
+generateJobCode                   function  src/lib/checkin-operations.ts:20:17        
+isEstimateDraftCreationAvailable  function  src/lib/checkin-operations.ts:38:17        
+maybeAutoCreateEstimateDraft      function  src/lib/checkin-operations.ts:46:23        
+seedEstimateReminderCadence       function  src/lib/notification-cadence-store.ts:48:23
+computeNextDailyAnchorInEastern   function  src/lib/notification-cadence.ts:73:17      
+CLEANING_SERVICE_MINIMUM                    src/lib/service-pricing.ts:1:14            
+safeMutation                      function  src/lib/supabase-helpers.ts:16:23          
+Unused exported types (31)
+WorkspaceTabItem           type       src/components/layout/WorkspaceTabs.tsx:4:13          
+WorkspaceTabGroup          type       src/components/layout/WorkspaceTabs.tsx:10:13         
+PortalTab                  type       src/components/portal/PortalOnboardingDialog.tsx:12:13
+UserRole                   type       src/data/check-in-log.ts:20:13                        
+Service                    interface  src/data/services.ts:1:18                             
+ServicePreset              interface  src/data/services.ts:9:18                             
+Client                     type       src/hooks/useClients.ts:5:13                          
+OfflineQueueState          interface  src/hooks/useOfflineQueue.ts:12:18                    
+OperationalUpdate          type       src/hooks/useOperationalReminders.ts:25:13            
+RugContext                 type       src/hooks/useRugContext.ts:20:13                      
+RugReturnEventType         type       src/hooks/useRugReturnEvents.ts:10:13                 
+RugReturnEvent             type       src/hooks/useRugReturnEvents.ts:11:13                 
+RugRow                     type       src/hooks/useRugs.ts:5:13                             
+RugServiceRow              type       src/hooks/useRugs.ts:6:13                             
+RugSearchResult            interface  src/hooks/useRugSearch.ts:4:18                        
+ClientResponseItem         type       src/hooks/useSuperAdminQueues.ts:7:13                 
+AttentionItem              type       src/hooks/useSuperAdminQueues.ts:22:13                
+SuperAdminQueuesData       type       src/hooks/useSuperAdminQueues.ts:39:13                
+CollectionsAccountState    type       src/lib/billing.ts:40:13                              
+DayOfWeek                  type       src/lib/constants.ts:7:13                             
+InvoicePdfArtifact         type       src/lib/invoice-artifacts.ts:3:13                     
+Logger                     type       src/lib/logger.ts:69:13                               
+MessageVisibility          type       src/lib/message-metadata.ts:1:13                      
+MessageAttachmentMetadata  type       src/lib/message-metadata.ts:3:13                      
+RoleDefinition             type       src/lib/role-definitions.ts:4:13                      
+RpcErrorKind               type       src/lib/rpc-errors.ts:10:13                           
+RpcError                   interface  src/lib/rpc-errors.ts:12:18                           
+MutationResult             type       src/lib/supabase-helpers.ts:3:13                      
+ThreadLifecycleView        type       src/lib/thread-lifecycle.ts:6:13                      
+PortalStatus               type       src/types/portal.ts:1:13                              
+PortalRug                  interface  src/types/portal.ts:3:18                              
+Configuration hints (13)
+@fontsource-variable/plus-jakarta-sans    knip.json  Remove from ignoreDependencies   
+tailwindcss-animate                       knip.json  Remove from ignoreDependencies   
+autoprefixer                              knip.json  Remove from ignoreDependencies   
+postcss                                   knip.json  Remove from ignoreDependencies   
+supabase                                  knip.json  Remove from ignoreBinaries       
+scripts/**/*.{ts,js,mjs}                  knip.json  Refine entry pattern (no matches)
+src/main.tsx                              knip.json  Remove redundant entry pattern   
+vite.config.ts                            knip.json  Remove redundant entry pattern   
+vitest.config.ts                          knip.json  Remove redundant entry pattern   
+playwright.config.ts                      knip.json  Remove redundant entry pattern   
+tailwind.config.ts                        knip.json  Remove redundant entry pattern   
+postcss.config.js                         knip.json  Remove redundant entry pattern   
+eslint.config.js                          knip.json  Remove redundant entry pattern   
