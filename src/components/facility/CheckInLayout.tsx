@@ -225,8 +225,8 @@ export function CheckInLayout() {
 
   if (isMobile) {
     return (
-      <div className="h-full flex flex-col">
-        <div className="flex border-b border-border bg-muted/30 shrink-0">
+      <div className="h-full flex flex-col rounded-[1.45rem] bg-transparent">
+        <div className="flex shrink-0 border-b border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.68),rgba(247,242,235,0.44))]">
           {([
             { id: "form" as MobilePanel, label: "Check-In", icon: ClipboardList },
             { id: "pending" as MobilePanel, label: `Pending (${pendingRugs.length})`, icon: Plus },
@@ -241,7 +241,7 @@ export function CheckInLayout() {
                 className={cn(
                   "flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
                   mobilePanel === tab.id
-                    ? "text-foreground border-b-2 border-primary bg-background"
+                    ? "border-b-2 border-primary bg-white/80 text-foreground"
                     : "text-muted-foreground"
                 )}
               >
@@ -277,7 +277,7 @@ export function CheckInLayout() {
                   setEditingEntryId(null);
                   setMobilePanel("form");
                 }}
-                className="absolute bottom-4 right-4 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+                className="absolute bottom-4 right-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_22px_40px_-20px_rgba(53,86,97,0.7)] transition-colors hover:bg-primary/90"
               >
                 <ClipboardList className="h-5 w-5" />
               </button>
@@ -289,7 +289,7 @@ export function CheckInLayout() {
   }
 
   return (
-    <div className={cn("h-full grid grid-cols-[320px_minmax(0,1fr)] max-xl:grid-cols-[280px_minmax(0,1fr)]")}> 
+    <div className={cn("h-full grid grid-cols-[320px_minmax(0,1fr)] gap-4 max-xl:grid-cols-[280px_minmax(0,1fr)]")}> 
       <Suspense fallback={<PanelFallback label="pending rugs" />}>
         <PendingRugsPanel
           rugs={pendingRugs}
@@ -298,7 +298,7 @@ export function CheckInLayout() {
           onAddWalkIn={handleAddWalkIn}
         />
       </Suspense>
-      <div className="relative min-w-0 min-h-0 overflow-hidden">
+      <div className="app-section relative min-h-0 min-w-0 overflow-hidden">
         <CheckInForm
           key={`desktop-${formResetKey}`}
           selectedRug={selectedRug}

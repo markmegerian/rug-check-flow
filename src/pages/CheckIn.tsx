@@ -21,8 +21,8 @@ export default function CheckInPage() {
       onSearchOpen={() => setSearchOpen(true)}
       actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
     >
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-[1.25rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,249,252,0.88))] shadow-[0_28px_70px_-42px_rgba(15,23,42,0.42)] backdrop-blur-md md:mx-4 md:mt-4 md:h-[calc(100vh-11.5rem)]">
-        <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading check-in…</div>}>
+      <div className="app-hero flex-1 min-h-0 min-w-0 overflow-hidden md:mx-4 md:mt-4 md:h-[calc(100vh-11.5rem)]">
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading check-in…</div>}>
           <CheckInLayout />
         </Suspense>
       </div>

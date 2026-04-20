@@ -4,51 +4,51 @@
 
 @layer base {
   :root {
-    --background: 228 22% 96%;
-    --foreground: 228 24% 12%;
+    --background: 36 33% 96%;
+    --foreground: 222 24% 14%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card: 42 29% 99%;
+    --card-foreground: 222 24% 14%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover: 42 29% 99%;
+    --popover-foreground: 222 24% 14%;
 
-    --primary: 231 43% 28%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 208 36% 28%;
+    --primary-foreground: 42 40% 98%;
 
-    --secondary: 220 18% 93%;
-    --secondary-foreground: 240 6% 10%;
+    --secondary: 34 24% 91%;
+    --secondary-foreground: 222 20% 18%;
 
-    --muted: 220 18% 93%;
-    --muted-foreground: 225 10% 40%;
+    --muted: 34 22% 92%;
+    --muted-foreground: 217 13% 40%;
 
-    --accent: 38 36% 92%;
-    --accent-foreground: 228 24% 18%;
+    --accent: 28 40% 88%;
+    --accent-foreground: 222 24% 18%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 6 65% 47%;
+    --destructive-foreground: 42 40% 98%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 239 84% 67%;
-    --info-foreground: 0 0% 100%;
+    --success: 150 38% 37%;
+    --success-foreground: 42 40% 98%;
+    --warning: 35 71% 54%;
+    --warning-foreground: 30 40% 14%;
+    --info: 205 56% 44%;
+    --info-foreground: 42 40% 98%;
 
-    --border: 222 18% 84%;
-    --input: 220 18% 88%;
-    --ring: 38 42% 56%;
+    --border: 32 20% 82%;
+    --input: 34 21% 88%;
+    --ring: 208 36% 38%;
 
-    --radius: 0.9rem;
+    --radius: 1rem;
 
-    --sidebar-background: 226 26% 14%;
-    --sidebar-foreground: 220 20% 92%;
-    --sidebar-primary: 38 42% 56%;
-    --sidebar-primary-foreground: 228 24% 12%;
-    --sidebar-accent: 228 21% 20%;
-    --sidebar-accent-foreground: 220 20% 96%;
-    --sidebar-border: 226 18% 22%;
-    --sidebar-ring: 239 84% 67%;
+    --sidebar-background: 207 31% 16%;
+    --sidebar-foreground: 36 29% 92%;
+    --sidebar-primary: 35 43% 67%;
+    --sidebar-primary-foreground: 213 32% 16%;
+    --sidebar-accent: 208 24% 22%;
+    --sidebar-accent-foreground: 36 29% 96%;
+    --sidebar-border: 208 22% 24%;
+    --sidebar-ring: 35 43% 67%;
 
     --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
@@ -70,9 +70,9 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     background-image:
-      radial-gradient(circle at top left, hsl(231 43% 28% / 0.10), transparent 34%),
-      radial-gradient(circle at top right, hsl(38 42% 56% / 0.10), transparent 28%),
-      linear-gradient(180deg, hsl(0 0% 100% / 0.92), hsl(var(--background)));
+      radial-gradient(circle at top left, hsl(205 38% 35% / 0.08), transparent 30%),
+      radial-gradient(circle at top right, hsl(30 46% 67% / 0.12), transparent 26%),
+      linear-gradient(180deg, hsl(42 38% 98% / 0.96), hsl(var(--background)) 42%, hsl(34 26% 94%));
     min-height: 100vh;
   }
 
@@ -102,11 +102,11 @@
   }
 
   .app-hero {
-    @apply rounded-[1.75rem] border border-white/60 bg-white p-5 shadow-[0_28px_80px_-38px_rgba(15,23,42,0.38)] backdrop-blur-xl sm:p-6;
+    @apply rounded-[1.9rem] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(252,249,244,0.94))] p-5 shadow-[0_34px_90px_-42px_rgba(28,39,56,0.34)] backdrop-blur-xl sm:p-6;
   }
 
   .app-section {
-    @apply rounded-[1.35rem] border border-border/70 bg-card/90 shadow-[0_18px_50px_-34px_rgba(15,23,42,0.28)];
+    @apply rounded-[1.45rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(250,247,242,0.92))] shadow-[0_20px_52px_-36px_rgba(28,39,56,0.24)];
   }
 
   .app-section-header {
@@ -114,7 +114,7 @@
   }
 
   .app-chip {
-    @apply inline-flex items-center rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-sm;
+    @apply inline-flex items-center rounded-full border border-border/80 bg-white/75 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-[0_8px_20px_-16px_rgba(28,39,56,0.3)];
   }
 }
 
