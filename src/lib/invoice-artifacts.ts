@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 
 export type InvoicePdfArtifact = {
   invoiceId?: string;
@@ -10,17 +10,29 @@ export type InvoicePdfArtifact = {
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
-  const { data: functionData, error: functionError } = await supabase.functions.invoke("invoice-pdf", {
-    body: {
+
+  if (!accessToken) {
+    throw new Error("No active Supabase session found for PDF download");
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/invoice-pdf`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
       invoice_id: artifact.invoiceId ?? "",
       estimate_id: artifact.estimateId ?? "",
       force_regenerate: Boolean(artifact.forceRegenerate),
-    },
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    }),
   });
 
-  if (functionError || functionData?.error || !functionData?.signed_url) {
-    throw new Error(functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF");
+  const functionData = await response.json().catch(() => ({}));
+
+  if (!response.ok || functionData?.error || !functionData?.signed_url) {
+    const detail = typeof functionData?.details === "string" ? ` ${functionData.details}` : "";
+    throw new Error(`${functionData?.error ?? `Failed to request invoice PDF (${response.status})`}${detail}`.trim());
   }
 
   const response = await fetch(functionData.signed_url);
