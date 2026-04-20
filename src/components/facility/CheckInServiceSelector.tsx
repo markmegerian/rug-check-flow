@@ -76,9 +76,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
       {open && (
         <div className="divide-y divide-border/50">
           {services.map((svc) => {
-            const pricing = servicePricing.get(svc.id);
-            const unitPrice = pricing?.unitPrice ?? 0;
-            const lineTotal = pricing?.lineTotal ?? 0;
+            const lineTotal = servicePricing.get(svc.id)?.lineTotal ?? 0;
             const checked = serviceIds.has(svc.id);
             const isFlat = svc.unit === "flat";
             const isLinear = svc.unit === "per linear ft";
@@ -110,23 +108,8 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
                     onCheckedChange={() => toggleService(svc.id)}
                   />
                   <span className="flex-1 text-sm truncate">{svc.name}</span>
-                  {!isFlat && (
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      ${unitPrice.toFixed(2)}/{isLinear ? "lf" : "sf"}
-                    </span>
-                  )}
                   {isFlat && !checked && (
-                    <span className="text-xs text-muted-foreground shrink-0">Flat rate</span>
-                  )}
-                  {checked && !isFlat && !isLinear && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
-                  )}
-                  {checked && isLinear && edges.length > 0 && (
-                    <span className="text-sm font-semibold shrink-0">
-                      ${lineTotal.toFixed(2)}
-                    </span>
+                    <span className="text-xs text-muted-foreground shrink-0">Custom price</span>
                   )}
                 </label>
                 {checked && isLinear && l > 0 && w > 0 && (
@@ -158,7 +141,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
                       onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
                     />
                     {lineTotal > 0 && (
-                      <span className="text-sm font-semibold">${lineTotal.toFixed(2)}</span>
+                      <span className="text-xs text-muted-foreground">saved</span>
                     )}
                   </div>
                 )}

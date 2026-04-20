@@ -54,6 +54,7 @@ Status legend:
   - [x] Cut pending pickup queue loading from nested browser joins to backend snapshot RPC
   - [x] Reduce Check In form pricing recomputation churn by centralizing derived pricing state
   - [x] Reduce service selector rerender pressure by memoizing category groups and shared pricing lookups
+  - [x] Simplify Check In UI by removing always-on cost displays and keeping custom-price entry only where needed
   - [ ] Profile and cut any remaining interaction lag in form editing and submission path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 

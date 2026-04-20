@@ -303,16 +303,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return watchedServices.reduce((sum, id) => sum + (servicePricing.get(id)?.adjustedTotal ?? 0), 0);
   }, [watchedServices, servicePricing]);
 
-  const cleaningMinimumAdjustments = useMemo(() => {
-    return watchedServices
-      .map((id) => {
-        const svc = serviceById.get(id);
-        const pricing = servicePricing.get(id);
-        if (!svc || !pricing || !isCleaningCategory(svc.category) || pricing.adjustedTotal <= pricing.rawTotal) return null;
-        return { serviceName: svc.name, rawTotal: pricing.rawTotal, adjustedTotal: pricing.adjustedTotal };
-      })
-      .filter(Boolean) as Array<{ serviceName: string; rawTotal: number; adjustedTotal: number }>;
-  }, [watchedServices, serviceById, servicePricing]);
+  const hasSelectedServices = watchedServices.length > 0;
 
   const toggleService = (serviceId: string) => {
     const current = form.getValues("selectedServices");
@@ -400,7 +391,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               <span className="text-xs bg-white/20 px-2 py-0.5 rounded shrink-0">Editing</span>
             )}
           </div>
-          <span className="text-base md:text-lg font-bold shrink-0">${totalPrice.toFixed(2)}</span>
+          <span className="text-xs md:text-sm font-medium shrink-0 opacity-90">
+            {hasSelectedServices ? `${watchedServices.length} selected` : "Ready"}
+          </span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-6">
@@ -415,14 +408,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             </Alert>
           )}
 
-          {cleaningMinimumAdjustments.length > 0 && (
-            <Alert>
-              <AlertTitle>$35 cleaning minimum applied</AlertTitle>
-              <AlertDescription>
-                {cleaningMinimumAdjustments.map((item) => `${item.serviceName}: $${item.rawTotal.toFixed(2)} → $${item.adjustedTotal.toFixed(2)}`).join(" · ")}
-              </AlertDescription>
-            </Alert>
-          )}
 
           {/* Identity row */}
           {isReadOnlyIdentity ? (
@@ -595,31 +580,13 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           )}
         </div>
 
-        {/* Sticky review / action footer */}
+        {/* Sticky action footer */}
         <div className="sticky bottom-0 border-t border-border bg-background rounded-b-lg shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-          {watchedServices.length > 0 && (
-            <div className="px-3 md:px-4 pt-2 pb-1">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                {watchedServices.length} service{watchedServices.length !== 1 ? "s" : ""}
-              </p>
-              <div className="space-y-0.5 max-h-28 overflow-y-auto">
-                {watchedServices.map((id) => {
-                  const svc = serviceById.get(id);
-                  if (!svc) return null;
-                  const lt = servicePricing.get(id)?.adjustedTotal ?? 0;
-                  return (
-                    <div key={id} className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="truncate mr-2">{svc.name}</span>
-                      <span className="shrink-0 font-medium text-foreground">${lt.toFixed(2)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between">
+          <div className="px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between gap-3">
             <div className="text-sm text-muted-foreground">
-              Total: <span className="text-foreground font-bold text-base md:text-lg">${totalPrice.toFixed(2)}</span>
+              {hasSelectedServices
+                ? `${watchedServices.length} service${watchedServices.length !== 1 ? "s" : ""} selected`
+                : "Select at least one service"}
             </div>
             <Button type="submit" size="lg" className="h-10 md:h-11 px-4 md:px-6">
               {isEditing ? "Update" : "Complete Check-In"}
