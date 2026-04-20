@@ -37,7 +37,9 @@ Status legend:
   - [x] Extract current Jobs shaping into a shared read-model module to enable safe side-by-side validation and backend cutover
   - [x] Introduce additive backend Jobs summary RPC returning grouped job records plus item payloads
   - [x] Wire side-by-side validation of backend Jobs summary against current UI grouping before cutover
-  - [ ] Cut Jobs UI over from browser aggregation to backend summary once validation is clean
+  - [x] Cut Jobs UI over to backend summary with guarded fallback to legacy path
+  - [x] Add first-pass hot-path indexes supporting Jobs, Inbox, and Delivery query patterns
+  - [ ] Remove legacy Jobs fallback once backend validation remains clean
 - [ ] Replace inbox/thread-list nested message loading with thread summaries
 - [ ] Replace Delivery Prep browser synthesis with selected-date backend snapshot
 - [ ] Split client hooks into summary/detail patterns

@@ -80,6 +80,130 @@ function formatSize(length: number | null, width: number | null) {
   return `${width} W`;
 }
 
+async function buildJobsFallback(): Promise<JobView[]> {
+  const { data: requestData, error: requestError } = await supabaseExtended
+    .from("pickup_requests")
+    .select("id, client_id, route_day, scheduled_date, status, notes, updated_at, clients(name, address)")
+    .order("scheduled_date", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(500);
+
+  if (requestError) throw requestError;
+
+  const requests = (requestData ?? []) as unknown as PickupRequestRow[];
+  const requestIds = requests.map((request) => request.id);
+
+  const itemResult = requestIds.length > 0
+    ? await supabaseExtended
+        .from("pickup_request_items")
+        .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, checked_in_rug_id, estimate_requested, estimate_request_details")
+        .in("pickup_request_id", requestIds)
+    : null;
+
+  if (itemResult?.error) throw itemResult.error;
+
+  const items = requestIds.length > 0
+    ? ((itemResult?.data ?? []) as PickupItemRow[])
+    : [];
+
+  const checkedInRugIds = items
+    .map((item) => item.checked_in_rug_id)
+    .filter((value): value is string => Boolean(value));
+
+  const { data: rugInventoryData, error: rugInventoryError } = await supabase
+    .from("rugs")
+    .select("id, client_id, tag, description, status, photo_url, size_length, size_width, checked_in_at, completed_at, intake_date, intake_source")
+    .order("checked_in_at", { ascending: false })
+    .limit(500);
+
+  if (rugInventoryError) throw rugInventoryError;
+
+  const rugInventory = (rugInventoryData ?? []) as RugLookup[];
+  const allRelevantRugIds = Array.from(new Set([...checkedInRugIds, ...rugInventory.map((rug) => rug.id)]));
+
+  let rugRows: RugLookup[] = [];
+  let serviceRows: RugServiceLookup[] = [];
+  let estimateResponseRows: EstimateResponseLookup[] = [];
+  let invoiceRows: InvoiceItemLookup[] = [];
+  let returnRows: ReturnEventLookup[] = [];
+
+  if (allRelevantRugIds.length > 0) {
+    const [rugResult, serviceResult, responseResult, invoiceResult, returnResult] = await Promise.all([
+      supabase
+        .from("rugs")
+        .select("id, client_id, tag, description, status, photo_url, size_length, size_width, checked_in_at, completed_at, intake_date, intake_source")
+        .in("id", allRelevantRugIds),
+      supabase
+        .from("rug_services")
+        .select("rug_id, service_name, line_total")
+        .in("rug_id", allRelevantRugIds),
+      supabaseExtended
+        .from("communication_events")
+        .select("rug_id, event_type, subject, created_at")
+        .in("rug_id", allRelevantRugIds)
+        .in("event_type", ["estimate_approved_by_client", "estimate_rejected_by_client"])
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("invoice_items")
+        .select("rug_id, invoices(id, invoice_number, status, created_at, issued_at)")
+        .in("rug_id", allRelevantRugIds),
+      supabaseExtended
+        .from("communication_events")
+        .select("rug_id, event_type, created_at")
+        .in("rug_id", allRelevantRugIds)
+        .in("event_type", [...RETURN_EVENT_TYPES])
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (rugResult.error) throw rugResult.error;
+    if (serviceResult.error) throw serviceResult.error;
+    if (responseResult.error) throw responseResult.error;
+    if (invoiceResult.error) throw invoiceResult.error;
+    if (returnResult.error) throw returnResult.error;
+
+    rugRows = (rugResult.data ?? []) as RugLookup[];
+    serviceRows = (serviceResult.data ?? []) as RugServiceLookup[];
+    estimateResponseRows = (responseResult.data ?? []) as EstimateResponseLookup[];
+    invoiceRows = (invoiceResult.data ?? []) as InvoiceItemLookup[];
+    returnRows = (returnResult.data ?? []) as ReturnEventLookup[];
+  }
+
+  const clientInfoById = new Map<string, { name: string; address: string | null }>();
+  for (const request of requests) {
+    clientInfoById.set(request.client_id, {
+      name: request.clients?.name ?? "Unknown client",
+      address: request.clients?.address ?? null,
+    });
+  }
+
+  const missingClientIds = Array.from(new Set(
+    rugInventory
+      .map((rug) => rug.client_id)
+      .filter((value): value is string => Boolean(value) && !clientInfoById.has(value))
+  ));
+
+  let missingClients: Array<{ id: string; name: string; address: string | null }> = [];
+  if (missingClientIds.length > 0) {
+    const { data } = await supabase
+      .from("clients")
+      .select("id, name, address")
+      .in("id", missingClientIds);
+    missingClients = data ?? [];
+  }
+
+  return buildJobsView({
+    requests,
+    items,
+    rugInventory,
+    rugRows,
+    serviceRows,
+    estimateResponseRows,
+    invoiceRows,
+    returnRows,
+    missingClients,
+  });
+}
+
 export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -97,144 +221,34 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const loadJobs = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: requestData, error: requestError } = await supabaseExtended
-        .from("pickup_requests")
-        .select("id, client_id, route_day, scheduled_date, status, notes, updated_at, clients(name, address)")
-        .order("scheduled_date", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(500);
-
-      if (requestError) throw requestError;
-
-      const requests = (requestData ?? []) as unknown as PickupRequestRow[];
-      const requestIds = requests.map((request) => request.id);
-
-      const itemResult = requestIds.length > 0
-        ? await supabaseExtended
-            .from("pickup_request_items")
-            .select("id, pickup_request_id, rug_number, rug_type, length, width, verified, checked_in_rug_id, estimate_requested, estimate_request_details")
-            .in("pickup_request_id", requestIds)
-        : null;
-
-      if (itemResult?.error) throw itemResult.error;
-
-      const items = requestIds.length > 0
-        ? ((itemResult?.data ?? []) as PickupItemRow[])
-        : [];
-
-      const checkedInRugIds = items
-        .map((item) => item.checked_in_rug_id)
-        .filter((value): value is string => Boolean(value));
-
-      const { data: rugInventoryData, error: rugInventoryError } = await supabase
-        .from("rugs")
-        .select("id, client_id, tag, description, status, photo_url, size_length, size_width, checked_in_at, completed_at, intake_date, intake_source")
-        .order("checked_in_at", { ascending: false })
-        .limit(500);
-
-      if (rugInventoryError) throw rugInventoryError;
-
-      const rugInventory = (rugInventoryData ?? []) as RugLookup[];
-      const allRelevantRugIds = Array.from(new Set([...checkedInRugIds, ...rugInventory.map((rug) => rug.id)]));
-
-      let rugRows: RugLookup[] = [];
-      let serviceRows: RugServiceLookup[] = [];
-      let estimateResponseRows: EstimateResponseLookup[] = [];
-      let invoiceRows: InvoiceItemLookup[] = [];
-      let returnRows: ReturnEventLookup[] = [];
-
-      if (allRelevantRugIds.length > 0) {
-        const [rugResult, serviceResult, responseResult, invoiceResult, returnResult] = await Promise.all([
-          supabase
-            .from("rugs")
-            .select("id, client_id, tag, description, status, photo_url, size_length, size_width, checked_in_at, completed_at, intake_date, intake_source")
-            .in("id", allRelevantRugIds),
-          supabase
-            .from("rug_services")
-            .select("rug_id, service_name, line_total")
-            .in("rug_id", allRelevantRugIds),
-          supabaseExtended
-            .from("communication_events")
-            .select("rug_id, event_type, subject, created_at")
-            .in("rug_id", allRelevantRugIds)
-            .in("event_type", ["estimate_approved_by_client", "estimate_rejected_by_client"])
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("invoice_items")
-            .select("rug_id, invoices(id, invoice_number, status, created_at, issued_at)")
-            .in("rug_id", allRelevantRugIds),
-          supabaseExtended
-            .from("communication_events")
-            .select("rug_id, event_type, created_at")
-            .in("rug_id", allRelevantRugIds)
-            .in("event_type", [...RETURN_EVENT_TYPES])
-            .order("created_at", { ascending: false }),
-        ]);
-
-        if (rugResult.error) throw rugResult.error;
-        if (serviceResult.error) throw serviceResult.error;
-        if (responseResult.error) throw responseResult.error;
-        if (invoiceResult.error) throw invoiceResult.error;
-        if (returnResult.error) throw returnResult.error;
-
-        rugRows = (rugResult.data ?? []) as RugLookup[];
-        serviceRows = (serviceResult.data ?? []) as RugServiceLookup[];
-        estimateResponseRows = (responseResult.data ?? []) as EstimateResponseLookup[];
-        invoiceRows = (invoiceResult.data ?? []) as InvoiceItemLookup[];
-        returnRows = (returnResult.data ?? []) as ReturnEventLookup[];
-      }
-
-      const clientInfoById = new Map<string, { name: string; address: string | null }>();
-      for (const request of requests) {
-        clientInfoById.set(request.client_id, {
-          name: request.clients?.name ?? "Unknown client",
-          address: request.clients?.address ?? null,
-        });
-      }
-
-      const missingClientIds = Array.from(new Set(
-        rugInventory
-          .map((rug) => rug.client_id)
-          .filter((value): value is string => Boolean(value) && !clientInfoById.has(value))
-      ));
-
-      let missingClients: Array<{ id: string; name: string; address: string | null }> = [];
-      if (missingClientIds.length > 0) {
-        const { data } = await supabase
-          .from("clients")
-          .select("id, name, address")
-          .in("id", missingClientIds);
-        missingClients = data ?? [];
-      }
-
-      const nextJobs = buildJobsView({
-        requests,
-        items,
-        rugInventory,
-        rugRows,
-        serviceRows,
-        estimateResponseRows,
-        invoiceRows,
-        returnRows,
-        missingClients,
-      });
+      let nextJobs: JobView[] = [];
+      let usedFallback = false;
 
       try {
-        const backendJobs = await fetchJobsSummary();
-        const currentKeys = nextJobs.map((job) => job.key).sort();
-        const backendKeys = backendJobs.map((job) => job.key).sort();
-        const sameShape = JSON.stringify(currentKeys) === JSON.stringify(backendKeys)
-          && nextJobs.length === backendJobs.length;
-        if (!sameShape) {
-          console.warn("Jobs summary validation mismatch", {
-            currentCount: nextJobs.length,
-            backendCount: backendJobs.length,
-            currentOnly: currentKeys.filter((key) => !backendKeys.includes(key)).slice(0, 10),
-            backendOnly: backendKeys.filter((key) => !currentKeys.includes(key)).slice(0, 10),
+        nextJobs = await fetchJobsSummary();
+
+        void buildJobsFallback()
+          .then((fallbackJobs) => {
+            const currentKeys = fallbackJobs.map((job) => job.key).sort();
+            const backendKeys = nextJobs.map((job) => job.key).sort();
+            const sameShape = JSON.stringify(currentKeys) === JSON.stringify(backendKeys)
+              && fallbackJobs.length === nextJobs.length;
+            if (!sameShape) {
+              console.warn("Jobs summary validation mismatch", {
+                currentCount: fallbackJobs.length,
+                backendCount: nextJobs.length,
+                currentOnly: currentKeys.filter((key) => !backendKeys.includes(key)).slice(0, 10),
+                backendOnly: backendKeys.filter((key) => !currentKeys.includes(key)).slice(0, 10),
+              });
+            }
+          })
+          .catch((validationError) => {
+            console.warn("Jobs summary validation failed", validationError);
           });
-        }
-      } catch (validationError) {
-        console.warn("Jobs summary validation failed", validationError);
+      } catch (backendError) {
+        console.warn("Jobs summary backend fetch failed, using fallback", backendError);
+        nextJobs = await buildJobsFallback();
+        usedFallback = true;
       }
 
       setJobs(nextJobs);
@@ -251,6 +265,13 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         }
         return next;
       });
+
+      if (usedFallback) {
+        toast({
+          title: "Jobs loaded via fallback path",
+          description: "Backend summary is unavailable, so the legacy safe path was used.",
+        });
+      }
     } catch (error) {
       toast({
         title: "Failed to load jobs",
