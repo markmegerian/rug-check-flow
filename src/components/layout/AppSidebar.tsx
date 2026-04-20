@@ -163,11 +163,11 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
   })();
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(29,48,78,0.98),rgba(24,39,66,0.98)_54%,rgba(18,31,54,0.99))] text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03)]">
       <SidebarHeader className="p-3 space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-[0_10px_25px_-18px_rgba(212,180,106,0.65)]">
-            <span className="text-xs font-bold text-primary-foreground">R</span>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(180deg,rgba(154,202,238,1),rgba(104,165,214,1))] shadow-[0_14px_28px_-20px_rgba(98,153,205,0.6)]">
+            <span className="text-xs font-bold text-slate-900">R</span>
           </div>
           {!collapsed && (
             <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">{APP_NAME}</span>
@@ -181,7 +181,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
             onClick={onSearchOpen}
             aria-label="Search rugs (Cmd+K)"
             className={cn(
-              "border-sidebar-border/80 bg-sidebar-accent/40 text-sidebar-foreground/78 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              "border-sidebar-border/80 bg-white/6 text-sidebar-foreground/78 hover:bg-white/10 hover:text-sidebar-foreground",
               collapsed ? "h-9 w-9" : "h-9 w-full justify-start gap-2 text-xs font-normal"
             )}
           >
@@ -189,7 +189,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
             {!collapsed ? (
               <>
                 <span>Search</span>
-                <kbd className="ml-auto inline-flex h-4 items-center rounded border border-sidebar-border/80 bg-sidebar-background/30 px-1 text-[10px] font-medium text-sidebar-foreground/60">
+                <kbd className="ml-auto inline-flex h-4 items-center rounded border border-sidebar-border/80 bg-black/10 px-1 text-[10px] font-medium text-sidebar-foreground/60">
                   ⌘K
                 </kbd>
               </>
@@ -214,8 +214,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                       <Link
                         to={item.url}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-white/8 hover:text-sidebar-foreground",
+                          item.active && "bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.08))] text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(162,205,239,0.18)]"
                         )}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
@@ -244,8 +244,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                       <Link
                         to={item.url}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                          item.active && "bg-sidebar-accent text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-white/8 hover:text-sidebar-foreground",
+                          item.active && "bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.08))] text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(162,205,239,0.18)]"
                         )}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
@@ -264,7 +264,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         {!collapsed && (
           <div className="space-y-2">
             {isSuperAdmin && (
-              <Badge variant="outline" className="w-full justify-center border-amber-200/20 bg-amber-300/10 text-[10px] text-amber-100">
+              <Badge variant="outline" className="w-full justify-center border-sky-200/20 bg-sky-300/10 text-[10px] text-sky-100">
                 Mission Control
               </Badge>
             )}
@@ -275,7 +275,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="h-8 w-full justify-start gap-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              className="h-8 w-full justify-start gap-2 text-xs text-sidebar-foreground/70 hover:bg-white/8 hover:text-sidebar-foreground"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sign out
@@ -287,7 +287,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
             variant="ghost"
             size="icon"
             onClick={signOut}
-            className="h-8 w-8 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            className="h-8 w-8 text-sidebar-foreground/70 hover:bg-white/8 hover:text-sidebar-foreground"
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
