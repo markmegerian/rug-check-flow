@@ -418,7 +418,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   return (
     <Form {...form}>
-      <form onSubmit={(event) => event.preventDefault()} className="flex flex-col h-full">
+      <form onSubmit={(event) => event.preventDefault()} className="flex h-full min-h-0 flex-col">
         <div className={`sticky top-0 z-10 px-3 md:px-4 py-2.5 md:py-3 rounded-t-lg flex items-center justify-between ${
           isEditing ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
         }`}>
@@ -441,7 +441,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 space-y-4 md:space-y-5">
           {selectedRug?.estimateRequested && (
             <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100">
               <AlertTitle>Estimate requested</AlertTitle>
@@ -591,7 +591,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
 
           {step === "details" ? (
-            <div className="rounded-md border border-border bg-background px-4 py-4 space-y-3">
+            <div className="rounded-md border border-border bg-background px-4 py-4 space-y-3 min-h-[9.5rem]">
               <div>
                 <p className="text-sm font-medium">Standard wash?</p>
                 <p className="text-xs text-muted-foreground">Most rugs should finish here. Choose No only if you need extra services.</p>
@@ -614,8 +614,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               </RadioGroup>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-3">
+            <div className="space-y-3 min-h-[22rem]">
+              <div className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-3 min-h-[4.5rem]">
                 <div>
                   <p className="text-sm font-medium">Additional services</p>
                   <p className="text-xs text-muted-foreground">
@@ -652,7 +652,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                   error={form.formState.errors.selectedServices?.message}
                 />
               ) : (
-                <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground min-h-[18rem] flex items-start">
                   Loading services…
                 </div>
               )}

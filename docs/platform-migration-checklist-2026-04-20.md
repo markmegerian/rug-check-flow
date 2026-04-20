@@ -85,11 +85,11 @@ Status legend:
 - [ ] Review realtime vs polling per domain
 
 ## Phase 5. UI stability pass
-- [ ] Define implementation checklist for layout stability review
-- [ ] Stabilize shared action bars, headers, and filter rows
-- [ ] Stabilize loading/empty/error footprints on high-traffic screens
-- [ ] Stabilize button shells and dynamic badge/count spacing
-- [ ] Stabilize dialogs, sheets, and side panels
+- [~] Define implementation checklist for layout stability review
+- [x] Stabilize shared action bars, headers, and filter rows
+- [x] Stabilize loading/empty/error footprints on high-traffic screens
+- [x] Stabilize button shells and dynamic badge/count spacing
+- [~] Stabilize dialogs, sheets, and side panels
 
 ## Phase 6. Verification and rollout
 - [x] Build passes
@@ -102,4 +102,4 @@ Status legend:
 
 ## Current focus
 - Phase 2 read-model cleanup and Check In responsiveness
-- Immediate next checks: finish remaining Check In interaction polish and continue summary/detail cleanup
+- Immediate next checks: continue the no-layout-shift pass across Check In and then resume summary/detail cleanup

@@ -280,7 +280,7 @@ export function CheckInLayout() {
   }
 
   return (
-    <div className={cn("h-full grid grid-cols-[280px_1fr] max-lg:grid-cols-[240px_1fr]")}>
+    <div className={cn("h-full grid grid-cols-[320px_minmax(0,1fr)] max-xl:grid-cols-[280px_minmax(0,1fr)]")}> 
       <Suspense fallback={<PanelFallback label="pending rugs" />}>
         <PendingRugsPanel
           rugs={pendingRugs}
@@ -289,7 +289,7 @@ export function CheckInLayout() {
           onAddWalkIn={handleAddWalkIn}
         />
       </Suspense>
-      <div className="relative min-w-0">
+      <div className="relative min-w-0 min-h-0 overflow-hidden">
         <CheckInForm
           key={`desktop-${formResetKey}`}
           selectedRug={selectedRug}

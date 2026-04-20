@@ -85,7 +85,7 @@ export function PendingRugsPanel({
   };
 
   return (
-    <div className="flex flex-col h-full border-r border-border bg-muted/30">
+    <div className="flex h-full min-h-0 flex-col border-r border-border bg-muted/20">
       {/* Header */}
       <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold">
@@ -210,8 +210,8 @@ export function PendingRugsPanel({
       )}
 
       {/* Pending Rugs List */}
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-3">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="p-2 space-y-2">
           {filteredRugs.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-6">
               {queueSearch ? "No matching rugs" : "No pending rugs"}
@@ -228,7 +228,7 @@ export function PendingRugsPanel({
                     key={rug.id}
                     onClick={() => onSelectRug(rug.id)}
                     className={cn(
-                      "w-full text-left px-2 py-2 rounded-md transition-colors",
+                      "w-full text-left px-2 py-2 rounded-md border border-transparent transition-colors min-h-[4.25rem]",
                       selectedRugId === rug.id
                         ? "bg-accent ring-1 ring-primary/30"
                         : "hover:bg-muted"
