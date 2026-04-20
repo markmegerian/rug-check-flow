@@ -72,11 +72,11 @@ Status legend:
 - [ ] Evaluate view/RPC/materialization candidates for operational summaries
 
 ## Phase 3A. Data safety and migration discipline
-- [ ] Maintain additive-first migration strategy
+- [x] Maintain additive-first migration strategy
 - [ ] Verify no existing rug, estimate, invoice, pickup, or delivery relationships are changed unintentionally
-- [ ] Add side-by-side validation for any new read model before cutover
+- [x] Add side-by-side validation for any new read model before cutover
 - [ ] Define rollback path for any migration that affects production data behavior
-- [ ] Capture pre/post validation notes for changes that touch live workflow data
+- [x] Capture pre/post validation notes for changes that touch live workflow data
 
 ## Phase 4. Polling and refresh discipline
 - [ ] Restrict polling to active visible routes
@@ -94,11 +94,11 @@ Status legend:
 - [x] Build passes
 - [x] Tests pass
 - [ ] Critical route smoke coverage updated
-- [ ] Docs/status tracker updated
+- [x] Docs/status tracker updated
 - [ ] Release plan for domain split prepared
 
 ---
 
 ## Current focus
 - Phase 2 read-model cleanup and Check In responsiveness
-- Immediate next checks: live migration/RPC verification and remaining Check In interaction polish
+- Immediate next checks: finish remaining Check In interaction polish and continue summary/detail cleanup
