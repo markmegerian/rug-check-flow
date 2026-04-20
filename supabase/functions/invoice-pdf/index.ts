@@ -37,7 +37,6 @@ type InvoiceLookupRow = {
   due_at: string | null;
   created_at: string;
   pdf_storage_path: string | null;
-  company_id?: string | null;
 };
 
 type InvoiceItemLookupRow = {
@@ -98,9 +97,6 @@ type CompanyBrandingRow = {
   business_email: string | null;
 };
 
-const DEFAULT_BUSINESS_NAME = "Megerian Rug Cleaners";
-const DEFAULT_BRAND_FOOTER = "Megerian Rug Cleaners, powered by RugBoost";
-
 // ─── Pricing label builder ──────────────────────────────────────────────────
 
 function buildPricingLabel(unitPrice: number, lineTotal: number, edges: string[] | null): string {
@@ -143,12 +139,10 @@ async function fetchCompanyInfo(adminClient: ReturnType<typeof createClient>, co
     : query.limit(1).maybeSingle<CompanyBrandingRow>());
 
   return {
-    businessName: data?.business_name ?? DEFAULT_BUSINESS_NAME,
+    businessName: data?.business_name ?? "RugBoost",
     businessAddress: data?.business_address ?? "",
     businessPhone: data?.business_phone ?? "",
     businessFax: "",
-    businessEmail: data?.business_email ?? "",
-    brandFooter: DEFAULT_BRAND_FOOTER,
   };
 }
 
@@ -191,7 +185,6 @@ async function buildRugSections(
 
   // Fetch rug_services for real pricing breakdown
   const rugServicesMap = new Map<string, RugServiceRow[]>();
-  const categoryByServiceId = new Map<string, string>();
   if (rugIds.length > 0) {
     const { data: svcData } = await adminClient
       .from("rug_services")
@@ -202,15 +195,10 @@ async function buildRugSections(
 
     const serviceIds = Array.from(new Set((svcData ?? []).map((row) => row.service_id).filter(Boolean)));
     if (serviceIds.length > 0) {
-      const { data: serviceRows } = await adminClient
+      await adminClient
         .from("services")
         .select("id, category")
-        .in("id", serviceIds)
-        .returns<{ id: string; category: string | null }[]>();
-
-      for (const service of serviceRows ?? []) {
-        categoryByServiceId.set(service.id, service.category ?? "");
-      }
+        .in("id", serviceIds);
     }
 
     if (svcData) {
@@ -406,7 +394,7 @@ Deno.serve(async (req) => {
       // ─── Invoice flow ───────────────────────────────────────────────────
       const { data: invoice, error: invoiceError } = await adminClient
         .from("invoices")
-        .select("id, client_id, invoice_number, total, issued_at, due_at, created_at, pdf_storage_path, company_id")
+        .select("id, client_id, invoice_number, total, issued_at, due_at, created_at, pdf_storage_path")
         .eq("id", invoiceId)
         .maybeSingle<InvoiceLookupRow>();
 
@@ -416,7 +404,7 @@ Deno.serve(async (req) => {
       documentNumber = invoice.invoice_number;
       documentDate = invoice.issued_at ?? invoice.created_at;
       clientId = invoice.client_id;
-      companyId = invoice.company_id ?? null;
+      companyId = (invoice as InvoiceLookupRow & { company_id?: string | null }).company_id ?? null;
       totalAmount = Number(invoice.total ?? 0);
       pdfStoragePath = invoice.pdf_storage_path;
 

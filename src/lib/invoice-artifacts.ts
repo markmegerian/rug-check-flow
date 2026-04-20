@@ -1,43 +1,30 @@
-import { SUPABASE_URL } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 
 export type InvoicePdfArtifact = {
   invoiceId?: string;
   estimateId?: string;
   invoiceNumber: string;
   forceRegenerate?: boolean;
-  accessToken: string;
 };
 
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
-  if (!artifact.accessToken) {
-    throw new Error("No active access token available for PDF download");
-  }
-
-  const functionResponse = await fetch(`${SUPABASE_URL}/functions/v1/invoice-pdf`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${artifact.accessToken}`,
-    },
-    body: JSON.stringify({
+  const { data: functionData, error: functionError } = await supabase.functions.invoke("invoice-pdf", {
+    body: {
       invoice_id: artifact.invoiceId ?? "",
       estimate_id: artifact.estimateId ?? "",
       force_regenerate: Boolean(artifact.forceRegenerate),
-    }),
+    },
   });
 
-  const functionData = await functionResponse.json().catch(() => ({}));
-
-  if (!functionResponse.ok || functionData?.error || !functionData?.signed_url) {
-    const detail = typeof functionData?.details === "string" ? ` ${functionData.details}` : "";
-    throw new Error(`${functionData?.error ?? `Failed to request invoice PDF (${functionResponse.status})`}${detail}`.trim());
+  if (functionError || functionData?.error || !functionData?.signed_url) {
+    throw new Error(functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF");
   }
 
-  const fileResponse = await fetch(functionData.signed_url);
-  if (!fileResponse.ok) {
-    throw new Error(`Signed invoice download failed with status ${fileResponse.status}`);
+  const response = await fetch(functionData.signed_url);
+  if (!response.ok) {
+    throw new Error(`Signed invoice download failed with status ${response.status}`);
   }
-  const data = await fileResponse.blob();
+  const data = await response.blob();
 
   const downloadUrl = URL.createObjectURL(data);
   const link = document.createElement("a");
