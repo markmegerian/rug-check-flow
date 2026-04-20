@@ -361,23 +361,19 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
 
         const { data: inserted, error } = await supabase
           .from("delivery_list_items")
-          .insert({
+          .upsert({
             delivery_list_id: deliveryListId,
             rug_id: rug.rugId,
             client_id: rug.clientId,
             confirmed_for_delivery: true,
             loaded_on_truck: false,
+          }, {
+            onConflict: "delivery_list_id,rug_id",
           })
           .select("id, confirmed_for_delivery, loaded_on_truck")
           .single();
 
         if (error) {
-          if (/duplicate key value|unique constraint|23505/i.test(error.message ?? "")) {
-            await fetchData();
-            setAddedSet((prev) => new Set(prev).add(rug.rugId));
-            toast({ title: "Already added", description: `${rug.rugTag} is already on this truck list.` });
-            return;
-          }
           throw error;
         }
 
