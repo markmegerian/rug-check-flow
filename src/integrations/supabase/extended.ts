@@ -403,6 +403,22 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       loaded_on_truck: boolean;
     }[];
   };
+  get_checkin_pending_pickups: {
+    Args: { p_target_date: string };
+    Returns: {
+      pickup_request_item_id: string;
+      pickup_request_id: string;
+      client_id: string;
+      client_name: string;
+      scheduled_date: string;
+      rug_number: string;
+      rug_type: string | null;
+      length: number | null;
+      width: number | null;
+      estimate_requested: boolean;
+      estimate_request_details: string | null;
+    }[];
+  };
   mark_portal_onboarding_complete: {
     Args: Record<string, never>;
     Returns: boolean;

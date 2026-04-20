@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import { subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseExtended } from "@/integrations/supabase/extended";
+import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import type { ExtendedTableRow } from "@/integrations/supabase/extended";
 import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
+import { fetchCheckinPendingPickups } from "@/lib/checkin-pending-pickups";
 
 type RugRow = Pick<Tables<"rugs">, "id" | "tag" | "description" | "size_length" | "size_width" | "services" | "checked_in_at" | "client_id"> & {
   clients?: Pick<Tables<"clients">, "name"> | null;
@@ -14,19 +14,6 @@ type RugServiceRow = Pick<
   Tables<"rug_services">,
   "rug_id" | "service_id" | "unit_price" | "line_total" | "service_name"
 >;
-type CompletedPickupRequestRow = Pick<
-  ExtendedTableRow<"pickup_requests">,
-  "id" | "client_id" | "scheduled_date" | "status"
-> & {
-  clients?: Pick<Tables<"clients">, "name"> | null;
-};
-type CompletedPickupItemRow = Pick<
-  ExtendedTableRow<"pickup_request_items">,
-  "id" | "pickup_request_id" | "rug_number" | "rug_type" | "length" | "width" | "checked_in_rug_id" | "estimate_requested" | "estimate_request_details"
-> & {
-  pickup_requests?: CompletedPickupRequestRow | null;
-};
-
 type IdleHandle = number;
 
 type WindowWithIdleCallback = Window & typeof globalThis & {
@@ -145,13 +132,6 @@ function removePickupFromSnapshotCache(pickupItemId: string) {
   }
 }
 
-function parseRequestedServices(details: string | null | undefined) {
-  const source = details ?? "";
-  const servicesMatch = source.match(/^Services:\s*(.+?)(?:\s*\||$)/);
-  if (!servicesMatch) return [];
-  return servicesMatch[1].split(",").map((service) => service.trim()).filter(Boolean);
-}
-
 export function useCheckInData(options?: { enableTodayLog?: boolean }) {
   const [pendingRugs, setPendingRugs] = useState<PendingRug[]>([]);
   const [checkInLog, setCheckInLog] = useState<CheckInEntry[]>([]);
@@ -168,51 +148,24 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
       return;
     }
 
-    const { data: itemRows, error: itemError } = await supabaseExtended
-      .from("pickup_request_items")
-      .select("id, pickup_request_id, rug_number, rug_type, length, width, checked_in_rug_id, estimate_requested, estimate_request_details, pickup_requests!inner(id, client_id, scheduled_date, status, clients(name))")
-      .eq("pickup_requests.status", "completed")
-      .eq("pickup_requests.scheduled_date", targetDate)
-      .is("checked_in_rug_id", null)
-      .limit(400);
+    try {
+      const mappedPending = await fetchCheckinPendingPickups(targetDate);
 
-    if (itemError) {
+      if (mappedPending.length === 0) {
+        writePickupSnapshotCache(targetDate, []);
+        setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
+        return;
+      }
+
+      writePickupSnapshotCache(targetDate, mappedPending);
+      setPendingRugs((prev) => {
+        const walkIns = prev.filter((rug) => rug.source === "walkin");
+        return [...mappedPending, ...walkIns];
+      });
+    } catch (itemError) {
       console.error("Failed to fetch completed pickup items", itemError);
       return;
     }
-
-    const pendingItems = (itemRows ?? []) as CompletedPickupItemRow[];
-    if (pendingItems.length === 0) {
-      writePickupSnapshotCache(targetDate, []);
-      setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
-      return;
-    }
-
-    const mappedPending: PendingRug[] = pendingItems.map((item) => {
-      const request = item.pickup_requests;
-      return {
-        id: item.id,
-        rugNumber: item.rug_number,
-        clientId: request?.client_id ?? null,
-        clientName: request?.clients?.name ?? "Unknown client",
-        rugType: item.rug_type ?? "",
-        length: Number(item.length ?? 0) || undefined,
-        width: Number(item.width ?? 0) || undefined,
-        requestedServices: parseRequestedServices(item.estimate_request_details),
-        source: "pickup",
-        pickupRequestId: request?.id,
-        pickupRequestItemId: item.id,
-        pickupDate: request?.scheduled_date,
-        estimateRequested: Boolean(item.estimate_requested),
-        estimateRequestDetails: item.estimate_request_details ?? undefined,
-      };
-    });
-
-    writePickupSnapshotCache(targetDate, mappedPending);
-    setPendingRugs((prev) => {
-      const walkIns = prev.filter((rug) => rug.source === "walkin");
-      return [...mappedPending, ...walkIns];
-    });
   }, []);
 
   const fetchTodayLog = useCallback(async () => {
