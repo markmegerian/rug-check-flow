@@ -190,6 +190,7 @@ async function buildRugSections(
 
   // Fetch rug_services for real pricing breakdown
   const rugServicesMap = new Map<string, RugServiceRow[]>();
+  const categoryByServiceId = new Map<string, string>();
   if (rugIds.length > 0) {
     const { data: svcData } = await adminClient
       .from("rug_services")
@@ -200,10 +201,15 @@ async function buildRugSections(
 
     const serviceIds = Array.from(new Set((svcData ?? []).map((row) => row.service_id).filter(Boolean)));
     if (serviceIds.length > 0) {
-      await adminClient
+      const { data: serviceRows } = await adminClient
         .from("services")
         .select("id, category")
-        .in("id", serviceIds);
+        .in("id", serviceIds)
+        .returns<{ id: string; category: string | null }[]>();
+
+      for (const service of serviceRows ?? []) {
+        categoryByServiceId.set(service.id, service.category ?? "");
+      }
     }
 
     if (svcData) {
