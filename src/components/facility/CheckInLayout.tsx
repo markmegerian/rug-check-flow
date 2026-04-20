@@ -155,6 +155,15 @@ export function CheckInLayout() {
       }, workflowHeaders);
 
       if (!workflow.success) {
+        const normalizedError = (workflow.error ?? "").toLowerCase();
+        if (!isEditing && normalizedError.includes("already processing")) {
+          return finalizeResult({
+            status: "warning" as const,
+            title: "Check-in already submitted",
+            description: "This check-in was already processing and may have completed successfully. Please verify the rug before retrying.",
+            resetForm: true,
+          });
+        }
         return finalizeResult(errorResult(isEditing ? "Update failed" : "Check-in failed", workflow.error));
       }
 
