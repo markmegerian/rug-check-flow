@@ -121,14 +121,6 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
         setLoadingThreads(false);
         return;
       }
-
-
-      setThreads(sortThreads(nextThreads));
-      setSelectedThreadId((current) => {
-        if (current && nextThreads.some((thread) => thread.id === current)) return current;
-        return nextThreads[0]?.id ?? null;
-      });
-      setLoadingThreads(false);
     };
 
     void loadThreads();
