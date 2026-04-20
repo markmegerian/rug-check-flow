@@ -42,6 +42,8 @@ const STANDARD_WASH_SERVICE_NAME = "Standard Wash";
 const STANDARD_WASH_SERVICE_ALIASES = [
   "standard wash",
   "standard cleaning",
+  "hand cleaning",
+  "hand cleaning (standard cleaning)",
   "wash standard",
   "basic wash",
   "basic clean",
