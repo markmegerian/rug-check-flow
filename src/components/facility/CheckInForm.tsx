@@ -2,7 +2,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -100,14 +100,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [clientTier, setClientTier] = useState<PricingTier>("standard");
   const [knownClientId, setKnownClientId] = useState<string | null>(selectedRug?.clientId ?? null);
   const [shouldLoadServices, setShouldLoadServices] = useState(false);
-  const [clientLookupCache, setClientLookupCache] = useState<ClientLookupCache>(() => {
-    try {
-      const raw = localStorage.getItem(CLIENT_LOOKUP_CACHE_KEY);
-      return raw ? JSON.parse(raw) as ClientLookupCache : {};
-    } catch {
-      return {};
-    }
-  });
+  const clientLookupCacheRef = useRef<ClientLookupCache>({});
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
 
@@ -155,6 +148,15 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return () => window.clearTimeout(timer);
   }, [selectedRug, editingEntry]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CLIENT_LOOKUP_CACHE_KEY);
+      clientLookupCacheRef.current = raw ? JSON.parse(raw) as ClientLookupCache : {};
+    } catch {
+      clientLookupCacheRef.current = {};
+    }
+  }, []);
+
   const resolveClientLookup = useCallback(async (clientName: string, preferredClientId?: string | null) => {
     const normalizedClient = clientName.trim().toLowerCase();
     if (!normalizedClient) {
@@ -163,7 +165,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       return;
     }
 
-    const cachedClient = clientLookupCache[normalizedClient];
+    const cachedClient = clientLookupCacheRef.current[normalizedClient];
     if (cachedClient) {
       setClientTier(cachedClient.tier);
       setKnownClientId(preferredClientId ?? cachedClient.id ?? null);
@@ -187,12 +189,12 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     const resolvedId = preferredClientId ?? resolvedClient?.id ?? null;
     setClientTier(resolvedTier);
     setKnownClientId(resolvedId);
-    setClientLookupCache((prev) => {
-      const next = { ...prev, [normalizedClient]: { id: resolvedId, tier: resolvedTier } };
-      localStorage.setItem(CLIENT_LOOKUP_CACHE_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, [clientLookupCache]);
+    clientLookupCacheRef.current = {
+      ...clientLookupCacheRef.current,
+      [normalizedClient]: { id: resolvedId, tier: resolvedTier },
+    };
+    localStorage.setItem(CLIENT_LOOKUP_CACHE_KEY, JSON.stringify(clientLookupCacheRef.current));
+  }, []);
 
   useEffect(() => {
     if (selectedRug) {
@@ -299,10 +301,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return map;
   }, [dbServices]);
 
-  const totalPrice = useMemo(() => {
-    return watchedServices.reduce((sum, id) => sum + (servicePricing.get(id)?.adjustedTotal ?? 0), 0);
-  }, [watchedServices, servicePricing]);
-
   const hasSelectedServices = watchedServices.length > 0;
 
   const toggleService = (serviceId: string) => {
@@ -346,7 +344,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           width: data.width,
           selectedServices: data.selectedServices,
           serviceSnapshots,
-          totalPrice,
+          totalPrice: serviceSnapshots.reduce((sum, service) => sum + service.line_total, 0),
           conditionNotes: data.conditionNotes?.trim() ?? "",
           photos: photos.map((photo) => photo.file),
         })
