@@ -63,6 +63,16 @@ function isCleaningCategory(category: string | null | undefined) {
   return (category ?? "").trim().toLowerCase() === "cleaning";
 }
 
+function isStandardCleaningServiceName(serviceName: string | null | undefined) {
+  const normalized = (serviceName ?? "").trim().toLowerCase();
+  return normalized === "standard wash" || normalized === "standard cleaning";
+}
+
+function shouldAutoApproveService(service: WorkflowServiceInput, rule: ServiceRuleRow | undefined) {
+  if (isCleaningCategory(rule?.category)) return true;
+  return isStandardCleaningServiceName(service.service_name);
+}
+
 function generateJobCode() {
   return `JOB-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
@@ -285,7 +295,7 @@ async function insertRugServices(adminClient: ReturnType<typeof createClient>, r
       unit_price: normalizeNumber(service.unit_price),
       line_total: normalizeNumber(service.line_total),
       edges: service.edges ?? [],
-      approval_status: isCleaningCategory(rule?.category) ? "approved" : "pending",
+      approval_status: shouldAutoApproveService(service, rule) ? "approved" : "pending",
     };
   });
 

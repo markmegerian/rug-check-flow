@@ -68,9 +68,9 @@ Status legend:
 - [~] Review services catalog, approval behavior, and pricing calculation rules end to end
   - [ ] Audit live services list for names, categories, active state, units, base/preferred/vip prices, sort order, and `requires_estimate`
   - [ ] Compare live catalog against frontend assumptions such as `Standard Wash` naming/category behavior
-  - [ ] Trace how service pricing is calculated across Check In, approvals/estimates, invoicing, and portal display
+  - [x] Trace how service pricing is calculated across Check In, approvals/estimates, invoicing, and portal display
   - [ ] Define the canonical approval rule for standard cleaning so standard-clean-only rugs auto-approve reliably
-  - [ ] Document the source-of-truth pricing/approval model and patch mismatches safely
+  - [x] Document the source-of-truth pricing/approval model and patch mismatches safely
 
 ## Phase 3. Database performance hardening
 - [ ] Add first-pass hot-path indexes

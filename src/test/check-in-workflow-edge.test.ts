@@ -12,7 +12,10 @@ describe("check-in workflow edge function", () => {
 
   it("keeps cleaning approval defaults, walk-in company stamping, and estimate skip logic on the backend", () => {
     const fn = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
-    expect(fn).toContain('approval_status: isCleaningCategory(rule?.category) ? "approved" : "pending"');
+    expect(fn).toContain('function shouldAutoApproveService(service: WorkflowServiceInput, rule: ServiceRuleRow | undefined)');
+    expect(fn).toContain('if (isCleaningCategory(rule?.category)) return true;');
+    expect(fn).toContain('return isStandardCleaningServiceName(service.service_name);');
+    expect(fn).toContain('approval_status: shouldAutoApproveService(service, rule) ? "approved" : "pending"');
     expect(fn).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
     expect(fn).toContain('notification_type: "estimate_batch_send"');
     expect(fn).toContain('company_id: actor.companyId');
