@@ -8,6 +8,8 @@ export type CompanyInfo = {
   businessAddress: string;
   businessPhone: string;
   businessFax: string;
+  businessEmail?: string;
+  brandFooter?: string;
 };
 
 export type ClientInfo = {
@@ -197,35 +199,31 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
   const docLabel = payload.documentType === "estimate" ? "Estimate" : "Invoice";
 
   // ─── Company Header ─────────────────────────────────────────────────────
-  b.drawAt(payload.company.businessName, ML, 14, true);
-  b.drawRight(`${docLabel} #: ${payload.documentNumber}`, RIGHT_EDGE, 11);
-  b.advance(16);
+  b.drawAt(payload.company.businessName, ML, 16, true);
+  b.drawRight(`${docLabel.toUpperCase()} # ${payload.documentNumber}`, RIGHT_EDGE, 11, true);
+  b.advance(18);
 
-  // Company address lines
-  const addrLines = payload.company.businessAddress.split("\n").filter(Boolean);
-  for (const line of addrLines) {
-    b.drawAt(line, ML, 10);
-    b.advance(14);
+  const headerMetaLines = [
+    payload.company.businessAddress,
+    payload.company.businessPhone ? `Tel ${payload.company.businessPhone}` : "",
+    payload.company.businessEmail ? payload.company.businessEmail : "",
+  ].filter(Boolean);
+
+  for (const line of headerMetaLines) {
+    b.drawAt(line, ML, 9);
+    b.advance(13);
   }
 
-  // Phone/fax
-  if (payload.company.businessPhone) {
-    b.drawAt(`Tel: ${payload.company.businessPhone}`, ML, 10);
-    b.drawRight(`${docLabel} Date: ${formatDate(payload.documentDate)}`, RIGHT_EDGE, 10);
-    b.advance(14);
-  }
-  if (payload.company.businessFax) {
-    b.drawAt(`Fax: ${payload.company.businessFax}`, ML, 10);
-    b.advance(14);
-  }
-
+  b.drawRight(`${docLabel} Date: ${formatDate(payload.documentDate)}`, RIGHT_EDGE, 10);
+  b.advance(8);
+  b.drawLine(ML, RIGHT_EDGE, 0.9);
   b.advance(24);
 
   // ─── Address Blocks ─────────────────────────────────────────────────────
   const shippingX = ML + 300;
 
-  b.drawAt("Billing Address:", ML, 10, true);
-  b.drawAt("Shipping Address:", shippingX, 10, true);
+  b.drawAt("Billing", ML, 10, true);
+  b.drawAt("Service / Contact", shippingX, 10, true);
   b.advance(14);
 
   // Billing: just client address
@@ -344,6 +342,21 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
   b.drawRight(`Subtotal: ${currency(payload.subtotal)}`, COL_EXT_PRICE, 11);
   b.advance(16);
   b.drawRight(`Total: ${currency(payload.total)}`, COL_EXT_PRICE, 11, true);
+
+  const footerY = 30;
+  b.page.drawLine({
+    start: { x: ML, y: footerY + 18 },
+    end: { x: RIGHT_EDGE, y: footerY + 18 },
+    thickness: 0.6,
+    opacity: 0.35,
+  });
+  b.page.drawText(payload.company.brandFooter ?? "Powered by RugBoost", {
+    x: ML,
+    y: footerY,
+    size: 8,
+    font: b.regularFont,
+    opacity: 0.72,
+  });
 
   return doc.save();
 }

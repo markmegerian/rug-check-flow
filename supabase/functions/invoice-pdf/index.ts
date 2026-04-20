@@ -97,6 +97,9 @@ type CompanyBrandingRow = {
   business_email: string | null;
 };
 
+const DEFAULT_BUSINESS_NAME = "Megerian Rug Cleaners";
+const DEFAULT_BRAND_FOOTER = "Megerian Rug Cleaners, powered by RugBoost";
+
 // ─── Pricing label builder ──────────────────────────────────────────────────
 
 function buildPricingLabel(unitPrice: number, lineTotal: number, edges: string[] | null): string {
@@ -139,10 +142,12 @@ async function fetchCompanyInfo(adminClient: ReturnType<typeof createClient>, co
     : query.limit(1).maybeSingle<CompanyBrandingRow>());
 
   return {
-    businessName: data?.business_name ?? "RugBoost",
+    businessName: data?.business_name ?? DEFAULT_BUSINESS_NAME,
     businessAddress: data?.business_address ?? "",
     businessPhone: data?.business_phone ?? "",
     businessFax: "",
+    businessEmail: data?.business_email ?? "",
+    brandFooter: DEFAULT_BRAND_FOOTER,
   };
 }
 
