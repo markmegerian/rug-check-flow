@@ -52,12 +52,6 @@ type ServiceRuleRow = {
   requires_estimate: boolean | null;
 };
 
-type IdempotencyRow = {
-  id: string;
-  status: "processing" | "completed";
-  response_payload: Record<string, unknown> | null;
-};
-
 const ALLOWED_ROLES: AppRole[] = ["admin", "office", "checkin_staff"];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -234,7 +228,7 @@ async function resolveClient(adminClient: ReturnType<typeof createClient>, param
   callerCompanyId: string | null;
 }) {
   if (params.clientId) {
-    let query = adminClient
+    const query = adminClient
       .from("clients")
       .select("id, name, email, company_id")
       .eq("id", params.clientId)
@@ -253,7 +247,7 @@ async function resolveClient(adminClient: ReturnType<typeof createClient>, param
   const trimmedName = params.clientName.trim();
   if (!trimmedName) return null;
 
-  let query = adminClient
+  const query = adminClient
     .from("clients")
     .select("id, name, email, company_id")
     .ilike("name", trimmedName)

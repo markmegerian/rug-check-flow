@@ -13,7 +13,11 @@ export default defineConfig({
       JSON.stringify(process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-key"),
   },
   test: {
-    environment: "jsdom",
+    env: {
+      NODE_ENV: "test",
+    },
+    environment: "node",
+    environmentMatchGlobs: [["src/test/hooks.test.ts", "jsdom"]],
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],

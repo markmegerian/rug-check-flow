@@ -159,7 +159,8 @@ export async function performFullSync(): Promise<{
  * Check if device is online
  */
 export function isOnline(): boolean {
-  return typeof navigator !== "undefined" && navigator.onLine;
+  if (typeof navigator === "undefined") return true;
+  return navigator.onLine !== false;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Send, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -33,6 +33,17 @@ type ThreadWithPreview = MessageThread & {
   messageCount: number;
   entityLabel: string | null;
   unread: boolean;
+};
+
+type InboxThreadRow = Pick<
+  MessageThread,
+  "id" | "client_id" | "entity_id" | "thread_type" | "status" | "created_at" | "updated_at"
+> & {
+  clients:
+    | Pick<Client, "id" | "name" | "contact_name" | "email">
+    | Array<Pick<Client, "id" | "name" | "contact_name" | "email">>
+    | null;
+  messages: Array<Pick<Message, "id" | "body" | "created_at">> | null;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -121,9 +132,10 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
         return;
       }
 
-      const entityLabels = await fetchThreadEntityLabels((data ?? []) as Array<Pick<MessageThread, "id" | "thread_type" | "entity_id">>);
+      const rows = (data ?? []) as InboxThreadRow[];
+      const entityLabels = await fetchThreadEntityLabels(rows);
 
-      const nextThreads: ThreadWithPreview[] = (data ?? []).map((row: any) => {
+      const nextThreads: ThreadWithPreview[] = rows.map((row) => {
         const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
         rowMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
         const preview = rowMessages[0] ?? null;
@@ -163,7 +175,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
     return () => {
       active = false;
     };
-  }, [toast]);
+  }, [toast, user?.id]);
 
   useEffect(() => {
     if (requestedThreadId) {
@@ -228,21 +240,7 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
     [threads, selectedThreadId],
   );
 
-  useEffect(() => {
-    if (!selectedThreadId) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      void refreshSelectedThread(selectedThreadId).catch(() => undefined);
-    }, 15000);
-    return () => window.clearInterval(timer);
-  }, [selectedThreadId]);
-
-  const selectableClients = useMemo(
-    () => clients.filter((client) => Boolean(client.id && client.name)),
-    [clients],
-  );
-
-  const refreshSelectedThread = async (threadId: string) => {
+  const refreshSelectedThread = useCallback(async (threadId: string) => {
     const { data, error } = await supabase
       .from("messages")
       .select("id, thread_id, body, attachments, sender, created_at")
@@ -267,7 +265,21 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
         };
       })),
     );
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void refreshSelectedThread(selectedThreadId).catch(() => undefined);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [refreshSelectedThread, selectedThreadId]);
+
+  const selectableClients = useMemo(
+    () => clients.filter((client) => Boolean(client.id && client.name)),
+    [clients],
+  );
 
   const handleCreateThread = async () => {
     if (!newClientId) {

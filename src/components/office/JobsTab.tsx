@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { LoadingState } from "@/components/states/PageState";
-import { InvoiceStatusBadge, PickupStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
+import { InvoiceStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -739,21 +738,13 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         pagination.items.map((job) => {
           const expanded = expandedJobs[job.key] ?? true;
           const activeJobFilter = jobFilters[job.key] ?? "all";
-          const checkedInCount = job.items.filter((item) => item.checked_in_rug_id).length;
           const estimateCount = job.items.filter((item) => item.estimate_requested).length;
-          const verifiedCount = job.items.filter((item) => item.verified).length;
-          const statusSet = [...job.statuses].sort();
-          const invoicedCount = job.items.filter((item) => item.linkedInvoice).length;
           const estimateRespondedCount = job.items.filter((item) => item.latestEstimateResponse).length;
-          const approvedEstimateCount = job.items.filter((item) => item.latestEstimateResponse?.status === "approved").length;
-          const rejectedEstimateCount = job.items.filter((item) => item.latestEstimateResponse?.status === "rejected").length;
           const openEstimateCount = Math.max(estimateCount - estimateRespondedCount, 0);
           const deliveredCount = job.items.filter((item) => item.linkedRug?.status === "delivered").length;
           const uninvoicedCount = job.items.filter((item) => !item.linkedInvoice).length;
           const returnCount = job.items.filter((item) => item.latestReturnState?.state === "open").length;
           const attentionCount = job.items.filter((item) => item.latestReturnState?.state === "open" || (item.estimate_requested && !item.latestEstimateResponse) || (!item.linkedInvoice && item.linkedRug?.status === "ready")).length;
-          const billedTotal = job.items.reduce((sum, item) => sum + (item.linkedInvoice ? Number(item.linkedServiceTotal || 0) : 0), 0);
-          const serviceTotal = job.items.reduce((sum, item) => sum + Number(item.linkedServiceTotal || 0), 0);
           const visibleItems = job.items.filter((item) => {
             if (activeJobFilter === "estimate_open") return item.estimate_requested && !item.latestEstimateResponse;
             if (activeJobFilter === "uninvoiced") return !item.linkedInvoice;
@@ -762,48 +753,6 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
             if (activeJobFilter === "attention") return item.latestReturnState?.state === "open" || (item.estimate_requested && !item.latestEstimateResponse) || (!item.linkedInvoice && item.linkedRug?.status === "ready");
             return true;
           });
-          const latestActivityAt = [
-            job.updatedAt,
-            ...job.items.flatMap((item) => [
-              item.linkedRug?.checked_in_at,
-              item.linkedRug?.completed_at,
-              item.latestEstimateResponse?.createdAt,
-              item.linkedInvoice?.issued_at,
-              item.linkedInvoice?.created_at,
-            ].filter(Boolean) as string[]),
-          ].sort((a, b) => Date.parse(b) - Date.parse(a))[0];
-          const activityEvents = [
-            { at: `${job.scheduledDate}T12:00:00`, label: `Pickup requested for ${formatDate(job.scheduledDate)}` },
-            ...job.items.flatMap((item) => {
-              const events: Array<{ at: string; label: string }> = [];
-              if (item.linkedRug?.checked_in_at) {
-                events.push({ at: item.linkedRug.checked_in_at, label: `${item.rug_number} checked in` });
-              }
-              if (item.latestEstimateResponse) {
-                events.push({
-                  at: item.latestEstimateResponse.createdAt,
-                  label: `${item.rug_number} estimate ${item.latestEstimateResponse.status}`,
-                });
-              }
-              if (item.linkedInvoice) {
-                events.push({
-                  at: item.linkedInvoice.issued_at ?? item.linkedInvoice.created_at,
-                  label: `${item.linkedInvoice.invoice_number} linked for ${item.rug_number}`,
-                });
-              }
-              if (item.linkedRug?.status === "delivered") {
-                events.push({
-                  at: item.linkedInvoice?.issued_at ?? item.linkedInvoice?.created_at ?? job.updatedAt,
-                  label: `${item.rug_number} delivered`,
-                });
-              }
-              return events;
-            }),
-          ]
-            .filter((event) => Boolean(event.at))
-            .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-            .slice(0, 6);
-
           return (
             <section key={job.key} className="overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-sm">
               <button

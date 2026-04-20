@@ -343,7 +343,7 @@ export function ClientsTab() {
     fetchPortalUsers(editingId);
   };
 
-  const sendOnboardingEmail = async (portalUserId: string) => {
+  const _sendOnboardingEmail = async (portalUserId: string) => {
     const authHeaders = await getFunctionAuthHeaders();
     if (!authHeaders) { toast({ title: "Session expired", description: "Please sign out and sign in again before sending onboarding email.", variant: "destructive" }); return false; }
 

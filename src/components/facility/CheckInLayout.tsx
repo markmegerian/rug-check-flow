@@ -207,12 +207,6 @@ export function CheckInLayout() {
     [editingEntryId, removePendingRug, selectedRug?.clientId, selectedRug?.pickupRequestItemId, selectedRug?.source, upsertCheckInLogEntry, user?.id]
   );
 
-  const handleEditEntry = useCallback((entryId: string) => {
-    setEditingEntryId(entryId);
-    setSelectedRugId(null);
-    if (isMobile) setMobilePanel("form");
-  }, [isMobile]);
-
   const handleAddWalkIn = useCallback((clientName: string, rugNumber: string, clientId?: string | null) => {
     const id = addWalkIn(clientName, rugNumber, clientId);
     setSelectedRugId(id);
@@ -280,7 +274,6 @@ export function CheckInLayout() {
               </button>
             </div>
           )}
-          {false ? null : null}
         </div>
       </div>
     );

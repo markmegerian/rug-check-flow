@@ -131,7 +131,7 @@ export function DeliveryPrepTab() {
   }, [toast]);
 
   // Fetch or create delivery list for the selected date, and sync items
-  const fetchDeliveryListForDate = async (date: string, dayName: string) => {
+  const fetchDeliveryListForDate = useCallback(async (date: string, dayName: string) => {
     if (!dayName) return;
 
     // Find clients on this route day
@@ -208,7 +208,7 @@ export function DeliveryPrepTab() {
     const typedItems = (allItems ?? []) as DeliveryItem[];
     const eligibleRugIds = new Set(eligibleRugs.map((r) => r.id));
     setItems(typedItems.filter((i) => eligibleRugIds.has(i.rug_id)));
-  };
+  }, [allRugs, clientMap, toast]);
 
   useEffect(() => {
     void fetchAllRugs();
@@ -219,7 +219,7 @@ export function DeliveryPrepTab() {
     if (!loading && selectedDayName && Object.keys(clientMap).length > 0) {
       void fetchDeliveryListForDate(selectedDate, selectedDayName);
     }
-  }, [selectedDate, selectedDayName, loading, clientMap, allRugs]);
+  }, [selectedDate, selectedDayName, loading, clientMap, allRugs, fetchDeliveryListForDate]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

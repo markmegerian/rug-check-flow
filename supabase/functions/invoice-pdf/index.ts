@@ -194,13 +194,11 @@ async function buildRugSections(
       .returns<RugServiceRow[]>();
 
     const serviceIds = Array.from(new Set((svcData ?? []).map((row) => row.service_id).filter(Boolean)));
-    let categoryByServiceId = new Map<string, string>();
     if (serviceIds.length > 0) {
-      const { data: serviceRows } = await adminClient
+      await adminClient
         .from("services")
         .select("id, category")
         .in("id", serviceIds);
-      categoryByServiceId = new Map((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
     }
 
     if (svcData) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive, CheckCircle2, Loader2, MessageSquarePlus, RefreshCw, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -28,6 +28,13 @@ type PortalThread = MessageThread & {
   messageCount: number;
   entityLabel: string | null;
   unread: boolean;
+};
+
+type ThreadListRow = Pick<
+  MessageThread,
+  "id" | "client_id" | "entity_id" | "thread_type" | "status" | "created_at" | "updated_at"
+> & {
+  messages: Array<Pick<Message, "id" | "body" | "created_at" | "sender" | "attachments">> | null;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -109,9 +116,10 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
         return;
       }
 
-      const entityLabels = await fetchThreadEntityLabels((data ?? []) as Array<Pick<MessageThread, "id" | "thread_type" | "entity_id">>);
+      const rows = (data ?? []) as ThreadListRow[];
+      const entityLabels = await fetchThreadEntityLabels(rows);
 
-      const nextThreads: PortalThread[] = (data ?? []).map((row: any) => {
+      const nextThreads: PortalThread[] = rows.map((row) => {
         const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
         const visibleMessages = rowMessages.filter((message) => !isInternalMessage(message.attachments));
         visibleMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
@@ -144,7 +152,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
 
     void loadThreads();
     return () => { active = false; };
-  }, [clientId, errorMessage, loading, toast]);
+  }, [clientId, errorMessage, loading, toast, user?.id]);
 
   useEffect(() => {
     if (requestedThreadId) {
@@ -197,16 +205,7 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
     [threads, selectedThreadId],
   );
 
-  useEffect(() => {
-    if (!selectedThreadId) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      void refreshThread(selectedThreadId).catch(() => undefined);
-    }, 15000);
-    return () => window.clearInterval(timer);
-  }, [selectedThreadId]);
-
-  const refreshThread = async (threadId: string) => {
+  const refreshThread = useCallback(async (threadId: string) => {
     const { data, error } = await supabase
       .from("messages")
       .select("id, thread_id, body, attachments, sender, created_at")
@@ -230,7 +229,16 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
         unread: lifecycle.unread,
       };
     })));
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!selectedThreadId) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void refreshThread(selectedThreadId).catch(() => undefined);
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [refreshThread, selectedThreadId]);
 
   const handleCreateThread = async () => {
     if (!clientId) return;

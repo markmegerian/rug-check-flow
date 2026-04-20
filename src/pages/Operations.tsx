@@ -58,7 +58,7 @@ type TabId = FloorTabId | BusinessTabId;
 
 export default function Operations() {
   const navigate = useNavigate();
-  const { hasRole, isSuperAdmin } = useAuth();
+  const { hasRole } = useAuth();
   const canManagePricing = hasRole("admin");
   const isOffice = hasRole("admin") || hasRole("office");
 
@@ -79,7 +79,7 @@ export default function Operations() {
 
   const defaultTab: TabId = "production";
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const requestedThreadId = searchParams.get("threadId");
   const initialTab: TabId =
@@ -89,13 +89,6 @@ export default function Operations() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
-
-  const handleTabChange = (nextTab: TabId) => {
-    setActiveTab(nextTab);
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", nextTab);
-    setSearchParams(next, { replace: true });
-  };
 
   useEffect(() => {
     if (requestedTab === "checkin") {

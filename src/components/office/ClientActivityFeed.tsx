@@ -184,7 +184,7 @@ export function ClientActivityFeed({ clientId, enabled = true }: ClientActivityF
 
     fetchActivity();
     return () => { cancelled = true; };
-  }, [clientId]);
+  }, [clientId, enabled]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground py-2">Loading activity...</p>;
