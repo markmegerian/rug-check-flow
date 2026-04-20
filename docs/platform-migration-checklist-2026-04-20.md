@@ -39,7 +39,7 @@ Status legend:
   - [x] Wire side-by-side validation of backend Jobs summary against current UI grouping before cutover
   - [x] Cut Jobs UI over to backend summary with guarded fallback to legacy path
   - [x] Add first-pass hot-path indexes supporting Jobs, Inbox, and Delivery query patterns
-  - [ ] Remove legacy Jobs fallback once backend validation remains clean
+  - [x] Remove legacy Jobs fallback once backend validation remains clean
 - [~] Replace inbox/thread-list nested message loading with thread summaries
   - [x] Add additive backend thread summary RPC for office and portal thread lists
   - [x] Cut Inbox and Portal thread lists over to backend thread summaries
@@ -101,4 +101,4 @@ Status legend:
 
 ## Current focus
 - Phase 2 read-model cleanup and Check In responsiveness
-- Tonight's priority: make live Check In feel materially faster and less painful to use
+- Immediate next checks: live migration/RPC verification and remaining Check In interaction polish
