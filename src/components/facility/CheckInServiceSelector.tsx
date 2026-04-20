@@ -19,7 +19,7 @@ export interface DbService {
 const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
 
 const PRESETS = [
-  { label: "Basic Clean", names: ["Standard Wash"] },
+  { label: "Basic Clean", names: ["Standard Wash", "Standard Cleaning", "Basic Clean", "Regular Wash"] },
   { label: "Full Service", names: ["Deep Wash", "Scotchgard"] },
   { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
 ];

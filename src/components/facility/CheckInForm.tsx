@@ -39,6 +39,16 @@ type WindowWithIdleCallback = Window & typeof globalThis & {
 };
 
 const STANDARD_WASH_SERVICE_NAME = "Standard Wash";
+const STANDARD_WASH_SERVICE_ALIASES = [
+  "standard wash",
+  "standard cleaning",
+  "wash standard",
+  "basic wash",
+  "basic clean",
+  "basic cleaning",
+  "regular wash",
+  "regular cleaning",
+] as const;
 const CLIENT_LOOKUP_CACHE_KEY = "checkin-client-lookup-v1";
 
 const checkInSchema = z.object({
@@ -271,10 +281,30 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return map;
   }, [dbServices]);
 
-  const standardWashService = useMemo(
-    () => dbServices.find((svc) => svc.name.toLowerCase() === STANDARD_WASH_SERVICE_NAME.toLowerCase()) ?? null,
-    [dbServices],
-  );
+  const standardWashService = useMemo(() => {
+    const normalizedServices = dbServices.map((svc) => ({
+      service: svc,
+      name: svc.name.trim().toLowerCase(),
+      category: (svc.category ?? "").trim().toLowerCase(),
+    }));
+
+    const exactAliasMatch = normalizedServices.find(({ name }) => STANDARD_WASH_SERVICE_ALIASES.includes(name as typeof STANDARD_WASH_SERVICE_ALIASES[number]));
+    if (exactAliasMatch) return exactAliasMatch.service;
+
+    const cleaningCandidates = normalizedServices.filter(({ category }) => category === "cleaning");
+
+    const partialAliasMatch = cleaningCandidates.find(({ name }) =>
+      STANDARD_WASH_SERVICE_ALIASES.some((alias) => name.includes(alias) || alias.includes(name)),
+    );
+    if (partialAliasMatch) return partialAliasMatch.service;
+
+    const genericCleaningMatch = cleaningCandidates.find(({ name }) =>
+      name.includes("standard") || name.includes("regular") || name.includes("basic"),
+    );
+    if (genericCleaningMatch) return genericCleaningMatch.service;
+
+    return null;
+  }, [dbServices]);
 
   const servicePricing = useMemo(() => {
     if (!shouldLoadServices) return new Map<string, { unitPrice: number; rawTotal: number; adjustedTotal: number }>();
@@ -425,7 +455,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         setShouldLoadServices(true);
       }
       if (!standardWashService) {
-        toast({ title: "Standard Wash unavailable", description: "The Standard Wash service was not found.", variant: "destructive" });
+        toast({
+          title: "Standard wash unavailable",
+          description: "No matching standard-cleaning service could be resolved from the service catalog. Please use custom services for now.",
+          variant: "destructive",
+        });
+        setWashDecision("custom");
+        setStep("services");
+        setShouldLoadServices(true);
         return;
       }
       await submitCheckIn([standardWashService.id]);
