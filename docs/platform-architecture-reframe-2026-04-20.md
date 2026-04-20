@@ -292,6 +292,35 @@ Examples:
 - finance read models should not be mixed into generic ops hooks
 - portal users should not share hidden mounted state with unrelated portal areas
 
+## Principle 6. Layout stability is a system requirement
+The UI should feel planted. State changes may change meaning, but they should not change geometry unless the user explicitly opened, closed, expanded, collapsed, or resized something.
+
+This means:
+- buttons, chips, tabs, cards, rows, filters, and headers should keep stable footprints
+- loading state, empty state, and loaded state should preserve the same layout contract whenever possible
+- async updates should not cause surrounding controls to jump
+- skeletons should match the final layout they are standing in for
+- drawers, dialogs, sheets, and panels should use predictable shell sizes
+- changing text, counts, badges, or timestamps should not push neighboring UI around
+
+Treat unexpected layout shift as a product bug, especially in:
+- Facility workflows
+- Jobs and Inbox
+- Portal interactions
+- Driver execution screens
+
+### Practical rules for implementation
+- reserve width for dynamic labels, counts, and badges
+- use fixed-height action bars and filter bars
+- keep button shells the same size across idle/loading/success/error states
+- reserve helper/error text space where repeated validation changes would otherwise push fields
+- prefer shape-matched skeletons over generic placeholders
+- avoid mounting hidden content that later changes parent layout unexpectedly
+- use explicit min-heights and min-widths for repeated operational components
+
+### Review standard
+Any UI change that introduces visible micro-shifts during load, polling, or mutation should be treated as a regression and fixed before rollout.
+
 ---
 
 ## Recommended target route map
