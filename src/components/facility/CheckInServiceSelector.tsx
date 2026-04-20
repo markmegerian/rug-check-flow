@@ -246,7 +246,7 @@ export function CheckInServiceSelector({
                 }}
                 className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
                   allSelected
-                    ? "border-primary bg-primary text-primary-foreground shadow-[0_14px_28px_-20px_rgba(46,82,128,0.45)]"
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_14px_28px_-20px_rgba(59,108,235,0.28)]"
                     : "border-border bg-white/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 }`}
               >
@@ -274,7 +274,7 @@ export function CheckInServiceSelector({
         <p className="text-sm text-muted-foreground italic">Loading services…</p>
       )}
 
-      <div className="min-h-[20rem] max-h-[44vh] overflow-y-auto rounded-[1.15rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(240,246,252,0.84))] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+      <div className="min-h-[20rem] max-h-[44vh] overflow-y-auto rounded-[1.15rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.97),rgba(245,248,255,0.88))] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
         {categories.map((cat, catIdx) => (
           <ServiceCategoryGroup
             key={cat}

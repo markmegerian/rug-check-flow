@@ -439,7 +439,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[1.5rem] bg-transparent">
-      <div className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(46,82,128,0.96),rgba(67,104,156,0.92)_52%,rgba(130,168,212,0.64))] px-4 py-5 text-primary-foreground md:px-6">
+      <div className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(31,122,232,0.96),rgba(59,108,235,0.92)_48%,rgba(109,66,230,0.88))] px-4 py-5 text-primary-foreground md:px-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary-foreground/80">Check In</p>
@@ -462,7 +462,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.3),rgba(240,246,252,0.12))] p-4 md:p-5">
+      <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.24),rgba(245,248,255,0.14))] p-4 md:p-5">
         <div className="space-y-5">
         {selectedRug?.estimateRequested && (
           <Alert variant="default" className="border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
@@ -573,14 +573,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         {step === "decision" && (
           <StepShell eyebrow="Decision" title="Standard cleaning?" description="Most rugs should finish here. Only open custom services when extra work is actually needed.">
             <RadioGroup value={washDecision} onValueChange={(value) => setWashDecision(value as WashDecision)} className="space-y-3">
-              <label className="flex cursor-pointer items-center gap-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,247,252,0.82))] px-4 py-4 shadow-[0_10px_24px_-22px_rgba(25,44,72,0.24)] transition-colors hover:bg-white">
+              <label className="flex cursor-pointer items-center gap-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.88))] px-4 py-4 shadow-[0_10px_24px_-22px_rgba(51,84,181,0.16)] transition-colors hover:bg-white">
                 <RadioGroupItem value="standard" id="wash-standard" />
                 <div>
                   <p className="text-sm font-medium">Yes, standard wash only</p>
                   <p className="text-xs text-muted-foreground">Use the existing Standard Wash service and finish immediately.</p>
                 </div>
               </label>
-              <label className="flex cursor-pointer items-center gap-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(242,247,252,0.82))] px-4 py-4 shadow-[0_10px_24px_-22px_rgba(25,44,72,0.24)] transition-colors hover:bg-white">
+              <label className="flex cursor-pointer items-center gap-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.88))] px-4 py-4 shadow-[0_10px_24px_-22px_rgba(51,84,181,0.16)] transition-colors hover:bg-white">
                 <RadioGroupItem value="custom" id="wash-custom" />
                 <div>
                   <p className="text-sm font-medium">No, additional services needed</p>
@@ -623,7 +623,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         </div>
       </div>
 
-      <div className="border-t border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(240,246,252,0.86))] px-4 py-4">
+      <div className="border-t border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,248,255,0.88))] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-muted-foreground">
             {step === "details" && "Capture core rug details first"}
