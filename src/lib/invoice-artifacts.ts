@@ -20,7 +20,8 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
   });
 
   if (functionError || functionData?.error || !functionData?.signed_url) {
-    throw new Error(functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF");
+    const detail = typeof functionData?.details === "string" ? ` ${functionData.details}` : "";
+    throw new Error(`${functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF"}${detail}`.trim());
   }
 
   const response = await fetch(functionData.signed_url);
