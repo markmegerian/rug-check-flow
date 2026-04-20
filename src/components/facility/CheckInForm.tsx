@@ -88,17 +88,24 @@ const MemoizedCheckInServiceSelector = memo(CheckInServiceSelector);
 function StepShell({
   title,
   description,
+  eyebrow,
   children,
 }: {
   title: string;
   description: string;
+  eyebrow?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background/90 p-4 md:p-5 space-y-4 min-h-[20rem]">
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground">{description}</p>
+    <div className="space-y-5 rounded-[1.5rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,245,239,0.9))] p-5 shadow-[0_24px_60px_-40px_rgba(28,39,56,0.24)] md:min-h-[20rem] md:p-6">
+      <div className="space-y-2">
+        {eyebrow ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{eyebrow}</p>
+        ) : null}
+        <div className="space-y-1.5">
+          <h3 className="text-lg font-semibold tracking-[-0.02em] text-foreground">{title}</h3>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
       </div>
       {children}
     </div>
@@ -431,28 +438,32 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const progressStep = step === "details" ? 1 : step === "photos" ? 2 : step === "decision" ? 3 : 4;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-muted/10">
-      <div className="border-b border-border bg-gradient-to-r from-primary to-primary/80 px-4 py-4 text-primary-foreground">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.24em] opacity-90">Check In</p>
-            <h2 className="text-lg font-semibold">
-              {values.rugNumber || selectedRug?.rugNumber || editingEntry?.rugNumber || "New intake"}
-            </h2>
-            <div className="flex flex-wrap items-center gap-2 text-sm opacity-90">
-              <span>{values.clientName || selectedRug?.clientName || editingEntry?.clientName || "No client"}</span>
-              {tierLabel && <span className="rounded bg-white/20 px-2 py-0.5 text-xs">{tierLabel}</span>}
-              {isEditing && <span className="rounded bg-white/20 px-2 py-0.5 text-xs">Editing</span>}
+    <div className="flex h-full min-h-0 flex-col rounded-[1.5rem] bg-transparent">
+      <div className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(53,86,97,0.96),rgba(77,115,124,0.88)_52%,rgba(188,154,108,0.42))] px-4 py-5 text-primary-foreground md:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary-foreground/80">Check In</p>
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-[-0.025em]">
+                {values.rugNumber || selectedRug?.rugNumber || editingEntry?.rugNumber || "New intake"}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-primary-foreground/88">
+                <span>{values.clientName || selectedRug?.clientName || editingEntry?.clientName || "No client selected yet"}</span>
+                {tierLabel && <span className="rounded-full border border-white/16 bg-white/14 px-2.5 py-1 text-[11px] font-medium">{tierLabel}</span>}
+                {isEditing && <span className="rounded-full border border-white/16 bg-white/14 px-2.5 py-1 text-[11px] font-medium">Editing</span>}
+              </div>
             </div>
           </div>
-          <div className="text-right text-sm opacity-90">
-            <p>Step {progressStep} of {washDecision === "custom" || step === "services" ? 4 : 3}</p>
-            <p>{step === "details" ? "Rug details" : step === "photos" ? "Photos" : step === "decision" ? "Cleaning decision" : "Custom services"}</p>
+          <div className="min-w-[12rem] rounded-2xl border border-white/14 bg-white/10 px-4 py-3 text-sm text-primary-foreground/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground/70">Current step</p>
+            <p className="mt-1 text-sm font-medium text-primary-foreground">{step === "details" ? "Rug details" : step === "photos" ? "Photos" : step === "decision" ? "Cleaning decision" : "Custom services"}</p>
+            <p className="mt-1 text-xs text-primary-foreground/70">Step {progressStep} of {washDecision === "custom" || step === "services" ? 4 : 3}</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 md:p-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.22),transparent)] p-4 md:p-5">
+        <div className="space-y-5">
         {selectedRug?.estimateRequested && (
           <Alert variant="default" className="border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
             <AlertTitle>Estimate requested</AlertTitle>
@@ -465,7 +476,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         )}
 
         {step === "details" && (
-          <StepShell title="Tell us about the rug" description="Capture only the core intake details first.">
+          <StepShell eyebrow="Details" title="Tell us about the rug" description="Start with the essential intake details. Keep this step focused and lightweight.">
             {isReadOnlyIdentity ? (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -554,22 +565,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         )}
 
         {step === "photos" && (
-          <StepShell title="Capture photos" description="Keep photo work separate from the intake form so this step stays calm.">
+          <StepShell eyebrow="Photos" title="Capture photos" description="Document the rug clearly, then move on. This step stays separate so the intake form remains calm.">
             <MemoizedCheckInPhotoSection photos={photos} onPhotosChange={setPhotos} />
           </StepShell>
         )}
 
         {step === "decision" && (
-          <StepShell title="Standard cleaning?" description="Most rugs should finish here. Only continue if extra work is needed.">
+          <StepShell eyebrow="Decision" title="Standard cleaning?" description="Most rugs should finish here. Only open custom services when extra work is actually needed.">
             <RadioGroup value={washDecision} onValueChange={(value) => setWashDecision(value as WashDecision)} className="space-y-3">
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-4 hover:bg-muted/30">
+              <label className="flex cursor-pointer items-center gap-3 rounded-[1.1rem] border border-border/75 bg-white/72 px-4 py-4 shadow-[0_10px_24px_-22px_rgba(28,39,56,0.35)] transition-colors hover:bg-white">
                 <RadioGroupItem value="standard" id="wash-standard" />
                 <div>
                   <p className="text-sm font-medium">Yes, standard wash only</p>
                   <p className="text-xs text-muted-foreground">Use the existing Standard Wash service and finish immediately.</p>
                 </div>
               </label>
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-4 hover:bg-muted/30">
+              <label className="flex cursor-pointer items-center gap-3 rounded-[1.1rem] border border-border/75 bg-white/72 px-4 py-4 shadow-[0_10px_24px_-22px_rgba(28,39,56,0.35)] transition-colors hover:bg-white">
                 <RadioGroupItem value="custom" id="wash-custom" />
                 <div>
                   <p className="text-sm font-medium">No, additional services needed</p>
@@ -581,7 +592,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         )}
 
         {step === "services" && (
-          <StepShell title="Custom services" description="Only mounted when needed, so the common path stays light.">
+          <StepShell eyebrow="Services" title="Custom services" description="Only mounted when needed, so the common path stays fast and uncluttered.">
             {shouldLoadServices ? (
               <MemoizedCheckInServiceSelector
                 dbServices={dbServices}
@@ -609,9 +620,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
             )}
           </StepShell>
         )}
+        </div>
       </div>
 
-      <div className="border-t border-border bg-background px-4 py-3">
+      <div className="border-t border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,242,235,0.86))] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-muted-foreground">
             {step === "details" && "Capture core rug details first"}

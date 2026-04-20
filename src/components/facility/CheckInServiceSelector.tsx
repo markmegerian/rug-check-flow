@@ -204,7 +204,7 @@ export function CheckInServiceSelector({
   }, [dbServices, searchLower]);
 
   return (
-    <div className="space-y-2 md:space-y-3">
+    <div className="space-y-3 md:space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Label className="text-sm md:text-base">Services</Label>
@@ -244,10 +244,10 @@ export function CheckInServiceSelector({
                     setServices(Array.from(new Set([...watchedServices, ...ids])));
                   }
                 }}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
                   allSelected
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted/50 text-muted-foreground border-border hover:border-primary hover:text-foreground"
+                    ? "border-primary bg-primary text-primary-foreground shadow-[0_14px_28px_-20px_rgba(53,86,97,0.65)]"
+                    : "border-border bg-white/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
                 }`}
               >
                 {preset.label}
@@ -263,7 +263,7 @@ export function CheckInServiceSelector({
           <Input
             type="text"
             placeholder="Search services…"
-            className="h-8 pl-8 text-sm"
+            className="h-10 rounded-xl border-border/80 bg-white/70 pl-8 text-sm"
             value={serviceSearch}
             onChange={(e) => setServiceSearch(e.target.value)}
           />
@@ -274,7 +274,7 @@ export function CheckInServiceSelector({
         <p className="text-sm text-muted-foreground italic">Loading services…</p>
       )}
 
-      <div className="min-h-[20rem] max-h-[44vh] overflow-y-auto border border-border rounded-md bg-background/80">
+      <div className="min-h-[20rem] max-h-[44vh] overflow-y-auto rounded-[1.15rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,242,235,0.82))] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
         {categories.map((cat, catIdx) => (
           <ServiceCategoryGroup
             key={cat}

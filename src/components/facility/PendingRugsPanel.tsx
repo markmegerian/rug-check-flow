@@ -85,20 +85,22 @@ export function PendingRugsPanel({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-r border-border bg-muted/20">
-      {/* Header */}
-      <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-semibold">
-          Pending{" "}
-          {rugs.length > 0 && (
-            <span className="inline-flex items-center justify-center ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-primary text-primary-foreground">
-              {rugs.length}
-            </span>
-          )}
-        </h2>
+    <div className="app-section flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="app-section-header gap-3 px-4 py-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Queue</p>
+          <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-foreground">
+            Pending{" "}
+            {rugs.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                {rugs.length}
+              </span>
+            )}
+          </h2>
+        </div>
         <button
           onClick={() => setWalkInOpen(!walkInOpen)}
-          className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          className="flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
         >
           <Plus className="h-3.5 w-3.5" />
           Walk-In
@@ -107,7 +109,7 @@ export function PendingRugsPanel({
 
       {/* Walk-In Drop-Off */}
       {walkInOpen && (
-        <div className="border-b border-border p-3 space-y-2">
+        <div className="border-b border-border/60 bg-white/45 p-4 space-y-3">
           {!selectedClient ? (
             <div className="space-y-2">
               <div className="relative">
@@ -187,7 +189,7 @@ export function PendingRugsPanel({
 
       {/* Queue search */}
       {rugs.length > 3 && (
-        <div className="px-3 py-2 border-b border-border">
+        <div className="border-b border-border/60 px-4 py-3">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
@@ -211,7 +213,7 @@ export function PendingRugsPanel({
 
       {/* Pending Rugs List */}
       <ScrollArea className="flex-1 min-h-0">
-        <div className="p-2 space-y-2">
+        <div className="p-3 space-y-3">
           {filteredRugs.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-6">
               {queueSearch ? "No matching rugs" : "No pending rugs"}
@@ -219,7 +221,7 @@ export function PendingRugsPanel({
           )}
           {Array.from(grouped.entries()).map(([client, clientRugs]) => (
             <div key={client}>
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1">
+              <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 {client} ({clientRugs.length})
               </p>
               <div className="space-y-0.5">
@@ -228,10 +230,10 @@ export function PendingRugsPanel({
                     key={rug.id}
                     onClick={() => onSelectRug(rug.id)}
                     className={cn(
-                      "w-full text-left px-2 py-2 rounded-md border border-transparent transition-colors min-h-[4.25rem]",
+                      "min-h-[4.75rem] w-full rounded-[1rem] border px-3 py-3 text-left transition-colors",
                       selectedRugId === rug.id
-                        ? "bg-accent ring-1 ring-primary/30"
-                        : "hover:bg-muted"
+                        ? "border-primary/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,236,228,0.96))] shadow-[0_16px_35px_-28px_rgba(28,39,56,0.35)]"
+                        : "border-transparent bg-white/55 hover:bg-white/78"
                     )}
                   >
                     <div className="flex items-baseline gap-2">
