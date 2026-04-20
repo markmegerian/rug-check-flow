@@ -13,17 +13,19 @@ This workflow adds a dedicated GitHub Actions path for database migrations.
   - pushes to `claude/**`
   - manual `workflow_dispatch`
 
-## Required GitHub Secret
+## Required GitHub Secrets
 
-Add this repository secret:
+Add these repository secrets:
 
 - `SUPABASE_DB_PASSWORD`
   - the remote Postgres database password for project `toitgmaeuscrdwbpntda`
+- `SUPABASE_ACCESS_TOKEN`
+  - a Supabase personal access token with access to this project
 
 ## What the workflow does
 
 1. Checks out the repo
-2. Verifies `SUPABASE_DB_PASSWORD` is present
+2. Verifies `SUPABASE_DB_PASSWORD` and `SUPABASE_ACCESS_TOKEN` are present
 3. Installs Supabase CLI
 4. Links to project `toitgmaeuscrdwbpntda`
 5. Runs `supabase db push`
@@ -40,7 +42,7 @@ Add this repository secret:
 
 ## First-time rollout
 
-After adding the secret:
+After adding the secrets:
 
 1. Run the workflow manually once from GitHub Actions, or push a new commit
 2. Confirm the workflow succeeds
