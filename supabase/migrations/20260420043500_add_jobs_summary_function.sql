@@ -83,7 +83,7 @@ invoice_links as (
 return_events as (
   select
     ce.rug_id,
-    array_agg(
+    jsonb_agg(
       jsonb_build_object(
         'event_type', ce.event_type,
         'created_at', ce.created_at
