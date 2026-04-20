@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
+import { isFacilityPath, isFinancePath, isLogisticsPath, isOfficePath, isPortalPath } from "@/lib/navigation-domains";
 
 const SUPERADMIN_NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home, active: (path: string) => path === "/" },
@@ -46,40 +47,47 @@ const SUPERADMIN_NAV_ITEMS = [
 
 const CHECKIN_ITEM = { title: "Check-In", url: "/checkin", icon: ClipboardCheck } as const;
 
-const OPS_FLOOR_ITEMS = [
-  { id: "production", label: "Production", icon: Factory },
-  { id: "delivery-prep", label: "Delivery Prep", icon: Package },
-  { id: "invoice-generator", label: "Invoice", icon: Receipt },
+const FACILITY_ITEMS = [
+  { title: "Check-In", url: "/checkin", icon: ClipboardCheck, active: (path: string) => path.startsWith("/checkin") },
+  { title: "Production", url: "/facility/production", icon: Factory, active: (path: string) => path === "/facility/production" },
+  { title: "Delivery Prep", url: "/facility/delivery-prep", icon: Package, active: (path: string) => path === "/facility/delivery-prep" },
+  { title: "Invoice Generator", url: "/facility/invoices", icon: Receipt, active: (path: string) => path === "/facility/invoices" },
 ] as const;
 
-const OPS_BUSINESS_ITEMS = [
-  { id: "accounts-receivable", label: "Accounts Receivable", icon: FileText },
-  { id: "estimates", label: "Estimates", icon: ClipboardCheck },
-  { id: "clients", label: "Clients", icon: Users },
-  { id: "jobs", label: "Jobs", icon: FolderOpen },
-  { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "deliveries", label: "Deliveries", icon: Truck },
-  { id: "routes", label: "Routes", icon: Map },
-  { id: "proofs", label: "Proofs", icon: Camera },
+const OFFICE_ITEMS = [
+  { title: "Pricing", url: "/office/pricing", icon: DollarSign, active: (path: string) => path === "/office/pricing", adminOnly: true },
+  { title: "Estimates", url: "/office/estimates", icon: ClipboardCheck, active: (path: string) => path === "/office/estimates" },
+  { title: "Clients", url: "/office/clients", icon: Users, active: (path: string) => path === "/office/clients" },
+  { title: "Jobs", url: "/office/jobs", icon: FolderOpen, active: (path: string) => path === "/office/jobs" },
+  { title: "Inbox", url: "/office/inbox", icon: Inbox, active: (path: string) => path === "/office/inbox" },
 ] as const;
 
-const PRICING_ITEM = { id: "pricing", label: "Pricing", icon: DollarSign } as const;
+const LOGISTICS_ITEMS = [
+  { title: "Deliveries", url: "/logistics/deliveries", icon: Truck, active: (path: string) => path === "/logistics/deliveries" },
+  { title: "Routes", url: "/logistics/routes", icon: Map, active: (path: string) => path === "/logistics/routes" },
+  { title: "Proofs", url: "/logistics/proofs", icon: Camera, active: (path: string) => path === "/logistics/proofs" },
+] as const;
+
+const FINANCE_ITEMS = [
+  { title: "Invoices", url: "/finance/invoices", icon: FileText, active: (path: string) => path === "/finance/invoices" },
+  { title: "Payments", url: "/finance/payments", icon: DollarSign, active: (path: string) => path === "/finance/payments" },
+  { title: "Credits", url: "/finance/credits", icon: Receipt, active: (path: string) => path === "/finance/credits" },
+  { title: "Collections", url: "/finance/collections", icon: Inbox, active: (path: string) => path === "/finance/collections" },
+] as const;
 
 const PORTAL_ITEMS = [
-  { id: "rugs", label: "Rugs", icon: Package },
-  { id: "pickups", label: "Pickups", icon: Truck },
-  { id: "estimates", label: "Estimates", icon: ClipboardCheck },
-  { id: "invoices", label: "Invoices", icon: Receipt },
-  { id: "messages", label: "Messages", icon: Inbox },
-  { id: "prices", label: "Prices", icon: DollarSign },
+  { title: "Rugs", url: "/portal/rugs", icon: Package, active: (path: string) => path === "/portal/rugs" },
+  { title: "Pickups", url: "/portal/pickups", icon: Truck, active: (path: string) => path === "/portal/pickups" },
+  { title: "Estimates", url: "/portal/estimates", icon: ClipboardCheck, active: (path: string) => path === "/portal/estimates" },
+  { title: "Invoices", url: "/portal/invoices", icon: Receipt, active: (path: string) => path === "/portal/invoices" },
+  { title: "Messages", url: "/portal/messages", icon: Inbox, active: (path: string) => path === "/portal/messages" },
+  { title: "Prices", url: "/portal/prices", icon: DollarSign, active: (path: string) => path === "/portal/prices" },
 ] as const;
 
 export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const currentTab = searchParams.get("tab");
   const { user, signOut, isSuperAdmin, isPortalUser, hasRole } = useAuth();
 
   const isOffice = hasRole("admin") || hasRole("office");
@@ -94,33 +102,65 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
       }))
     : [];
 
-  const contextualTabItems = location.pathname.startsWith("/portal") && isPortalUser
-    ? PORTAL_ITEMS.map((item) => ({
-        title: item.label,
-        url: `/portal?tab=${item.id}`,
+  const contextualTabItems = (() => {
+    if (isPortalPath(location.pathname) && isPortalUser) {
+      return PORTAL_ITEMS.map((item) => ({
+        title: item.title,
+        url: item.url,
         icon: item.icon,
-        active: location.pathname.startsWith("/portal") && (currentTab ?? "rugs") === item.id,
-      }))
-    : [
-        {
-          title: CHECKIN_ITEM.title,
-          url: CHECKIN_ITEM.url,
-          icon: CHECKIN_ITEM.icon,
-          active: location.pathname.startsWith("/checkin"),
-        },
-        ...[
-          ...OPS_FLOOR_ITEMS,
-          ...(isOffice ? [
-            ...(canManagePricing ? [PRICING_ITEM] : []),
-            ...OPS_BUSINESS_ITEMS,
-          ] : []),
-        ].map((item) => ({
-          title: item.label,
-          url: `/ops?tab=${item.id}`,
-          icon: item.icon,
-          active: location.pathname.startsWith("/ops") && (currentTab ?? "production") === item.id,
-        })),
-      ];
+        active: item.active(location.pathname),
+      }));
+    }
+
+    const items = [] as Array<{ title: string; url: string; icon: typeof Home; active: boolean }>;
+
+    if (location.pathname.startsWith("/checkin") || isFacilityPath(location.pathname)) {
+      items.push(...FACILITY_ITEMS.map((item) => ({
+        title: item.title,
+        url: item.url,
+        icon: item.icon,
+        active: item.active(location.pathname),
+      })));
+    }
+
+    if (isOffice && isOfficePath(location.pathname)) {
+      items.push(...OFFICE_ITEMS.filter((item) => !item.adminOnly || canManagePricing).map((item) => ({
+        title: item.title,
+        url: item.url,
+        icon: item.icon,
+        active: item.active(location.pathname),
+      })));
+    }
+
+    if (isOffice && isLogisticsPath(location.pathname) && !location.pathname.startsWith("/driver")) {
+      items.push(...LOGISTICS_ITEMS.map((item) => ({
+        title: item.title,
+        url: item.url,
+        icon: item.icon,
+        active: item.active(location.pathname),
+      })));
+    }
+
+    if (isOffice && isFinancePath(location.pathname)) {
+      items.push(...FINANCE_ITEMS.map((item) => ({
+        title: item.title,
+        url: item.url,
+        icon: item.icon,
+        active: item.active(location.pathname),
+      })));
+    }
+
+    if (!items.length) {
+      items.push(...FACILITY_ITEMS.map((item) => ({
+        title: item.title,
+        url: item.url,
+        icon: item.icon,
+        active: item.active(location.pathname),
+      })));
+    }
+
+    return items;
+  })();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(24,31,54,0.98),rgba(17,23,42,0.98))] text-sidebar-foreground">

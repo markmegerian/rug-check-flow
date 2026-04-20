@@ -1,5 +1,5 @@
 import { Link, Navigate } from "react-router-dom";
-import { ArrowRight, Factory, ShieldCheck, Store, Truck } from "lucide-react";
+import { ArrowRight, Factory, FolderOpen, ShieldCheck, Store, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
@@ -9,9 +9,9 @@ import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
 const ROLE_REDIRECTS: Record<AppRole, string> = {
-  checkin_staff: "/ops",
+  checkin_staff: "/facility/checkin",
   driver: "/driver",
-  office: "/ops",
+  office: "/office/jobs",
   admin: "/admin",
 };
 
@@ -23,11 +23,32 @@ const SECTIONS: Array<{
   roles: AppRole[];
 }> = [
   {
-    to: "/ops",
+    to: "/facility/production",
     icon: Factory,
-    label: "Operations",
-    description: "Floor ops, clients, invoices, production & more",
+    label: "Facility",
+    description: "Check-in, production, delivery prep, and facility handoff",
     roles: ["admin", "office", "checkin_staff"],
+  },
+  {
+    to: "/office/jobs",
+    icon: FolderOpen,
+    label: "Office",
+    description: "Clients, jobs, estimates, inbox, and office coordination",
+    roles: ["admin", "office", "checkin_staff"],
+  },
+  {
+    to: "/logistics/routes",
+    icon: Truck,
+    label: "Logistics",
+    description: "Deliveries, routes, proofs, and driver execution",
+    roles: ["admin", "office", "checkin_staff", "driver"],
+  },
+  {
+    to: "/finance/invoices",
+    icon: ShieldCheck,
+    label: "Finance",
+    description: "Invoices, payments, credits, and collections",
+    roles: ["admin", "office"],
   },
   {
     to: "/portal",

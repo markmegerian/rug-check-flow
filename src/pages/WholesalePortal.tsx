@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 const PortalRugsTab = lazy(() => import("@/components/portal/PortalRugsTab"));
 const PortalPickupsTab = lazy(() => import("@/components/portal/PortalPickupsTab"));
 const PortalInvoicesTab = lazy(() => import("@/components/portal/PortalInvoicesTab"));
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePortalClient } from "@/hooks/usePortalClient";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,13 +19,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "messages" | "prices";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "rugs", label: "Rugs" },
-  { key: "pickups", label: "Pickups" },
-  { key: "estimates", label: "Estimates" },
-  { key: "invoices", label: "Invoices" },
-  { key: "messages", label: "Messages" },
-  { key: "prices", label: "Prices" },
+const TABS: { key: Tab; label: string; path: string }[] = [
+  { key: "rugs", label: "Rugs", path: "/portal/rugs" },
+  { key: "pickups", label: "Pickups", path: "/portal/pickups" },
+  { key: "estimates", label: "Estimates", path: "/portal/estimates" },
+  { key: "invoices", label: "Invoices", path: "/portal/invoices" },
+  { key: "messages", label: "Messages", path: "/portal/messages" },
+  { key: "prices", label: "Prices", path: "/portal/prices" },
 ];
 
 export default function WholesalePortal() {
@@ -40,10 +40,16 @@ export default function WholesalePortal() {
     markPasswordChangeComplete,
     mustChangePassword: portalMustChangePassword,
   } = usePortalClient();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const requestedThreadId = searchParams.get("threadId");
-  const [activeTab, setActiveTab] = useState<Tab>(requestedTab && TABS.some((tab) => tab.key === requestedTab) ? requestedTab as Tab : "rugs");
+  const routeTab = useMemo(
+    () => TABS.find((tab) => location.pathname === tab.path)?.key ?? null,
+    [location.pathname],
+  );
+  const [activeTab, setActiveTab] = useState<Tab>(routeTab ?? (requestedTab && TABS.some((tab) => tab.key === requestedTab) ? requestedTab as Tab : "rugs"));
   const [mountedTabs, setMountedTabs] = useState<Record<Tab, boolean>>({ rugs: true, pickups: false, estimates: false, invoices: false, messages: false, prices: false });
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -56,10 +62,14 @@ export default function WholesalePortal() {
   const activeTabLabel = TABS.find((tab) => tab.key === activeTab)?.label ?? "Rugs";
 
   useEffect(() => {
+    if (routeTab) {
+      setActiveTab((current) => current === routeTab ? current : routeTab);
+      return;
+    }
     if (requestedTab && TABS.some((tab) => tab.key === requestedTab)) {
       setActiveTab((current) => current === requestedTab ? current : requestedTab as Tab);
     }
-  }, [requestedTab]);
+  }, [requestedTab, routeTab]);
 
   useEffect(() => {
     setMountedTabs((current) => current[activeTab] ? current : { ...current, [activeTab]: true });
@@ -68,10 +78,12 @@ export default function WholesalePortal() {
 
   const changeTab = (nextTab: Tab) => {
     setActiveTab(nextTab);
-    if (searchParams.get("tab") === nextTab) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", nextTab);
-    setSearchParams(next, { replace: true });
+    const target = TABS.find((tab) => tab.key === nextTab)?.path ?? "/portal/rugs";
+    const next = new URLSearchParams();
+    if (nextTab === "messages" && requestedThreadId) {
+      next.set("threadId", requestedThreadId);
+    }
+    navigate(`${target}${next.toString() ? `?${next.toString()}` : ""}`);
   };
 
   const openOnboarding = () => {
