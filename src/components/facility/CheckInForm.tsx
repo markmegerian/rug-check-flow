@@ -663,32 +663,32 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       </div>
 
       <div className="border-t border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,248,255,0.88))] px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="text-sm text-muted-foreground">
             {step === "details" && "Capture core rug details first"}
             {step === "photos" && `${photos.length} photo${photos.length !== 1 ? "s" : ""} added`}
             {step === "decision" && (washDecision === "standard" ? "Standard wash fast path" : "Continue to custom services")}
             {step === "services" && (hasSelectedServices ? `${selectedServices.length} service${selectedServices.length !== 1 ? "s" : ""} selected` : "Select at least one service")}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {step !== "details" && (
-              <Button type="button" variant="outline" onClick={() => setStep(step === "photos" ? "details" : step === "decision" ? "photos" : "decision")}>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setStep(step === "photos" ? "details" : step === "decision" ? "photos" : "decision")}>
                 Back
               </Button>
             )}
             {step === "details" && (
-              <Button type="button" onClick={() => void handleAdvanceFromDetails()}>Continue to Photos</Button>
+              <Button type="button" className="rounded-xl" onClick={() => void handleAdvanceFromDetails()}>Continue to Photos</Button>
             )}
             {step === "photos" && (
-              <Button type="button" onClick={handleAdvanceFromPhotos}>Continue</Button>
+              <Button type="button" className="rounded-xl" onClick={handleAdvanceFromPhotos}>Continue</Button>
             )}
             {step === "decision" && (
-              <Button type="button" onClick={() => void handleDecisionContinue()}>
+              <Button type="button" className="rounded-xl" onClick={() => void handleDecisionContinue()}>
                 {washDecision === "standard" ? (isEditing ? "Update" : "Complete Check-In") : "Continue to Services"}
               </Button>
             )}
             {step === "services" && (
-              <Button type="button" onClick={() => void submitCheckIn(selectedServices)}>
+              <Button type="button" className="rounded-xl" onClick={() => void submitCheckIn(selectedServices)}>
                 {isEditing ? "Update" : "Complete Check-In"}
               </Button>
             )}

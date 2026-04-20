@@ -277,7 +277,7 @@ export function CheckInLayout() {
                   setEditingEntryId(null);
                   setMobilePanel("form");
                 }}
-                className="absolute bottom-4 right-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_22px_40px_-20px_rgba(53,86,97,0.7)] transition-colors hover:bg-primary/90"
+                className="absolute bottom-4 right-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_22px_40px_-20px_rgba(59,108,235,0.32)] transition-colors hover:bg-primary/90"
               >
                 <ClipboardList className="h-5 w-5" />
               </button>

@@ -164,15 +164,18 @@ export function CheckInPhotoSection({ photos, onPhotosChange, maxPhotos = 20 }: 
   };
 
   return (
-    <div className="space-y-2 min-h-[12.5rem]">
-      <Label>
-        Photos{" "}
-        <span className="text-muted-foreground font-normal">
-          ({photos.length}/{maxPhotos} — min 1)
-        </span>
-      </Label>
-      <div className="rounded-md border border-border bg-background/80 p-3 min-h-[10rem]">
-        <div className="flex flex-wrap items-start gap-2">
+    <div className="min-h-[12.5rem] space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label>
+          Photos{" "}
+          <span className="font-normal text-muted-foreground">
+            ({photos.length}/{maxPhotos} — min 1)
+          </span>
+        </Label>
+        <p className="text-xs text-muted-foreground">Use upload or camera, then confirm at least one clear rug photo.</p>
+      </div>
+      <div className="min-h-[10rem] rounded-[1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,248,255,0.9))] p-4 shadow-[0_16px_35px_-28px_rgba(51,84,181,0.12)]">
+        <div className="flex flex-wrap items-start gap-3">
           {photos.map((photo, i) => (
             <div
               key={i}
@@ -197,12 +200,12 @@ export function CheckInPhotoSection({ photos, onPhotosChange, maxPhotos = 20 }: 
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-16 h-16 md:w-20 md:h-20 rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors shrink-0"
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[0.9rem] border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition-colors hover:border-primary hover:text-primary md:h-20 md:w-20"
                 title="Upload photo"
               >
                 <Camera className="h-5 w-5" />
               </button>
-              <Button type="button" variant="outline" size="sm" className="h-8 min-w-[8.5rem]" onClick={() => void openCameraCapture()} disabled={cameraLoading || !cameraSupported}>
+              <Button type="button" variant="outline" size="sm" className="h-9 min-w-[9rem] rounded-xl" onClick={() => void openCameraCapture()} disabled={cameraLoading || !cameraSupported}>
                 {cameraLoading ? "Opening camera…" : "Use Camera"}
               </Button>
             </>
