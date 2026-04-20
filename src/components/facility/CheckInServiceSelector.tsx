@@ -285,7 +285,7 @@ export function CheckInServiceSelector({
         <p className="text-sm text-muted-foreground italic">Loading services…</p>
       )}
 
-      <div className="max-h-[40vh] overflow-y-auto border border-border rounded-md">
+      <div className="min-h-[20rem] max-h-[44vh] overflow-y-auto border border-border rounded-md bg-background/80">
         {categories.map((cat, catIdx) => (
           <ServiceCategoryGroup
             key={cat}

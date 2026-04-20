@@ -90,6 +90,7 @@ Status legend:
 - [x] Stabilize loading/empty/error footprints on high-traffic screens
 - [x] Stabilize button shells and dynamic badge/count spacing
 - [~] Stabilize dialogs, sheets, and side panels
+  - [x] Stabilize Check In photo and service surfaces with reserved space so heavy sections stop changing footprint during interaction
 
 ## Phase 6. Verification and rollout
 - [x] Build passes
