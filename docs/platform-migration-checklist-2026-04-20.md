@@ -64,6 +64,8 @@ Status legend:
   - [x] Wire the fast path to reuse the existing DB `Standard Wash` service through the current `check-in-workflow` path
   - [~] Profile and cut any remaining interaction lag in form editing and submission path
     - [x] Tighten walk-in client search affordances so the lightweight intake path gives clearer loading/empty states without extra UI jumpiness
+    - [x] Replace the monolithic Check In form with a staged intake flow that isolates details, photos, cleaning decision, and custom services
+    - [x] Keep the standard-clean path free of mounted custom-services UI unless the operator explicitly chooses additional services
 - [ ] Remove broad `select(*)` hot-path reads where not required
 - [~] Review services catalog, approval behavior, and pricing calculation rules end to end
   - [ ] Audit live services list for names, categories, active state, units, base/preferred/vip prices, sort order, and `requires_estimate`
