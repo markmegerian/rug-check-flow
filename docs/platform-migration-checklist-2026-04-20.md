@@ -10,6 +10,9 @@ Status legend:
 - Architecture changes should prefer route/domain separation over tab accretion.
 - Performance changes should prefer backend-shaped read models over browser aggregation.
 - UI changes must preserve layout stability and avoid micro-shifts.
+- Live rug and workflow data are protected. Changes must preserve existing records, IDs, relationships, and workflow history.
+- Prefer additive migrations, views, RPCs, redirects, and side-by-side verification over risky rewrites.
+- No destructive schema/data changes without explicit review, rollback planning, and validation.
 - Each meaningful implementation slice should update this checklist in the same change set.
 - Commit means commit and push to GitHub unless explicitly stated otherwise.
 
@@ -42,6 +45,13 @@ Status legend:
 - [ ] Review query plans for Jobs, Inbox, Delivery Prep, Driver Stops
 - [ ] Add any additional composite/partial indexes from plan results
 - [ ] Evaluate view/RPC/materialization candidates for operational summaries
+
+## Phase 3A. Data safety and migration discipline
+- [ ] Maintain additive-first migration strategy
+- [ ] Verify no existing rug, estimate, invoice, pickup, or delivery relationships are changed unintentionally
+- [ ] Add side-by-side validation for any new read model before cutover
+- [ ] Define rollback path for any migration that affects production data behavior
+- [ ] Capture pre/post validation notes for changes that touch live workflow data
 
 ## Phase 4. Polling and refresh discipline
 - [ ] Restrict polling to active visible routes
