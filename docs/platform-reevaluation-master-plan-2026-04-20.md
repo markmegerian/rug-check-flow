@@ -213,6 +213,20 @@ Current headline judgment:
 - PDF artifact path: audit first, then repair
 - Company / auth / RLS model: audit first
 
+## Backend truth audit progress
+
+First concrete audit pass completed in:
+
+- `docs/backend-truth-audit-pass-01-2026-04-20.md`
+
+Headline findings from pass 01:
+
+- dual estimate models appear to coexist between generated schema and active workflow assumptions
+- service truth appears fragmented across enablement, pricing, and category logic
+- invoice creation is tightly coupled to operational `rug_services` snapshots and category heuristics
+- `communication_events` and threaded messaging have an unclear ownership boundary
+- delivery/pickup structures currently look more coherent than estimates/invoices
+
 ## What should not happen
 
 - do not declare the platform a clean greenfield rewrite until salvage value is disproven

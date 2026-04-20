@@ -34,6 +34,8 @@ They should be updated only when audit evidence changes the underlying conclusio
 ### 2. Services / pricing / approval model
 **Classification:** Audit first, then repair
 
+**Audit status:** Pass 01 confirms this area is genuinely dangerous, not just uncertain.
+
 **Why:**
 - live catalog truth and frontend assumptions have already diverged
 - approval behavior was found to be brittle on category/name assumptions
@@ -45,6 +47,8 @@ They should be updated only when audit evidence changes the underlying conclusio
 
 ### 3. Estimates workflow
 **Classification:** Rebuild
+
+**Audit status:** Pass 01 found evidence of dual estimate models between generated schema and active workflow logic.
 
 **Why:**
 - current lifecycle is not aligned to the desired business process
@@ -58,6 +62,8 @@ They should be updated only when audit evidence changes the underlying conclusio
 
 ### 4. Invoices workflow
 **Classification:** Audit first, then repair or rebuild depending on backend truth
+
+**Audit status:** Pass 01 confirmed the current invoice path is coupled directly to `rug_services` snapshots and pricing/category heuristics.
 
 **Why:**
 - invoice PDF/download path is currently not reliable enough
