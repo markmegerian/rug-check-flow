@@ -246,7 +246,7 @@ export function CheckInLayout() {
         <div className="flex-1 min-h-0 overflow-hidden">
           {mobilePanel === "form" && (
             <CheckInForm
-              key={`mobile-${formResetKey}-${selectedRugId ?? "blank"}-${editingEntryId ?? "new"}`}
+              key={`mobile-${formResetKey}`}
               selectedRug={selectedRug}
               editingEntry={editingEntry}
               onCheckInComplete={handleCheckInComplete}
@@ -291,7 +291,7 @@ export function CheckInLayout() {
       </Suspense>
       <div className="relative min-w-0">
         <CheckInForm
-          key={`desktop-${formResetKey}-${selectedRugId ?? "blank"}-${editingEntryId ?? "new"}`}
+          key={`desktop-${formResetKey}`}
           selectedRug={selectedRug}
           editingEntry={editingEntry}
           onCheckInComplete={handleCheckInComplete}

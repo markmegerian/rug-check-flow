@@ -56,6 +56,7 @@ Status legend:
   - [x] Reduce service selector rerender pressure by memoizing category groups and shared pricing lookups
   - [x] Simplify Check In UI by removing always-on cost displays and keeping custom-price entry only where needed
   - [x] Remove client lookup cache state churn and derive submit totals only at submit time
+  - [x] Stop force-remounting Check In form when switching selected queue items
   - [ ] Profile and cut any remaining interaction lag in form editing and submission path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 
