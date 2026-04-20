@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
@@ -233,23 +233,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     }
   }, [editingEntry, form, resolveClientLookup]);
 
-  const watchedRugNumber = form.watch("rugNumber");
-  const watchedClient = form.watch("clientName");
-  const watchedLength = form.watch("length");
-  const watchedWidth = form.watch("width");
-  const watchedServices = form.watch("selectedServices");
+  const watchedRugNumber = useWatch({ control: form.control, name: "rugNumber" });
+  const watchedClient = useWatch({ control: form.control, name: "clientName" });
+  const watchedLength = useWatch({ control: form.control, name: "length" });
+  const watchedWidth = useWatch({ control: form.control, name: "width" });
+  const watchedServices = useWatch({ control: form.control, name: "selectedServices" }) ?? [];
 
-  const sqft = useMemo(() => {
-    const l = Number(watchedLength) || 0;
-    const w = Number(watchedWidth) || 0;
-    return l * w;
+  const dimensions = useMemo(() => {
+    const length = Number(watchedLength) || 0;
+    const width = Number(watchedWidth) || 0;
+    const sqftValue = length * width;
+    const linearFtValue = length > 0 && width > 0 ? 2 * (length + width) : 0;
+    return { length, width, sqft: sqftValue, linearFt: linearFtValue };
   }, [watchedLength, watchedWidth]);
 
-  const linearFt = useMemo(() => {
-    const l = Number(watchedLength) || 0;
-    const w = Number(watchedWidth) || 0;
-    return 2 * (l + w);
-  }, [watchedLength, watchedWidth]);
+  const sqft = dimensions.sqft;
+  const linearFt = dimensions.linearFt;
 
   const getUnitPrice = useCallback(
     (svc: DbService): number => {
@@ -262,23 +261,36 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     [clientTier]
   );
 
-  const getLineTotal = useCallback(
-    (svc: DbService): number => {
+  const servicePricing = useMemo(() => {
+    const pricing = new Map<string, { unitPrice: number; rawTotal: number; adjustedTotal: number }>();
+
+    for (const svc of dbServices) {
       const unitPrice = getUnitPrice(svc);
       let rawTotal = unitPrice;
-      if (svc.unit === "per sqft") rawTotal = unitPrice * sqft;
-      else if (svc.unit === "per linear ft") {
+
+      if (svc.unit === "per sqft") {
+        rawTotal = unitPrice * sqft;
+      } else if (svc.unit === "per linear ft") {
         const edges = edgeSelections[svc.id] ?? [];
-        const l = Number(watchedLength) || 0;
-        const w = Number(watchedWidth) || 0;
-        rawTotal = unitPrice * calcSelectedLinearFt(edges, l, w);
+        rawTotal = unitPrice * calcSelectedLinearFt(edges, dimensions.length, dimensions.width);
       } else if (svc.unit === "flat") {
         const manual = parseFloat(flatPrices[svc.id] ?? "");
-        rawTotal = isNaN(manual) ? 0 : manual;
+        rawTotal = Number.isNaN(manual) ? 0 : manual;
       }
-      return applyCleaningServiceMinimum(rawTotal, svc.category);
-    },
-    [getUnitPrice, sqft, edgeSelections, flatPrices, watchedLength, watchedWidth]
+
+      pricing.set(svc.id, {
+        unitPrice,
+        rawTotal,
+        adjustedTotal: applyCleaningServiceMinimum(rawTotal, svc.category),
+      });
+    }
+
+    return pricing;
+  }, [dbServices, getUnitPrice, sqft, edgeSelections, flatPrices, dimensions.length, dimensions.width]);
+
+  const getLineTotal = useCallback(
+    (svc: DbService): number => servicePricing.get(svc.id)?.adjustedTotal ?? 0,
+    [servicePricing]
   );
 
   const serviceById = useMemo(() => {
@@ -288,35 +300,19 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   }, [dbServices]);
 
   const totalPrice = useMemo(() => {
-    return watchedServices.reduce((sum, id) => {
-      const svc = serviceById.get(id);
-      return svc ? sum + getLineTotal(svc) : sum;
-    }, 0);
-  }, [watchedServices, serviceById, getLineTotal]);
+    return watchedServices.reduce((sum, id) => sum + (servicePricing.get(id)?.adjustedTotal ?? 0), 0);
+  }, [watchedServices, servicePricing]);
 
   const cleaningMinimumAdjustments = useMemo(() => {
     return watchedServices
       .map((id) => {
         const svc = serviceById.get(id);
-        if (!svc || !isCleaningCategory(svc.category)) return null;
-        const unitPrice = getUnitPrice(svc);
-        let rawTotal = unitPrice;
-        if (svc.unit === "per sqft") rawTotal = unitPrice * sqft;
-        else if (svc.unit === "per linear ft") {
-          const edges = edgeSelections[svc.id] ?? [];
-          const l = Number(watchedLength) || 0;
-          const w = Number(watchedWidth) || 0;
-          rawTotal = unitPrice * calcSelectedLinearFt(edges, l, w);
-        } else if (svc.unit === "flat") {
-          const manual = parseFloat(flatPrices[svc.id] ?? "");
-          rawTotal = isNaN(manual) ? 0 : manual;
-        }
-        const adjustedTotal = applyCleaningServiceMinimum(rawTotal, svc.category);
-        if (adjustedTotal <= rawTotal) return null;
-        return { serviceName: svc.name, rawTotal, adjustedTotal };
+        const pricing = servicePricing.get(id);
+        if (!svc || !pricing || !isCleaningCategory(svc.category) || pricing.adjustedTotal <= pricing.rawTotal) return null;
+        return { serviceName: svc.name, rawTotal: pricing.rawTotal, adjustedTotal: pricing.adjustedTotal };
       })
       .filter(Boolean) as Array<{ serviceName: string; rawTotal: number; adjustedTotal: number }>;
-  }, [watchedServices, serviceById, getUnitPrice, sqft, edgeSelections, watchedLength, watchedWidth, flatPrices]);
+  }, [watchedServices, serviceById, servicePricing]);
 
   const toggleService = (serviceId: string) => {
     const current = form.getValues("selectedServices");
@@ -339,8 +335,9 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       .map((id) => {
         const svc = serviceById.get(id);
         if (!svc) return null;
-        const lt = getLineTotal(svc);
-        const rawUnitPrice = svc.unit === "flat" ? lt : getUnitPrice(svc);
+        const pricing = servicePricing.get(id);
+        const lt = pricing?.adjustedTotal ?? 0;
+        const rawUnitPrice = svc.unit === "flat" ? lt : (pricing?.unitPrice ?? getUnitPrice(svc));
         const up = isCleaningCategory(svc.category) ? lt : rawUnitPrice;
         const edges = svc.unit === "per linear ft" ? (edgeSelections[id] ?? []) : [];
         return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
@@ -586,8 +583,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
               setEdgeSelections={setEdgeSelections}
               flatPrices={flatPrices}
               setFlatPrices={setFlatPrices}
-              watchedLength={watchedLength}
-              watchedWidth={watchedWidth}
+              watchedLength={dimensions.length}
+              watchedWidth={dimensions.width}
               tierLabel={tierLabel}
               error={form.formState.errors.selectedServices?.message}
             />
@@ -609,7 +606,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 {watchedServices.map((id) => {
                   const svc = serviceById.get(id);
                   if (!svc) return null;
-                  const lt = getLineTotal(svc);
+                  const lt = servicePricing.get(id)?.adjustedTotal ?? 0;
                   return (
                     <div key={id} className="flex items-center justify-between text-xs text-muted-foreground">
                       <span className="truncate mr-2">{svc.name}</span>

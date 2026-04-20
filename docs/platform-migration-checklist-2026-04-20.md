@@ -50,6 +50,10 @@ Status legend:
   - [ ] Validate live behavior for empty routes and route-day naming consistency, then remove any remaining browser-owned sync assumptions
 - [ ] Split client hooks into summary/detail patterns
 - [ ] Split rug hooks into summary/detail patterns
+- [~] Improve Check In responsiveness on the live hot path
+  - [x] Cut pending pickup queue loading from nested browser joins to backend snapshot RPC
+  - [x] Reduce Check In form pricing recomputation churn by centralizing derived pricing state
+  - [ ] Profile and cut remaining interaction lag in service selection / form editing path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 
 ## Phase 3. Database performance hardening
@@ -87,5 +91,5 @@ Status legend:
 ---
 
 ## Current focus
-- Phase 1 route/domain split foundation
-- First implementation target: route split scaffolding with compatibility redirects
+- Phase 2 read-model cleanup and Check In responsiveness
+- Tonight's priority: make live Check In feel materially faster and less painful to use
