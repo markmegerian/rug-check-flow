@@ -16,7 +16,10 @@ export interface DbService {
   category: string;
 }
 
-const CATEGORY_ORDER = ["Cleaning", "Repair", "Protection", "Specialty"];
+const CATEGORY_ORDER = ["Cleaning", "Repair", "Specialty", "Specialty Repair", "Other"];
+
+const REPAIR_KEYWORDS = ["fringe", "bind", "binding", "overcast", "zenj", "pb", "mb", "leather", "glue"];
+const SPECIALTY_REPAIR_KEYWORDS = ["stain removal", "color run", "patch", "reweave", "latex patch", "color restoration", "repair"];
 
 const PRESETS = [
   { label: "Basic Clean", names: ["Standard Wash", "Standard Cleaning", "Hand Cleaning", "Hand Cleaning (Standard Cleaning)", "Basic Clean", "Regular Wash"] },
@@ -28,7 +31,6 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   category,
   services,
   isFirst,
-  watchedServices,
   serviceIds,
   getLineTotal,
   toggleService,
@@ -42,7 +44,6 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   category: string;
   services: DbService[];
   isFirst: boolean;
-  watchedServices: string[];
   serviceIds: Set<string>;
   getLineTotal: (serviceId: string) => number;
   toggleService: (id: string) => void;
@@ -61,7 +62,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted transition-colors text-left"
+        className="flex w-full items-center justify-between bg-muted/50 px-3 py-2 text-left transition-colors hover:bg-muted"
       >
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {category}
@@ -107,9 +108,14 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
                     checked={checked}
                     onCheckedChange={() => toggleService(svc.id)}
                   />
-                  <span className="flex-1 text-sm truncate">{svc.name}</span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm">{svc.name}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {isLinear ? "per linear foot" : isFlat ? "price per rug" : svc.unit === "per sqft" ? "per square foot" : svc.unit}
+                    </span>
+                  </div>
                   {isFlat && !checked && (
-                    <span className="text-xs text-muted-foreground shrink-0">Custom price</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">Custom price</span>
                   )}
                 </label>
                 {checked && isLinear && l > 0 && w > 0 && (
@@ -189,9 +195,21 @@ export function CheckInServiceSelector({
       ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
       : dbServices;
 
+    const categorizeService = (svc: DbService) => {
+      const category = (svc.category ?? "").trim().toLowerCase();
+      const name = svc.name.trim().toLowerCase();
+      const unit = (svc.unit ?? "").trim().toLowerCase();
+
+      if (category === "cleaning") return "Cleaning";
+      if (unit === "per linear ft" || REPAIR_KEYWORDS.some((keyword) => name.includes(keyword))) return "Repair";
+      if (unit === "flat" && SPECIALTY_REPAIR_KEYWORDS.some((keyword) => name.includes(keyword))) return "Specialty Repair";
+      if (category === "specialty" || name.includes("moth") || name.includes("padding") || name.includes("sheering") || name.includes("blocking")) return "Specialty";
+      return "Other";
+    };
+
     const nextGrouped: Record<string, DbService[]> = {};
     filteredServices.forEach((svc) => {
-      const cat = svc.category || "Other";
+      const cat = categorizeService(svc);
       if (!nextGrouped[cat]) nextGrouped[cat] = [];
       nextGrouped[cat].push(svc);
     });
@@ -223,6 +241,15 @@ export function CheckInServiceSelector({
             {tierLabel} pricing
           </span>
         )}
+      </div>
+
+      <div className="rounded-[1rem] border border-border/70 bg-white/70 px-3 py-3 text-xs text-muted-foreground">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div><span className="font-medium text-foreground">Cleaning</span>, priced per square foot</div>
+          <div><span className="font-medium text-foreground">Repairs</span>, priced per linear foot</div>
+          <div><span className="font-medium text-foreground">Specialty</span>, priced per square foot</div>
+          <div><span className="font-medium text-foreground">Specialty repairs</span>, custom price per rug</div>
+        </div>
       </div>
 
       {dbServices.length > 0 && (
@@ -281,7 +308,6 @@ export function CheckInServiceSelector({
             category={cat}
             services={grouped[cat]}
             isFirst={catIdx === 0}
-            watchedServices={watchedServices}
             serviceIds={serviceIds}
             getLineTotal={getLineTotal}
             toggleService={toggleService}
