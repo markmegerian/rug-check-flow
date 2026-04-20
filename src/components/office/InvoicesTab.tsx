@@ -222,7 +222,7 @@ export function InvoicesTab() {
 
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
-      const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
+      const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, forceRegenerate: true });
       toast({ title: "Invoice download started", description: `${invoice.invoice_number}.pdf (${artifact.bucket}/${artifact.path})` });
     } catch (error) {
       toast({ title: "Download failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });

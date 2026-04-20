@@ -295,6 +295,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
       const artifact = await downloadInvoicePdf({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
+        forceRegenerate: true,
       });
       toast({
         title: "Invoice download started",
