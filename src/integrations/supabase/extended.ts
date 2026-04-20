@@ -383,6 +383,26 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       unread: boolean;
     }[];
   };
+  get_delivery_prep_snapshot: {
+    Args: { p_target_date: string };
+    Returns: {
+      delivery_list_id: string;
+      route_day: string;
+      target_date: string;
+      list_status: Database["public"]["Enums"]["delivery_list_status"];
+      client_id: string;
+      client_name: string;
+      client_address: string | null;
+      rug_id: string;
+      rug_tag: string;
+      rug_description: string | null;
+      rug_status: string;
+      size_length: number | null;
+      size_width: number | null;
+      confirmed_for_delivery: boolean;
+      loaded_on_truck: boolean;
+    }[];
+  };
   mark_portal_onboarding_complete: {
     Args: Record<string, never>;
     Returns: boolean;

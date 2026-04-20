@@ -44,7 +44,10 @@ Status legend:
   - [x] Add additive backend thread summary RPC for office and portal thread lists
   - [x] Cut Inbox and Portal thread lists over to backend thread summaries
   - [ ] Validate thread-summary behavior under live messaging activity and remove any remaining nested thread-list reads
-- [ ] Replace Delivery Prep browser synthesis with selected-date backend snapshot
+- [~] Replace Delivery Prep browser synthesis with selected-date backend snapshot
+  - [x] Add additive backend snapshot RPC that owns selected-date delivery-list sync
+  - [x] Cut Delivery Prep tab over from broad client/rug reads to backend snapshot payload
+  - [ ] Validate live behavior for empty routes and route-day naming consistency, then remove any remaining browser-owned sync assumptions
 - [ ] Split client hooks into summary/detail patterns
 - [ ] Split rug hooks into summary/detail patterns
 - [ ] Remove broad `select(*)` hot-path reads where not required

@@ -15,7 +15,7 @@ import { RugDetailSheet } from "@/components/facility/RugDetailSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DAYS_OF_WEEK } from "@/lib/constants";
-import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES } from "@/lib/delivery-lists";
+import { fetchDeliveryPrepSnapshot, type DeliveryPrepSnapshotRow } from "@/lib/delivery-prep-snapshot";
 
 type DeliveryItem = {
   id: string;
@@ -50,7 +50,6 @@ type ClientInfo = {
   address: string;
 };
 
-/** Build upcoming route date options for the next 14 days. */
 function buildRouteDateOptions(): Array<{ value: string; label: string; dayName: string }> {
   const options: Array<{ value: string; label: string; dayName: string }> = [];
   const today = new Date();
@@ -63,6 +62,56 @@ function buildRouteDateOptions(): Array<{ value: string; label: string; dayName:
     options.push({ value: dateStr, label, dayName });
   }
   return options;
+}
+
+function mapSnapshotToState(rows: DeliveryPrepSnapshotRow[]) {
+  const first = rows[0] ?? null;
+  const deliveryList = first ? {
+    id: first.delivery_list_id,
+    route_day: first.route_day,
+    target_date: first.target_date,
+    status: first.list_status,
+  } satisfies DeliveryList : null;
+
+  const rugMap = Object.fromEntries(rows.map((row) => [row.rug_id, {
+    id: row.rug_id,
+    tag: row.rug_tag,
+    description: row.rug_description ?? "",
+    status: row.rug_status,
+    size_length: row.size_length,
+    size_width: row.size_width,
+    client_id: row.client_id,
+  } satisfies RugInfo]));
+
+  const clientMap = Object.fromEntries(
+    rows.reduce<Array<[string, ClientInfo]>>((acc, row) => {
+      if (acc.some(([clientId]) => clientId === row.client_id)) return acc;
+      acc.push([row.client_id, {
+        id: row.client_id,
+        name: row.client_name,
+        route_day: row.route_day,
+        address: row.client_address ?? "",
+      }]);
+      return acc;
+    }, []),
+  );
+
+  const items = rows.map((row) => ({
+    id: `${row.delivery_list_id}:${row.rug_id}`,
+    delivery_list_id: row.delivery_list_id,
+    rug_id: row.rug_id,
+    client_id: row.client_id,
+    confirmed_for_delivery: row.confirmed_for_delivery,
+    loaded_on_truck: row.loaded_on_truck,
+  } satisfies DeliveryItem));
+
+  return {
+    deliveryList,
+    items,
+    allRugs: Object.values(rugMap),
+    rugMap,
+    clientMap,
+  };
 }
 
 export function DeliveryPrepTab() {
@@ -88,147 +137,40 @@ export function DeliveryPrepTab() {
   );
   const selectedDayName = selectedOption?.dayName ?? "";
 
-  // Fetch ALL undelivered rugs from wholesale clients (no date filter)
-  const fetchAllRugs = useCallback(async () => {
+  const loadSnapshot = useCallback(async (date: string) => {
     setLoading(true);
     try {
-      const [clientsResult, rugsResult] = await Promise.all([
-        supabase
-          .from("clients")
-          .select("id, name, route_day, address")
-          .not("route_day", "is", null),
-        supabase
-          .from("rugs")
-          .select("id, tag, description, status, size_length, size_width, client_id")
-          .in("status", ["checked_in", "in_production", "ready"])
-          .not("client_id", "is", null)
-          .order("tag"),
-      ]);
-
-      if (clientsResult.error) {
-        toast({ title: "Failed to load clients", description: clientsResult.error.message, variant: "destructive" });
-        return;
-      }
-
-      if (rugsResult.error) {
-        toast({ title: "Failed to load rugs", description: rugsResult.error.message, variant: "destructive" });
-        return;
-      }
-
-      const clients = (clientsResult.data ?? []) as ClientInfo[];
-      const clientMapLocal = Object.fromEntries(clients.map((client) => [client.id, client])) as Record<string, ClientInfo>;
-      setClientMap(clientMapLocal);
-
-      const eligibleRugs = (rugsResult.data ?? []) as RugInfo[];
-      setAllRugs(eligibleRugs);
-      setRugMap(Object.fromEntries(eligibleRugs.map((rug) => [rug.id, rug])) as Record<string, RugInfo>);
+      const rows = await fetchDeliveryPrepSnapshot(date);
+      const next = mapSnapshotToState(rows);
+      setDeliveryList(next.deliveryList);
+      setItems(next.items);
+      setAllRugs(next.allRugs);
+      setRugMap(next.rugMap);
+      setClientMap(next.clientMap);
     } catch (error) {
       console.error("Failed to fetch delivery prep data:", error);
-      toast({ title: "Failed to load data", description: "An unexpected error occurred", variant: "destructive" });
+      toast({ title: "Failed to load data", description: error instanceof Error ? error.message : "An unexpected error occurred", variant: "destructive" });
+      setItems([]);
+      setAllRugs([]);
+      setRugMap({});
+      setClientMap({});
+      setDeliveryList(null);
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
-  // Fetch or create delivery list for the selected date, and sync items
-  const fetchDeliveryListForDate = useCallback(async (date: string, dayName: string) => {
-    if (!dayName) return;
-
-    // Find clients on this route day
-    const clientIds = Object.values(clientMap)
-      .filter((c) => c.route_day === dayName)
-      .map((c) => c.id);
-
-    if (clientIds.length === 0) {
-      setDeliveryList(null);
-      setItems([]);
-      return;
-    }
-
-    // Find or create delivery list for this date so the prep page exists ahead of time,
-    // even before every rug is actually ready.
-    const { data: listsData } = await supabase
-      .from("delivery_lists")
-      .select("id, route_day, target_date, status")
-      .eq("target_date", date)
-      .eq("route_day", dayName)
-      .in("status", ["compiling", "confirmed"])
-      .limit(1);
-
-    let list: DeliveryList;
-
-    if (listsData && listsData.length > 0) {
-      list = listsData[0] as DeliveryList;
-    } else {
-      const { data: newList, error: createError } = await supabase
-        .from("delivery_lists")
-        .insert({ route_day: dayName, target_date: date })
-        .select("id, route_day, target_date, status")
-        .single();
-
-      if (createError || !newList) {
-        toast({ title: "Failed to create delivery list", description: createError?.message, variant: "destructive" });
-        return;
-      }
-      list = newList as DeliveryList;
-    }
-
-    setDeliveryList(list);
-
-    // Get currently delivery-eligible rugs for these clients.
-    const eligibleRugs = allRugs.filter(
-      (r) => r.client_id && clientIds.includes(r.client_id) && DELIVERY_LIST_ELIGIBLE_RUG_STATUSES.includes(r.status as (typeof DELIVERY_LIST_ELIGIBLE_RUG_STATUSES)[number]),
-    );
-
-    // Fetch existing items
-    const { data: existingItems } = await supabase
-      .from("delivery_list_items")
-      .select("*")
-      .eq("delivery_list_id", list.id);
-
-    const existingRugIds = new Set((existingItems ?? []).map((i: DeliveryItem) => i.rug_id));
-
-    // Add new eligible rugs
-    const newRugs = eligibleRugs.filter((r) => !existingRugIds.has(r.id));
-    if (newRugs.length > 0) {
-      const itemsToInsert = newRugs.map((r) => ({
-        delivery_list_id: list.id,
-        rug_id: r.id,
-        client_id: r.client_id,
-      }));
-      await supabase.from("delivery_list_items").upsert(itemsToInsert, { onConflict: "delivery_list_id,rug_id", ignoreDuplicates: true });
-    }
-
-    // Re-fetch all items for this list
-    const { data: allItems } = await supabase
-      .from("delivery_list_items")
-      .select("*")
-      .eq("delivery_list_id", list.id);
-
-    const typedItems = (allItems ?? []) as DeliveryItem[];
-    const eligibleRugIds = new Set(eligibleRugs.map((r) => r.id));
-    setItems(typedItems.filter((i) => eligibleRugIds.has(i.rug_id)));
-  }, [allRugs, clientMap, toast]);
-
   useEffect(() => {
-    void fetchAllRugs();
-  }, [fetchAllRugs]);
-
-  // When date changes or data loads, sync delivery list
-  useEffect(() => {
-    if (!loading && selectedDayName && Object.keys(clientMap).length > 0) {
-      void fetchDeliveryListForDate(selectedDate, selectedDayName);
-    }
-  }, [selectedDate, selectedDayName, loading, clientMap, allRugs, fetchDeliveryListForDate]);
+    void loadSnapshot(selectedDate);
+  }, [selectedDate, loadSnapshot]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchAllRugs();
+    await loadSnapshot(selectedDate);
     setRefreshing(false);
     toast({ title: "List refreshed" });
   };
 
-  // Filtered rugs for display: all rugs from clients on the selected route day
   const filteredRugs = useMemo(() => {
     if (!selectedDayName) return allRugs;
     const clientIds = new Set(
@@ -239,27 +181,27 @@ export function DeliveryPrepTab() {
     return allRugs.filter((r) => r.client_id && clientIds.has(r.client_id));
   }, [allRugs, clientMap, selectedDayName]);
 
-  // Build a lookup from rug_id to delivery item
   const itemByRugId = useMemo(() => {
     const map: Record<string, DeliveryItem> = {};
     items.forEach((i) => { map[i.rug_id] = i; });
     return map;
   }, [items]);
 
-  const toggleConfirmed = async (e: React.MouseEvent, itemId: string, value: boolean) => {
+  const toggleConfirmed = async (e: React.MouseEvent, rugId: string, value: boolean) => {
     e.stopPropagation();
-    const item = items.find((i) => i.id === itemId);
+    const item = items.find((i) => i.rug_id === rugId);
     if (!item) return;
 
     const rug = rugMap[item.rug_id];
     if (!rug) return;
 
-    setUpdating(itemId);
+    setUpdating(item.rug_id);
     try {
       const { error } = await supabase
         .from("delivery_list_items")
         .update({ confirmed_for_delivery: value })
-        .eq("id", itemId);
+        .eq("delivery_list_id", item.delivery_list_id)
+        .eq("rug_id", item.rug_id);
 
       if (error) {
         toast({ title: "Update failed", description: error.message, variant: "destructive" });
@@ -270,7 +212,8 @@ export function DeliveryPrepTab() {
         await supabase
           .from("delivery_list_items")
           .update({ confirmed_for_delivery: false })
-          .eq("id", itemId);
+          .eq("delivery_list_id", item.delivery_list_id)
+          .eq("rug_id", item.rug_id);
         toast({
           title: "Rug not ready",
           description: `${rug.tag} is still ${statusLabel(rug.status)} and cannot join the guaranteed list yet.`,
@@ -279,11 +222,8 @@ export function DeliveryPrepTab() {
         return;
       }
 
-      toast({
-        title: value ? "Rug confirmed" : "Confirmation removed",
-      });
-
-      setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, confirmed_for_delivery: value } : i)));
+      toast({ title: value ? "Rug confirmed" : "Confirmation removed" });
+      setItems((prev) => prev.map((i) => (i.rug_id === item.rug_id ? { ...i, confirmed_for_delivery: value } : i)));
     } finally {
       setUpdating(null);
     }
@@ -316,7 +256,6 @@ export function DeliveryPrepTab() {
     }
   };
 
-  // Group rugs by client
   const rugsByClient = useMemo(() => {
     const map: Record<string, RugInfo[]> = {};
     filteredRugs.forEach((rug) => {
@@ -447,11 +386,11 @@ export function DeliveryPrepTab() {
                                     if (!item) return;
                                     toggleConfirmed(
                                       { stopPropagation: () => {} } as React.MouseEvent,
-                                      item.id,
+                                      item.rug_id,
                                       !!v,
                                     );
                                   }}
-                                  disabled={!item || updating === item?.id || !isReady}
+                                  disabled={!item || updating === item?.rug_id || !isReady}
                                 />
                               </span>
                             </TooltipTrigger>
@@ -529,13 +468,7 @@ export function DeliveryPrepTab() {
       <RugDetailSheet
         rugId={selectedRugId}
         open={sheetOpen}
-        onOpenChange={(open) => {
-          setSheetOpen(open);
-          if (!open) {
-            setSelectedRugId(null);
-            fetchAllRugs();
-          }
-        }}
+        onOpenChange={setSheetOpen}
       />
     </div>
   );
