@@ -37,6 +37,7 @@ type InvoiceLookupRow = {
   due_at: string | null;
   created_at: string;
   pdf_storage_path: string | null;
+  company_id?: string | null;
 };
 
 type InvoiceItemLookupRow = {
@@ -405,7 +406,7 @@ Deno.serve(async (req) => {
       // ─── Invoice flow ───────────────────────────────────────────────────
       const { data: invoice, error: invoiceError } = await adminClient
         .from("invoices")
-        .select("id, client_id, invoice_number, total, issued_at, due_at, created_at, pdf_storage_path")
+        .select("id, client_id, invoice_number, total, issued_at, due_at, created_at, pdf_storage_path, company_id")
         .eq("id", invoiceId)
         .maybeSingle<InvoiceLookupRow>();
 
@@ -415,7 +416,7 @@ Deno.serve(async (req) => {
       documentNumber = invoice.invoice_number;
       documentDate = invoice.issued_at ?? invoice.created_at;
       clientId = invoice.client_id;
-      companyId = (invoice as InvoiceLookupRow & { company_id?: string | null }).company_id ?? null;
+      companyId = invoice.company_id ?? null;
       totalAmount = Number(invoice.total ?? 0);
       pdfStoragePath = invoice.pdf_storage_path;
 
