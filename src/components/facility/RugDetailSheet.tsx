@@ -405,8 +405,9 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="sm:max-w-xl w-[min(96vw,56rem)] overflow-hidden p-0">
+        <div className="flex h-full min-h-0 flex-col">
+        <SheetHeader className="shrink-0 border-b border-border px-6 py-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <SheetTitle className="flex items-center gap-2">
             {rug ? (
               <>
@@ -421,14 +422,15 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
           </SheetTitle>
         </SheetHeader>
 
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex min-h-[18rem] items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : !rug ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">Rug not found.</p>
+          <p className="min-h-[18rem] text-sm text-muted-foreground py-8 text-center">Rug not found.</p>
         ) : (
-          <div className="space-y-5 pt-4">
+          <div className="space-y-5">
             {/* Client */}
             {rug.client_name && (
               <p className="text-sm text-muted-foreground">{rug.client_name}</p>
@@ -436,11 +438,13 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
 
             {/* Photo */}
             {rug.photo_url && (
-              <img
-                src={rug.photo_url}
-                alt={`Rug ${rug.tag}`}
-                className="w-full rounded-lg border object-cover max-h-48"
-              />
+              <div className="min-h-[12rem] rounded-lg border bg-muted/20 overflow-hidden">
+                <img
+                  src={rug.photo_url}
+                  alt={`Rug ${rug.tag}`}
+                  className="h-48 w-full object-cover"
+                />
+              </div>
             )}
 
             {/* Editable Details */}
@@ -544,11 +548,11 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
               )}
 
               {servicesLoading ? (
-                <p className="text-xs text-muted-foreground">Loading services...</p>
+                <div className="min-h-[8rem] rounded-md border border-border bg-muted/20 px-3 py-3 text-xs text-muted-foreground">Loading services...</div>
               ) : services.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">No services assigned.</p>
+                <div className="min-h-[8rem] rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground italic">No services assigned.</div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-h-[8rem]">
                   {services.map((s) => {
                     const edgeLabel = s.edges && s.edges.length > 0 && s.edges.length < 4
                       ? ` (${s.edges.map(e => e === "end1" ? "E1" : e === "end2" ? "E2" : e === "side1" ? "S1" : "S2").join("+")})`
@@ -768,6 +772,8 @@ export function RugDetailSheet({ rugId, open, onOpenChange }: RugDetailSheetProp
             </div>
           </div>
         )}
+        </div>
+        </div>
       </SheetContent>
     </Sheet>
   );

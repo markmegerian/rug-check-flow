@@ -91,6 +91,7 @@ Status legend:
 - [x] Stabilize button shells and dynamic badge/count spacing
 - [~] Stabilize dialogs, sheets, and side panels
   - [x] Stabilize Check In photo and service surfaces with reserved space so heavy sections stop changing footprint during interaction
+  - [x] Stabilize Rug Detail sheet width, header, and scroll body so the panel stops resizing and reflowing during load/state changes
 
 ## Phase 6. Verification and rollout
 - [x] Build passes
