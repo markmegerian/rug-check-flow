@@ -226,7 +226,7 @@ export function CheckInLayout() {
   if (isMobile) {
     return (
       <div className="h-full flex flex-col rounded-[1.45rem] bg-transparent">
-        <div className="flex shrink-0 border-b border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.68),rgba(247,242,235,0.44))]">
+        <div className="flex shrink-0 border-b border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(241,247,252,0.54))]">
           {([
             { id: "form" as MobilePanel, label: "Check-In", icon: ClipboardList },
             { id: "pending" as MobilePanel, label: `Pending (${pendingRugs.length})`, icon: Plus },

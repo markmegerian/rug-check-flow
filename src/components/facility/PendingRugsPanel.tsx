@@ -109,7 +109,7 @@ export function PendingRugsPanel({
 
       {/* Walk-In Drop-Off */}
       {walkInOpen && (
-        <div className="border-b border-border/60 bg-white/45 p-4 space-y-3">
+        <div className="border-b border-border/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(240,246,252,0.42))] p-4 space-y-3">
           {!selectedClient ? (
             <div className="space-y-2">
               <div className="relative">
@@ -232,7 +232,7 @@ export function PendingRugsPanel({
                     className={cn(
                       "min-h-[4.75rem] w-full rounded-[1rem] border px-3 py-3 text-left transition-colors",
                       selectedRugId === rug.id
-                        ? "border-primary/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,236,228,0.96))] shadow-[0_16px_35px_-28px_rgba(28,39,56,0.35)]"
+                        ? "border-primary/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(239,246,252,0.96))] shadow-[0_16px_35px_-28px_rgba(25,44,72,0.24)]"
                         : "border-transparent bg-white/55 hover:bg-white/78"
                     )}
                   >
