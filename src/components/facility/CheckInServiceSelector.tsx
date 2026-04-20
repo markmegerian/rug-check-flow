@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,17 +24,27 @@ const PRESETS = [
   { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
 ];
 
-function ServiceCategoryGroup({
-  category, services, isFirst, watchedServices, getUnitPrice, getLineTotal,
-  toggleService, edgeSelections, setEdgeSelections, flatPrices, setFlatPrices,
-  watchedLength, watchedWidth,
+const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
+  category,
+  services,
+  isFirst,
+  watchedServices,
+  serviceIds,
+  servicePricing,
+  toggleService,
+  edgeSelections,
+  setEdgeSelections,
+  flatPrices,
+  setFlatPrices,
+  watchedLength,
+  watchedWidth,
 }: {
   category: string;
   services: DbService[];
   isFirst: boolean;
   watchedServices: string[];
-  getUnitPrice: (svc: DbService) => number;
-  getLineTotal: (svc: DbService) => number;
+  serviceIds: Set<string>;
+  servicePricing: Map<string, { unitPrice: number; lineTotal: number }>;
   toggleService: (id: string) => void;
   edgeSelections: Record<string, RugEdge[]>;
   setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
@@ -44,7 +54,7 @@ function ServiceCategoryGroup({
   watchedWidth: number;
 }) {
   const [open, setOpen] = useState(true);
-  const selectedCount = services.filter((s) => watchedServices.includes(s.id)).length;
+  const selectedCount = services.filter((s) => serviceIds.has(s.id)).length;
 
   return (
     <div className={!isFirst ? "border-t border-border" : ""}>
@@ -66,9 +76,10 @@ function ServiceCategoryGroup({
       {open && (
         <div className="divide-y divide-border/50">
           {services.map((svc) => {
-            const unitPrice = getUnitPrice(svc);
-            const lineTotal = getLineTotal(svc);
-            const checked = watchedServices.includes(svc.id);
+            const pricing = servicePricing.get(svc.id);
+            const unitPrice = pricing?.unitPrice ?? 0;
+            const lineTotal = pricing?.lineTotal ?? 0;
+            const checked = serviceIds.has(svc.id);
             const isFlat = svc.unit === "flat";
             const isLinear = svc.unit === "per linear ft";
             const edges = edgeSelections[svc.id] ?? [];
@@ -158,7 +169,9 @@ function ServiceCategoryGroup({
       )}
     </div>
   );
-}
+});
+
+ServiceCategoryGroup.displayName = "ServiceCategoryGroup";
 
 interface CheckInServiceSelectorProps {
   dbServices: DbService[];
@@ -186,18 +199,37 @@ export function CheckInServiceSelector({
   const [serviceSearch, setServiceSearch] = useState("");
 
   const searchLower = serviceSearch.toLowerCase();
-  const filteredServices = searchLower
-    ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
-    : dbServices;
-  const grouped: Record<string, DbService[]> = {};
-  filteredServices.forEach((svc) => {
-    const cat = svc.category || "Other";
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(svc);
-  });
-  const categories = CATEGORY_ORDER.filter((c) => grouped[c]?.length).concat(
-    Object.keys(grouped).filter((c) => !CATEGORY_ORDER.includes(c))
-  );
+  const serviceIds = useMemo(() => new Set(watchedServices), [watchedServices]);
+
+  const servicePricing = useMemo(() => {
+    const pricing = new Map<string, { unitPrice: number; lineTotal: number }>();
+    for (const svc of dbServices) {
+      pricing.set(svc.id, {
+        unitPrice: getUnitPrice(svc),
+        lineTotal: getLineTotal(svc),
+      });
+    }
+    return pricing;
+  }, [dbServices, getUnitPrice, getLineTotal]);
+
+  const { grouped, categories } = useMemo(() => {
+    const filteredServices = searchLower
+      ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
+      : dbServices;
+
+    const nextGrouped: Record<string, DbService[]> = {};
+    filteredServices.forEach((svc) => {
+      const cat = svc.category || "Other";
+      if (!nextGrouped[cat]) nextGrouped[cat] = [];
+      nextGrouped[cat].push(svc);
+    });
+
+    const nextCategories = CATEGORY_ORDER.filter((c) => nextGrouped[c]?.length).concat(
+      Object.keys(nextGrouped).filter((c) => !CATEGORY_ORDER.includes(c))
+    );
+
+    return { grouped: nextGrouped, categories: nextCategories };
+  }, [dbServices, searchLower]);
 
   return (
     <div className="space-y-2 md:space-y-3">
@@ -221,7 +253,6 @@ export function CheckInServiceSelector({
         )}
       </div>
 
-      {/* Preset quick-select chips */}
       {dbServices.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
           {PRESETS.map((preset) => {
@@ -229,7 +260,7 @@ export function CheckInServiceSelector({
               .map((n) => dbServices.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id)
               .filter(Boolean) as string[];
             if (ids.length === 0) return null;
-            const allSelected = ids.length > 0 && ids.every((id) => watchedServices.includes(id));
+            const allSelected = ids.length > 0 && ids.every((id) => serviceIds.has(id));
             return (
               <button
                 key={preset.label}
@@ -279,8 +310,8 @@ export function CheckInServiceSelector({
             services={grouped[cat]}
             isFirst={catIdx === 0}
             watchedServices={watchedServices}
-            getUnitPrice={getUnitPrice}
-            getLineTotal={getLineTotal}
+            serviceIds={serviceIds}
+            servicePricing={servicePricing}
             toggleService={toggleService}
             edgeSelections={edgeSelections}
             setEdgeSelections={setEdgeSelections}

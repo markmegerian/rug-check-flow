@@ -53,7 +53,8 @@ Status legend:
 - [~] Improve Check In responsiveness on the live hot path
   - [x] Cut pending pickup queue loading from nested browser joins to backend snapshot RPC
   - [x] Reduce Check In form pricing recomputation churn by centralizing derived pricing state
-  - [ ] Profile and cut remaining interaction lag in service selection / form editing path
+  - [x] Reduce service selector rerender pressure by memoizing category groups and shared pricing lookups
+  - [ ] Profile and cut any remaining interaction lag in form editing and submission path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 
 ## Phase 3. Database performance hardening
