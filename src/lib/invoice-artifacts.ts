@@ -1,25 +1,23 @@
-import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
+import { SUPABASE_URL } from "@/integrations/supabase/client";
 
 export type InvoicePdfArtifact = {
   invoiceId?: string;
   estimateId?: string;
   invoiceNumber: string;
   forceRegenerate?: boolean;
+  accessToken: string;
 };
 
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
-
-  if (!accessToken) {
-    throw new Error("No active Supabase session found for PDF download");
+  if (!artifact.accessToken) {
+    throw new Error("No active access token available for PDF download");
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/invoice-pdf`, {
+  const functionResponse = await fetch(`${SUPABASE_URL}/functions/v1/invoice-pdf`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${artifact.accessToken}`,
     },
     body: JSON.stringify({
       invoice_id: artifact.invoiceId ?? "",
@@ -28,18 +26,18 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
     }),
   });
 
-  const functionData = await response.json().catch(() => ({}));
+  const functionData = await functionResponse.json().catch(() => ({}));
 
-  if (!response.ok || functionData?.error || !functionData?.signed_url) {
+  if (!functionResponse.ok || functionData?.error || !functionData?.signed_url) {
     const detail = typeof functionData?.details === "string" ? ` ${functionData.details}` : "";
-    throw new Error(`${functionData?.error ?? `Failed to request invoice PDF (${response.status})`}${detail}`.trim());
+    throw new Error(`${functionData?.error ?? `Failed to request invoice PDF (${functionResponse.status})`}${detail}`.trim());
   }
 
-  const response = await fetch(functionData.signed_url);
-  if (!response.ok) {
-    throw new Error(`Signed invoice download failed with status ${response.status}`);
+  const fileResponse = await fetch(functionData.signed_url);
+  if (!fileResponse.ok) {
+    throw new Error(`Signed invoice download failed with status ${fileResponse.status}`);
   }
-  const data = await response.blob();
+  const data = await fileResponse.blob();
 
   const downloadUrl = URL.createObjectURL(data);
   const link = document.createElement("a");

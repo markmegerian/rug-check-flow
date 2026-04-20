@@ -18,6 +18,7 @@ import { InvoiceCreateSheet } from "@/components/office/InvoiceCreateSheet";
 import { LoadingState } from "@/components/states/PageState";
 import { useInvoices, useInvalidateInvoices, type InvoiceRow } from "@/hooks/useInvoices";
 import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/shared/StatusBadge";
+import { useAuth } from "@/contexts/AuthContext";
 import { MS_PER_DAY } from "@/lib/constants";
 import { calculateInvoiceDueDate } from "@/lib/billing";
 import { openOrCreateThread } from "@/lib/thread-navigation";
@@ -36,6 +37,7 @@ const STATUS_VALUES = new Set(STATUSES.map((status) => status.value));
 
 export function InvoicesTab() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [searchParams] = useSearchParams();
   const {
     data: infiniteData,
@@ -222,7 +224,7 @@ export function InvoicesTab() {
 
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
-      const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, forceRegenerate: true });
+      const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number, forceRegenerate: true, accessToken: session?.access_token ?? "" });
       toast({ title: "Invoice download started", description: `${invoice.invoice_number}.pdf (${artifact.bucket}/${artifact.path})` });
     } catch (error) {
       toast({ title: "Download failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { PortalTabProps } from "./portal-tab-props";
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { useAuth } from "@/contexts/AuthContext";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
 import { getCollectionsStateBadgeClass, getPortalBillingState, type CollectionsStateTone } from "@/lib/billing";
@@ -86,6 +87,7 @@ const PAYMENT_STATUS_STYLE: Record<PaymentAttemptStatus, string> = {
 
 export default function PortalInvoicesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const { toast } = useToast();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -296,6 +298,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         forceRegenerate: true,
+        accessToken: session?.access_token ?? "",
       });
       toast({
         title: "Invoice download started",
