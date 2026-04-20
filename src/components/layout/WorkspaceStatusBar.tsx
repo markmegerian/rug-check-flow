@@ -17,14 +17,14 @@ export function WorkspaceStatusBar() {
   if (loading || activeReminders.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 px-3 md:px-4 py-1.5 border-b border-border bg-muted/30 text-xs overflow-x-auto scrollbar-hide">
-      <AlertCircle className="h-3 w-3 text-muted-foreground shrink-0" />
+    <div className="mx-2 mt-2 flex items-center gap-1.5 overflow-x-auto rounded-[1rem] border border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(245,248,255,0.82))] px-3 py-2 text-xs shadow-[0_14px_32px_-26px_rgba(51,84,181,0.16)] scrollbar-hide md:mx-4">
+      <AlertCircle className="h-3 w-3 shrink-0 text-muted-foreground" />
       {activeReminders.map((reminder) => (
         <Link key={reminder.id} to={reminder.href}>
           <Badge
             variant="outline"
             className={cn(
-              "text-[10px] h-5 px-1.5 cursor-pointer hover:opacity-80 transition-opacity",
+              "h-5 cursor-pointer px-1.5 text-[10px] transition-opacity hover:opacity-80",
               SEVERITY_BADGE[reminder.severity],
             )}
           >
