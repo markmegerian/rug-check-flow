@@ -35,8 +35,9 @@ Status legend:
 ## Phase 2. Read-model cleanup
 - [~] Replace Jobs browser aggregation with backend-shaped read model
   - [x] Extract current Jobs shaping into a shared read-model module to enable safe side-by-side validation and backend cutover
-  - [ ] Introduce backend-fed Jobs summary source/view or RPC
-  - [ ] Validate backend-fed Jobs summary against current UI output before cutover
+  - [x] Introduce additive backend Jobs summary RPC returning grouped job records plus item payloads
+  - [x] Wire side-by-side validation of backend Jobs summary against current UI grouping before cutover
+  - [ ] Cut Jobs UI over from browser aggregation to backend summary once validation is clean
 - [ ] Replace inbox/thread-list nested message loading with thread summaries
 - [ ] Replace Delivery Prep browser synthesis with selected-date backend snapshot
 - [ ] Split client hooks into summary/detail patterns

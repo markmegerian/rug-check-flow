@@ -41,6 +41,7 @@ import {
   type RugLookup,
   type RugServiceLookup,
 } from "@/lib/jobs-view";
+import { fetchJobsSummary } from "@/lib/jobs-summary";
 
 type JobFilter = "all" | "estimate_open" | "uninvoiced" | "delivered" | "returns" | "attention";
 
@@ -217,6 +218,24 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         returnRows,
         missingClients,
       });
+
+      try {
+        const backendJobs = await fetchJobsSummary();
+        const currentKeys = nextJobs.map((job) => job.key).sort();
+        const backendKeys = backendJobs.map((job) => job.key).sort();
+        const sameShape = JSON.stringify(currentKeys) === JSON.stringify(backendKeys)
+          && nextJobs.length === backendJobs.length;
+        if (!sameShape) {
+          console.warn("Jobs summary validation mismatch", {
+            currentCount: nextJobs.length,
+            backendCount: backendJobs.length,
+            currentOnly: currentKeys.filter((key) => !backendKeys.includes(key)).slice(0, 10),
+            backendOnly: backendKeys.filter((key) => !currentKeys.includes(key)).slice(0, 10),
+          });
+        }
+      } catch (validationError) {
+        console.warn("Jobs summary validation failed", validationError);
+      }
 
       setJobs(nextJobs);
       if (!sourceTabTouched) {

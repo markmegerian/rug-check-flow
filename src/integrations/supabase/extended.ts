@@ -345,6 +345,24 @@ type ExtendedTables = Database["public"]["Tables"] & {
 };
 
 type ExtendedFunctions = Database["public"]["Functions"] & {
+  get_jobs_summary: {
+    Args: Record<string, never>;
+    Returns: {
+      job_key: string;
+      source_type: string;
+      client_id: string;
+      client_name: string;
+      client_address: string | null;
+      scheduled_date: string;
+      route_day: string;
+      request_ids: string[] | null;
+      primary_request_id: string | null;
+      statuses: PickupRequestStatus[] | null;
+      updated_at: string;
+      notes: string[] | null;
+      items: Json;
+    }[];
+  };
   mark_portal_onboarding_complete: {
     Args: Record<string, never>;
     Returns: boolean;
