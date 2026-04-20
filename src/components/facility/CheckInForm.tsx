@@ -303,7 +303,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   }, [dbServices, getUnitPrice, sqft, edgeSelections, flatPrices, dimensions.length, dimensions.width]);
 
   const getLineTotal = useCallback(
-    (svc: DbService): number => servicePricing.get(svc.id)?.adjustedTotal ?? 0,
+    (serviceId: string): number => servicePricing.get(serviceId)?.adjustedTotal ?? 0,
     [servicePricing]
   );
 

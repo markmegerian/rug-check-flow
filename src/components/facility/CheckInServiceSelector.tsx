@@ -30,7 +30,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   isFirst,
   watchedServices,
   serviceIds,
-  servicePricing,
+  getLineTotal,
   toggleService,
   edgeSelections,
   setEdgeSelections,
@@ -44,7 +44,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   isFirst: boolean;
   watchedServices: string[];
   serviceIds: Set<string>;
-  servicePricing: Map<string, { unitPrice: number; lineTotal: number }>;
+  getLineTotal: (serviceId: string) => number;
   toggleService: (id: string) => void;
   edgeSelections: Record<string, RugEdge[]>;
   setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
@@ -76,7 +76,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
       {open && (
         <div className="divide-y divide-border/50">
           {services.map((svc) => {
-            const lineTotal = servicePricing.get(svc.id)?.lineTotal ?? 0;
+            const lineTotal = getLineTotal(svc.id);
             const checked = serviceIds.has(svc.id);
             const isFlat = svc.unit === "flat";
             const isLinear = svc.unit === "per linear ft";
@@ -184,17 +184,6 @@ export function CheckInServiceSelector({
   const searchLower = serviceSearch.toLowerCase();
   const serviceIds = useMemo(() => new Set(watchedServices), [watchedServices]);
 
-  const servicePricing = useMemo(() => {
-    const pricing = new Map<string, { unitPrice: number; lineTotal: number }>();
-    for (const svc of dbServices) {
-      pricing.set(svc.id, {
-        unitPrice: getUnitPrice(svc),
-        lineTotal: getLineTotal(svc),
-      });
-    }
-    return pricing;
-  }, [dbServices, getUnitPrice, getLineTotal]);
-
   const { grouped, categories } = useMemo(() => {
     const filteredServices = searchLower
       ? dbServices.filter((svc) => svc.name.toLowerCase().includes(searchLower))
@@ -294,7 +283,7 @@ export function CheckInServiceSelector({
             isFirst={catIdx === 0}
             watchedServices={watchedServices}
             serviceIds={serviceIds}
-            servicePricing={servicePricing}
+            getLineTotal={getLineTotal}
             toggleService={toggleService}
             edgeSelections={edgeSelections}
             setEdgeSelections={setEdgeSelections}
