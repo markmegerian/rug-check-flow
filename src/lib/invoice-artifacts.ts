@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { getAuthHeaders } from "@/lib/supabase-helpers";
 
 export type InvoicePdfArtifact = {
   invoiceId?: string;
@@ -9,14 +8,15 @@ export type InvoicePdfArtifact = {
 };
 
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
-  const authHeaders = await getAuthHeaders();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
   const { data: functionData, error: functionError } = await supabase.functions.invoke("invoice-pdf", {
     body: {
       invoice_id: artifact.invoiceId ?? "",
       estimate_id: artifact.estimateId ?? "",
       force_regenerate: Boolean(artifact.forceRegenerate),
     },
-    headers: authHeaders ?? undefined,
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
   });
 
   if (functionError || functionData?.error || !functionData?.signed_url) {
