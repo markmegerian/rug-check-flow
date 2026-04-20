@@ -58,6 +58,7 @@ Status legend:
   - [x] Remove client lookup cache state churn and derive submit totals only at submit time
   - [x] Stop force-remounting Check In form when switching selected queue items
   - [x] Memoize heavy Check In photo/service sections to cut unnecessary parent-driven rerenders
+  - [x] Collapse heavy service-selection UI behind an explicit fast-intake toggle so the screen stays light by default
   - [ ] Profile and cut any remaining interaction lag in form editing and submission path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 

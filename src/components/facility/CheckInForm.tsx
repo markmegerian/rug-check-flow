@@ -106,6 +106,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const clientLookupCacheRef = useRef<ClientLookupCache>({});
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
+  const [servicesExpanded, setServicesExpanded] = useState(false);
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -217,6 +218,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       });
       setPhotos([]);
       setKnownClientId(selectedRug.clientId ?? null);
+      setServicesExpanded(preSelectedIds.length > 0);
       void resolveClientLookup(selectedRug.clientName, selectedRug.clientId ?? null);
     }
   }, [selectedRug, form, dbServices, resolveClientLookup]);
@@ -234,6 +236,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       });
       setPhotos([]);
       setKnownClientId(null);
+      setServicesExpanded(editingEntry.services.length > 0);
       void resolveClientLookup(editingEntry.clientName);
     }
   }, [editingEntry, form, resolveClientLookup]);
@@ -362,6 +365,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
         setEdgeSelections({});
         setClientTier("standard");
         setKnownClientId(null);
+        setServicesExpanded(false);
       }
     }
   };
@@ -552,33 +556,57 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
 
           {/* Service selection */}
-          {shouldLoadServices ? (
-            <MemoizedCheckInServiceSelector
-              dbServices={dbServices}
-              watchedServices={watchedServices}
-              toggleService={toggleService}
-              clearAll={() => {
-                form.setValue("selectedServices", [], { shouldValidate: true });
-                setFlatPrices({});
-                setEdgeSelections({});
-              }}
-              setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-              getUnitPrice={getUnitPrice}
-              getLineTotal={getLineTotal}
-              edgeSelections={edgeSelections}
-              setEdgeSelections={setEdgeSelections}
-              flatPrices={flatPrices}
-              setFlatPrices={setFlatPrices}
-              watchedLength={dimensions.length}
-              watchedWidth={dimensions.width}
-              tierLabel={tierLabel}
-              error={form.formState.errors.selectedServices?.message}
-            />
-          ) : (
-            <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
-              Loading services…
-            </div>
-          )}
+          <div className="rounded-md border border-border bg-background">
+            <button
+              type="button"
+              onClick={() => setServicesExpanded((current) => !current)}
+              className="w-full flex items-center justify-between px-3 py-3 text-left"
+            >
+              <div>
+                <p className="text-sm font-medium">Services</p>
+                <p className="text-xs text-muted-foreground">
+                  {hasSelectedServices
+                    ? `${watchedServices.length} selected`
+                    : "Open only when you’re ready to choose services"}
+                </p>
+              </div>
+              <span className="text-xs text-primary font-medium">
+                {servicesExpanded ? "Hide" : "Choose services"}
+              </span>
+            </button>
+
+            {servicesExpanded && (
+              <div className="border-t border-border px-3 py-3">
+                {shouldLoadServices ? (
+                  <MemoizedCheckInServiceSelector
+                    dbServices={dbServices}
+                    watchedServices={watchedServices}
+                    toggleService={toggleService}
+                    clearAll={() => {
+                      form.setValue("selectedServices", [], { shouldValidate: true });
+                      setFlatPrices({});
+                      setEdgeSelections({});
+                    }}
+                    setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+                    getUnitPrice={getUnitPrice}
+                    getLineTotal={getLineTotal}
+                    edgeSelections={edgeSelections}
+                    setEdgeSelections={setEdgeSelections}
+                    flatPrices={flatPrices}
+                    setFlatPrices={setFlatPrices}
+                    watchedLength={dimensions.length}
+                    watchedWidth={dimensions.width}
+                    tierLabel={tierLabel}
+                    error={form.formState.errors.selectedServices?.message}
+                  />
+                ) : (
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+                    Loading services…
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sticky action footer */}
