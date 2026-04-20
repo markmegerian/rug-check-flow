@@ -363,6 +363,26 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       items: Json;
     }[];
   };
+  get_thread_summaries: {
+    Args: { p_client_id?: string | null };
+    Returns: {
+      id: string;
+      client_id: string;
+      entity_id: string | null;
+      thread_type: Database["public"]["Enums"]["thread_type"];
+      status: Database["public"]["Enums"]["thread_status"];
+      created_at: string;
+      updated_at: string;
+      client: Json | null;
+      entity_label: string | null;
+      last_message_at: string | null;
+      last_message_body: string | null;
+      last_message_sender: string | null;
+      message_count: number;
+      visible_message_count: number;
+      unread: boolean;
+    }[];
+  };
   mark_portal_onboarding_complete: {
     Args: Record<string, never>;
     Returns: boolean;

@@ -13,8 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
-import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
+import { sortThreads } from "@/lib/thread-lifecycle";
+import { fetchThreadSummaries } from "@/lib/thread-summaries";
 import { getThreadComposerPlaceholder, getThreadSummaryLabel } from "@/lib/thread-copy";
 import { isInternalMessage } from "@/lib/message-metadata";
 
@@ -28,13 +28,6 @@ type PortalThread = MessageThread & {
   messageCount: number;
   entityLabel: string | null;
   unread: boolean;
-};
-
-type ThreadListRow = Pick<
-  MessageThread,
-  "id" | "client_id" | "entity_id" | "thread_type" | "status" | "created_at" | "updated_at"
-> & {
-  messages: Array<Pick<Message, "id" | "body" | "created_at" | "sender" | "attachments">> | null;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -85,51 +78,12 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
     let active = true;
     const loadThreads = async () => {
       setLoadingThreads(true);
-      const { data, error } = await supabase
-        .from("message_threads")
-        .select(`
-          id,
-          client_id,
-          entity_id,
-          thread_type,
-          status,
-          created_at,
-          updated_at,
-          messages (
-            id,
-            body,
-            created_at,
-            sender,
-            attachments
-          )
-        `)
-        .eq("client_id", clientId)
-        .order("updated_at", { ascending: false })
-        .limit(50);
+      try {
+        const data = await fetchThreadSummaries(clientId);
 
-      if (!active) return;
+        if (!active) return;
 
-      if (error) {
-        toast({ title: "Could not load messages", description: error.message, variant: "destructive" });
-        setThreads([]);
-        setLoadingThreads(false);
-        return;
-      }
-
-      const rows = (data ?? []) as ThreadListRow[];
-      const entityLabels = await fetchThreadEntityLabels(rows);
-
-      const nextThreads: PortalThread[] = rows.map((row) => {
-        const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
-        const visibleMessages = rowMessages.filter((message) => !isInternalMessage(message.attachments));
-        visibleMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-        const preview = visibleMessages[0] ?? null;
-        const lifecycle = deriveThreadLifecycle({
-          messages: visibleMessages,
-          selfSenderId: user?.id ?? null,
-        });
-
-        return {
+        const nextThreads: PortalThread[] = data.map((row) => ({
           id: row.id,
           client_id: row.client_id,
           entity_id: row.entity_id,
@@ -137,13 +91,23 @@ export default function PortalMessagesTab({ clientId, loading, errorMessage, req
           status: row.status,
           created_at: row.created_at,
           updated_at: row.updated_at,
-          lastMessageAt: preview?.created_at ?? null,
-          lastMessageBody: preview?.body ?? null,
-          messageCount: visibleMessages.length,
-          entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
-          unread: lifecycle.unread,
-        };
-      });
+          lastMessageAt: row.lastMessageAt,
+          lastMessageBody: row.lastMessageBody,
+          messageCount: row.visibleMessageCount,
+          entityLabel: row.entityLabel,
+          unread: row.unread,
+        }));
+
+        setThreads(sortThreads(nextThreads));
+        setSelectedThreadId((current) => current && nextThreads.some((t) => t.id === current) ? current : nextThreads[0]?.id ?? null);
+        setLoadingThreads(false);
+      } catch (error) {
+        if (!active) return;
+        toast({ title: "Could not load messages", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+        setThreads([]);
+        setLoadingThreads(false);
+        return;
+      }
 
       setThreads(sortThreads(nextThreads));
       setSelectedThreadId((current) => current && nextThreads.some((t) => t.id === current) ? current : nextThreads[0]?.id ?? null);

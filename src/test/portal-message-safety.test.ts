@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("portal message safety and rendering", () => {
-  it("loads sender and attachments for thread previews and filters internal notes", () => {
+  it("uses backend thread summaries and still filters internal notes from thread bodies", () => {
     const portal = readFileSync(resolve(process.cwd(), "src/components/portal/PortalMessagesTab.tsx"), "utf-8");
-    expect(portal).toContain("sender,");
+    expect(portal).toContain('fetchThreadSummaries(clientId)');
+    expect(portal).toContain('messageCount: row.visibleMessageCount');
     expect(portal).toContain("attachments");
-    expect(portal).toContain("visibleMessages = rowMessages.filter");
     expect(portal).toContain("!isInternalMessage(message.attachments)");
   });
 

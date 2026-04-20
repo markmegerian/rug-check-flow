@@ -40,7 +40,10 @@ Status legend:
   - [x] Cut Jobs UI over to backend summary with guarded fallback to legacy path
   - [x] Add first-pass hot-path indexes supporting Jobs, Inbox, and Delivery query patterns
   - [ ] Remove legacy Jobs fallback once backend validation remains clean
-- [ ] Replace inbox/thread-list nested message loading with thread summaries
+- [~] Replace inbox/thread-list nested message loading with thread summaries
+  - [x] Add additive backend thread summary RPC for office and portal thread lists
+  - [x] Cut Inbox and Portal thread lists over to backend thread summaries
+  - [ ] Validate thread-summary behavior under live messaging activity and remove any remaining nested thread-list reads
 - [ ] Replace Delivery Prep browser synthesis with selected-date backend snapshot
 - [ ] Split client hooks into summary/detail patterns
 - [ ] Split rug hooks into summary/detail patterns

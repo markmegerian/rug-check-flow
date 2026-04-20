@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { fetchThreadEntityLabels, getThreadEntityDisplayLabel } from "@/lib/message-threads";
-import { deriveThreadLifecycle, sortThreads } from "@/lib/thread-lifecycle";
+import { sortThreads } from "@/lib/thread-lifecycle";
+import { fetchThreadSummaries } from "@/lib/thread-summaries";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import { getThreadComposerPlaceholder, getThreadSummaryLabel } from "@/lib/thread-copy";
 import { OFFICE_CANNED_REPLIES } from "@/lib/canned-replies";
@@ -33,17 +33,6 @@ type ThreadWithPreview = MessageThread & {
   messageCount: number;
   entityLabel: string | null;
   unread: boolean;
-};
-
-type InboxThreadRow = Pick<
-  MessageThread,
-  "id" | "client_id" | "entity_id" | "thread_type" | "status" | "created_at" | "updated_at"
-> & {
-  clients:
-    | Pick<Client, "id" | "name" | "contact_name" | "email">
-    | Array<Pick<Client, "id" | "name" | "contact_name" | "email">>
-    | null;
-  messages: Array<Pick<Message, "id" | "body" | "created_at">> | null;
 };
 
 const THREAD_TYPE_LABEL: Record<ThreadType, string> = {
@@ -93,60 +82,12 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
 
     const loadThreads = async () => {
       setLoadingThreads(true);
-      const { data, error } = await supabase
-        .from("message_threads")
-        .select(`
-          id,
-          client_id,
-          entity_id,
-          thread_type,
-          status,
-          created_at,
-          updated_at,
-          clients (
-            id,
-            name,
-            contact_name,
-            email
-          ),
-          messages (
-            id,
-            body,
-            created_at
-          )
-        `)
-        .order("updated_at", { ascending: false })
-        .limit(50);
+      try {
+        const data = await fetchThreadSummaries();
 
-      if (!active) return;
+        if (!active) return;
 
-      if (error) {
-        console.error("Failed to load inbox threads", error);
-        toast({
-          title: "Could not load inbox",
-          description: error.message,
-          variant: "destructive",
-        });
-        setThreads([]);
-        setLoadingThreads(false);
-        return;
-      }
-
-      const rows = (data ?? []) as InboxThreadRow[];
-      const entityLabels = await fetchThreadEntityLabels(rows);
-
-      const nextThreads: ThreadWithPreview[] = rows.map((row) => {
-        const rowMessages = Array.isArray(row.messages) ? [...row.messages] : [];
-        rowMessages.sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-        const preview = rowMessages[0] ?? null;
-        const client = Array.isArray(row.clients) ? row.clients[0] ?? null : row.clients ?? null;
-
-        const lifecycle = deriveThreadLifecycle({
-          messages: rowMessages,
-          selfSenderId: user?.id ?? null,
-        });
-
-        return {
+        const nextThreads: ThreadWithPreview[] = data.map((row) => ({
           id: row.id,
           client_id: row.client_id,
           entity_id: row.entity_id,
@@ -154,14 +95,33 @@ export function InboxTab({ requestedThreadId }: { requestedThreadId?: string | n
           status: row.status,
           created_at: row.created_at,
           updated_at: row.updated_at,
-          client,
-          lastMessageAt: preview?.created_at ?? null,
-          lastMessageBody: preview?.body ?? null,
-          messageCount: rowMessages.length,
-          entityLabel: getThreadEntityDisplayLabel(row, entityLabels),
-          unread: lifecycle.unread,
-        };
-      });
+          client: row.client,
+          lastMessageAt: row.lastMessageAt,
+          lastMessageBody: row.lastMessageBody,
+          messageCount: row.messageCount,
+          entityLabel: row.entityLabel,
+          unread: row.unread,
+        }));
+
+        setThreads(sortThreads(nextThreads));
+        setSelectedThreadId((current) => {
+          if (current && nextThreads.some((thread) => thread.id === current)) return current;
+          return nextThreads[0]?.id ?? null;
+        });
+        setLoadingThreads(false);
+      } catch (error) {
+        if (!active) return;
+        console.error("Failed to load inbox threads", error);
+        toast({
+          title: "Could not load inbox",
+          description: error instanceof Error ? error.message : "Unknown error",
+          variant: "destructive",
+        });
+        setThreads([]);
+        setLoadingThreads(false);
+        return;
+      }
+
 
       setThreads(sortThreads(nextThreads));
       setSelectedThreadId((current) => {
