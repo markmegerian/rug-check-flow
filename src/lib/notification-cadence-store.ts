@@ -1,7 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   buildEstimateBatchSendSchedule,
-  buildEstimateReminderSchedule,
   buildInvoiceReminderSchedule,
   type NotificationCadenceRow,
 } from "@/lib/notification-cadence";
@@ -41,19 +40,6 @@ export async function queueEstimateForBatchSend(params: {
     clientId: params.clientId,
     estimateId: params.estimateId,
     queuedAt: params.queuedAt,
-  });
-  await upsertCadenceRows(rows);
-}
-
-export async function seedEstimateReminderCadence(params: {
-  clientId: string;
-  estimateId: string;
-  sentAt: string;
-}) {
-  const rows = buildEstimateReminderSchedule({
-    clientId: params.clientId,
-    estimateId: params.estimateId,
-    sentAt: params.sentAt,
   });
   await upsertCadenceRows(rows);
 }

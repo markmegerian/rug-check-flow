@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js";
 import { isSuperAdminEmail } from "@/lib/super-admin";
 import type { AppRole } from "@/types/app-roles";
+import { setUserContext } from "@/lib/observability";
 type PortalUserLink = {
   client_id: string;
   onboarding_completed_at: string | null;
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setSession(nextSession);
     setUser(nextUser);
+    setUserContext(nextUser ? { id: nextUser.id, email: nextUser.email } : null);
 
     if (!nextUser) {
       setRoles([]);

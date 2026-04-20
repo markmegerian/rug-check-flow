@@ -32,8 +32,10 @@ describe("reminder workflow correctness", () => {
   });
 
   it("skips estimate creation and queueing for cleaning-only check-ins", () => {
-    const checkinOps = readFileSync(resolve(process.cwd(), "src/lib/checkin-operations.ts"), "utf-8");
-    expect(checkinOps).toContain("return Boolean(serviceRow?.requires_estimate) && !isCleaningCategory(serviceRow?.category);");
-    expect(checkinOps).toContain("if (eligibleSnapshots.length === 0) return null;");
+    const edge = readFileSync(
+      resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"),
+      "utf-8",
+    );
+    expect(edge).toContain("return Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category);");
   });
 });

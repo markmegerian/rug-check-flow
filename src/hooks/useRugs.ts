@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fetchRugServicesByRugId, fetchRugServicesForRugIds } from "@/lib/rug-service-approval";
@@ -147,20 +147,6 @@ export function useRug(id: string | null) {
     },
     enabled: Boolean(id),
     staleTime: 10_000,
-  });
-}
-
-/** Update rug notes mutation */
-export function useUpdateRugNotes() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
-      const { error } = await supabase.from("rugs").update({ notes }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: RUGS_KEY });
-    },
   });
 }
 

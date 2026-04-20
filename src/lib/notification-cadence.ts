@@ -70,7 +70,7 @@ function zonedTimeToUtc(params: { year: number; month: number; day: number; hour
   return new Date(guess);
 }
 
-export function computeNextDailyAnchorInEastern(hour = 15, minute = 0, now = new Date()) {
+function computeNextDailyAnchorInEastern(hour = 15, minute = 0, now = new Date()) {
   const easternNow = getTimeZoneParts(now, "America/New_York");
   let target = zonedTimeToUtc({
     year: easternNow.year,
