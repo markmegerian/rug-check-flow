@@ -67,6 +67,16 @@ Status legend:
     - [x] Replace the monolithic Check In form with a staged intake flow that isolates details, photos, cleaning decision, and custom services
     - [x] Keep the standard-clean path free of mounted custom-services UI unless the operator explicitly chooses additional services
 - [ ] Remove broad `select(*)` hot-path reads where not required
+- [~] Redesign estimate workflow for clean office review and grouped batch sending
+  - [x] Define target operating model: Check In creates internal estimate work, Office owns review and explicit send
+  - [x] Define client/company-grouped office review requirement so staff can process all estimate work for an account together
+  - [x] Define end-of-day grouped send requirement so one client does not receive multiple estimate emails in one day
+  - [x] Write formal redesign spec in `docs/estimate-workflow-redesign-2026-04-20.md`
+  - [ ] Inventory current estimate send/review touchpoints and portal dependencies for implementation cutover
+  - [ ] Define final DB/status migration strategy and rollback path
+  - [ ] Rebuild office Estimates surface around grouped company review queue
+  - [ ] Rewrite estimate send path around grouped end-of-day client/company batch sends
+  - [ ] Update portal/client estimate visibility and response flow to match the new lifecycle
 - [~] Review services catalog, approval behavior, and pricing calculation rules end to end
   - [ ] Audit live services list for names, categories, active state, units, base/preferred/vip prices, sort order, and `requires_estimate`
   - [ ] Compare live catalog against frontend assumptions such as `Standard Wash` naming/category behavior
@@ -111,5 +121,13 @@ Status legend:
 ---
 
 ## Current focus
-- Phase 2 read-model cleanup and Check In responsiveness
-- Immediate next checks: continue the no-layout-shift pass across Check In and then resume summary/detail cleanup
+- Platform reevaluation and backend truth audit from first principles
+- Immediate next checks:
+  - complete backend truth audit
+  - classify subsystems into keep / repair / rebuild / remove
+  - define canonical business model before further broad rebuild work
+
+## Reevaluation reset documents
+- `docs/platform-reevaluation-master-plan-2026-04-20.md`
+- `docs/backend-truth-audit-checklist-2026-04-20.md`
+- `docs/platform-keep-repair-rebuild-remove-matrix-2026-04-20.md`
