@@ -350,13 +350,9 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
     thickness: 0.6,
     opacity: 0.35,
   });
-  b.page.drawText(payload.company.brandFooter ?? "Powered by RugBoost", {
-    x: ML,
-    y: footerY,
-    size: 8,
-    font: b.regularFont,
-    opacity: 0.72,
-  });
+  const footerText = payload.company.brandFooter ?? "Powered by RugBoost";
+  b.currentY = footerY;
+  b.drawAt(footerText, ML, 8);
 
   return doc.save();
 }
