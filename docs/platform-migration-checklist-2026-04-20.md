@@ -57,6 +57,7 @@ Status legend:
   - [x] Simplify Check In UI by removing always-on cost displays and keeping custom-price entry only where needed
   - [x] Remove client lookup cache state churn and derive submit totals only at submit time
   - [x] Stop force-remounting Check In form when switching selected queue items
+  - [x] Memoize heavy Check In photo/service sections to cut unnecessary parent-driven rerenders
   - [ ] Profile and cut any remaining interaction lag in form editing and submission path
 - [ ] Remove broad `select(*)` hot-path reads where not required
 

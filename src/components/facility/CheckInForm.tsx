@@ -2,7 +2,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,9 @@ import { applyCleaningServiceMinimum, isCleaningCategory } from "@/lib/service-p
 
 import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
+
+const MemoizedCheckInPhotoSection = memo(CheckInPhotoSection);
+const MemoizedCheckInServiceSelector = memo(CheckInServiceSelector);
 
 type PricingTier = "standard" | "preferred" | "vip";
 
@@ -543,14 +546,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           />
 
           {/* Photo upload */}
-          <CheckInPhotoSection
+          <MemoizedCheckInPhotoSection
             photos={photos}
             onPhotosChange={setPhotos}
           />
 
           {/* Service selection */}
           {shouldLoadServices ? (
-            <CheckInServiceSelector
+            <MemoizedCheckInServiceSelector
               dbServices={dbServices}
               watchedServices={watchedServices}
               toggleService={toggleService}
