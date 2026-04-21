@@ -55,29 +55,24 @@ export async function queueEstimateGroupBatch(estimatesInGroup: EstimateRow[]) {
       .maybeSingle();
 
     const scheduledFor = new Date().toISOString();
-    const { data: batchRow, error: batchError } = await supabaseExtended
-      .from("estimate_send_batches")
-      .insert({
-        client_id: firstEstimate.client_id,
-        company_id: clientRow?.company_id ?? null,
-        scheduled_for: scheduledFor,
-        status: "queued",
-        recipient_email: clientRow?.email ?? null,
-        subject: clientRow?.name ? `Estimate batch for ${clientRow.name}` : "Estimate batch",
-      })
-      .select("id")
-      .single();
+    const { data: batchId, error: batchError } = await supabaseExtended.rpc("ensure_estimate_send_batch", {
+      p_client_id: firstEstimate.client_id!,
+      p_company_id: clientRow?.company_id ?? null,
+      p_scheduled_for: scheduledFor,
+      p_recipient_email: clientRow?.email ?? null,
+      p_subject: clientRow?.name ? `Estimate batch for ${clientRow.name}` : "Estimate batch",
+    });
 
-    if (batchError) throw batchError;
+    if (batchError || !batchId) throw batchError ?? new Error("Failed to ensure estimate send batch");
 
     const batchItems = readyEstimateIds.map((estimateId) => ({
-      batch_id: batchRow.id,
+      batch_id: batchId,
       estimate_id: estimateId,
     }));
 
     const { error: itemError } = await supabaseExtended
       .from("estimate_send_batch_items")
-      .insert(batchItems);
+      .upsert(batchItems, { onConflict: "batch_id,estimate_id" });
 
     if (itemError) throw itemError;
   }

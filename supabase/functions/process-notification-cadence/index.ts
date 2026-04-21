@@ -115,48 +115,27 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
   if (!estimate.client_id) return { status: "failed", reason: "Estimate missing client link" };
   if (estimate.status !== "ready_to_send") return { status: "skipped", reason: `Estimate already ${estimate.status}` };
 
-  const { data: existingBatch } = await adminClient
-    .from("estimate_send_batches")
-    .select("id, scheduled_for, status")
-    .eq("client_id", estimate.client_id)
-    .eq("status", "queued")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: batchId, error: ensureBatchError } = await adminClient.rpc("ensure_estimate_send_batch", {
+    p_client_id: estimate.client_id,
+    p_company_id: estimate.clients?.company_id ?? null,
+    p_scheduled_for: nowIso,
+    p_recipient_email: estimate.clients?.email ?? null,
+    p_subject: estimate.clients?.name ? `Estimate batch for ${estimate.clients.name}` : "Estimate batch",
+  });
 
-  const scheduledFor = existingBatch?.scheduled_for ?? nowIso;
-  let batchId = existingBatch?.id ?? null;
+  if (ensureBatchError || !batchId) {
+    return { status: "failed", reason: ensureBatchError?.message ?? "Estimate batch creation failed" };
+  }
 
-  if (!batchId) {
-    const { data: createdBatch, error: batchError } = await adminClient
-      .from("estimate_send_batches")
-      .insert({
-        client_id: estimate.client_id,
-        company_id: estimate.clients?.company_id ?? null,
-        scheduled_for: scheduledFor,
-        status: "queued",
-        recipient_email: estimate.clients?.email ?? null,
-        subject: estimate.clients?.name ? `Estimate batch for ${estimate.clients.name}` : "Estimate batch",
-      })
-      .select("id")
-      .single();
+  const { error: batchItemError } = await adminClient
+    .from("estimate_send_batch_items")
+    .upsert({
+      batch_id: batchId,
+      estimate_id: estimate.id,
+    }, { onConflict: "batch_id,estimate_id" });
 
-    if (batchError || !createdBatch) {
-      return { status: "failed", reason: batchError?.message ?? "Estimate batch creation failed" };
-    }
-
-    batchId = createdBatch.id;
-
-    const { error: batchItemError } = await adminClient
-      .from("estimate_send_batch_items")
-      .insert({
-        batch_id: batchId,
-        estimate_id: estimate.id,
-      });
-
-    if (batchItemError && !/duplicate key value/i.test(batchItemError.message)) {
-      return { status: "failed", reason: batchItemError.message };
-    }
+  if (batchItemError) {
+    return { status: "failed", reason: batchItemError.message };
   }
 
   const { data: batchItems, error: batchItemsError } = await adminClient
