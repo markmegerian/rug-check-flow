@@ -157,7 +157,7 @@ export default function WholesalePortal() {
 
   return (
     <AppShell
-      title="Wholesale Portal"
+      title="Client Portal"
       subtitle={activeTabLabel}
       contentClassName="overflow-auto"
     >

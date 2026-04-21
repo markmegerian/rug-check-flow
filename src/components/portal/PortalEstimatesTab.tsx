@@ -260,15 +260,15 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            Proposed estimates
+            Estimates for your review
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Approve or deny each estimate below. Your decision is sent to the office immediately. You can add an optional note for the team.
+            Review each estimate below and approve or decline it clearly. Your decision is sent to the office right away, and you can include an optional note for the team.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
           {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No estimates awaiting your approval.</p>
+            <p className="text-sm text-muted-foreground">You do not have any estimates waiting for review right now.</p>
           ) : (
             pendingPagination.items.map((estimate) => {
               const lineItems = lineItemsByEstimateId[estimate.id] ?? [];
@@ -347,7 +347,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                     </div>
                   )}
                   <div>
-                    <label className="text-xs text-muted-foreground block mb-1">Note for office (optional)</label>
+                    <label className="text-xs text-muted-foreground block mb-1">Optional note for the office</label>
                     <Textarea
                       value={decisionNotes[estimate.id] ?? ""}
                       onChange={(e) => updateDecisionNote(estimate.id, e.target.value)}
@@ -362,7 +362,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                       onClick={() => openEstimateThread(estimate)}
                       disabled={isUpdating}
                     >
-                      Message office
+                      Ask the office
                     </Button>
                     <Button
                       size="sm"
@@ -371,7 +371,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <Check className="h-3.5 w-3.5 mr-1.5" />
-                      {isUpdating ? "Updating…" : "Approve estimate"}
+                      {isUpdating ? "Updating…" : "Approve and continue"}
                     </Button>
                     <Button
                       size="sm"
@@ -380,7 +380,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                       disabled={isUpdating}
                     >
                       <X className="h-3.5 w-3.5 mr-1.5" />
-                      {isUpdating ? "Updating…" : "Deny estimate"}
+                      {isUpdating ? "Updating…" : "Decline estimate"}
                     </Button>
                   </div>
                 </div>

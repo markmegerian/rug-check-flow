@@ -333,7 +333,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
         <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Account balance summary</h3>
+              <h3 className="text-sm font-semibold text-foreground">Billing summary</h3>
               <p className="text-sm text-muted-foreground">{portalBillingState.detail}</p>
             </div>
             <Badge className={getCollectionsStateBadgeClass(portalBillingState.tone as CollectionsStateTone)} variant="secondary">
@@ -342,7 +342,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Open balance</div>
+              <div className="text-xs text-muted-foreground">Current balance</div>
               <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.openBalance.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
@@ -350,7 +350,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
               <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.overdueBalance.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Open invoices</div>
+              <div className="text-xs text-muted-foreground">Invoices due</div>
               <div className="mt-1 text-lg font-semibold text-foreground">{billingSummary.openInvoices}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
@@ -409,7 +409,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                   className="h-7 px-2"
                   onClick={(event) => void handleOpenThread(inv, event)}
                 >
-                  Message
+                  Contact
                 </Button>
                 <Button
                   variant="ghost"
@@ -427,7 +427,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Line items</p>
                     <Button size="sm" variant="secondary" onClick={(event) => void handleOpenThread(inv, event)}>
-                      Message office
+                      Contact office
                     </Button>
                   </div>
                   {inv.lineItems.length === 0 ? (
@@ -453,7 +453,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                     ) : null}
                   </div>
                   {inv.paymentAttempts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No payment attempts recorded yet.</p>
+                    <p className="text-sm text-muted-foreground">No payment attempts have been recorded yet.</p>
                   ) : (
                     <div className="space-y-1.5">
                       {inv.paymentAttempts.map((attempt) => (
