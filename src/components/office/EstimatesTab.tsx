@@ -29,6 +29,7 @@ import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
 import { expireEstimateGroup, markEstimateGroupReady, queueEstimateGroupBatch } from "@/lib/estimate-group-actions";
 import { fetchEstimateGroupDetails } from "@/lib/estimate-group-details";
+import { fetchEstimateSendBatchSummaries, type EstimateSendBatchSummary } from "@/lib/estimate-send-batches";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -89,6 +90,7 @@ export function EstimatesTab() {
   const [rugOptions, setRugOptions] = useState<RugOption[]>([]);
   const [reviewGroups, setReviewGroups] = useState<EstimateReviewGroupSummary[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string>("none");
+  const [estimateSendBatches, setEstimateSendBatches] = useState<EstimateSendBatchSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
@@ -168,6 +170,9 @@ export function EstimatesTab() {
           localEstimateCount: localEstimates.length,
         };
       }));
+
+      const batchRows = await fetchEstimateSendBatchSummaries();
+      setEstimateSendBatches(batchRows);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load estimate review groups";
       toast({ title: "Estimate review summary failed", description: message, variant: "destructive" });
@@ -592,6 +597,37 @@ export function EstimatesTab() {
           </Button>
         </div>
       </section>
+
+      {estimateSendBatches.length > 0 ? (
+        <section className="rounded-lg border bg-card p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="text-sm font-medium">Estimate send batches</h3>
+              <p className="text-xs text-muted-foreground">Backend batch send units queued/sent per client account</p>
+            </div>
+            <span className="text-xs text-muted-foreground">Live RPC-backed</span>
+          </div>
+          <div className="space-y-2">
+            {estimateSendBatches.map((batch) => (
+              <div key={batch.batch_id} className="rounded-md border bg-muted/10 px-3 py-2 text-xs flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="font-medium text-foreground">{batch.client_name ?? "Unknown client"}</p>
+                  <p className="text-muted-foreground">
+                    {batch.status} · {batch.estimate_count} estimate{batch.estimate_count === 1 ? "" : "s"} · ${batch.total_amount.toFixed(2)}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Scheduled {formatDateTime(batch.scheduled_for)}{batch.sent_at ? ` · Sent ${formatDateTime(batch.sent_at)}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="secondary" className="text-xs">{batch.status}</Badge>
+                  <span className="text-[11px] text-muted-foreground">{batch.estimate_ids.length} linked</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {groupedReviewSummary.length > 0 ? (
         <section className="rounded-lg border bg-card p-4 space-y-4">
