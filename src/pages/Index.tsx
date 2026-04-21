@@ -1,5 +1,5 @@
 import { Link, Navigate } from "react-router-dom";
-import { ArrowRight, Factory, FolderOpen, ShieldCheck, Store, Truck } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Factory, FolderOpen, ShieldCheck, Store, Truck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
