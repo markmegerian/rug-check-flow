@@ -419,6 +419,12 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       estimate_request_details: string | null;
     }[];
   };
+  queue_estimate_group_batch: {
+    Args: { p_estimate_ids: string[] };
+    Returns: {
+      queued_count: number;
+    }[];
+  };
   mark_portal_onboarding_complete: {
     Args: Record<string, never>;
     Returns: boolean;

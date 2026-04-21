@@ -1,5 +1,4 @@
 import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
-import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 
 type EstimateRow = {
   id: string;
@@ -38,14 +37,14 @@ export async function expireEstimateGroup(estimatesInGroup: EstimateRow[]) {
 }
 
 export async function queueEstimateGroupBatch(estimatesInGroup: EstimateRow[]) {
-  const readyEstimates = estimatesInGroup.filter((estimate) => estimate.status === "ready_to_send");
-  const queuedAt = new Date().toISOString();
+  const readyEstimateIds = estimatesInGroup
+    .filter((estimate) => estimate.status === "ready_to_send")
+    .map((estimate) => estimate.id);
 
-  await Promise.all(readyEstimates.map((estimate) => queueEstimateForBatchSend({
-    clientId: estimate.client_id!,
-    estimateId: estimate.id,
-    queuedAt,
-  })));
+  const { data, error } = await supabaseExtended.rpc("queue_estimate_group_batch", {
+    p_estimate_ids: readyEstimateIds,
+  });
 
-  return readyEstimates.length;
+  if (error) throw error;
+  return Number(data?.[0]?.queued_count ?? 0);
 }
