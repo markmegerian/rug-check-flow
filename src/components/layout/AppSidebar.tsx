@@ -7,6 +7,7 @@ import {
   FileText,
   FolderOpen,
   Home,
+  Inbox,
   LogOut,
   Map,
   Package,
