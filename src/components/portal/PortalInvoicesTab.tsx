@@ -95,6 +95,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
   const [paymentHistoryError, setPaymentHistoryError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
   const [billingSummary, setBillingSummary] = useState<PortalBillingSummary | null>(null);
+  const [pdfReadyByInvoiceId, setPdfReadyByInvoiceId] = useState<Record<string, { message: string; signedUrl: string }>>({});
 
   const fetchBillingSummary = useCallback(async (activeClientId: string) => {
       const { data: invoiceRows, error } = await supabaseExtended
@@ -296,13 +297,17 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
       });
+      setExpandedRow(invoice.id);
+      setPdfReadyByInvoiceId((current) => ({
+        ...current,
+        [invoice.id]: {
+          message: `${invoice.invoiceNumber}.pdf is ready. Use the button below to open it directly.`,
+          signedUrl: artifact.signedUrl,
+        },
+      }));
       toast({
         title: "Invoice PDF ready",
-        description: `${invoice.invoiceNumber}.pdf is ready. If it did not open automatically, tap Open PDF.`,
-        action: {
-          label: "Open PDF",
-          onClick: () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer"),
-        },
+        description: `${invoice.invoiceNumber}.pdf is ready below.`,
       });
     } catch (error) {
       const description = error instanceof Error ? error.message : "Unknown error";
@@ -448,6 +453,23 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                     ))
                   )}
                 </div>
+
+                {pdfReadyByInvoiceId[inv.id] ? (
+                  <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                    <div>
+                      <p className="font-medium text-foreground">Invoice PDF ready</p>
+                      <p className="text-muted-foreground">{pdfReadyByInvoiceId[inv.id].message}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => window.open(pdfReadyByInvoiceId[inv.id].signedUrl, "_blank", "noopener,noreferrer")}>Open PDF</Button>
+                      <Button size="sm" variant="outline" onClick={() => setPdfReadyByInvoiceId((current) => {
+                        const next = { ...current };
+                        delete next[inv.id];
+                        return next;
+                      })}>Dismiss</Button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
