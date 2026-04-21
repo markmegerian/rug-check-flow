@@ -27,6 +27,7 @@ import { openOrCreateThread } from "@/lib/thread-navigation";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
+import { expireEstimateGroup, markEstimateGroupReady, queueEstimateGroupBatch } from "@/lib/estimate-group-actions";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -341,29 +342,12 @@ export function EstimatesTab() {
 
     setBulkReviewingGroupKey(groupName);
     try {
-      const updates = reviewEstimates.map((estimate) =>
-        supabaseExtended
-          .from("estimates")
-          .update({ status: "ready_to_send" })
-          .eq("id", estimate.id),
-      );
-
-      const results = await Promise.all(updates);
-      const failed = results.find((result) => result.error);
-      if (failed?.error) {
-        toast({ title: "Group review update failed", description: failed.error.message, variant: "destructive" });
-        return;
-      }
-
-      await Promise.all(reviewEstimates.map((estimate) => logCommunicationEvent(
-        { ...estimate, status: "ready_to_send" } as EstimateRow,
-        "estimate_ready_to_send",
-        `${estimate.estimate_number} ready to send`,
-        `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} is ready to send.`,
-      )));
-
+      const movedCount = await markEstimateGroupReady(reviewEstimates);
       await fetchData();
-      toast({ title: "Group ready to send", description: `${reviewEstimates.length} estimate${reviewEstimates.length === 1 ? "" : "s"} from ${groupName} moved to ready to send.` });
+      toast({ title: "Group ready to send", description: `${movedCount} estimate${movedCount === 1 ? "" : "s"} from ${groupName} moved to ready to send.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Group review update failed", description: message, variant: "destructive" });
     } finally {
       setBulkReviewingGroupKey(null);
     }
@@ -379,30 +363,12 @@ export function EstimatesTab() {
 
     setBulkExpiringGroupKey(groupName);
     try {
-      const nowIso = new Date().toISOString();
-      const updates = expirable.map((estimate) =>
-        supabaseExtended
-          .from("estimates")
-          .update({ status: "expired" })
-          .eq("id", estimate.id),
-      );
-
-      const results = await Promise.all(updates);
-      const failed = results.find((result) => result.error);
-      if (failed?.error) {
-        toast({ title: "Group expire failed", description: failed.error.message, variant: "destructive" });
-        return;
-      }
-
-      await Promise.all(expirable.map((estimate) => logCommunicationEvent(
-        { ...estimate, status: "expired" } as EstimateRow,
-        "estimate_expired",
-        `${estimate.estimate_number} expired`,
-        `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} was marked expired on ${formatDateTime(nowIso)}.`,
-      )));
-
+      const expiredCount = await expireEstimateGroup(expirable);
       await fetchData();
-      toast({ title: "Group expired", description: `${expirable.length} estimate${expirable.length === 1 ? "" : "s"} from ${groupName} marked expired.` });
+      toast({ title: "Group expired", description: `${expiredCount} estimate${expiredCount === 1 ? "" : "s"} from ${groupName} marked expired.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Group expire failed", description: message, variant: "destructive" });
     } finally {
       setBulkExpiringGroupKey(null);
     }
@@ -430,14 +396,9 @@ export function EstimatesTab() {
 
     setBulkQueueingGroupKey(groupName);
     try {
-      const queuedAt = new Date().toISOString();
-      await Promise.all(readyEstimates.map((estimate) => queueEstimateForBatchSend({
-        clientId: estimate.client_id!,
-        estimateId: estimate.id,
-        queuedAt,
-      })));
+      const queuedCount = await queueEstimateGroupBatch(readyEstimates);
       await fetchData();
-      toast({ title: "Estimate group queued", description: `${readyEstimates.length} estimate${readyEstimates.length === 1 ? "" : "s"} from ${groupName} will send in the daily 3:00 PM Eastern batch.` });
+      toast({ title: "Estimate group queued", description: `${queuedCount} estimate${queuedCount === 1 ? "" : "s"} from ${groupName} will send in the daily 3:00 PM Eastern batch.` });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       toast({ title: "Group queue failed", description: message, variant: "destructive" });
