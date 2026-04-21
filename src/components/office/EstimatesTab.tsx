@@ -81,6 +81,7 @@ export function EstimatesTab() {
   const [creating, setCreating] = useState(false);
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
   const [bulkQueueingGroupKey, setBulkQueueingGroupKey] = useState<string | null>(null);
+  const [bulkReviewingGroupKey, setBulkReviewingGroupKey] = useState<string | null>(null);
   const [clientDecisionByEstimateId, setClientDecisionByEstimateId] = useState<Record<string, { event_type: string; body: string; created_at: string }>>({});
 
   const statusParam = searchParams.get("status");
@@ -303,6 +304,44 @@ export function EstimatesTab() {
 
   const pagination = usePaginatedList(filteredEstimates);
 
+  const moveGroupToReady = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
+    const reviewEstimates = estimatesInGroup.filter((estimate) => estimate.status === "needs_office_review");
+
+    if (reviewEstimates.length === 0) {
+      toast({ title: "No review estimates", description: "This client group has no estimates waiting for office review.", variant: "destructive" });
+      return;
+    }
+
+    setBulkReviewingGroupKey(groupName);
+    try {
+      const updates = reviewEstimates.map((estimate) =>
+        supabaseExtended
+          .from("estimates")
+          .update({ status: "ready_to_send" })
+          .eq("id", estimate.id),
+      );
+
+      const results = await Promise.all(updates);
+      const failed = results.find((result) => result.error);
+      if (failed?.error) {
+        toast({ title: "Group review update failed", description: failed.error.message, variant: "destructive" });
+        return;
+      }
+
+      await Promise.all(reviewEstimates.map((estimate) => logCommunicationEvent(
+        { ...estimate, status: "ready_to_send" } as EstimateRow,
+        "estimate_ready_to_send",
+        `${estimate.estimate_number} ready to send`,
+        `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} is ready to send.`,
+      )));
+
+      await fetchData();
+      toast({ title: "Group ready to send", description: `${reviewEstimates.length} estimate${reviewEstimates.length === 1 ? "" : "s"} from ${groupName} moved to ready to send.` });
+    } finally {
+      setBulkReviewingGroupKey(null);
+    }
+  }, [fetchData, toast]);
+
   const queueEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
     const readyEstimates = estimatesInGroup.filter((estimate) => estimate.status === "ready_to_send");
 
@@ -443,6 +482,15 @@ export function EstimatesTab() {
                       <p className="text-xs text-muted-foreground">{group.estimates.length} estimate{group.estimates.length === 1 ? "" : "s"}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => moveGroupToReady(group.groupName, group.estimates)}
+                        disabled={bulkReviewingGroupKey === group.groupName || !group.estimates.some((estimate) => estimate.status === "needs_office_review")}
+                      >
+                        {bulkReviewingGroupKey === group.groupName ? "Updating..." : "Mark review group ready"}
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
