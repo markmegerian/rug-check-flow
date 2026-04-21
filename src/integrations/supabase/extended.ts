@@ -186,6 +186,36 @@ type ExtendedTables = Database["public"]["Tables"] & {
     };
     Relationships: [];
   };
+  estimate_send_batches: {
+    Row: {
+      id: string;
+      client_id: string;
+      company_id: string | null;
+      scheduled_for: string;
+      sent_at: string | null;
+      status: "queued" | "sent" | "failed" | "cancelled";
+      recipient_email: string | null;
+      subject: string | null;
+      body: string | null;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: Record<string, unknown>;
+    Update: Record<string, unknown>;
+    Relationships: [];
+  };
+  estimate_send_batch_items: {
+    Row: {
+      id: string;
+      batch_id: string;
+      estimate_id: string;
+      created_at: string;
+    };
+    Insert: Record<string, unknown>;
+    Update: Record<string, unknown>;
+    Relationships: [];
+  };
   payment_attempts: {
     Row: {
       id: string;
