@@ -7,7 +7,14 @@ export type InvoicePdfArtifact = {
   forceRegenerate?: boolean;
 };
 
-export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
+export type InvoicePdfDownloadResult = {
+  bucket: string;
+  path: string;
+  signedUrl: string;
+  generated: boolean;
+};
+
+export async function downloadInvoicePdf(artifact: InvoicePdfArtifact): Promise<InvoicePdfDownloadResult> {
   const payload = {
     invoice_id: artifact.invoiceId ?? "",
     estimate_id: artifact.estimateId ?? "",

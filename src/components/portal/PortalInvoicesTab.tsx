@@ -292,13 +292,17 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
     event.stopPropagation();
 
     try {
-      await downloadInvoicePdf({
+      const artifact = await downloadInvoicePdf({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
       });
       toast({
         title: "Invoice PDF ready",
-        description: `Opening ${invoice.invoiceNumber}.pdf in a new tab. If nothing appears, your browser may be blocking the PDF window.`,
+        description: `${invoice.invoiceNumber}.pdf is ready. If it did not open automatically, tap Open PDF.`,
+        action: {
+          label: "Open PDF",
+          onClick: () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer"),
+        },
       });
     } catch (error) {
       const description = error instanceof Error ? error.message : "Unknown error";

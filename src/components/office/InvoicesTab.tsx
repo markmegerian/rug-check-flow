@@ -226,10 +226,14 @@ export function InvoicesTab() {
 
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
-      await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
+      const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
       toast({
         title: "Invoice PDF ready",
-        description: `Opening ${invoice.invoice_number}.pdf in a new tab. If nothing appears, your browser may be blocking the PDF window.`,
+        description: `${invoice.invoice_number}.pdf is ready. If it did not open automatically, tap Open PDF.`,
+        action: {
+          label: "Open PDF",
+          onClick: () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer"),
+        },
       });
     } catch (error) {
       toast({ title: "Download failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
