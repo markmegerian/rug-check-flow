@@ -9,7 +9,7 @@ import { type AppRole, ROLE_LABELS } from "@/types/app-roles";
 import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 
 const ROLE_REDIRECTS: Record<AppRole, string> = {
-  checkin_staff: "/facility/checkin",
+  checkin_staff: "/checkin",
   driver: "/driver",
   office: "/office/jobs",
   admin: "/admin",
@@ -23,10 +23,17 @@ const SECTIONS: Array<{
   roles: AppRole[];
 }> = [
   {
+    to: "/checkin",
+    icon: ClipboardCheck,
+    label: "Check-In Intake",
+    description: "Fast rug intake, walk-ins, pending pickup check-in, and intake support",
+    roles: ["admin", "office", "checkin_staff"],
+  },
+  {
     to: "/facility/production",
     icon: Factory,
     label: "Facility",
-    description: "Check-in, production, delivery prep, and facility handoff",
+    description: "Production, delivery prep, and facility operations beyond intake",
     roles: ["admin", "office", "checkin_staff"],
   },
   {

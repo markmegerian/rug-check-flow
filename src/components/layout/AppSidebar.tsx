@@ -48,10 +48,10 @@ const SUPERADMIN_NAV_ITEMS = [
 const CHECKIN_ITEM = { title: "Check-In", url: "/checkin", icon: ClipboardCheck } as const;
 
 const FACILITY_ITEMS = [
-  { title: "Check-In", url: "/checkin", icon: ClipboardCheck, active: (path: string) => path.startsWith("/checkin") },
+  { title: "Check-In Intake", url: "/checkin", icon: ClipboardCheck, active: (path: string) => path.startsWith("/checkin") },
   { title: "Production", url: "/facility/production", icon: Factory, active: (path: string) => path === "/facility/production" },
   { title: "Delivery Prep", url: "/facility/delivery-prep", icon: Package, active: (path: string) => path === "/facility/delivery-prep" },
-  { title: "Invoice Generator", url: "/facility/invoices", icon: Receipt, active: (path: string) => path === "/facility/invoices" },
+  { title: "Create Invoice", url: "/facility/invoices", icon: Receipt, active: (path: string) => path === "/facility/invoices" },
 ] as const;
 
 const OFFICE_ITEMS = [

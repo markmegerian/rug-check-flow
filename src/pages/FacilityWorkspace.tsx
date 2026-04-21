@@ -13,7 +13,7 @@ const InvoiceGeneratorPanel = lazy(() => import("@/components/facility/InvoiceGe
 const FACILITY_TITLES: Record<string, string> = {
   "/facility/production": "Production",
   "/facility/delivery-prep": "Delivery Prep",
-  "/facility/invoices": "Invoice Generator",
+  "/facility/invoices": "Create Invoice",
 };
 
 export default function FacilityWorkspace() {
