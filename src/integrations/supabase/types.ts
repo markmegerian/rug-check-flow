@@ -2823,9 +2823,12 @@ export type Database = {
           edges: string[]
           id: string
           line_total: number
+          requires_estimate: boolean | null
           rug_id: string
+          service_category: string | null
           service_id: string | null
           service_name: string
+          service_unit: string | null
           unit_price: number
         }
         Insert: {
@@ -2834,9 +2837,12 @@ export type Database = {
           edges?: string[]
           id?: string
           line_total?: number
+          requires_estimate?: boolean | null
           rug_id: string
+          service_category?: string | null
           service_id?: string | null
           service_name?: string
+          service_unit?: string | null
           unit_price?: number
         }
         Update: {
@@ -2845,9 +2851,12 @@ export type Database = {
           edges?: string[]
           id?: string
           line_total?: number
+          requires_estimate?: boolean | null
           rug_id?: string
+          service_category?: string | null
           service_id?: string | null
           service_name?: string
+          service_unit?: string | null
           unit_price?: number
         }
         Relationships: [

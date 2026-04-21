@@ -25,6 +25,7 @@ type RugServiceRow = {
   rug_id: string;
   service_id: string | null;
   service_name: string;
+  service_category: string | null;
   unit_price: number | string | null;
   line_total: number | string | null;
 };
@@ -161,29 +162,18 @@ Deno.serve(async (req) => {
 
     const { data: rugServiceRows, error: rugServicesError } = await adminClient
       .from("rug_services")
-      .select("rug_id, service_id, service_name, unit_price, line_total")
+      .select("rug_id, service_id, service_name, service_category, unit_price, line_total")
       .in("rug_id", rugIds);
 
     if (rugServicesError) throw rugServicesError;
     const rugServices = (rugServiceRows ?? []) as RugServiceRow[];
     if (rugServices.length === 0) return json({ error: "Selected rugs have no services to invoice." }, 400);
 
-    const serviceIds = [...new Set(rugServices.map((service) => service.service_id).filter(Boolean))] as string[];
-    let categoryByServiceId: Record<string, string> = {};
-    if (serviceIds.length > 0) {
-      const { data: serviceRows, error: serviceError } = await adminClient
-        .from("services")
-        .select("id, category")
-        .in("id", serviceIds);
-      if (serviceError) throw serviceError;
-      categoryByServiceId = Object.fromEntries((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
-    }
-
     const rugTagMap = Object.fromEntries(rugs.map((rug) => [rug.id, rug.tag]));
     const normalizedRugServices = rugServices.map((service) => {
       const adjustedTotal = applyCleaningServiceMinimum(
         normalizeNumber(service.line_total),
-        service.service_id ? (categoryByServiceId[service.service_id] ?? null) : null,
+        service.service_category,
       );
       return {
         ...service,

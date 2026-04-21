@@ -49,6 +49,7 @@ type WorkflowRequest = {
 type ServiceRuleRow = {
   id: string;
   category: string | null;
+  unit: string | null;
   requires_estimate: boolean | null;
 };
 
@@ -276,7 +277,7 @@ async function fetchServiceRules(adminClient: ReturnType<typeof createClient>, s
 
   const { data, error } = await adminClient
     .from("services")
-    .select("id, category, requires_estimate")
+    .select("id, category, unit, requires_estimate")
     .in("id", serviceIds);
 
   if (error) throw error;
@@ -294,6 +295,9 @@ async function insertRugServices(adminClient: ReturnType<typeof createClient>, r
       service_name: service.service_name,
       unit_price: normalizeNumber(service.unit_price),
       line_total: normalizeNumber(service.line_total),
+      service_category: rule?.category ?? null,
+      service_unit: rule?.unit ?? null,
+      requires_estimate: rule?.requires_estimate ?? null,
       edges: service.edges ?? [],
       approval_status: shouldAutoApproveService(service, rule) ? "approved" : "pending",
     };

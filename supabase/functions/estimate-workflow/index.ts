@@ -18,6 +18,8 @@ type RugServiceSnapshot = {
   id: string;
   service_id: string | null;
   service_name: string;
+  service_category: string | null;
+  requires_estimate: boolean | null;
   unit_price: number | string | null;
   line_total: number | string | null;
 };
@@ -83,14 +85,14 @@ async function recordCommunicationEvent(adminClient: ReturnType<typeof createCli
   if (error) throw error;
 }
 
-async function fetchServiceCategories(adminClient: ReturnType<typeof createClient>, services: RugServiceSnapshot[]) {
-  const serviceIds = [...new Set(services.map((service) => service.service_id).filter(Boolean))] as string[];
-  if (serviceIds.length === 0) return {} as Record<string, string>;
+async function backfillServiceSnapshots(adminClient: ReturnType<typeof createClient>, services: RugServiceSnapshot[]) {
+  const missingIds = [...new Set(services.filter((service) => !service.service_category).map((service) => service.service_id).filter(Boolean))] as string[];
+  if (missingIds.length === 0) return {} as Record<string, string>;
 
   const { data, error } = await adminClient
     .from("services")
     .select("id, category")
-    .in("id", serviceIds);
+    .in("id", missingIds);
 
   if (error) throw error;
   return Object.fromEntries((data ?? []).map((row) => [row.id, row.category ?? ""]));
@@ -117,7 +119,7 @@ async function createEstimateFromRug(adminClient: ReturnType<typeof createClient
 
   const { data: serviceRows, error: serviceError } = await adminClient
     .from("rug_services")
-    .select("id, service_id, service_name, unit_price, line_total")
+    .select("id, service_id, service_name, service_category, requires_estimate, unit_price, line_total")
     .eq("rug_id", params.rugId);
 
   if (serviceError) throw serviceError;
@@ -127,7 +129,7 @@ async function createEstimateFromRug(adminClient: ReturnType<typeof createClient
     return json({ error: "This rug has no captured service pricing yet." }, 400);
   }
 
-  const categoryByServiceId = await fetchServiceCategories(adminClient, services);
+  const categoryByServiceId = await backfillServiceSnapshots(adminClient, services);
   const total = services.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0);
   const estimateNumber = generateEstimateNumber();
 
@@ -156,7 +158,7 @@ async function createEstimateFromRug(adminClient: ReturnType<typeof createClient
     quantity: 1,
     unit_price: normalizeNumber(service.unit_price),
     total: normalizeNumber(service.line_total),
-    service_category: service.service_id ? (categoryByServiceId[service.service_id] ?? "") : "",
+    service_category: service.service_category ?? (service.service_id ? (categoryByServiceId[service.service_id] ?? "") : ""),
   }));
 
   const { error: itemError } = await adminClient.from("estimate_items").insert(items);

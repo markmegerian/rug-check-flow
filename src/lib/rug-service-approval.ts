@@ -6,6 +6,9 @@ type BaseRugServiceRow = {
   rug_id: string;
   service_id: string | null;
   service_name: string;
+  service_category?: string | null;
+  service_unit?: string | null;
+  requires_estimate?: boolean | null;
   unit_price: number;
   line_total: number;
   edges: string[] | null;
@@ -39,7 +42,7 @@ export async function fetchRugServicesByRugId(rugId: string) {
   if (approvalStatusColumnAvailable === false) {
     const { data, error } = await supabase
       .from("rug_services")
-      .select("id, rug_id, service_id, service_name, unit_price, line_total, edges")
+      .select("id, rug_id, service_id, service_name, service_category, service_unit, requires_estimate, unit_price, line_total, edges")
       .eq("rug_id", rugId)
       .order("created_at", { ascending: true });
 
@@ -48,7 +51,7 @@ export async function fetchRugServicesByRugId(rugId: string) {
 
   const withStatus = await supabase
     .from("rug_services")
-    .select("id, rug_id, service_id, service_name, unit_price, line_total, edges, approval_status")
+    .select("id, rug_id, service_id, service_name, service_category, service_unit, requires_estimate, unit_price, line_total, edges, approval_status")
     .eq("rug_id", rugId)
     .order("created_at", { ascending: true });
 
@@ -77,7 +80,7 @@ export async function fetchRugServicesForRugIds(rugIds: string[]) {
   if (approvalStatusColumnAvailable === false) {
     const { data, error } = await supabase
       .from("rug_services")
-      .select("rug_id, line_total, service_name, edges")
+      .select("rug_id, line_total, service_name, service_category, service_unit, requires_estimate, edges")
       .in("rug_id", rugIds);
 
     return { data: ((data ?? []) as BaseRugServiceRow[]).map(normalizeRow), error, approvalStatusAvailable: false };
@@ -85,7 +88,7 @@ export async function fetchRugServicesForRugIds(rugIds: string[]) {
 
   const withStatus = await supabase
     .from("rug_services")
-    .select("rug_id, line_total, service_name, edges, approval_status")
+    .select("rug_id, line_total, service_name, service_category, service_unit, requires_estimate, edges, approval_status")
     .in("rug_id", rugIds);
 
   if (!withStatus.error) {
@@ -110,21 +113,25 @@ export async function insertRugServices(rows: BaseRugServiceRow[]) {
   if (rows.length === 0) return { error: null, approvalStatusAvailable: approvalStatusColumnAvailable !== false };
 
   const serviceIds = [...new Set(rows.map((row) => row.service_id).filter(Boolean))] as string[];
-  let categoryByServiceId: Record<string, string> = {};
+  let serviceMetaById: Record<string, { category: string | null; unit: string | null; requires_estimate: boolean | null }> = {};
 
   if (serviceIds.length > 0) {
     const { data } = await supabase
       .from("services")
-      .select("id, category")
+      .select("id, category, unit, requires_estimate")
       .in("id", serviceIds);
-    categoryByServiceId = Object.fromEntries(((data ?? []) as Array<{ id: string; category: string | null }>).map((row) => [row.id, row.category ?? ""]));
+    serviceMetaById = Object.fromEntries(((data ?? []) as Array<{ id: string; category: string | null; unit: string | null; requires_estimate: boolean | null }>).map((row) => [row.id, { category: row.category ?? null, unit: row.unit ?? null, requires_estimate: row.requires_estimate ?? null }]));
   }
 
   const rowsWithStatus = rows.map((row) => {
-    const category = row.service_id ? categoryByServiceId[row.service_id] : null;
+    const meta = row.service_id ? serviceMetaById[row.service_id] : null;
+    const category = row.service_category ?? meta?.category ?? null;
     const defaultApprovalStatus = isCleaningCategory(category) ? "approved" : "pending";
     return {
       ...row,
+      service_category: category,
+      service_unit: row.service_unit ?? meta?.unit ?? null,
+      requires_estimate: row.requires_estimate ?? meta?.requires_estimate ?? null,
       edges: row.edges ?? [],
       approval_status: row.approval_status === "rejected"
         ? "rejected"
