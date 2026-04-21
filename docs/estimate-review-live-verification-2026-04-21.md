@@ -7,6 +7,8 @@ After applying the estimate review migrations live, the following remote migrati
 - `20260421050000 | 20260421050000 | 2026-04-21 05:00:00`
 - `20260421051500 | 20260421051500 | 2026-04-21 05:15:00`
 - `20260421053000 | 20260421053000 | 2026-04-21 05:30:00`
+- `20260421054500 | 20260421054500 | 2026-04-21 05:45:00`
+- `20260421060000 | 20260421060000 | 2026-04-21 06:00:00`
 
 ## RPC probe results
 
@@ -14,20 +16,22 @@ Using the live project REST RPC endpoint with the current publishable/anon path:
 
 - `mark_estimate_group_ready([])` → callable, returned `[{"updated_count":0}]`
 - `expire_estimate_group([])` → callable, returned `[{"updated_count":0}]`
-- `get_estimate_review_groups()` → failed under anon with:
+- initial `get_estimate_review_groups()` probe → failed under anon with:
   - `401`
   - `permission denied for table company_memberships`
+- after simplification migration `20260421054500`, `get_estimate_review_groups()` → `200 []`
+- `get_estimate_group_details('00000000-0000-0000-0000-000000000000', 'needs_office_review')` → `200 []`
 
 ## Interpretation
 
-This does **not** justify a blind `security definer` rewrite.
-
-The grouped review summary path currently derives company context through tables that are not visible to the anon/publishable context used for the direct probe. That mirrors the earlier Delivery Prep verification pattern: the live probe is useful to expose trust-boundary reality, but the correct response is to align the function with the intended authenticated office runtime rather than weakening boundaries casually.
+The original grouped review summary path crossed a restricted trust boundary by deriving company context through tables not visible to the anon/publishable probe. That was corrected by simplifying the function rather than weakening the boundary with a blind `security definer` rewrite.
 
 ## Current truth
 
-- The new grouped estimate action primitives are live and callable.
-- The grouped summary RPC exists live but still has a trust-boundary mismatch for anon probing because of its current company-name derivation path.
-- The safest next step is to either:
-  1. simplify the summary RPC so it avoids restricted joins, or
-  2. verify and consume it only in the authenticated office context if that is the intended trust boundary.
+- The grouped estimate action primitives are live and callable.
+- The grouped estimate summary RPC is live and callable after simplification.
+- The grouped estimate detail RPC is live and callable.
+- The Office estimate review surface now has real backend primitives for:
+  - grouped summary
+  - grouped action mutation
+  - grouped detail resolution
