@@ -455,18 +455,21 @@ export function EstimatesTab() {
   }, [reviewGroups]);
 
   const grouped = useMemo(() => {
-    const statusMap = new Map<string, Map<string, EstimateRow[]>>();
+    const reviewGroupMap = new Map(reviewGroups.map((group) => [group.groupKey, group]));
+    const statusMap = new Map<string, Map<string, { groupName: string; groupKey: string; estimates: EstimateRow[]; summary?: EstimateReviewGroupSummary }>>();
 
     pagination.items.forEach((estimate) => {
       const statusKey = estimate.status;
-      const companyName = estimate.clients?.company?.trim();
-      const clientName = estimate.clients?.name?.trim() || "Unknown client";
-      const groupKey = companyName ? `${companyName} · ${clientName}` : clientName;
+      const groupKey = `${estimate.status}:${estimate.client_id ?? "unknown"}`;
+      const summary = reviewGroupMap.get(groupKey);
+      const groupName = summary?.groupName ?? (estimate.clients?.company?.trim()
+        ? `${estimate.clients.company.trim()} · ${estimate.clients?.name?.trim() || "Unknown client"}`
+        : estimate.clients?.name?.trim() || "Unknown client");
 
       if (!statusMap.has(statusKey)) statusMap.set(statusKey, new Map());
       const clientMap = statusMap.get(statusKey)!;
-      if (!clientMap.has(groupKey)) clientMap.set(groupKey, []);
-      clientMap.get(groupKey)!.push(estimate);
+      if (!clientMap.has(groupKey)) clientMap.set(groupKey, { groupName, groupKey, estimates: [], summary });
+      clientMap.get(groupKey)!.estimates.push(estimate);
     });
 
     return STATUS_ORDER
@@ -474,12 +477,9 @@ export function EstimatesTab() {
       .map((status) => ({
         status,
         label: STATUS_LABELS[status] ?? status,
-        groups: Array.from(statusMap.get(status)!.entries()).map(([groupName, estimates]) => ({
-          groupName,
-          estimates,
-        })),
+        groups: Array.from(statusMap.get(status)!.values()).sort((a, b) => a.groupName.localeCompare(b.groupName)),
       }));
-  }, [pagination.items]);
+  }, [pagination.items, reviewGroups]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading estimates…</div>;
@@ -594,13 +594,16 @@ export function EstimatesTab() {
                   <div className="px-4 py-3 bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
                     <div>
                       <p className="text-sm font-medium text-foreground">{group.groupName}</p>
-                      <p className="text-xs text-muted-foreground">{group.estimates.length} estimate{group.estimates.length === 1 ? "" : "s"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {group.summary?.estimate_count ?? group.estimates.length} estimate{(group.summary?.estimate_count ?? group.estimates.length) === 1 ? "" : "s"}
+                        {group.summary ? ` · $${group.summary.total_amount.toFixed(2)}` : ""}
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                        <span>{group.estimates.filter((estimate) => estimate.status === "needs_office_review").length} in review</span>
+                        <span>{group.summary?.review_count ?? group.estimates.filter((estimate) => estimate.status === "needs_office_review").length} in review</span>
                         <span>•</span>
-                        <span>{group.estimates.filter((estimate) => estimate.status === "ready_to_send").length} ready</span>
+                        <span>{group.summary?.ready_count ?? group.estimates.filter((estimate) => estimate.status === "ready_to_send").length} ready</span>
                         <span>•</span>
-                        <span>{group.estimates.filter((estimate) => estimate.status === "sent").length} sent</span>
+                        <span>{group.summary?.sent_count ?? group.estimates.filter((estimate) => estimate.status === "sent").length} sent</span>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
