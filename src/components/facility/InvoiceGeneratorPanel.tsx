@@ -126,24 +126,14 @@ export function InvoiceGeneratorPanel() {
     const uninvoicedIds = uninvoicedRugs.map((r) => r.id);
     const { data: rugServices } = await supabase
       .from("rug_services")
-      .select("rug_id, service_id, line_total")
+      .select("rug_id, service_category, line_total")
       .in("rug_id", uninvoicedIds);
-
-    const serviceIds = Array.from(new Set((rugServices ?? []).map((s) => s.service_id).filter(Boolean)));
-    let categoryByServiceId: Record<string, string> = {};
-    if (serviceIds.length > 0) {
-      const { data: serviceRows } = await supabase
-        .from("services")
-        .select("id, category")
-        .in("id", serviceIds);
-      categoryByServiceId = Object.fromEntries((serviceRows ?? []).map((row) => [row.id, row.category ?? ""]));
-    }
 
     const serviceTotalByRug: Record<string, number> = {};
     const cleaningMinimumByRug: Record<string, boolean> = {};
     (rugServices ?? []).forEach((s) => {
       const rawTotal = Number(s.line_total);
-      const adjustedTotal = applyCleaningServiceMinimum(rawTotal, categoryByServiceId[s.service_id] ?? null);
+      const adjustedTotal = applyCleaningServiceMinimum(rawTotal, s.service_category ?? null);
       serviceTotalByRug[s.rug_id] = (serviceTotalByRug[s.rug_id] ?? 0) + adjustedTotal;
       if (adjustedTotal > rawTotal) cleaningMinimumByRug[s.rug_id] = true;
     });

@@ -386,7 +386,7 @@ async function createDraftEstimate(adminClient: ReturnType<typeof createClient>,
     quantity: 1,
     unit_price: normalizeNumber(service.unit_price),
     total: normalizeNumber(service.line_total),
-    service_category: params.rules.get(service.service_id)?.category ?? "",
+    service_category: params.rules.get(service.service_id)?.category ?? service.service_category ?? "",
   }));
 
   const { error: itemError } = await adminClient.from("estimate_items").insert(estimateItems);
