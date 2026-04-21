@@ -80,6 +80,7 @@ export function EstimatesTab() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
+  const [bulkQueueingGroupKey, setBulkQueueingGroupKey] = useState<string | null>(null);
   const [clientDecisionByEstimateId, setClientDecisionByEstimateId] = useState<Record<string, { event_type: string; body: string; created_at: string }>>({});
 
   const statusParam = searchParams.get("status");
@@ -302,6 +303,44 @@ export function EstimatesTab() {
 
   const pagination = usePaginatedList(filteredEstimates);
 
+  const queueEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
+    const readyEstimates = estimatesInGroup.filter((estimate) => estimate.status === "ready_to_send");
+
+    if (readyEstimates.length === 0) {
+      toast({ title: "No ready estimates", description: "This client group has no estimates ready for the batch send.", variant: "destructive" });
+      return;
+    }
+
+    const missingClientLink = readyEstimates.find((estimate) => !estimate.client_id);
+    if (missingClientLink) {
+      toast({ title: "Cannot queue group", description: `${missingClientLink.estimate_number} is missing a client link.`, variant: "destructive" });
+      return;
+    }
+
+    const missingEmail = readyEstimates.filter((estimate) => !estimate.clients?.email?.trim());
+    if (missingEmail.length > 0) {
+      toast({ title: "Client email required", description: `Add a client email before queueing ${missingEmail.length} ready estimate${missingEmail.length === 1 ? "" : "s"} in ${groupName}.`, variant: "destructive" });
+      return;
+    }
+
+    setBulkQueueingGroupKey(groupName);
+    try {
+      const queuedAt = new Date().toISOString();
+      await Promise.all(readyEstimates.map((estimate) => queueEstimateForBatchSend({
+        clientId: estimate.client_id!,
+        estimateId: estimate.id,
+        queuedAt,
+      })));
+      await fetchData();
+      toast({ title: "Estimate group queued", description: `${readyEstimates.length} estimate${readyEstimates.length === 1 ? "" : "s"} from ${groupName} will send in the daily 3:00 PM Eastern batch.` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Group queue failed", description: message, variant: "destructive" });
+    } finally {
+      setBulkQueueingGroupKey(null);
+    }
+  }, [fetchData, toast]);
+
   const openEstimateThread = useCallback(async (estimate: EstimateRow) => {
     if (!estimate.client_id) {
       toast({ title: "No client linked", description: "This estimate does not have a client to message.", variant: "destructive" });
@@ -398,10 +437,21 @@ export function EstimatesTab() {
             <div>
               {groups.map((group, groupIndex) => (
                 <div key={`${status}-${group.groupName}`} className={groupIndex > 0 ? "border-t" : ""}>
-                  <div className="px-4 py-3 bg-muted/20 flex items-center justify-between gap-3">
+                  <div className="px-4 py-3 bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
                     <div>
                       <p className="text-sm font-medium text-foreground">{group.groupName}</p>
                       <p className="text-xs text-muted-foreground">{group.estimates.length} estimate{group.estimates.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => queueEstimateGroup(group.groupName, group.estimates)}
+                        disabled={bulkQueueingGroupKey === group.groupName || !group.estimates.some((estimate) => estimate.status === "ready_to_send")}
+                      >
+                        {bulkQueueingGroupKey === group.groupName ? "Queueing..." : "Queue ready group"}
+                      </Button>
                     </div>
                   </div>
                   <div className="divide-y">
