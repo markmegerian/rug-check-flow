@@ -64,9 +64,6 @@ type EstimateReviewGroupSummary = EstimateReviewGroupRow & {
   groupName: string;
   groupKey: string;
   localEstimateCount: number;
-  localReviewCount: number;
-  localReadyCount: number;
-  localSentCount: number;
 };
 
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"]);
@@ -166,9 +163,6 @@ export function EstimatesTab() {
           groupName,
           groupKey,
           localEstimateCount: localEstimates.length,
-          localReviewCount: localEstimates.filter((estimate) => estimate.status === "needs_office_review").length,
-          localReadyCount: localEstimates.filter((estimate) => estimate.status === "ready_to_send").length,
-          localSentCount: localEstimates.filter((estimate) => estimate.status === "sent").length,
         };
       }));
     } catch (error) {
@@ -527,15 +521,21 @@ export function EstimatesTab() {
       {groupedReviewSummary.length > 0 ? (
         <section className="rounded-lg border bg-card p-4 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-sm font-medium">Backend review group summary</h3>
-            <span className="text-xs text-muted-foreground">Additive RPC validation path</span>
+            <div>
+              <h3 className="text-sm font-medium">Grouped review summary</h3>
+              <p className="text-xs text-muted-foreground">Primary account-level summary from backend review groups</p>
+            </div>
+            <span className="text-xs text-muted-foreground">Live RPC-backed</span>
           </div>
           <div className="space-y-3">
             {groupedReviewSummary.map(({ status, label, groups }) => (
               <div key={`summary-${status}`} className="rounded-md border bg-muted/10 overflow-hidden">
                 <div className="px-3 py-2 flex items-center justify-between">
                   <p className="text-sm font-medium">{label}</p>
-                  <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimate_count, 0)}</Badge>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground">{groups.length} group{groups.length === 1 ? "" : "s"}</span>
+                    <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimate_count, 0)}</Badge>
+                  </div>
                 </div>
                 <Separator />
                 <div className="divide-y">
