@@ -426,6 +426,16 @@ export function EstimatesTab() {
 
   const pagination = usePaginatedList(filteredEstimates);
 
+  const attentionEstimateCount = useMemo(
+    () => estimates.filter((estimate) => ["needs_office_review", "needs_revision", "ready_to_send"].includes(estimate.status)).length,
+    [estimates],
+  );
+
+  const managementEstimateCount = useMemo(
+    () => estimates.filter((estimate) => ["sent", "approved", "rejected", "expired", "draft"].includes(estimate.status)).length,
+    [estimates],
+  );
+
   const moveGroupToReady = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
     const resolvedEstimates = await resolveGroupEstimates("needs_office_review", estimatesInGroup[0]?.client_id ?? null, estimatesInGroup);
     const reviewEstimates = resolvedEstimates.filter((estimate) => estimate.status === "needs_office_review");
@@ -618,10 +628,32 @@ export function EstimatesTab() {
           {minAgeDays > 0 ? ` · min age ${minAgeDays} days` : ""}
         </div>
       ) : null}
-      <h2 className="text-lg font-semibold text-foreground">Estimates</h2>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Estimate Attention</h2>
+          <p className="text-sm text-muted-foreground">Review grouped client estimate work first, then use supporting creation, send-queue, and history tools as needed.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/80">Needs attention</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{attentionEstimateCount}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Needs office review, needs revision, and ready-to-send estimate work.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Grouped review units</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{reviewGroups.length}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Backend-owned client/company review groups currently available.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Management / archive</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{managementEstimateCount}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Historical, decisioned, or otherwise secondary estimate records still visible here temporarily.</div>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-lg border bg-card p-4 space-y-3">
-        <h3 className="text-sm font-medium">Create estimate from checked-in rug snapshot</h3>
+        <h3 className="text-sm font-medium">Supporting creation</h3>
         <div className="flex flex-wrap gap-2">
           <Select value={selectedRugId} onValueChange={setSelectedRugId}>
             <SelectTrigger className="w-[320px]">
@@ -646,8 +678,8 @@ export function EstimatesTab() {
         <section className="rounded-lg border bg-card p-4 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="text-sm font-medium">Estimate send batches</h3>
-              <p className="text-xs text-muted-foreground">Backend batch send units queued/sent per client account</p>
+              <h3 className="text-sm font-medium">Send queue follow-through</h3>
+              <p className="text-xs text-muted-foreground">Supporting visibility for backend batch send units queued or sent per client account</p>
             </div>
             <span className="text-xs text-muted-foreground">Live RPC-backed</span>
           </div>
@@ -699,8 +731,8 @@ export function EstimatesTab() {
         <section className="rounded-lg border bg-card p-4 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="text-sm font-medium">Grouped review summary</h3>
-              <p className="text-xs text-muted-foreground">Primary account-level summary from backend review groups</p>
+              <h3 className="text-sm font-medium">Grouped review queue</h3>
+              <p className="text-xs text-muted-foreground">Primary account-level review queue from backend review groups</p>
             </div>
             <span className="text-xs text-muted-foreground">Live RPC-backed</span>
           </div>
@@ -754,6 +786,13 @@ export function EstimatesTab() {
           </div>
         </section>
       ) : null}
+
+      <section className="space-y-2">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">Management and history (transitional)</h3>
+          <p className="text-xs text-muted-foreground">Broader estimate history remains here temporarily until a dedicated management surface is split out.</p>
+        </div>
+      </section>
 
       {grouped.length === 0 ? (
         <p className="text-sm text-muted-foreground">No estimates created yet.</p>
