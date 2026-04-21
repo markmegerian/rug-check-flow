@@ -520,6 +520,13 @@ export function EstimatesTab() {
                     <div>
                       <p className="text-sm font-medium text-foreground">{group.groupName}</p>
                       <p className="text-xs text-muted-foreground">{group.estimates.length} estimate{group.estimates.length === 1 ? "" : "s"}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        <span>{group.estimates.filter((estimate) => estimate.status === "needs_office_review").length} in review</span>
+                        <span>•</span>
+                        <span>{group.estimates.filter((estimate) => estimate.status === "ready_to_send").length} ready</span>
+                        <span>•</span>
+                        <span>{group.estimates.filter((estimate) => estimate.status === "sent").length} sent</span>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -589,6 +596,15 @@ export function EstimatesTab() {
                           <div className="flex flex-wrap gap-2">
                             <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => openEstimateThread(estimate)}>
                               Open thread
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => setSelectedRugId(estimate.rug_id ?? "none")}
+                              disabled={!estimate.rug_id}
+                            >
+                              Select rug
                             </Button>
                             {estimate.status === "needs_office_review" && (
                               <Button
