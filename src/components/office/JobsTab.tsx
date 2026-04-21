@@ -143,6 +143,42 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
 
   const pagination = usePaginatedList(filteredJobs);
 
+  const sourceJobs = useMemo(
+    () => jobs.filter((job) => job.sourceType === sourceTab),
+    [jobs, sourceTab],
+  );
+
+  const sourceAttentionCounts = useMemo(
+    () => sourceJobs.reduce(
+      (totals, job) => {
+        for (const item of job.items) {
+          if (item.estimate_requested && !item.latestEstimateResponse) {
+            totals.estimateOpen += 1;
+          }
+          if (!item.linkedInvoice) {
+            totals.uninvoiced += 1;
+          }
+          if (item.linkedRug?.status === "delivered") {
+            totals.delivered += 1;
+          }
+          if (item.latestReturnState?.state === "open") {
+            totals.returns += 1;
+          }
+          if (
+            item.latestReturnState?.state === "open"
+            || (item.estimate_requested && !item.latestEstimateResponse)
+            || (!item.linkedInvoice && item.linkedRug?.status === "ready")
+          ) {
+            totals.attention += 1;
+          }
+        }
+        return totals;
+      },
+      { estimateOpen: 0, uninvoiced: 0, delivered: 0, returns: 0, attention: 0 },
+    ),
+    [sourceJobs],
+  );
+
   const openJobNoteDialog = (job: JobView) => {
     setNoteEditor({
       jobKey: job.key,
@@ -306,11 +342,11 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
 
   return (
     <div className="app-page h-full overflow-auto space-y-5 animate-fade-in-up">
-      <section className="app-section">
+      <section className="app-section space-y-4">
         <div className="app-section-header gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Jobs</h2>
-            <p className="text-sm text-muted-foreground">Pickup and walk-in rug history, grouped by day entered or received.</p>
+            <h2 className="text-lg font-semibold text-foreground">Jobs Attention</h2>
+            <p className="text-sm text-muted-foreground">Review pickup and walk-in jobs by grouped client context, with attention work surfaced first.</p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="overflow-x-auto">
@@ -339,6 +375,34 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                 className="pl-9"
               />
             </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/80">Needs action</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{sourceAttentionCounts.attention}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Estimate-pending, return, and ready-but-uninvoiced rugs.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Estimate pending</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{sourceAttentionCounts.estimateOpen}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Rugs still waiting on estimate response.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Uninvoiced</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{sourceAttentionCounts.uninvoiced}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Grouped rugs with no linked invoice yet.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Delivered</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{sourceAttentionCounts.delivered}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Delivered rugs still visible in current job context.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Returns / re-entry</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{sourceAttentionCounts.returns}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Open return or re-entry follow-up cases.</div>
           </div>
         </div>
       </section>
@@ -384,11 +448,12 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                   <p className="pl-6 text-xs text-muted-foreground">{job.items.length} rug{job.items.length === 1 ? "" : "s"}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 pt-1">
+                  {attentionCount > 0 ? <Badge className="bg-primary/10 text-primary hover:bg-primary/10">{attentionCount} need action</Badge> : null}
                   {job.primaryRequestId ? (
                     <>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         className="h-8"
                         onClick={(event) => {
@@ -396,11 +461,11 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                           openJobNoteDialog(job);
                         }}
                       >
-                        <Pencil className="mr-1 h-3.5 w-3.5" /> Notes
+                        <Pencil className="mr-1 h-3.5 w-3.5" /> Edit notes
                       </Button>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         className="h-8"
                         onClick={(event) => {
@@ -421,26 +486,29 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                     <div className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{job.notes.join(" · ")}</div>
                   ) : null}
 
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: "all", label: `All (${job.items.length})` },
-                      { id: "estimate_open", label: `Estimate pending (${openEstimateCount})` },
-                      { id: "uninvoiced", label: `Uninvoiced (${uninvoicedCount})` },
-                      { id: "delivered", label: `Delivered (${deliveredCount})` },
-                      { id: "returns", label: `Returns / re-entry (${returnCount})` },
-                      { id: "attention", label: `Needs attention (${attentionCount})` },
-                    ].map((filter) => (
-                      <Button
-                        key={filter.id}
-                        type="button"
-                        size="sm"
-                        variant={activeJobFilter === filter.id ? "default" : "outline"}
-                        className="h-8"
-                        onClick={() => setJobFilters((prev) => ({ ...prev, [job.key]: filter.id as JobFilter }))}
-                      >
-                        {filter.label}
-                      </Button>
-                    ))}
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Attention filters</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: "all", label: `All (${job.items.length})` },
+                        { id: "estimate_open", label: `Estimate pending (${openEstimateCount})` },
+                        { id: "uninvoiced", label: `Uninvoiced (${uninvoicedCount})` },
+                        { id: "delivered", label: `Delivered (${deliveredCount})` },
+                        { id: "returns", label: `Returns / re-entry (${returnCount})` },
+                        { id: "attention", label: `Needs attention (${attentionCount})` },
+                      ].map((filter) => (
+                        <Button
+                          key={filter.id}
+                          type="button"
+                          size="sm"
+                          variant={activeJobFilter === filter.id ? "default" : "outline"}
+                          className="h-8"
+                          onClick={() => setJobFilters((prev) => ({ ...prev, [job.key]: filter.id as JobFilter }))}
+                        >
+                          {filter.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -502,6 +570,10 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                           </div>
 
                           <div className="flex items-start gap-3">
+                            <div className="min-w-[132px] rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                              <div className="font-semibold uppercase tracking-[0.14em] text-foreground/80">Maintenance</div>
+                              <div className="mt-1">Use these only when the grouped job record needs correction.</div>
+                            </div>
                             {item.linkedRug?.photo_url ? (
                               <img
                                 src={item.linkedRug.photo_url}
@@ -517,7 +589,7 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
                               ) : null}
                               {item.pickup_request_id ? (
                                 <>
-                                  <Button size="sm" variant="outline" onClick={() => openEditDialog(item)}>
+                                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(item)}>
                                     <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                                   </Button>
                                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => void removeItem(item)}>
