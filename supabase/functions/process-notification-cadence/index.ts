@@ -107,7 +107,7 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
   const nowIso = new Date().toISOString();
   const { data: estimate, error: estErr } = await adminClient
     .from("estimates")
-    .select("id, estimate_number, status, total, client_id, rug_id, clients(name,email), rugs(tag)")
+    .select("id, estimate_number, status, total, client_id, rug_id, clients(name,email,company_id), rugs(tag)")
     .eq("id", params.estimateId)
     .single();
 
@@ -115,54 +115,119 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
   if (!estimate.client_id) return { status: "failed", reason: "Estimate missing client link" };
   if (estimate.status !== "ready_to_send") return { status: "skipped", reason: `Estimate already ${estimate.status}` };
 
-  const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
-  const subject = `Estimate ${estimate.estimate_number} from RugBoost`;
-  const body = [
-    `Hello ${estimate.clients?.name ?? "client"},`,
-    "",
-    `Your estimate ${estimate.estimate_number} is ready.`,
-    `Rug: ${estimate.rugs?.tag ?? "N/A"}`,
-    `Total: $${Number(estimate.total ?? 0).toFixed(2)}`,
-    "",
-    `Please sign in to the portal to approve or reject this estimate: ${portalUrl}`,
-  ].join("\n");
+  const { data: existingBatch } = await adminClient
+    .from("estimate_send_batches")
+    .select("id, scheduled_for, status")
+    .eq("client_id", estimate.client_id)
+    .eq("status", "queued")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const scheduledFor = existingBatch?.scheduled_for ?? nowIso;
+  let batchId = existingBatch?.id ?? null;
+
+  if (!batchId) {
+    const { data: createdBatch, error: batchError } = await adminClient
+      .from("estimate_send_batches")
+      .insert({
+        client_id: estimate.client_id,
+        company_id: estimate.clients?.company_id ?? null,
+        scheduled_for: scheduledFor,
+        status: "queued",
+        recipient_email: estimate.clients?.email ?? null,
+        subject: estimate.clients?.name ? `Estimate batch for ${estimate.clients.name}` : "Estimate batch",
+      })
+      .select("id")
+      .single();
+
+    if (batchError || !createdBatch) {
+      return { status: "failed", reason: batchError?.message ?? "Estimate batch creation failed" };
+    }
+
+    batchId = createdBatch.id;
+
+    const { error: batchItemError } = await adminClient
+      .from("estimate_send_batch_items")
+      .insert({
+        batch_id: batchId,
+        estimate_id: estimate.id,
+      });
+
+    if (batchItemError && !/duplicate key value/i.test(batchItemError.message)) {
+      return { status: "failed", reason: batchItemError.message };
+    }
+  }
+
+  const { data: batchItems, error: batchItemsError } = await adminClient
+    .from("estimate_send_batch_items")
+    .select("estimate_id, estimates(id, estimate_number, status, total, client_id, rug_id, clients(name,email), rugs(tag))")
+    .eq("batch_id", batchId);
+
+  if (batchItemsError || !batchItems) return { status: "failed", reason: batchItemsError?.message ?? "Estimate batch items not found" };
+
+  const readyEstimates = batchItems
+    .map((row) => row.estimates)
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .filter((row) => row.status === "ready_to_send");
+
+  if (readyEstimates.length === 0) return { status: "skipped", reason: "No ready estimates in batch" };
 
   const clientEmail = normalizeEmail(estimate.clients?.email ?? null);
   if (!clientEmail) {
     await adminClient.from("communication_events").insert({
       client_id: estimate.client_id,
-      rug_id: estimate.rug_id,
+      estimate_batch_id: batchId,
       estimate_id: estimate.id,
+      rug_id: estimate.rug_id,
       channel: "email",
       direction: "outbound",
       event_type: "estimate_send_failed",
-      subject: `Estimate ${estimate.estimate_number} send blocked`,
-      body: "Estimate send was blocked because the client email is missing.",
+      subject: `Estimate batch send blocked`,
+      body: "Estimate batch send was blocked because the client email is missing.",
       created_by: params.actorUserId,
     });
+    await adminClient.from("estimate_send_batches").update({ status: "failed" }).eq("id", batchId);
     return { status: "failed", reason: "Client email is missing" };
   }
 
   if (!isValidEmail(clientEmail)) {
     await adminClient.from("communication_events").insert({
       client_id: estimate.client_id,
-      rug_id: estimate.rug_id,
+      estimate_batch_id: batchId,
       estimate_id: estimate.id,
+      rug_id: estimate.rug_id,
       channel: "email",
       direction: "outbound",
       event_type: "estimate_send_failed",
-      subject: `Estimate ${estimate.estimate_number} send blocked`,
-      body: `Estimate send was blocked because the client email is invalid: ${clientEmail}`,
+      subject: `Estimate batch send blocked`,
+      body: `Estimate batch send was blocked because the client email is invalid: ${clientEmail}`,
       sent_to: clientEmail,
       created_by: params.actorUserId,
     });
+    await adminClient.from("estimate_send_batches").update({ status: "failed" }).eq("id", batchId);
     return { status: "failed", reason: "Client email is invalid" };
   }
 
   let providerStatus: "sent" | "failed" | "not_configured" | "disabled" = "not_configured";
-  let providerMessage = "Estimate marked sent without email provider";
+  let providerMessage = "Estimate batch marked sent without email provider";
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   const fromEmail = Deno.env.get("ESTIMATE_EMAIL_FROM") ?? "RugBoost <no-reply@rugboost.local>";
+  const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
+  const subject = readyEstimates.length === 1
+    ? `Estimate ${readyEstimates[0].estimate_number} from RugBoost`
+    : `Your RugBoost estimates are ready`;
+  const body = [
+    `Hello ${estimate.clients?.name ?? "client"},`,
+    "",
+    readyEstimates.length === 1 ? "Your estimate is ready." : `Your ${readyEstimates.length} estimates are ready.`,
+    "",
+    ...readyEstimates.flatMap((item) => [
+      `${item.estimate_number} · Rug ${item.rugs?.tag ?? "N/A"} · $${Number(item.total ?? 0).toFixed(2)}`,
+    ]),
+    "",
+    `Please sign in to the portal to approve or reject these estimate items: ${portalUrl}`,
+  ].join("\n");
 
   if (!params.emailDeliveryEnabled) {
     return { status: "disabled", reason: "Client email delivery is disabled until onboarding is complete" };
@@ -184,14 +249,15 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
     });
     const resendPayload = await readResponseBody(resendResp);
     providerStatus = resendResp.ok ? "sent" : "failed";
-    providerMessage = resendResp.ok ? "Estimate email delivered" : describeProviderFailure("Resend", resendResp.status, resendPayload);
+    providerMessage = resendResp.ok ? "Estimate batch email delivered" : describeProviderFailure("Resend", resendResp.status, resendPayload);
   }
 
   if (providerStatus === "failed") {
     await adminClient.from("communication_events").insert({
       client_id: estimate.client_id,
-      rug_id: estimate.rug_id,
+      estimate_batch_id: batchId,
       estimate_id: estimate.id,
+      rug_id: estimate.rug_id,
       channel: "email",
       direction: "outbound",
       event_type: "estimate_send_failed",
@@ -200,26 +266,34 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
       sent_to: clientEmail,
       created_by: params.actorUserId,
     });
+    await adminClient.from("estimate_send_batches").update({ status: "failed", recipient_email: clientEmail, subject, body }).eq("id", batchId);
     return { status: "failed", reason: providerMessage };
   }
 
-  await adminClient.from("estimates").update({ status: "sent", sent_at: nowIso }).eq("id", estimate.id);
+  const readyEstimateIds = readyEstimates.map((item) => item.id);
+  await adminClient.from("estimates").update({ status: "sent", sent_at: nowIso }).in("id", readyEstimateIds);
+  await adminClient.from("estimate_send_batches").update({ status: "sent", sent_at: nowIso, recipient_email: clientEmail, subject, body }).eq("id", batchId);
+
   await adminClient.from("notification_cadence").upsert(
-    buildEstimateReminderRows({ clientId: estimate.client_id, estimateId: estimate.id, sentAt: nowIso }),
+    readyEstimates.flatMap((item) => buildEstimateReminderRows({ clientId: estimate.client_id, estimateId: item.id, sentAt: nowIso })),
     { onConflict: "client_id,entity_type,entity_id,notification_type" },
   );
-  await adminClient.from("communication_events").insert({
-    client_id: estimate.client_id,
-    rug_id: estimate.rug_id,
-    estimate_id: estimate.id,
-    channel: "email",
-    direction: "outbound",
-    event_type: "estimate_sent",
-    subject,
-    body,
-    sent_to: clientEmail,
-    created_by: params.actorUserId,
-  });
+
+  await adminClient.from("communication_events").insert(
+    readyEstimates.map((item) => ({
+      client_id: estimate.client_id,
+      estimate_batch_id: batchId,
+      estimate_id: item.id,
+      rug_id: item.rug_id,
+      channel: "email",
+      direction: "outbound",
+      event_type: "estimate_sent",
+      subject,
+      body,
+      sent_to: clientEmail,
+      created_by: params.actorUserId,
+    })),
+  );
 
   return { status: providerStatus, reason: providerMessage };
 }

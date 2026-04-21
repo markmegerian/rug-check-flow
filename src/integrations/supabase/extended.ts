@@ -51,6 +51,7 @@ type ExtendedTables = Database["public"]["Tables"] & {
       client_id: string | null;
       rug_id: string | null;
       estimate_id: string | null;
+      estimate_batch_id: string | null;
       invoice_id: string | null;
       channel: CommunicationChannel;
       direction: CommunicationDirection;
@@ -66,6 +67,7 @@ type ExtendedTables = Database["public"]["Tables"] & {
       client_id?: string | null;
       rug_id?: string | null;
       estimate_id?: string | null;
+      estimate_batch_id?: string | null;
       invoice_id?: string | null;
       channel?: CommunicationChannel;
       direction?: CommunicationDirection;
@@ -81,6 +83,7 @@ type ExtendedTables = Database["public"]["Tables"] & {
       client_id?: string | null;
       rug_id?: string | null;
       estimate_id?: string | null;
+      estimate_batch_id?: string | null;
       invoice_id?: string | null;
       channel?: CommunicationChannel;
       direction?: CommunicationDirection;
