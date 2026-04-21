@@ -96,6 +96,8 @@ export function EstimatesTab() {
   const [bulkReviewingGroupKey, setBulkReviewingGroupKey] = useState<string | null>(null);
   const [bulkExpiringGroupKey, setBulkExpiringGroupKey] = useState<string | null>(null);
   const [clientDecisionByEstimateId, setClientDecisionByEstimateId] = useState<Record<string, { event_type: string; body: string; created_at: string }>>({});
+  const [groupDetailByKey, setGroupDetailByKey] = useState<Record<string, EstimateRow[]>>({});
+  const [loadingGroupKey, setLoadingGroupKey] = useState<string | null>(null);
 
   const statusParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -459,6 +461,21 @@ export function EstimatesTab() {
     }
   }, [fetchData, resolveGroupEstimates, toast]);
 
+  const loadGroupDetails = useCallback(async (groupKey: string, status: EstimateStatus, clientId: string | null, fallback: EstimateRow[]) => {
+    if (!clientId) {
+      setGroupDetailByKey((prev) => ({ ...prev, [groupKey]: fallback }));
+      return;
+    }
+
+    setLoadingGroupKey(groupKey);
+    try {
+      const rows = await resolveGroupEstimates(status, clientId, fallback);
+      setGroupDetailByKey((prev) => ({ ...prev, [groupKey]: rows }));
+    } finally {
+      setLoadingGroupKey((current) => (current === groupKey ? null : current));
+    }
+  }, [resolveGroupEstimates]);
+
   const openEstimateThread = useCallback(async (estimate: EstimateRow) => {
     if (!estimate.client_id) {
       toast({ title: "No client linked", description: "This estimate does not have a client to message.", variant: "destructive" });
@@ -694,13 +711,30 @@ export function EstimatesTab() {
                       </Button>
                     </div>
                   </div>
-                  {group.estimates.length === 0 ? (
-                    <div className="px-4 py-3 text-xs text-muted-foreground">
-                      This backend group exists, but no estimate rows from it are in the current page slice.
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                    {group.estimates.map((estimate) => {
+                  {(() => {
+                    const detailRows = groupDetailByKey[group.groupKey] ?? group.estimates;
+                    const isLoadingGroup = loadingGroupKey === group.groupKey;
+
+                    if (detailRows.length === 0) {
+                      return (
+                        <div className="px-4 py-3 space-y-2 text-xs text-muted-foreground">
+                          <p>This backend group exists, but no estimate rows are currently loaded for it.</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => loadGroupDetails(group.groupKey, status, group.clientId, group.estimates)}
+                            disabled={isLoadingGroup}
+                          >
+                            {isLoadingGroup ? "Loading details..." : "Load group details"}
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="divide-y">
+                    {detailRows.map((estimate) => {
                       const clientDecision = clientDecisionByEstimateId[estimate.id];
                       const clientNote = clientDecision?.body?.includes("Client note:")
                         ? clientDecision.body.split("Client note:")[1]?.trim()
@@ -797,8 +831,9 @@ export function EstimatesTab() {
                         </div>
                       );
                     })}
-                  </div>
-                  )}
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
