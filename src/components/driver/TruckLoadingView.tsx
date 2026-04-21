@@ -457,7 +457,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
   if (loading) {
     return (
       <div className="p-4 max-w-lg mx-auto">
-        <LoadingState title="Loading truck" description="Fetching today's delivery list..." />
+        <LoadingState title="Loading today's truck" description="Fetching today's delivery list for truck loading..." />
       </div>
     );
   }
@@ -466,8 +466,8 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
     return (
       <div className="p-4 max-w-lg mx-auto">
         <EmptyState
-          title="No delivery list for today"
-          description="There is no delivery list scheduled for today. Check back later or contact the office."
+          title="No truck load for today"
+          description="There is no delivery list scheduled for today’s truck loading. Check back later or contact the office."
           className="border-dashed"
         />
       </div>
@@ -479,12 +479,12 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
       <div className="p-4 max-w-lg mx-auto space-y-4">
         <div className="rounded-lg border bg-card p-8 text-center flex flex-col items-center gap-3">
           <CheckCircle2 className="h-10 w-10 text-green-600" />
-          <h2 className="text-xl font-semibold">Truck Handed Off</h2>
+          <h2 className="text-xl font-semibold">Truck Loading Complete</h2>
           <p className="text-sm text-muted-foreground">
             {invoiceCount > 0
               ? `${invoiceCount} invoice${invoiceCount === 1 ? "" : "s"} created.`
               : "All done for loading."}{" "}
-            Stop proof continues on route. Drive safe!
+            Route execution and stop proof continue after loading. Drive safe!
           </p>
         </div>
       </div>
@@ -498,7 +498,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         <div className="flex items-center justify-between gap-2 max-w-lg mx-auto">
           <div className="flex items-center gap-2">
             <Truck className="h-5 w-5" />
-            <h1 className="text-lg font-semibold">Truck Loading</h1>
+            <h1 className="text-lg font-semibold">Today's Truck Load</h1>
           </div>
           <div className="flex items-center gap-2">
             {!isOnline && (
@@ -589,7 +589,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
                         className="shrink-0 bg-blue-100 text-blue-800 border-blue-200"
                         variant="outline"
                       >
-                        Morning
+                        Same-day add
                       </Badge>
                     )}
                   </div>
@@ -602,7 +602,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         {clientGroups.length === 0 && (
           <EmptyState
             title="No rugs on today's list"
-            description="Guaranteed rugs and morning-ready additions will appear here."
+            description="Confirmed rugs and explicit same-day additions will appear here for loading."
             className="border-dashed"
           />
         )}
@@ -619,7 +619,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
             disabled={!allLoaded || submitting || activeRugs.length === 0}
             onClick={handleSubmit}
           >
-            {submitting ? "Handing off..." : "Hand Off to Truck"}
+            {submitting ? "Finalizing truck load..." : "Finalize Truck Load"}
           </Button>
         </div>
       </div>
