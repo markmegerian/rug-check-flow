@@ -13,5 +13,7 @@ describe("pdf authorization hardening", () => {
     const fn = readFileSync(resolve(process.cwd(), "supabase/functions/invoice-pdf/index.ts"), "utf-8");
     expect(fn).toContain("fetchCompanyInfo(adminClient, companyId)");
     expect(fn).toContain('.eq("company_id", companyId)');
+    expect(fn).toContain('select("id, client_id, company_id, invoice_number, total, issued_at, due_at, created_at, pdf_storage_path")');
+    expect(fn).toContain('companyId = invoice.company_id ?? null;');
   });
 });
