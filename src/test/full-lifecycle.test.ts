@@ -48,15 +48,18 @@ describe("full rug lifecycle simulation", () => {
   it("simulates estimate flow for a rug needing approval", () => {
     let estimateStatus: EstimateStatus = "draft";
 
-    // Office creates and sends estimate
+    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "needs_office_review")).toBe(true);
+    estimateStatus = "needs_office_review";
+
+    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "ready_to_send")).toBe(true);
+    estimateStatus = "ready_to_send";
+
     expect(canRoleTransitionEstimateStatus("office", estimateStatus, "sent")).toBe(true);
     estimateStatus = "sent";
 
-    // Client approves via portal
     expect(canRoleTransitionEstimateStatus("portal", estimateStatus, "approved")).toBe(true);
     estimateStatus = "approved";
 
-    // No further transitions from approved
     expect(canRoleTransitionEstimateStatus("office", estimateStatus, "sent")).toBe(false);
     expect(canRoleTransitionEstimateStatus("office", estimateStatus, "draft")).toBe(false);
   });
@@ -64,17 +67,22 @@ describe("full rug lifecycle simulation", () => {
   it("simulates estimate rejection and revision flow", () => {
     let estimateStatus: EstimateStatus = "draft";
 
-    // Send to client
+    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "needs_office_review")).toBe(true);
+    estimateStatus = "needs_office_review";
+
+    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "ready_to_send")).toBe(true);
+    estimateStatus = "ready_to_send";
+
     expect(canRoleTransitionEstimateStatus("office", estimateStatus, "sent")).toBe(true);
     estimateStatus = "sent";
 
-    // Client rejects
     expect(canRoleTransitionEstimateStatus("portal", estimateStatus, "rejected")).toBe(true);
     estimateStatus = "rejected";
 
-    // Office creates a new revision (new estimate, starts at draft)
-    estimateStatus = "draft";
-    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "sent")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "needs_revision")).toBe(true);
+    estimateStatus = "needs_revision";
+
+    expect(canRoleTransitionEstimateStatus("office", estimateStatus, "needs_office_review")).toBe(true);
   });
 
   it("simulates pickup cancellation by portal user", () => {

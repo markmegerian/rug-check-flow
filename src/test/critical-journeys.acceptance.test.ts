@@ -39,7 +39,9 @@ describe("critical journey acceptance coverage", () => {
   });
 
   it("journey 3: estimate lifecycle keeps role-scoped transition controls", () => {
-    expect(canRoleTransitionEstimateStatus("office", "draft", "sent")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "draft", "needs_office_review")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "needs_office_review", "ready_to_send")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "ready_to_send", "sent")).toBe(true);
     expect(canRoleTransitionEstimateStatus("portal", "sent", "approved")).toBe(true);
     expect(canRoleTransitionEstimateStatus("portal", "sent", "expired")).toBe(false);
   });

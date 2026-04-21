@@ -55,11 +55,17 @@ describe("pickup status transitions", () => {
 
 describe("estimate status transitions", () => {
   const validTransitions: [EstimateStatus, EstimateStatus][] = [
-    ["draft", "sent"],
+    ["draft", "needs_office_review"],
     ["draft", "expired"],
+    ["needs_office_review", "ready_to_send"],
+    ["needs_office_review", "needs_revision"],
+    ["ready_to_send", "sent"],
     ["sent", "approved"],
     ["sent", "rejected"],
+    ["sent", "needs_revision"],
     ["sent", "expired"],
+    ["rejected", "needs_revision"],
+    ["needs_revision", "needs_office_review"],
   ];
 
   const invalidTransitions: [EstimateStatus, EstimateStatus][] = [
@@ -71,6 +77,8 @@ describe("estimate status transitions", () => {
     ["expired", "sent"],
     ["draft", "approved"],
     ["draft", "rejected"],
+    ["needs_office_review", "sent"],
+    ["ready_to_send", "approved"],
   ];
 
   it.each(validTransitions)("allows %s → %s", (from, to) => {
@@ -118,8 +126,11 @@ describe("role-based pickup transitions", () => {
 });
 
 describe("role-based estimate transitions", () => {
-  it("office can perform any valid estimate transition", () => {
-    expect(canRoleTransitionEstimateStatus("office", "draft", "sent")).toBe(true);
+  it("office can perform valid internal and final estimate transitions", () => {
+    expect(canRoleTransitionEstimateStatus("office", "draft", "needs_office_review")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "needs_office_review", "ready_to_send")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "needs_office_review", "needs_revision")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "ready_to_send", "sent")).toBe(true);
     expect(canRoleTransitionEstimateStatus("office", "sent", "approved")).toBe(true);
     expect(canRoleTransitionEstimateStatus("office", "sent", "rejected")).toBe(true);
     expect(canRoleTransitionEstimateStatus("office", "sent", "expired")).toBe(true);
@@ -130,19 +141,19 @@ describe("role-based estimate transitions", () => {
     expect(canRoleTransitionEstimateStatus("portal", "sent", "rejected")).toBe(true);
   });
 
-  it("portal cannot expire, send, or transition drafts", () => {
+  it("portal cannot expire, send, or transition internal states", () => {
     expect(canRoleTransitionEstimateStatus("portal", "sent", "expired")).toBe(false);
-    expect(canRoleTransitionEstimateStatus("portal", "draft", "sent")).toBe(false);
-    expect(canRoleTransitionEstimateStatus("portal", "draft", "approved")).toBe(false);
+    expect(canRoleTransitionEstimateStatus("portal", "draft", "needs_office_review")).toBe(false);
+    expect(canRoleTransitionEstimateStatus("portal", "ready_to_send", "sent")).toBe(false);
   });
 
   it("checkin_staff has no estimate transition rights", () => {
-    expect(canRoleTransitionEstimateStatus("checkin_staff", "draft", "sent")).toBe(false);
+    expect(canRoleTransitionEstimateStatus("checkin_staff", "draft", "needs_office_review")).toBe(false);
     expect(canRoleTransitionEstimateStatus("checkin_staff", "sent", "approved")).toBe(false);
   });
 
   it("driver has no estimate transition rights", () => {
-    expect(canRoleTransitionEstimateStatus("driver", "draft", "sent")).toBe(false);
+    expect(canRoleTransitionEstimateStatus("driver", "draft", "needs_office_review")).toBe(false);
   });
 });
 

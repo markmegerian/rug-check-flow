@@ -1,6 +1,6 @@
 export type WorkflowRole = "admin" | "office" | "checkin_staff" | "driver" | "portal";
 export type PickupRequestStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
-export type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+export type EstimateStatus = "draft" | "needs_office_review" | "ready_to_send" | "sent" | "approved" | "rejected" | "needs_revision" | "expired";
 
 const PICKUP_TRANSITIONS: Record<PickupRequestStatus, PickupRequestStatus[]> = {
   pending: ["confirmed", "assigned", "cancelled"],
@@ -11,10 +11,13 @@ const PICKUP_TRANSITIONS: Record<PickupRequestStatus, PickupRequestStatus[]> = {
 };
 
 const ESTIMATE_TRANSITIONS: Record<EstimateStatus, EstimateStatus[]> = {
-  draft: ["sent", "expired"],
-  sent: ["approved", "rejected", "expired"],
+  draft: ["needs_office_review", "expired"],
+  needs_office_review: ["ready_to_send", "needs_revision", "expired"],
+  ready_to_send: ["sent", "expired"],
+  sent: ["approved", "rejected", "needs_revision", "expired"],
   approved: [],
-  rejected: [],
+  rejected: ["needs_revision"],
+  needs_revision: ["needs_office_review", "expired"],
   expired: [],
 };
 

@@ -48,7 +48,7 @@ type RugOption = {
   client_id: Tables<"rugs">["client_id"];
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
-const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "sent", "approved", "rejected", "expired"]);
+const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"]);
 
 type EstimateWorkflowResponse = {
   status: "success";
@@ -217,7 +217,7 @@ export function EstimatesTab() {
   };
 
   const sendEstimate = async (estimate: EstimateRow) => {
-    if (estimate.status !== "draft") return;
+    if (estimate.status !== "ready_to_send") return;
     if (!estimate.client_id) {
       toast({ title: "Cannot queue estimate", description: "This estimate is missing a client link.", variant: "destructive" });
       return;
@@ -387,7 +387,7 @@ export function EstimatesTab() {
                     <EstimateStatusBadge status={estimate.status} />
                   </div>
 
-                  {estimate.status === "draft" && !estimate.clients?.email?.trim() && (
+                  {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send") && !estimate.clients?.email?.trim() && (
                     <div className="rounded border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                       Missing client email — add an email on the client record before sending this estimate.
                     </div>
@@ -407,7 +407,17 @@ export function EstimatesTab() {
                     <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => openEstimateThread(estimate)}>
                       Open thread
                     </Button>
-                    {estimate.status === "draft" && (
+                    {estimate.status === "needs_office_review" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => setEstimateStatus(estimate, "ready_to_send")}
+                      >
+                        Mark ready to send
+                      </Button>
+                    )}
+                    {estimate.status === "ready_to_send" && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -430,10 +440,15 @@ export function EstimatesTab() {
                     )}
                     {estimate.status === "rejected" && (
                       <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => reviseEstimate(estimate)} disabled={creating}>
-                        {creating ? "Creating..." : "Revise & resend"}
+                        {creating ? "Creating..." : "Revise estimate"}
                       </Button>
                     )}
-                    {(estimate.status === "draft" || estimate.status === "sent") && (
+                    {estimate.status === "needs_revision" && (
+                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "needs_office_review")}>
+                        Return to office review
+                      </Button>
+                    )}
+                    {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send" || estimate.status === "sent" || estimate.status === "needs_revision") && (
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "expired")}>
                         Mark expired
                       </Button>

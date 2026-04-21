@@ -54,8 +54,9 @@ describe("workflow guards", () => {
   });
 
   it("enforces role-based estimate transitions", () => {
-    expect(canRoleTransitionEstimateStatus("office", "draft", "sent")).toBe(true);
-    expect(canRoleTransitionEstimateStatus("office", "sent", "approved")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "draft", "needs_office_review")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "needs_office_review", "ready_to_send")).toBe(true);
+    expect(canRoleTransitionEstimateStatus("office", "ready_to_send", "sent")).toBe(true);
     expect(canRoleTransitionEstimateStatus("portal", "sent", "approved")).toBe(true);
     expect(canRoleTransitionEstimateStatus("portal", "sent", "expired")).toBe(false);
     expect(canRoleTransitionEstimateStatus("portal", "draft", "approved")).toBe(false);

@@ -55,6 +55,10 @@ Deno.serve(async (req) => {
     const nowIso = new Date().toISOString();
     const eventType = priorStatus === "sent" ? "estimate_resent" : "estimate_sent";
 
+    if (!["ready_to_send", "sent"].includes(priorStatus)) {
+      return json({ error: "Estimate must be ready to send before emailing." }, 400);
+    }
+
     const subject = `Estimate ${estimate.estimate_number} from RugBoost`;
     const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
     const body = [
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (priorStatus === "draft") {
+    if (priorStatus === "ready_to_send") {
       await adminClient
         .from("estimates")
         .update({ status: "sent", sent_at: nowIso })
