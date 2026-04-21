@@ -113,7 +113,7 @@ async function processEstimateBatchSend(adminClient: ReturnType<typeof createCli
 
   if (estErr || !estimate) return { status: "skipped", reason: "Estimate not found" };
   if (!estimate.client_id) return { status: "failed", reason: "Estimate missing client link" };
-  if (estimate.status !== "draft") return { status: "skipped", reason: `Estimate already ${estimate.status}` };
+  if (estimate.status !== "ready_to_send") return { status: "skipped", reason: `Estimate already ${estimate.status}` };
 
   const portalUrl = Deno.env.get("PORTAL_APP_URL") ?? "https://mr.rugboost.com/portal";
   const subject = `Estimate ${estimate.estimate_number} from RugBoost`;

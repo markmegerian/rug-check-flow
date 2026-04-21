@@ -34,6 +34,7 @@ describe("reminder workflow correctness", () => {
   it("keeps check-in estimate gating on the backend workflow", () => {
     const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
     expect(workflow).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
+    expect(workflow).toContain('status: "needs_office_review"');
     expect(workflow).toContain('notification_type: "estimate_batch_send"');
   });
 
@@ -47,7 +48,7 @@ describe("reminder workflow correctness", () => {
     expect(config).toContain('verify_jwt = false');
   });
 
-  it("hardens reminder delivery with email validation, provider detail logging, human labels, and an explicit live-send gate", () => {
+  it("hardens reminder delivery with email validation, provider detail logging, human labels, and an explicit ready-to-send gate", () => {
     const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/process-notification-cadence/index.ts"), "utf-8");
     expect(workflow).toContain('function normalizeEmail(email: string | null | undefined)');
     expect(workflow).toContain('function isValidEmail(email: string | null | undefined)');
@@ -56,6 +57,7 @@ describe("reminder workflow correctness", () => {
     expect(workflow).toContain('Client email is invalid');
     expect(workflow).toContain('const emailDeliveryEnabled = Deno.env.get("CLIENT_EMAIL_DELIVERY_ENABLED") === "true";');
     expect(workflow).toContain('Client email delivery is disabled until onboarding is complete');
+    expect(workflow).toContain('estimate.status !== "ready_to_send"');
     expect(workflow).toContain('if (providerStatus !== "disabled") {');
   });
 });
