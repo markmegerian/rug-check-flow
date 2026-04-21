@@ -115,6 +115,10 @@ export function InvoicesTab() {
     );
   }, [invoices, selected?.client_id]);
 
+  const managementInvoiceCount = filtered.length;
+  const outstandingInvoiceCount = statusCounts.outstanding ?? 0;
+  const paidInvoiceCount = statusCounts.paid ?? 0;
+
   const openInvoice = (inv: InvoiceRow) => {
     setSelected(inv);
     setSheetOpen(true);
@@ -318,36 +322,75 @@ export function InvoicesTab() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="overflow-x-auto">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            {STATUSES.map((s) => (
-              <TabsTrigger key={s.value} value={s.value} className="gap-1.5">
-                {s.label}
-                {(statusCounts[s.value] ?? 0) > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-xs">
-                    {statusCounts[s.value]}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Invoice Management</h2>
+          <p className="text-sm text-muted-foreground">Search, review, and manage invoice history first, with invoice creation available as supporting workflow.</p>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5 self-start lg:self-auto">
-          <Plus className="h-4 w-4" /> New Invoice
-        </Button>
-      </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/80">Invoices in view</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{managementInvoiceCount}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Invoices matching the current status and filter view.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Outstanding</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{outstandingInvoiceCount}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Draft, sent, and overdue invoices still needing resolution.</div>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Paid</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{paidInvoiceCount}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Paid invoices currently available in the loaded window.</div>
+          </div>
+        </div>
+      </section>
 
-      <InvoiceFilters
-        clientSearch={clientSearch}
-        onClientSearchChange={setClientSearch}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-      />
+      <section className="rounded-xl border border-border/70 bg-card/70 p-4 space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="overflow-x-auto">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              {STATUSES.map((s) => (
+                <TabsTrigger key={s.value} value={s.value} className="gap-1.5">
+                  {s.label}
+                  {(statusCounts[s.value] ?? 0) > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1.5 text-xs">
+                      {statusCounts[s.value]}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)} className="gap-1.5 self-start lg:self-auto">
+            <Plus className="h-4 w-4" /> Create invoice
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-sm font-medium text-foreground">Management filters</h3>
+            <p className="text-xs text-muted-foreground">Search and narrow invoice history by client, date, and status.</p>
+          </div>
+          <InvoiceFilters
+            clientSearch={clientSearch}
+            onClientSearchChange={setClientSearch}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">Invoice history</h3>
+          <p className="text-xs text-muted-foreground">Client-centered invoice lookup and detail review within the currently loaded window.</p>
+        </div>
+      </section>
 
       <div className="space-y-3 md:hidden">
         {filtered.length === 0 ? (
