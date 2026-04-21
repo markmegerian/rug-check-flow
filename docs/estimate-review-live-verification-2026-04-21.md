@@ -22,6 +22,8 @@ Using the live project REST RPC endpoint with the current publishable/anon path:
 - after simplification migration `20260421054500`, `get_estimate_review_groups()` → `200 []`
 - `get_estimate_group_details('00000000-0000-0000-0000-000000000000', 'needs_office_review')` → `200 []`
 - `get_estimate_group_details('00000000-0000-0000-0000-000000000000', 'ready_to_send')` → `200 []`
+- migration `20260421061500_add_queue_estimate_group_batch_function.sql` applied live successfully
+- immediate anon REST probe of `queue_estimate_group_batch([])` returned schema-cache `404 PGRST202` even though migration history shows the function is present live
 
 ## Interpretation
 
