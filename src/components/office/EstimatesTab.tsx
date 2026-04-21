@@ -38,8 +38,16 @@ type EstimateRow = {
   sent_at: ExtendedTableRow<"estimates">["sent_at"];
   approved_at: ExtendedTableRow<"estimates">["approved_at"];
   rejected_at: ExtendedTableRow<"estimates">["rejected_at"];
-  clients?: Pick<Tables<"clients">, "name" | "email"> | null;
+  clients?: Pick<Tables<"clients">, "name" | "email" | "company"> | null;
   rugs?: Pick<Tables<"rugs">, "tag"> | null;
+};
+
+const STATUS_ORDER: EstimateStatus[] = ["needs_office_review", "needs_revision", "ready_to_send", "sent", "approved", "rejected", "expired", "draft"];
+
+const STATUS_LABELS: Partial<Record<EstimateStatus, string>> = {
+  needs_office_review: "Needs office review",
+  needs_revision: "Needs revision",
+  ready_to_send: "Ready to send",
 };
 
 type RugOption = {
@@ -85,7 +93,7 @@ export function EstimatesTab() {
   const fetchData = useCallback(async () => {
     const { data: estRows, error: estErr } = await supabaseExtended
       .from("estimates")
-      .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email), rugs(tag)")
+      .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email,company), rugs(tag)")
       .order("created_at", { ascending: false })
       .limit(200);
 
@@ -314,12 +322,30 @@ export function EstimatesTab() {
   }, [navigate, toast]);
 
   const grouped = useMemo(() => {
-    const map: Record<string, EstimateRow[]> = {};
-    pagination.items.forEach((e) => {
-      if (!map[e.status]) map[e.status] = [];
-      map[e.status].push(e);
+    const statusMap = new Map<string, Map<string, EstimateRow[]>>();
+
+    pagination.items.forEach((estimate) => {
+      const statusKey = estimate.status;
+      const companyName = estimate.clients?.company?.trim();
+      const clientName = estimate.clients?.name?.trim() || "Unknown client";
+      const groupKey = companyName ? `${companyName} · ${clientName}` : clientName;
+
+      if (!statusMap.has(statusKey)) statusMap.set(statusKey, new Map());
+      const clientMap = statusMap.get(statusKey)!;
+      if (!clientMap.has(groupKey)) clientMap.set(groupKey, []);
+      clientMap.get(groupKey)!.push(estimate);
     });
-    return map;
+
+    return STATUS_ORDER
+      .filter((status) => statusMap.has(status))
+      .map((status) => ({
+        status,
+        label: STATUS_LABELS[status] ?? status,
+        groups: Array.from(statusMap.get(status)!.entries()).map(([groupName, estimates]) => ({
+          groupName,
+          estimates,
+        })),
+      }));
   }, [pagination.items]);
 
   if (loading) {
@@ -359,104 +385,117 @@ export function EstimatesTab() {
         </div>
       </section>
 
-      {Object.entries(grouped).length === 0 ? (
+      {grouped.length === 0 ? (
         <p className="text-sm text-muted-foreground">No estimates created yet.</p>
       ) : (
-        Object.entries(grouped).map(([status, list]) => (
+        grouped.map(({ status, label, groups }) => (
           <section key={status} className="border rounded-lg bg-card overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between">
-              <h3 className="font-medium text-sm capitalize">{status}</h3>
-              <Badge variant="secondary" className="text-xs">{list.length}</Badge>
+              <h3 className="font-medium text-sm">{label}</h3>
+              <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimates.length, 0)}</Badge>
             </div>
             <Separator />
-            <div className="divide-y">
-              {list.map((estimate) => {
-                const clientDecision = clientDecisionByEstimateId[estimate.id];
-                const clientNote = clientDecision?.body?.includes("Client note:")
-                  ? clientDecision.body.split("Client note:")[1]?.trim()
-                  : null;
-                return (
-                <div key={estimate.id} className="px-4 py-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              {groups.map((group, groupIndex) => (
+                <div key={`${status}-${group.groupName}`} className={groupIndex > 0 ? "border-t" : ""}>
+                  <div className="px-4 py-3 bg-muted/20 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{estimate.estimate_number}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {estimate.clients?.name ?? "Unknown client"} · {estimate.rugs?.tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
-                      </p>
+                      <p className="text-sm font-medium text-foreground">{group.groupName}</p>
+                      <p className="text-xs text-muted-foreground">{group.estimates.length} estimate{group.estimates.length === 1 ? "" : "s"}</p>
                     </div>
-                    <EstimateStatusBadge status={estimate.status} />
                   </div>
+                  <div className="divide-y">
+                    {group.estimates.map((estimate) => {
+                      const clientDecision = clientDecisionByEstimateId[estimate.id];
+                      const clientNote = clientDecision?.body?.includes("Client note:")
+                        ? clientDecision.body.split("Client note:")[1]?.trim()
+                        : null;
 
-                  {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send") && !estimate.clients?.email?.trim() && (
-                    <div className="rounded border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-                      Missing client email — add an email on the client record before sending this estimate.
-                    </div>
-                  )}
+                      return (
+                        <div key={estimate.id} className="px-4 py-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <p className="text-sm font-medium">{estimate.estimate_number}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {estimate.clients?.name ?? "Unknown client"} · {estimate.rugs?.tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
+                              </p>
+                            </div>
+                            <EstimateStatusBadge status={estimate.status} />
+                          </div>
 
-                  {(estimate.status === "approved" || estimate.status === "rejected") && (
-                    <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
-                      <p className="text-muted-foreground font-medium">
-                        {estimate.status === "approved" && estimate.approved_at && `Client approved ${formatDateTime(estimate.approved_at)}`}
-                        {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${formatDateTime(estimate.rejected_at)}`}
-                      </p>
-                      {clientNote && <p className="text-foreground">Client note: {clientNote}</p>}
-                    </div>
-                  )}
+                          {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send") && !estimate.clients?.email?.trim() && (
+                            <div className="rounded border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                              Missing client email, add an email on the client record before sending this estimate.
+                            </div>
+                          )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => openEstimateThread(estimate)}>
-                      Open thread
-                    </Button>
-                    {estimate.status === "needs_office_review" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => setEstimateStatus(estimate, "ready_to_send")}
-                      >
-                        Mark ready to send
-                      </Button>
-                    )}
-                    {estimate.status === "ready_to_send" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => sendEstimate(estimate)}
-                        disabled={sendingEstimateId === estimate.id || !estimate.clients?.email?.trim()}
-                      >
-                        {sendingEstimateId === estimate.id ? "Queueing..." : !estimate.clients?.email?.trim() ? "Email required" : "Queue for 3 PM ET"}
-                      </Button>
-                    )}
-                    {estimate.status === "sent" && (
-                      <>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "approved")}>
-                          Mark approved
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "rejected")}>
-                          Mark rejected
-                        </Button>
-                      </>
-                    )}
-                    {estimate.status === "rejected" && (
-                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => reviseEstimate(estimate)} disabled={creating}>
-                        {creating ? "Creating..." : "Revise estimate"}
-                      </Button>
-                    )}
-                    {estimate.status === "needs_revision" && (
-                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "needs_office_review")}>
-                        Return to office review
-                      </Button>
-                    )}
-                    {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send" || estimate.status === "sent" || estimate.status === "needs_revision") && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "expired")}>
-                        Mark expired
-                      </Button>
-                    )}
+                          {(estimate.status === "approved" || estimate.status === "rejected") && (
+                            <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
+                              <p className="text-muted-foreground font-medium">
+                                {estimate.status === "approved" && estimate.approved_at && `Client approved ${formatDateTime(estimate.approved_at)}`}
+                                {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${formatDateTime(estimate.rejected_at)}`}
+                              </p>
+                              {clientNote && <p className="text-foreground">Client note: {clientNote}</p>}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => openEstimateThread(estimate)}>
+                              Open thread
+                            </Button>
+                            {estimate.status === "needs_office_review" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => setEstimateStatus(estimate, "ready_to_send")}
+                              >
+                                Mark ready to send
+                              </Button>
+                            )}
+                            {estimate.status === "ready_to_send" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => sendEstimate(estimate)}
+                                disabled={sendingEstimateId === estimate.id || !estimate.clients?.email?.trim()}
+                              >
+                                {sendingEstimateId === estimate.id ? "Queueing..." : !estimate.clients?.email?.trim() ? "Email required" : "Queue for 3 PM ET"}
+                              </Button>
+                            )}
+                            {estimate.status === "sent" && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "approved")}>
+                                  Mark approved
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "rejected")}>
+                                  Mark rejected
+                                </Button>
+                              </>
+                            )}
+                            {estimate.status === "rejected" && (
+                              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => reviseEstimate(estimate)} disabled={creating}>
+                                {creating ? "Creating..." : "Revise estimate"}
+                              </Button>
+                            )}
+                            {estimate.status === "needs_revision" && (
+                              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "needs_office_review")}>
+                                Return to office review
+                              </Button>
+                            )}
+                            {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send" || estimate.status === "sent" || estimate.status === "needs_revision") && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "expired")}>
+                                Mark expired
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-              })}
+              ))}
             </div>
           </section>
         ))
