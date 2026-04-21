@@ -21,10 +21,13 @@ Using the live project REST RPC endpoint with the current publishable/anon path:
   - `permission denied for table company_memberships`
 - after simplification migration `20260421054500`, `get_estimate_review_groups()` → `200 []`
 - `get_estimate_group_details('00000000-0000-0000-0000-000000000000', 'needs_office_review')` → `200 []`
+- `get_estimate_group_details('00000000-0000-0000-0000-000000000000', 'ready_to_send')` → `200 []`
 
 ## Interpretation
 
 The original grouped review summary path crossed a restricted trust boundary by deriving company context through tables not visible to the anon/publishable probe. That was corrected by simplifying the function rather than weakening the boundary with a blind `security definer` rewrite.
+
+The grouped estimate review path now has additive backend primitives for summary, action mutation, and detail membership resolution, all verified live.
 
 ## Current truth
 
@@ -35,3 +38,4 @@ The original grouped review summary path crossed a restricted trust boundary by 
   - grouped summary
   - grouped action mutation
   - grouped detail resolution
+  - on-demand detail hydration per backend-owned group
