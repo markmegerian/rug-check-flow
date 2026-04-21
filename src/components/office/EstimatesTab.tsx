@@ -456,7 +456,18 @@ export function EstimatesTab() {
 
   const grouped = useMemo(() => {
     const reviewGroupMap = new Map(reviewGroups.map((group) => [group.groupKey, group]));
-    const statusMap = new Map<string, Map<string, { groupName: string; groupKey: string; estimates: EstimateRow[]; summary?: EstimateReviewGroupSummary }>>();
+    const statusMap = new Map<string, Map<string, { groupName: string; groupKey: string; estimates: EstimateRow[]; summary?: EstimateReviewGroupSummary; clientId: string | null }>>();
+
+    reviewGroups.forEach((group) => {
+      if (!statusMap.has(group.status)) statusMap.set(group.status, new Map());
+      statusMap.get(group.status)!.set(group.groupKey, {
+        groupName: group.groupName,
+        groupKey: group.groupKey,
+        estimates: [],
+        summary: group,
+        clientId: group.client_id,
+      });
+    });
 
     pagination.items.forEach((estimate) => {
       const statusKey = estimate.status;
@@ -468,7 +479,13 @@ export function EstimatesTab() {
 
       if (!statusMap.has(statusKey)) statusMap.set(statusKey, new Map());
       const clientMap = statusMap.get(statusKey)!;
-      if (!clientMap.has(groupKey)) clientMap.set(groupKey, { groupName, groupKey, estimates: [], summary });
+      if (!clientMap.has(groupKey)) clientMap.set(groupKey, {
+        groupName,
+        groupKey,
+        estimates: [],
+        summary,
+        clientId: estimate.client_id,
+      });
       clientMap.get(groupKey)!.estimates.push(estimate);
     });
 
@@ -612,7 +629,7 @@ export function EstimatesTab() {
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={() => moveGroupToReady(group.groupName, group.estimates)}
-                        disabled={bulkReviewingGroupKey === group.groupName || !group.estimates.some((estimate) => estimate.status === "needs_office_review")}
+                        disabled={bulkReviewingGroupKey === group.groupName || !(group.summary?.review_count ?? group.estimates.filter((estimate) => estimate.status === "needs_office_review").length)}
                       >
                         {bulkReviewingGroupKey === group.groupName ? "Updating..." : "Mark review group ready"}
                       </Button>
@@ -621,7 +638,7 @@ export function EstimatesTab() {
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={() => queueEstimateGroup(group.groupName, group.estimates)}
-                        disabled={bulkQueueingGroupKey === group.groupName || !group.estimates.some((estimate) => estimate.status === "ready_to_send")}
+                        disabled={bulkQueueingGroupKey === group.groupName || !(group.summary?.ready_count ?? group.estimates.filter((estimate) => estimate.status === "ready_to_send").length)}
                       >
                         {bulkQueueingGroupKey === group.groupName ? "Queueing..." : "Queue ready group"}
                       </Button>
@@ -630,13 +647,18 @@ export function EstimatesTab() {
                         variant="outline"
                         className="h-7 text-xs"
                         onClick={() => expireEstimateGroup(group.groupName, group.estimates)}
-                        disabled={bulkExpiringGroupKey === group.groupName || !group.estimates.some((estimate) => ["needs_office_review", "ready_to_send", "sent", "needs_revision"].includes(estimate.status))}
+                        disabled={bulkExpiringGroupKey === group.groupName || !((group.summary?.estimate_count ?? group.estimates.length) > 0)}
                       >
                         {bulkExpiringGroupKey === group.groupName ? "Expiring..." : "Expire active group"}
                       </Button>
                     </div>
                   </div>
-                  <div className="divide-y">
+                  {group.estimates.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-muted-foreground">
+                      This backend group exists, but no estimate rows from it are in the current page slice.
+                    </div>
+                  ) : (
+                    <div className="divide-y">
                     {group.estimates.map((estimate) => {
                       const clientDecision = clientDecisionByEstimateId[estimate.id];
                       const clientNote = clientDecision?.body?.includes("Client note:")
@@ -735,6 +757,7 @@ export function EstimatesTab() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
               ))}
             </div>
