@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   supabaseExtended,
+  type EstimateReviewGroupRow,
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
@@ -25,6 +26,7 @@ import { MS_PER_DAY } from "@/lib/constants";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
+import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -56,6 +58,11 @@ type RugOption = {
   client_id: Tables<"rugs">["client_id"];
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
+
+type EstimateReviewGroupSummary = EstimateReviewGroupRow & {
+  groupName: string;
+};
+
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"]);
 
 type EstimateWorkflowResponse = {
@@ -76,6 +83,7 @@ export function EstimatesTab() {
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [rugOptions, setRugOptions] = useState<RugOption[]>([]);
+  const [reviewGroups, setReviewGroups] = useState<EstimateReviewGroupSummary[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string>("none");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -133,6 +141,19 @@ export function EstimatesTab() {
       .limit(200);
 
     setRugOptions((rugsData ?? []) as unknown as RugOption[]);
+
+    try {
+      const groupRows = await fetchEstimateReviewGroups();
+      setReviewGroups(groupRows.map((row) => ({
+        ...row,
+        groupName: row.company_name?.trim() ? `${row.company_name} · ${row.client_name ?? "Unknown client"}` : (row.client_name ?? "Unknown client"),
+      })));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load estimate review groups";
+      toast({ title: "Estimate review summary failed", description: message, variant: "destructive" });
+      setReviewGroups([]);
+    }
+
     setLoading(false);
   }, [toast]);
 
@@ -439,6 +460,23 @@ export function EstimatesTab() {
     }
   }, [navigate, toast]);
 
+  const groupedReviewSummary = useMemo(() => {
+    const grouped = new Map<string, EstimateReviewGroupSummary[]>();
+
+    reviewGroups.forEach((row) => {
+      if (!grouped.has(row.status)) grouped.set(row.status, []);
+      grouped.get(row.status)!.push(row);
+    });
+
+    return STATUS_ORDER
+      .filter((status) => grouped.has(status))
+      .map((status) => ({
+        status,
+        label: STATUS_LABELS[status] ?? status,
+        groups: grouped.get(status)!,
+      }));
+  }, [reviewGroups]);
+
   const grouped = useMemo(() => {
     const statusMap = new Map<string, Map<string, EstimateRow[]>>();
 
@@ -502,6 +540,41 @@ export function EstimatesTab() {
           </Button>
         </div>
       </section>
+
+      {groupedReviewSummary.length > 0 ? (
+        <section className="rounded-lg border bg-card p-4 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="text-sm font-medium">Backend review group summary</h3>
+            <span className="text-xs text-muted-foreground">Additive RPC validation path</span>
+          </div>
+          <div className="space-y-3">
+            {groupedReviewSummary.map(({ status, label, groups }) => (
+              <div key={`summary-${status}`} className="rounded-md border bg-muted/10 overflow-hidden">
+                <div className="px-3 py-2 flex items-center justify-between">
+                  <p className="text-sm font-medium">{label}</p>
+                  <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimate_count, 0)}</Badge>
+                </div>
+                <Separator />
+                <div className="divide-y">
+                  {groups.map((group) => (
+                    <div key={`summary-row-${status}-${group.client_id}`} className="px-3 py-2 text-xs flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="font-medium text-foreground">{group.groupName}</p>
+                        <p className="text-muted-foreground">{group.estimate_count} estimate{group.estimate_count === 1 ? "" : "s"} · ${group.total_amount.toFixed(2)}</p>
+                      </div>
+                      <div className="flex gap-3 text-muted-foreground">
+                        <span>{group.review_count} review</span>
+                        <span>{group.ready_count} ready</span>
+                        <span>{group.sent_count} sent</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {grouped.length === 0 ? (
         <p className="text-sm text-muted-foreground">No estimates created yet.</p>
