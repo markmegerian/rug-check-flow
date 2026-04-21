@@ -29,7 +29,12 @@ import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
 import { expireEstimateGroup, markEstimateGroupReady, queueEstimateGroupBatch } from "@/lib/estimate-group-actions";
 import { fetchEstimateGroupDetails } from "@/lib/estimate-group-details";
-import { fetchEstimateSendBatchSummaries, type EstimateSendBatchSummary } from "@/lib/estimate-send-batches";
+import {
+  cancelEstimateSendBatch,
+  fetchEstimateSendBatchSummaries,
+  requeueEstimateSendBatch,
+  type EstimateSendBatchSummary,
+} from "@/lib/estimate-send-batches";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -91,6 +96,7 @@ export function EstimatesTab() {
   const [reviewGroups, setReviewGroups] = useState<EstimateReviewGroupSummary[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string>("none");
   const [estimateSendBatches, setEstimateSendBatches] = useState<EstimateSendBatchSummary[]>([]);
+  const [mutatingBatchId, setMutatingBatchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
@@ -217,6 +223,44 @@ export function EstimatesTab() {
       return fallback;
     }
   }, []);
+
+  const handleCancelBatch = useCallback(async (batch: EstimateSendBatchSummary) => {
+    setMutatingBatchId(batch.batch_id);
+    try {
+      const updatedCount = await cancelEstimateSendBatch(batch.batch_id);
+      await fetchData();
+      toast({
+        title: updatedCount > 0 ? "Batch cancelled" : "No queued batch to cancel",
+        description: updatedCount > 0
+          ? `${batch.client_name ?? "Client"} batch was cancelled.`
+          : `This batch was already no longer queued.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Batch cancel failed", description: message, variant: "destructive" });
+    } finally {
+      setMutatingBatchId(null);
+    }
+  }, [fetchData, toast]);
+
+  const handleRequeueBatch = useCallback(async (batch: EstimateSendBatchSummary) => {
+    setMutatingBatchId(batch.batch_id);
+    try {
+      const updatedCount = await requeueEstimateSendBatch(batch.batch_id);
+      await fetchData();
+      toast({
+        title: updatedCount > 0 ? "Batch requeued" : "Batch requeue skipped",
+        description: updatedCount > 0
+          ? `${batch.client_name ?? "Client"} batch was requeued.`
+          : `This batch could not be requeued.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Batch requeue failed", description: message, variant: "destructive" });
+    } finally {
+      setMutatingBatchId(null);
+    }
+  }, [fetchData, toast]);
 
   const createEstimate = async () => {
     if (selectedRugId === "none") {
@@ -622,6 +666,28 @@ export function EstimatesTab() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="secondary" className="text-xs">{batch.status}</Badge>
                   <span className="text-[11px] text-muted-foreground">{batch.estimate_ids.length} linked</span>
+                  {batch.status === "queued" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => handleCancelBatch(batch)}
+                      disabled={mutatingBatchId === batch.batch_id}
+                    >
+                      {mutatingBatchId === batch.batch_id ? "Working..." : "Cancel batch"}
+                    </Button>
+                  ) : null}
+                  {batch.status === "failed" || batch.status === "cancelled" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => handleRequeueBatch(batch)}
+                      disabled={mutatingBatchId === batch.batch_id}
+                    >
+                      {mutatingBatchId === batch.batch_id ? "Working..." : "Requeue batch"}
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))}

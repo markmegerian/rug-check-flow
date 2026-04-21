@@ -24,3 +24,15 @@ export async function fetchEstimateSendBatchSummaries() {
     estimate_ids: Array.isArray(row.estimate_ids) ? row.estimate_ids : [],
   })) as EstimateSendBatchSummary[];
 }
+
+export async function cancelEstimateSendBatch(batchId: string) {
+  const { data, error } = await supabaseExtended.rpc("cancel_estimate_send_batch", { p_batch_id: batchId });
+  if (error) throw error;
+  return Number(data?.[0]?.updated_count ?? 0);
+}
+
+export async function requeueEstimateSendBatch(batchId: string) {
+  const { data, error } = await supabaseExtended.rpc("requeue_estimate_send_batch", { p_batch_id: batchId });
+  if (error) throw error;
+  return Number(data?.[0]?.updated_count ?? 0);
+}
