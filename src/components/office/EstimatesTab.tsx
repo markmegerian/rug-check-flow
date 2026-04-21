@@ -28,6 +28,7 @@ import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
 import { expireEstimateGroup, markEstimateGroupReady, queueEstimateGroupBatch } from "@/lib/estimate-group-actions";
+import { fetchEstimateGroupDetails } from "@/lib/estimate-group-details";
 
 type EstimateRow = {
   id: ExtendedTableRow<"estimates">["id"];
@@ -178,6 +179,37 @@ export function EstimatesTab() {
     fetchData();
   }, [fetchData]);
 
+
+  const resolveGroupEstimates = useCallback(async (status: EstimateStatus, clientId: string | null, fallback: EstimateRow[]) => {
+    if (!clientId) return fallback;
+
+    try {
+      const detailRows = await fetchEstimateGroupDetails(clientId, status);
+      return detailRows.map((row) => ({
+        id: row.id,
+        rug_id: row.rug_id,
+        client_id: row.client_id,
+        estimate_number: row.estimate_number,
+        status: row.status as EstimateRow["status"],
+        version: row.version,
+        total: row.total,
+        created_at: row.created_at,
+        sent_at: row.sent_at,
+        approved_at: row.approved_at,
+        rejected_at: row.rejected_at,
+        clients: {
+          name: row.client_name ?? null,
+          email: row.client_email ?? null,
+          company: null,
+        },
+        rugs: {
+          tag: row.rug_tag ?? null,
+        },
+      } satisfies EstimateRow));
+    } catch {
+      return fallback;
+    }
+  }, []);
 
   const createEstimate = async () => {
     if (selectedRugId === "none") {
@@ -344,7 +376,8 @@ export function EstimatesTab() {
   const pagination = usePaginatedList(filteredEstimates);
 
   const moveGroupToReady = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
-    const reviewEstimates = estimatesInGroup.filter((estimate) => estimate.status === "needs_office_review");
+    const resolvedEstimates = await resolveGroupEstimates("needs_office_review", estimatesInGroup[0]?.client_id ?? null, estimatesInGroup);
+    const reviewEstimates = resolvedEstimates.filter((estimate) => estimate.status === "needs_office_review");
 
     if (reviewEstimates.length === 0) {
       toast({ title: "No review estimates", description: "This client group has no estimates waiting for office review.", variant: "destructive" });
@@ -362,10 +395,17 @@ export function EstimatesTab() {
     } finally {
       setBulkReviewingGroupKey(null);
     }
-  }, [fetchData, toast]);
+  }, [fetchData, resolveGroupEstimates, toast]);
 
   const expireEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
-    const expirable = estimatesInGroup.filter((estimate) => ["needs_office_review", "ready_to_send", "sent", "needs_revision"].includes(estimate.status));
+    const clientId = estimatesInGroup[0]?.client_id ?? null;
+    const resolvedGroups = await Promise.all([
+      resolveGroupEstimates("needs_office_review", clientId, estimatesInGroup),
+      resolveGroupEstimates("ready_to_send", clientId, estimatesInGroup),
+      resolveGroupEstimates("sent", clientId, estimatesInGroup),
+      resolveGroupEstimates("needs_revision", clientId, estimatesInGroup),
+    ]);
+    const expirable = resolvedGroups.flat().filter((estimate) => ["needs_office_review", "ready_to_send", "sent", "needs_revision"].includes(estimate.status));
 
     if (expirable.length === 0) {
       toast({ title: "No expirable estimates", description: "This client group has no active estimates that can be expired.", variant: "destructive" });
@@ -383,10 +423,11 @@ export function EstimatesTab() {
     } finally {
       setBulkExpiringGroupKey(null);
     }
-  }, [fetchData, toast]);
+  }, [fetchData, resolveGroupEstimates, toast]);
 
   const queueEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
-    const readyEstimates = estimatesInGroup.filter((estimate) => estimate.status === "ready_to_send");
+    const resolvedEstimates = await resolveGroupEstimates("ready_to_send", estimatesInGroup[0]?.client_id ?? null, estimatesInGroup);
+    const readyEstimates = resolvedEstimates.filter((estimate) => estimate.status === "ready_to_send");
 
     if (readyEstimates.length === 0) {
       toast({ title: "No ready estimates", description: "This client group has no estimates ready for the batch send.", variant: "destructive" });
@@ -416,7 +457,7 @@ export function EstimatesTab() {
     } finally {
       setBulkQueueingGroupKey(null);
     }
-  }, [fetchData, toast]);
+  }, [fetchData, resolveGroupEstimates, toast]);
 
   const openEstimateThread = useCallback(async (estimate: EstimateRow) => {
     if (!estimate.client_id) {
