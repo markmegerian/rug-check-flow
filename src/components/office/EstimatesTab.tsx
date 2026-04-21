@@ -63,6 +63,10 @@ type RugOption = {
 type EstimateReviewGroupSummary = EstimateReviewGroupRow & {
   groupName: string;
   groupKey: string;
+  localEstimateCount: number;
+  localReviewCount: number;
+  localReadyCount: number;
+  localSentCount: number;
 };
 
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"]);
@@ -146,12 +150,25 @@ export function EstimatesTab() {
 
     try {
       const groupRows = await fetchEstimateReviewGroups();
+      const localEstimateMap = new Map<string, EstimateRow[]>();
+      estimateList.forEach((estimate) => {
+        const key = `${estimate.status}:${estimate.client_id ?? "unknown"}`;
+        if (!localEstimateMap.has(key)) localEstimateMap.set(key, []);
+        localEstimateMap.get(key)!.push(estimate);
+      });
+
       setReviewGroups(groupRows.map((row) => {
         const groupName = row.company_name?.trim() ? `${row.company_name} · ${row.client_name ?? "Unknown client"}` : (row.client_name ?? "Unknown client");
+        const groupKey = `${row.status}:${row.client_id}`;
+        const localEstimates = localEstimateMap.get(groupKey) ?? [];
         return {
           ...row,
           groupName,
-          groupKey: `${row.status}:${row.client_id}`,
+          groupKey,
+          localEstimateCount: localEstimates.length,
+          localReviewCount: localEstimates.filter((estimate) => estimate.status === "needs_office_review").length,
+          localReadyCount: localEstimates.filter((estimate) => estimate.status === "ready_to_send").length,
+          localSentCount: localEstimates.filter((estimate) => estimate.status === "sent").length,
         };
       }));
     } catch (error) {
@@ -527,6 +544,9 @@ export function EstimatesTab() {
                       <div>
                         <p className="font-medium text-foreground">{group.groupName}</p>
                         <p className="text-muted-foreground">{group.estimate_count} estimate{group.estimate_count === 1 ? "" : "s"} · ${group.total_amount.toFixed(2)}</p>
+                        {group.localEstimateCount !== group.estimate_count ? (
+                          <p className="text-[11px] text-amber-600">UI/page slice currently shows {group.localEstimateCount} of {group.estimate_count} backend grouped estimate{group.estimate_count === 1 ? "" : "s"}.</p>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex gap-3 text-muted-foreground">
