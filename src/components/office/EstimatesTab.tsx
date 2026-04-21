@@ -82,6 +82,7 @@ export function EstimatesTab() {
   const [sendingEstimateId, setSendingEstimateId] = useState<string | null>(null);
   const [bulkQueueingGroupKey, setBulkQueueingGroupKey] = useState<string | null>(null);
   const [bulkReviewingGroupKey, setBulkReviewingGroupKey] = useState<string | null>(null);
+  const [bulkExpiringGroupKey, setBulkExpiringGroupKey] = useState<string | null>(null);
   const [clientDecisionByEstimateId, setClientDecisionByEstimateId] = useState<Record<string, { event_type: string; body: string; created_at: string }>>({});
 
   const statusParam = searchParams.get("status");
@@ -342,6 +343,45 @@ export function EstimatesTab() {
     }
   }, [fetchData, toast]);
 
+  const expireEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
+    const expirable = estimatesInGroup.filter((estimate) => ["needs_office_review", "ready_to_send", "sent", "needs_revision"].includes(estimate.status));
+
+    if (expirable.length === 0) {
+      toast({ title: "No expirable estimates", description: "This client group has no active estimates that can be expired.", variant: "destructive" });
+      return;
+    }
+
+    setBulkExpiringGroupKey(groupName);
+    try {
+      const nowIso = new Date().toISOString();
+      const updates = expirable.map((estimate) =>
+        supabaseExtended
+          .from("estimates")
+          .update({ status: "expired" })
+          .eq("id", estimate.id),
+      );
+
+      const results = await Promise.all(updates);
+      const failed = results.find((result) => result.error);
+      if (failed?.error) {
+        toast({ title: "Group expire failed", description: failed.error.message, variant: "destructive" });
+        return;
+      }
+
+      await Promise.all(expirable.map((estimate) => logCommunicationEvent(
+        { ...estimate, status: "expired" } as EstimateRow,
+        "estimate_expired",
+        `${estimate.estimate_number} expired`,
+        `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} was marked expired on ${formatDateTime(nowIso)}.`,
+      )));
+
+      await fetchData();
+      toast({ title: "Group expired", description: `${expirable.length} estimate${expirable.length === 1 ? "" : "s"} from ${groupName} marked expired.` });
+    } finally {
+      setBulkExpiringGroupKey(null);
+    }
+  }, [fetchData, toast]);
+
   const queueEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
     const readyEstimates = estimatesInGroup.filter((estimate) => estimate.status === "ready_to_send");
 
@@ -499,6 +539,15 @@ export function EstimatesTab() {
                         disabled={bulkQueueingGroupKey === group.groupName || !group.estimates.some((estimate) => estimate.status === "ready_to_send")}
                       >
                         {bulkQueueingGroupKey === group.groupName ? "Queueing..." : "Queue ready group"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => expireEstimateGroup(group.groupName, group.estimates)}
+                        disabled={bulkExpiringGroupKey === group.groupName || !group.estimates.some((estimate) => ["needs_office_review", "ready_to_send", "sent", "needs_revision"].includes(estimate.status))}
+                      >
+                        {bulkExpiringGroupKey === group.groupName ? "Expiring..." : "Expire active group"}
                       </Button>
                     </div>
                   </div>
