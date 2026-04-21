@@ -19,7 +19,9 @@ describe("pdf authorization hardening", () => {
 
   it("downloads signed invoice urls via browser navigation instead of JS blob fetch", () => {
     const client = readFileSync(resolve(process.cwd(), "src/lib/invoice-artifacts.ts"), "utf-8");
-    expect(client).toContain('link.href = functionData.signed_url as string;');
+    expect(client).toContain('const signedUrl = functionData.signed_url as string;');
+    expect(client).toContain('link.href = signedUrl;');
+    expect(client).toContain('window.open(signedUrl, "_blank", "noopener,noreferrer")');
     expect(client).not.toContain('fetch(functionData.signed_url)');
     expect(client).not.toContain('URL.createObjectURL(data)');
   });

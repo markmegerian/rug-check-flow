@@ -29,14 +29,19 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
     throw new Error(details[0] ?? "Failed to request invoice PDF");
   }
 
+  const signedUrl = functionData.signed_url as string;
   const link = document.createElement("a");
-  link.href = functionData.signed_url as string;
+  link.href = signedUrl;
   link.download = `${artifact.invoiceNumber}.pdf`;
-  link.rel = "noopener";
+  link.rel = "noopener noreferrer";
   link.target = "_blank";
   document.body.appendChild(link);
   link.click();
   link.remove();
+
+  if (typeof window !== "undefined") {
+    window.open(signedUrl, "_blank", "noopener,noreferrer");
+  }
 
   return {
     bucket: functionData.bucket as string,
