@@ -474,6 +474,8 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       estimate_ids: string[];
     }[];
   };
+  // Backend/internal estimate batch helper.
+  // Browser queueing should use queue_estimate_group_batch instead of calling this directly.
   ensure_estimate_send_batch: {
     Args: {
       p_client_id: string;
