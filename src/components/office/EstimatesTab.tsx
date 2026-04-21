@@ -61,6 +61,7 @@ type RugOption = {
 
 type EstimateReviewGroupSummary = EstimateReviewGroupRow & {
   groupName: string;
+  groupKey: string;
 };
 
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"]);
@@ -144,10 +145,14 @@ export function EstimatesTab() {
 
     try {
       const groupRows = await fetchEstimateReviewGroups();
-      setReviewGroups(groupRows.map((row) => ({
-        ...row,
-        groupName: row.company_name?.trim() ? `${row.company_name} · ${row.client_name ?? "Unknown client"}` : (row.client_name ?? "Unknown client"),
-      })));
+      setReviewGroups(groupRows.map((row) => {
+        const groupName = row.company_name?.trim() ? `${row.company_name} · ${row.client_name ?? "Unknown client"}` : (row.client_name ?? "Unknown client");
+        return {
+          ...row,
+          groupName,
+          groupKey: `${row.status}:${row.client_id}`,
+        };
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load estimate review groups";
       toast({ title: "Estimate review summary failed", description: message, variant: "destructive" });
@@ -473,7 +478,7 @@ export function EstimatesTab() {
       .map((status) => ({
         status,
         label: STATUS_LABELS[status] ?? status,
-        groups: grouped.get(status)!,
+        groups: grouped.get(status)!.sort((a, b) => a.groupName.localeCompare(b.groupName)),
       }));
   }, [reviewGroups]);
 
@@ -562,10 +567,26 @@ export function EstimatesTab() {
                         <p className="font-medium text-foreground">{group.groupName}</p>
                         <p className="text-muted-foreground">{group.estimate_count} estimate{group.estimate_count === 1 ? "" : "s"} · ${group.total_amount.toFixed(2)}</p>
                       </div>
-                      <div className="flex gap-3 text-muted-foreground">
-                        <span>{group.review_count} review</span>
-                        <span>{group.ready_count} ready</span>
-                        <span>{group.sent_count} sent</span>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex gap-3 text-muted-foreground">
+                          <span>{group.review_count} review</span>
+                          <span>{group.ready_count} ready</span>
+                          <span>{group.sent_count} sent</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            const matchingEstimate = estimates.find((estimate) => estimate.client_id === group.client_id && estimate.status === group.status);
+                            if (matchingEstimate?.rug_id) {
+                              setSelectedRugId(matchingEstimate.rug_id);
+                            }
+                          }}
+                          disabled={!estimates.some((estimate) => estimate.client_id === group.client_id && estimate.status === group.status && !!estimate.rug_id)}
+                        >
+                          Select group rug
+                        </Button>
                       </div>
                     </div>
                   ))}
