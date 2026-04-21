@@ -17,13 +17,16 @@ describe("pdf authorization hardening", () => {
     expect(fn).toContain('companyId = invoice.company_id ?? null;');
   });
 
-  it("downloads signed invoice urls via browser navigation instead of JS blob fetch", () => {
-    const client = readFileSync(resolve(process.cwd(), "src/lib/invoice-artifacts.ts"), "utf-8");
-    expect(client).toContain('const signedUrl = functionData.signed_url as string;');
-    expect(client).toContain('link.href = signedUrl;');
-    expect(client).toContain('window.open(signedUrl, "_blank", "noopener,noreferrer")');
-    expect(client).not.toContain('fetch(functionData.signed_url)');
-    expect(client).not.toContain('URL.createObjectURL(data)');
+  it("prepares signed invoice urls for UI-owned browser opening instead of JS blob fetch", () => {
+    const helper = readFileSync(resolve(process.cwd(), "src/lib/invoice-artifacts.ts"), "utf-8");
+    const officeInvoices = readFileSync(resolve(process.cwd(), "src/components/office/InvoicesTab.tsx"), "utf-8");
+    const portalInvoices = readFileSync(resolve(process.cwd(), "src/components/portal/PortalInvoicesTab.tsx"), "utf-8");
+    expect(helper).toContain('const signedUrl = functionData.signed_url as string;');
+    expect(helper).toContain('signedUrl,');
+    expect(helper).not.toContain('fetch(functionData.signed_url)');
+    expect(helper).not.toContain('URL.createObjectURL(data)');
+    expect(officeInvoices).toContain('window.open(artifact.signedUrl, "_blank", "noopener,noreferrer")');
+    expect(portalInvoices).toContain('window.open(artifact.signedUrl, "_blank", "noopener,noreferrer")');
   });
 
   it("surfaces edge-function error details instead of only generic non-2xx failures", () => {

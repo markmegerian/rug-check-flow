@@ -236,9 +236,10 @@ export function InvoicesTab() {
     try {
       const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
       const openPdf = () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer");
+      openPdf();
       setPdfReadyNotice({
         invoiceId: invoice.id,
-        message: `${invoice.invoice_number}.pdf is ready. Use the button below to open it directly.`,
+        message: `${invoice.invoice_number}.pdf is ready. If it did not open, use the button below.`,
         actionLabel: "Open PDF",
         action: openPdf,
       });

@@ -37,18 +37,6 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact): Promise<
   }
 
   const signedUrl = functionData.signed_url as string;
-  const link = document.createElement("a");
-  link.href = signedUrl;
-  link.download = `${artifact.invoiceNumber}.pdf`;
-  link.rel = "noopener noreferrer";
-  link.target = "_blank";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  if (typeof window !== "undefined") {
-    window.open(signedUrl, "_blank", "noopener,noreferrer");
-  }
 
   return {
     bucket: functionData.bucket as string,

@@ -297,11 +297,12 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
       });
+      window.open(artifact.signedUrl, "_blank", "noopener,noreferrer");
       setExpandedRow(invoice.id);
       setPdfReadyByInvoiceId((current) => ({
         ...current,
         [invoice.id]: {
-          message: `${invoice.invoiceNumber}.pdf is ready. Use the button below to open it directly.`,
+          message: `${invoice.invoiceNumber}.pdf is ready. If it did not open, use the button below.`,
           signedUrl: artifact.signedUrl,
         },
       }));
