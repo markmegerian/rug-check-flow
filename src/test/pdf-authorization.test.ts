@@ -16,4 +16,11 @@ describe("pdf authorization hardening", () => {
     expect(fn).toContain('select("id, client_id, company_id, invoice_number, total, issued_at, due_at, created_at, pdf_storage_path")');
     expect(fn).toContain('companyId = invoice.company_id ?? null;');
   });
+
+  it("downloads signed invoice urls via browser navigation instead of JS blob fetch", () => {
+    const client = readFileSync(resolve(process.cwd(), "src/lib/invoice-artifacts.ts"), "utf-8");
+    expect(client).toContain('link.href = functionData.signed_url as string;');
+    expect(client).not.toContain('fetch(functionData.signed_url)');
+    expect(client).not.toContain('URL.createObjectURL(data)');
+  });
 });

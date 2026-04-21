@@ -20,21 +20,14 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
     throw new Error(functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF");
   }
 
-  const response = await fetch(functionData.signed_url);
-  if (!response.ok) {
-    throw new Error(`Signed invoice download failed with status ${response.status}`);
-  }
-  const data = await response.blob();
-
-  const downloadUrl = URL.createObjectURL(data);
   const link = document.createElement("a");
-  link.href = downloadUrl;
+  link.href = functionData.signed_url as string;
   link.download = `${artifact.invoiceNumber}.pdf`;
   link.rel = "noopener";
+  link.target = "_blank";
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(downloadUrl);
 
   return {
     bucket: functionData.bucket as string,
