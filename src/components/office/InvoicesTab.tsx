@@ -58,6 +58,7 @@ export function InvoicesTab() {
   const [clientSearch, setClientSearch] = useState("");
   const [selected, setSelected] = useState<InvoiceRow | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [pdfReadyNotice, setPdfReadyNotice] = useState<{ invoiceId: string; message: string; actionLabel: string; action: () => void } | null>(null);
 
   const queryStatus = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -149,6 +150,13 @@ export function InvoicesTab() {
     if (updated) setSelected(updated);
   }, [invoices, selected?.id]);
 
+  useEffect(() => {
+    if (!selected || pdfReadyNotice?.invoiceId === selected.id) return;
+    if (pdfReadyNotice && pdfReadyNotice.invoiceId !== selected.id) {
+      setPdfReadyNotice(null);
+    }
+  }, [selected, pdfReadyNotice]);
+
   const logInvoiceEvent = useCallback(async (
     invoice: InvoiceRow,
     eventType: string,
@@ -227,13 +235,16 @@ export function InvoicesTab() {
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
       const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
+      const openPdf = () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer");
+      setPdfReadyNotice({
+        invoiceId: invoice.id,
+        message: `${invoice.invoice_number}.pdf is ready. Use the button below to open it directly.`,
+        actionLabel: "Open PDF",
+        action: openPdf,
+      });
       toast({
         title: "Invoice PDF ready",
-        description: `${invoice.invoice_number}.pdf is ready. If it did not open automatically, tap Open PDF.`,
-        action: {
-          label: "Open PDF",
-          onClick: () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer"),
-        },
+        description: `${invoice.invoice_number}.pdf is ready below.`,
       });
     } catch (error) {
       toast({ title: "Download failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
@@ -501,6 +512,18 @@ export function InvoicesTab() {
         onDownloadPdf={handleDownloadInvoice}
         onSavePayment={handleSavePayment}
         onIssueCreditMemo={handleIssueCreditMemo}
+        pdfReadyNotice={selected && pdfReadyNotice?.invoiceId === selected.id ? (
+          <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+            <div>
+              <p className="font-medium text-foreground">Invoice PDF ready</p>
+              <p className="text-muted-foreground">{pdfReadyNotice.message}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={pdfReadyNotice.action}>{pdfReadyNotice.actionLabel}</Button>
+              <Button size="sm" variant="outline" onClick={() => setPdfReadyNotice(null)}>Dismiss</Button>
+            </div>
+          </div>
+        ) : undefined}
       />
 
       <InvoiceCreateSheet

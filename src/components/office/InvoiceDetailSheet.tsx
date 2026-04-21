@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import type { ReactNode } from "react";
 import { Download, Send, Trash2, DollarSign, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ interface InvoiceDetailSheetProps {
     allocations: Record<string, string>;
   }) => Promise<void>;
   onIssueCreditMemo: (reason: string, amount: string) => Promise<void>;
+  pdfReadyNotice?: ReactNode;
 }
 
 export function InvoiceDetailSheet({
@@ -56,6 +58,7 @@ export function InvoiceDetailSheet({
   onDownloadPdf,
   onSavePayment,
   onIssueCreditMemo,
+  pdfReadyNotice,
 }: InvoiceDetailSheetProps) {
   const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
   const [paymentReference, setPaymentReference] = useState("");
@@ -229,6 +232,8 @@ export function InvoiceDetailSheet({
                   </Button>
                 </div>
               </div>
+
+              {pdfReadyNotice}
 
               <div className="space-y-3 rounded-lg border p-3">
                 <Label className="text-sm font-semibold">Record Payment (with allocation)</Label>
