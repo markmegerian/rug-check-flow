@@ -7,7 +7,6 @@ import {
   FileText,
   FolderOpen,
   Home,
-  Inbox,
   LogOut,
   Map,
   Package,
@@ -59,7 +58,6 @@ const OFFICE_ITEMS = [
   { title: "Estimates", url: "/office/estimates", icon: ClipboardCheck, active: (path: string) => path === "/office/estimates" },
   { title: "Clients", url: "/office/clients", icon: Users, active: (path: string) => path === "/office/clients" },
   { title: "Jobs", url: "/office/jobs", icon: FolderOpen, active: (path: string) => path === "/office/jobs" },
-  { title: "Inbox", url: "/office/inbox", icon: Inbox, active: (path: string) => path === "/office/inbox" },
 ] as const;
 
 const LOGISTICS_ITEMS = [

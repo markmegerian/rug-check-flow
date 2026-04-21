@@ -12,14 +12,12 @@ const PricingTab = lazy(() => import("@/components/office/PricingTab").then((m) 
 const ClientsTab = lazy(() => import("@/components/office/ClientsTab").then((m) => ({ default: m.ClientsTab })));
 const JobsTab = lazy(() => import("@/components/office/JobsTab").then((m) => ({ default: m.JobsTab })));
 const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then((m) => ({ default: m.EstimatesTab })));
-const InboxTab = lazy(() => import("@/components/office/InboxTab").then((m) => ({ default: m.InboxTab })));
 
 const OFFICE_TITLES: Record<string, string> = {
   "/office/pricing": "Pricing",
   "/office/clients": "Clients",
   "/office/jobs": "Jobs",
   "/office/estimates": "Estimates",
-  "/office/inbox": "Inbox",
 };
 
 export default function OfficeWorkspace() {
@@ -29,7 +27,6 @@ export default function OfficeWorkspace() {
   const canManagePricing = hasRole("admin");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
-  const requestedThreadId = searchParams.get("threadId");
   const subtitle = OFFICE_TITLES[location.pathname] ?? "Office";
 
   return (
@@ -47,7 +44,6 @@ export default function OfficeWorkspace() {
           {location.pathname === "/office/clients" ? <ClientsTab /> : null}
           {location.pathname === "/office/jobs" ? <JobsTab onOpenRug={setDetailRugId} /> : null}
           {location.pathname === "/office/estimates" ? <EstimatesTab /> : null}
-          {location.pathname === "/office/inbox" ? <InboxTab requestedThreadId={requestedThreadId} /> : null}
         </Suspense>
       </WorkspaceSurface>
 
