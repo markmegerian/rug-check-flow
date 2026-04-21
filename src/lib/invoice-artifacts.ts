@@ -46,6 +46,7 @@ export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
   return {
     bucket: functionData.bucket as string,
     path: functionData.path as string,
+    signedUrl,
     generated: Boolean(functionData.generated),
   };
 }
