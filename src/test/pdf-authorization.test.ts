@@ -23,4 +23,11 @@ describe("pdf authorization hardening", () => {
     expect(client).not.toContain('fetch(functionData.signed_url)');
     expect(client).not.toContain('URL.createObjectURL(data)');
   });
+
+  it("surfaces edge-function error details instead of only generic non-2xx failures", () => {
+    const client = readFileSync(resolve(process.cwd(), "src/lib/invoice-artifacts.ts"), "utf-8");
+    expect(client).toContain('functionData?.details');
+    expect(client).toContain('functionError ? JSON.stringify(functionError) : null');
+    expect(client).toContain('throw new Error(details[0] ?? "Failed to request invoice PDF")');
+  });
 });

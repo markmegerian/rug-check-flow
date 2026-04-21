@@ -8,16 +8,25 @@ export type InvoicePdfArtifact = {
 };
 
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact) {
+  const payload = {
+    invoice_id: artifact.invoiceId ?? "",
+    estimate_id: artifact.estimateId ?? "",
+    force_regenerate: Boolean(artifact.forceRegenerate),
+  };
+
   const { data: functionData, error: functionError } = await supabase.functions.invoke("invoice-pdf", {
-    body: {
-      invoice_id: artifact.invoiceId ?? "",
-      estimate_id: artifact.estimateId ?? "",
-      force_regenerate: Boolean(artifact.forceRegenerate),
-    },
+    body: payload,
   });
 
   if (functionError || functionData?.error || !functionData?.signed_url) {
-    throw new Error(functionData?.error ?? functionError?.message ?? "Failed to request invoice PDF");
+    const details = [
+      functionData?.error,
+      functionData?.details,
+      functionError?.message,
+      functionError ? JSON.stringify(functionError) : null,
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+    throw new Error(details[0] ?? "Failed to request invoice PDF");
   }
 
   const link = document.createElement("a");
