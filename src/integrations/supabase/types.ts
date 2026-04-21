@@ -3318,7 +3318,7 @@ export type Database = {
         | "credited"
         | "denied"
       dispute_type: "refused_delivery" | "post_delivery_claim"
-      estimate_status: "draft" | "sent" | "approved" | "rejected" | "expired"
+      estimate_status: "draft" | "needs_office_review" | "ready_to_send" | "sent" | "approved" | "rejected" | "needs_revision" | "expired"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "disputed"
       payment_attempt_status: "pending" | "succeeded" | "failed"
       pickup_request_status:
@@ -3493,7 +3493,7 @@ export const Constants = {
         "denied",
       ],
       dispute_type: ["refused_delivery", "post_delivery_claim"],
-      estimate_status: ["draft", "sent", "approved", "rejected", "expired"],
+      estimate_status: ["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"],
       invoice_status: ["draft", "sent", "paid", "overdue", "disputed"],
       payment_attempt_status: ["pending", "succeeded", "failed"],
       pickup_request_status: [
