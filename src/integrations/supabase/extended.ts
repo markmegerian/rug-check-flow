@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type PickupRequestStatus = "pending" | "confirmed" | "assigned" | "completed" | "cancelled";
-type EstimateStatus = "draft" | "sent" | "approved" | "rejected" | "expired";
+type EstimateStatus = "draft" | "needs_office_review" | "ready_to_send" | "sent" | "approved" | "rejected" | "needs_revision" | "expired";
 type CommunicationChannel = "email" | "in_app_chat";
 type CommunicationDirection = "outbound" | "inbound";
 type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
@@ -448,5 +448,20 @@ export type ExtendedTableRow<TableName extends keyof ExtendedDatabase["public"][
 
 export type ExtendedTableInsert<TableName extends keyof ExtendedDatabase["public"]["Tables"]> =
   ExtendedDatabase["public"]["Tables"][TableName]["Insert"];
+
+export type EstimateReviewGroupRow = {
+  client_id: string;
+  client_name: string | null;
+  client_email: string | null;
+  company_name: string | null;
+  status: EstimateStatus;
+  estimate_count: number;
+  total_amount: number;
+  ready_count: number;
+  review_count: number;
+  sent_count: number;
+  latest_created_at: string | null;
+  estimate_ids: string[];
+};
 
 export const supabaseExtended = supabase as unknown as SupabaseClient<ExtendedDatabase>;
