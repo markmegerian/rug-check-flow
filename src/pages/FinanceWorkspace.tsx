@@ -26,7 +26,7 @@ function Placeholder({ title }: { title: string }) {
       <div className="max-w-md rounded-2xl border border-border/70 bg-card/80 p-5 text-center">
         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Planned finance split</div>
         <h2 className="mt-2 text-lg font-semibold text-foreground">{title}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">This workflow will move into its own dedicated finance surface so billing follow-up does not stay trapped inside a giant all-purpose page.</p>
+        <p className="mt-2 text-sm text-muted-foreground">This workflow will move into its own dedicated finance surface so billing follow-up can stay focused and easier to manage.</p>
       </div>
     </div>
   );
