@@ -10,17 +10,24 @@ const DeliveryProofBoard = lazy(() => import("@/components/office/DeliveryProofB
 
 const LOGISTICS_TITLES: Record<string, string> = {
   "/logistics/deliveries": "Deliveries",
-  "/logistics/routes": "Routes",
-  "/logistics/proofs": "Proofs",
+  "/logistics/routes": "Route planning",
+  "/logistics/proofs": "Delivery proofs",
+};
+
+const LOGISTICS_SUBTITLES: Record<string, string> = {
+  "/logistics/deliveries": "Build and confirm active delivery work",
+  "/logistics/routes": "Plan routes and assign stop execution",
+  "/logistics/proofs": "Review proof-of-delivery completion and issues",
 };
 
 export default function LogisticsWorkspace() {
   const location = useLocation();
-  const subtitle = LOGISTICS_TITLES[location.pathname] ?? "Logistics";
+  const title = LOGISTICS_TITLES[location.pathname] ?? "Logistics";
+  const subtitle = LOGISTICS_SUBTITLES[location.pathname] ?? "Logistics workflows";
 
   return (
     <AppShell
-      title="Logistics"
+      title={title}
       subtitle={subtitle}
       contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
