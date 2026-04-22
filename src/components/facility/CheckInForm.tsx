@@ -546,24 +546,26 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 </div>
                 <div className="space-y-2">
                   <Label>Client Name</Label>
-                  <div className="relative min-h-[7.5rem]">
-                    <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search existing client"
-                      value={values.clientName}
-                      className="pl-9"
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setKnownClientId(null);
-                        setClientSearch(nextValue);
-                        form.setValue("clientName", nextValue, { shouldValidate: true });
-                      }}
-                    />
-                    {searchingClients ? (
-                      <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : null}
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search existing client"
+                        value={values.clientName}
+                        className="pl-9 pr-9"
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setKnownClientId(null);
+                          setClientSearch(nextValue);
+                          form.setValue("clientName", nextValue, { shouldValidate: true });
+                        }}
+                      />
+                      {searchingClients ? (
+                        <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : null}
+                    </div>
 
-                    <div className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-10 min-h-[4.5rem] rounded-xl border border-border/70 bg-white/96 p-2 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)]">
+                    <div className="min-h-[4.5rem] rounded-xl border border-border/70 bg-white/96 p-2 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.12)]">
                       {knownClientId && values.clientName.trim() ? (
                         <div className="flex min-h-[3.5rem] items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
                           <Check className="h-4 w-4" />
