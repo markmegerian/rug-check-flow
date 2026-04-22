@@ -621,14 +621,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 <p className="text-sm text-destructive">{form.formState.errors.rugType?.message}</p>
               </div>
               <div className="space-y-2">
-                <Label>Length (ft)</Label>
-                <Input type="number" step="0.1" inputMode="decimal" value={values.length || ""} onChange={(event) => form.setValue("length", Number(event.target.value), { shouldValidate: true })} />
-                <p className="text-sm text-destructive">{form.formState.errors.length?.message}</p>
-              </div>
-              <div className="space-y-2">
                 <Label>Width (ft)</Label>
                 <Input type="number" step="0.1" inputMode="decimal" value={values.width || ""} onChange={(event) => form.setValue("width", Number(event.target.value), { shouldValidate: true })} />
                 <p className="text-sm text-destructive">{form.formState.errors.width?.message}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Length (ft)</Label>
+                <Input type="number" step="0.1" inputMode="decimal" value={values.length || ""} onChange={(event) => form.setValue("length", Number(event.target.value), { shouldValidate: true })} />
+                <p className="text-sm text-destructive">{form.formState.errors.length?.message}</p>
               </div>
             </div>
 
