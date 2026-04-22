@@ -22,8 +22,12 @@ const FINANCE_SUBTITLES: Record<string, string> = {
 
 function Placeholder({ title }: { title: string }) {
   return (
-    <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-      {title} will move into its own dedicated finance surface.
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="max-w-md rounded-2xl border border-border/70 bg-card/80 p-5 text-center">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Planned finance split</div>
+        <h2 className="mt-2 text-lg font-semibold text-foreground">{title}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">This workflow will move into its own dedicated finance surface so billing follow-up does not stay trapped inside a giant all-purpose page.</p>
+      </div>
     </div>
   );
 }
