@@ -200,8 +200,9 @@ export function InvoiceDetailSheet({
               </div>
 
               <div className="space-y-2">
-                <Label>Actions</Label>
-                <div className="flex flex-wrap gap-2">
+                <Label className="text-sm font-semibold text-foreground">Actions</Label>
+                <div className="rounded-xl border border-border/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,255,0.94))] p-3 shadow-[0_16px_40px_-32px_rgba(40,61,120,0.16)]">
+                  <div className="flex flex-wrap gap-2">
                   {invoice.status === "draft" && (
                     <>
                       <Button size="sm" onClick={() => onUpdateStatus("sent")} className="gap-1.5">
@@ -227,9 +228,10 @@ export function InvoiceDetailSheet({
                       <DollarSign className="h-3.5 w-3.5" /> Mark as Paid
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => onDownloadPdf(invoice)} className="gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => onDownloadPdf(invoice)} className="gap-1.5 border-border/80 bg-white text-foreground hover:bg-accent/70">
                     <Download className="h-3.5 w-3.5" /> Download PDF
                   </Button>
+                  </div>
                 </div>
               </div>
 
