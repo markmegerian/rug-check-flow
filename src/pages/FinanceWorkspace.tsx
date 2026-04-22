@@ -7,27 +7,35 @@ import { WorkspaceFallback, WorkspaceSurface } from "@/components/layout/Workspa
 const InvoicesTab = lazy(() => import("@/components/office/InvoicesTab").then((m) => ({ default: m.InvoicesTab })));
 
 const FINANCE_TITLES: Record<string, string> = {
-  "/finance/invoices": "Invoices",
+  "/finance/invoices": "Invoice management",
   "/finance/payments": "Payments",
   "/finance/credits": "Credits",
   "/finance/collections": "Collections",
 };
 
+const FINANCE_SUBTITLES: Record<string, string> = {
+  "/finance/invoices": "Search, review, and resolve invoice history",
+  "/finance/payments": "Payment workflows will split into their own finance surface",
+  "/finance/credits": "Credit memo workflows will split into their own finance surface",
+  "/finance/collections": "Collections follow-up will split into its own finance surface",
+};
+
 function Placeholder({ title }: { title: string }) {
   return (
     <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
-      {title} workspace is reserved for the finance split.
+      {title} will move into its own dedicated finance surface.
     </div>
   );
 }
 
 export default function FinanceWorkspace() {
   const location = useLocation();
-  const subtitle = FINANCE_TITLES[location.pathname] ?? "Finance";
+  const title = FINANCE_TITLES[location.pathname] ?? "Finance";
+  const subtitle = FINANCE_SUBTITLES[location.pathname] ?? "Finance workflows";
 
   return (
     <AppShell
-      title="Finance"
+      title={title}
       subtitle={subtitle}
       contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
