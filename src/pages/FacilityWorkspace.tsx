@@ -12,19 +12,26 @@ const InvoiceGeneratorPanel = lazy(() => import("@/components/facility/InvoiceGe
 
 const FACILITY_TITLES: Record<string, string> = {
   "/facility/production": "Production",
-  "/facility/delivery-prep": "Delivery Prep",
-  "/facility/invoices": "Create Invoice",
+  "/facility/delivery-prep": "Delivery prep",
+  "/facility/invoices": "Create invoice",
+};
+
+const FACILITY_SUBTITLES: Record<string, string> = {
+  "/facility/production": "Active in-shop work and rug progress",
+  "/facility/delivery-prep": "Stage and verify rugs before route execution",
+  "/facility/invoices": "Search clients and build invoices from eligible rugs",
 };
 
 export default function FacilityWorkspace() {
   const location = useLocation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
-  const subtitle = FACILITY_TITLES[location.pathname] ?? "Facility";
+  const title = FACILITY_TITLES[location.pathname] ?? "Facility";
+  const subtitle = FACILITY_SUBTITLES[location.pathname] ?? "Facility workflows";
 
   return (
     <AppShell
-      title="Facility"
+      title={title}
       subtitle={subtitle}
       contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
