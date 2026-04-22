@@ -28,6 +28,7 @@ export default function FacilityWorkspace() {
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const title = FACILITY_TITLES[location.pathname] ?? "Facility";
   const subtitle = FACILITY_SUBTITLES[location.pathname] ?? "Facility workflows";
+  const supportsRugSearch = location.pathname === "/facility/production" || location.pathname === "/facility/delivery-prep";
 
   return (
     <AppShell
@@ -35,7 +36,7 @@ export default function FacilityWorkspace() {
       subtitle={subtitle}
       contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
-      onSearchOpen={() => setSearchOpen(true)}
+      onSearchOpen={supportsRugSearch ? () => setSearchOpen(true) : undefined}
     >
       <WorkspaceSurface>
         <Suspense fallback={<WorkspaceFallback label="facility workflow" />}>
@@ -45,12 +46,12 @@ export default function FacilityWorkspace() {
         </Suspense>
       </WorkspaceSurface>
 
-      {searchOpen ? (
+      {supportsRugSearch && searchOpen ? (
         <Suspense fallback={null}>
           <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={setDetailRugId} />
         </Suspense>
       ) : null}
-      {detailRugId ? (
+      {supportsRugSearch && detailRugId ? (
         <Suspense fallback={null}>
           <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
         </Suspense>

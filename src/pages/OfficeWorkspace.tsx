@@ -36,6 +36,7 @@ export default function OfficeWorkspace() {
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
   const title = OFFICE_TITLES[location.pathname] ?? "Office";
   const subtitle = OFFICE_SUBTITLES[location.pathname] ?? "Office workflows";
+  const supportsRugSearch = location.pathname === "/office/jobs" || location.pathname === "/office/clients";
 
   return (
     <AppShell
@@ -43,8 +44,8 @@ export default function OfficeWorkspace() {
       subtitle={subtitle}
       contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
-      onSearchOpen={() => setSearchOpen(true)}
-      actions={<ClientPricingDialog triggerLabel="Price Lookup" />}
+      onSearchOpen={supportsRugSearch ? () => setSearchOpen(true) : undefined}
+      actions={location.pathname === "/office/pricing" ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
     >
       <WorkspaceSurface>
         <Suspense fallback={<WorkspaceFallback label="office workflow" />}>
@@ -55,12 +56,12 @@ export default function OfficeWorkspace() {
         </Suspense>
       </WorkspaceSurface>
 
-      {searchOpen ? (
+      {supportsRugSearch && searchOpen ? (
         <Suspense fallback={null}>
           <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={setDetailRugId} />
         </Suspense>
       ) : null}
-      {detailRugId ? (
+      {supportsRugSearch && detailRugId ? (
         <Suspense fallback={null}>
           <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
         </Suspense>
