@@ -14,12 +14,12 @@ const json = (body: unknown, status = 200) =>
 type AppRole = "admin" | "office" | "checkin_staff";
 type WorkflowMode = "create" | "edit";
 type WorkflowSource = "pickup" | "dropoff";
+type PricingTier = "standard" | "preferred" | "vip";
 
 type WorkflowServiceInput = {
   service_id: string;
   service_name: string;
-  unit_price: number;
-  line_total: number;
+  quoted_price?: number | null;
   edges?: string[] | null;
 };
 
@@ -51,6 +51,25 @@ type ServiceRuleRow = {
   category: string | null;
   unit: string | null;
   requires_estimate: boolean | null;
+  base_price: number | null;
+  preferred_price: number | null;
+  vip_price: number | null;
+};
+
+type ClientRow = {
+  id: string;
+  name: string;
+  email?: string | null;
+  company_id?: string | null;
+  pricing_tier?: PricingTier | null;
+};
+
+type ResolvedServicePricing = {
+  unitPrice: number;
+  lineTotal: number;
+  category: string | null;
+  unit: string | null;
+  requiresEstimate: boolean | null;
 };
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "office", "checkin_staff"];
@@ -66,7 +85,7 @@ function isCleaningCategory(category: string | null | undefined) {
 
 function isStandardCleaningServiceName(serviceName: string | null | undefined) {
   const normalized = (serviceName ?? "").trim().toLowerCase();
-  return normalized === "standard wash" || normalized === "standard cleaning";
+  return normalized === "standard wash" || normalized === "standard cleaning" || normalized === "hand cleaning" || normalized === "hand cleaning (standard cleaning)";
 }
 
 function shouldAutoApproveService(service: WorkflowServiceInput, rule: ServiceRuleRow | undefined) {
@@ -91,6 +110,10 @@ function normalizeNumber(value: unknown) {
   return Number.isFinite(normalized) ? normalized : 0;
 }
 
+function calcSelectedLinearFt(edges: string[] | null | undefined, length: number, width: number) {
+  return (edges ?? []).reduce((sum, edge) => sum + ((edge === "top" || edge === "bottom") ? width : length), 0);
+}
+
 function normalizeServices(value: unknown): WorkflowServiceInput[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -100,8 +123,7 @@ function normalizeServices(value: unknown): WorkflowServiceInput[] {
       return {
         service_id: normalizeText(service.service_id),
         service_name: normalizeText(service.service_name),
-        unit_price: normalizeNumber(service.unit_price),
-        line_total: normalizeNumber(service.line_total),
+        quoted_price: service.quoted_price == null ? null : normalizeNumber(service.quoted_price),
         edges: Array.isArray(service.edges)
           ? service.edges.filter((edge): edge is string => typeof edge === "string")
           : [],
@@ -130,6 +152,66 @@ function isMissingTableOrColumnError(message: string | undefined, target: string
 
 function isUniqueViolation(message: string | undefined) {
   return /duplicate key value|unique constraint|23505/i.test(message ?? "");
+}
+
+function resolveTierUnitPrice(rule: ServiceRuleRow | undefined, pricingTier: PricingTier | null | undefined) {
+  if (!rule) return 0;
+  if (pricingTier === "vip") return normalizeNumber(rule.vip_price);
+  if (pricingTier === "preferred") return normalizeNumber(rule.preferred_price);
+  return normalizeNumber(rule.base_price);
+}
+
+function resolveServicePricing(params: {
+  service: WorkflowServiceInput;
+  rule: ServiceRuleRow | undefined;
+  pricingTier: PricingTier | null | undefined;
+  length: number;
+  width: number;
+}): ResolvedServicePricing {
+  const { service, rule, pricingTier, length, width } = params;
+  const unit = (rule?.unit ?? "").trim().toLowerCase();
+  const unitPrice = resolveTierUnitPrice(rule, pricingTier);
+
+  if (unit === "flat") {
+    const quotedPrice = normalizeNumber(service.quoted_price);
+    return {
+      unitPrice: quotedPrice,
+      lineTotal: quotedPrice,
+      category: rule?.category ?? null,
+      unit: rule?.unit ?? null,
+      requiresEstimate: rule?.requires_estimate ?? null,
+    };
+  }
+
+  if (unit === "per linear ft") {
+    const selectedLinearFt = calcSelectedLinearFt(service.edges, length, width);
+    return {
+      unitPrice,
+      lineTotal: unitPrice * selectedLinearFt,
+      category: rule?.category ?? null,
+      unit: rule?.unit ?? null,
+      requiresEstimate: rule?.requires_estimate ?? null,
+    };
+  }
+
+  if (unit === "per sqft") {
+    const sqft = normalizeNumber(length) * normalizeNumber(width);
+    return {
+      unitPrice,
+      lineTotal: unitPrice * sqft,
+      category: rule?.category ?? null,
+      unit: rule?.unit ?? null,
+      requiresEstimate: rule?.requires_estimate ?? null,
+    };
+  }
+
+  return {
+    unitPrice,
+    lineTotal: unitPrice,
+    category: rule?.category ?? null,
+    unit: rule?.unit ?? null,
+    requiresEstimate: rule?.requires_estimate ?? null,
+  };
 }
 
 async function claimIdempotencyKey(adminClient: ReturnType<typeof createClient>, params: {
@@ -241,7 +323,7 @@ async function resolveClient(adminClient: ReturnType<typeof createClient>, param
   if (params.clientId) {
     const query = adminClient
       .from("clients")
-      .select("id, name, email, company_id")
+      .select("id, name, email, company_id, pricing_tier")
       .eq("id", params.clientId)
       .limit(1)
       .maybeSingle();
@@ -252,15 +334,15 @@ async function resolveClient(adminClient: ReturnType<typeof createClient>, param
     if (params.callerCompanyId && data.company_id !== params.callerCompanyId) {
       throw new Error("Client does not belong to your company");
     }
-    return data;
+    return data as ClientRow;
   }
 
   const trimmedName = params.clientName.trim();
   if (!trimmedName) return null;
 
-  const query = adminClient
+  let query = adminClient
     .from("clients")
-    .select("id, name, email, company_id")
+    .select("id, name, email, company_id, pricing_tier")
     .ilike("name", trimmedName)
     .limit(1);
 
@@ -268,7 +350,7 @@ async function resolveClient(adminClient: ReturnType<typeof createClient>, param
 
   const { data, error } = await query;
   if (error) throw error;
-  return data?.[0] ?? null;
+  return (data?.[0] as ClientRow | undefined) ?? null;
 }
 
 async function fetchServiceRules(adminClient: ReturnType<typeof createClient>, services: WorkflowServiceInput[]) {
@@ -277,42 +359,59 @@ async function fetchServiceRules(adminClient: ReturnType<typeof createClient>, s
 
   const { data, error } = await adminClient
     .from("services")
-    .select("id, category, unit, requires_estimate")
+    .select("id, category, unit, requires_estimate, base_price, preferred_price, vip_price")
     .in("id", serviceIds);
 
   if (error) throw error;
   return new Map((data ?? []).map((row) => [row.id, row as ServiceRuleRow]));
 }
 
-async function insertRugServices(adminClient: ReturnType<typeof createClient>, rugId: string, services: WorkflowServiceInput[], rules: Map<string, ServiceRuleRow>) {
-  if (services.length === 0) return { approvalStatusAvailable: true, error: null as string | null };
+async function insertRugServices(adminClient: ReturnType<typeof createClient>, params: {
+  rugId: string;
+  services: WorkflowServiceInput[];
+  rules: Map<string, ServiceRuleRow>;
+  pricingTier: PricingTier | null | undefined;
+  length: number;
+  width: number;
+}) {
+  if (params.services.length === 0) return { approvalStatusAvailable: true, error: null as string | null, totalPrice: 0 };
 
-  const rows = services.map((service) => {
-    const rule = rules.get(service.service_id);
+  const rows = params.services.map((service) => {
+    const rule = params.rules.get(service.service_id);
+    const pricing = resolveServicePricing({
+      service,
+      rule,
+      pricingTier: params.pricingTier,
+      length: params.length,
+      width: params.width,
+    });
+
     return {
-      rug_id: rugId,
+      rug_id: params.rugId,
       service_id: service.service_id,
       service_name: service.service_name,
-      unit_price: normalizeNumber(service.unit_price),
-      line_total: normalizeNumber(service.line_total),
-      service_category: rule?.category ?? null,
-      service_unit: rule?.unit ?? null,
-      requires_estimate: rule?.requires_estimate ?? null,
+      unit_price: pricing.unitPrice,
+      line_total: pricing.lineTotal,
+      service_category: pricing.category,
+      service_unit: pricing.unit,
+      requires_estimate: pricing.requiresEstimate,
       edges: service.edges ?? [],
       approval_status: shouldAutoApproveService(service, rule) ? "approved" : "pending",
     };
   });
 
+  const totalPrice = rows.reduce((sum, row) => sum + normalizeNumber(row.line_total), 0);
+
   const withStatus = await adminClient.from("rug_services").insert(rows);
-  if (!withStatus.error) return { approvalStatusAvailable: true, error: null as string | null };
+  if (!withStatus.error) return { approvalStatusAvailable: true, error: null as string | null, totalPrice };
   if (!isMissingTableOrColumnError(withStatus.error.message, "approval_status")) {
-    return { approvalStatusAvailable: true, error: withStatus.error.message };
+    return { approvalStatusAvailable: true, error: withStatus.error.message, totalPrice };
   }
 
   const fallback = await adminClient.from("rug_services").insert(
     rows.map(({ approval_status: _approvalStatus, ...row }) => row),
   );
-  return { approvalStatusAvailable: false, error: fallback.error?.message ?? null };
+  return { approvalStatusAvailable: false, error: fallback.error?.message ?? null, totalPrice };
 }
 
 async function persistCheckinPhotos(adminClient: ReturnType<typeof createClient>, params: {
@@ -348,17 +447,33 @@ async function createDraftEstimate(adminClient: ReturnType<typeof createClient>,
   actorUserId: string | null;
   services: WorkflowServiceInput[];
   rules: Map<string, ServiceRuleRow>;
+  pricingTier: PricingTier | null | undefined;
+  length: number;
+  width: number;
 }) {
-  const eligible = params.services.filter((service) => {
-    const rule = params.rules.get(service.service_id);
-    return Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category);
-  });
+  const eligible = params.services
+    .map((service) => ({
+      service,
+      rule: params.rules.get(service.service_id),
+    }))
+    .filter(({ rule }) => Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category))
+    .map(({ service, rule }) => ({
+      service,
+      rule,
+      pricing: resolveServicePricing({
+        service,
+        rule,
+        pricingTier: params.pricingTier,
+        length: params.length,
+        width: params.width,
+      }),
+    }));
 
   if (eligible.length === 0) {
     return { estimateId: null, estimateNumber: null, warning: null as string | null };
   }
 
-  const total = eligible.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0);
+  const total = eligible.reduce((sum, entry) => sum + normalizeNumber(entry.pricing.lineTotal), 0);
   const estimateNumber = generateEstimateNumber();
 
   const { data: estimate, error: estimateError } = await adminClient
@@ -379,14 +494,14 @@ async function createDraftEstimate(adminClient: ReturnType<typeof createClient>,
     throw new Error(estimateError?.message ?? "Failed to create estimate draft");
   }
 
-  const estimateItems = eligible.map((service) => ({
+  const estimateItems = eligible.map(({ service, rule, pricing }) => ({
     estimate_id: estimate.id,
     rug_service_id: null,
     description: `${params.rugNumber} — ${service.service_name}`,
     quantity: 1,
-    unit_price: normalizeNumber(service.unit_price),
-    total: normalizeNumber(service.line_total),
-    service_category: params.rules.get(service.service_id)?.category ?? service.service_category ?? "",
+    unit_price: normalizeNumber(pricing.unitPrice),
+    total: normalizeNumber(pricing.lineTotal),
+    service_category: rule?.category ?? "",
   }));
 
   const { error: itemError } = await adminClient.from("estimate_items").insert(estimateItems);
@@ -622,6 +737,7 @@ Deno.serve(async (req) => {
       callerCompanyId: actor.companyId,
     });
     const clientId = resolvedClient?.id ?? request.clientId ?? null;
+    const pricingTier = resolvedClient?.pricing_tier ?? "standard";
 
     if (request.clientId && !resolvedClient) {
       return json({ error: "Client not found" }, 404);
@@ -670,7 +786,14 @@ Deno.serve(async (req) => {
       const { error: deleteServicesError } = await adminClient.from("rug_services").delete().eq("rug_id", request.rugId);
       if (deleteServicesError) return json({ error: deleteServicesError.message }, 500);
 
-      const serviceInsert = await insertRugServices(adminClient, request.rugId, request.services, serviceRules);
+      const serviceInsert = await insertRugServices(adminClient, {
+        rugId: request.rugId,
+        services: request.services,
+        rules: serviceRules,
+        pricingTier,
+        length: request.length,
+        width: request.width,
+      });
       if (serviceInsert.error) return json({ error: serviceInsert.error }, 500);
       if (!serviceInsert.approvalStatusAvailable) {
         warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
@@ -697,7 +820,7 @@ Deno.serve(async (req) => {
           rugNumber: request.rugNumber,
           clientName: resolvedClient?.name ?? request.clientName,
           checkedInAt: intakeDate,
-          totalPrice: request.services.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0),
+          totalPrice: serviceInsert.totalPrice,
         },
       });
     }
@@ -760,7 +883,15 @@ Deno.serve(async (req) => {
       const rugId = rugInsert.rugId;
       rugIdForRollback = rugId;
       if (!rugId) return json({ error: "Check-in failed" }, 500);
-      const serviceInsert = await insertRugServices(adminClient, rugId, request.services, serviceRules);
+
+      const serviceInsert = await insertRugServices(adminClient, {
+        rugId,
+        services: request.services,
+        rules: serviceRules,
+        pricingTier,
+        length: request.length,
+        width: request.width,
+      });
       if (serviceInsert.error) throw new Error(serviceInsert.error);
       if (!serviceInsert.approvalStatusAvailable) {
         warnings.push("Services were saved, but pending/approved/rejected is not enabled in this environment yet.");
@@ -788,6 +919,9 @@ Deno.serve(async (req) => {
         actorUserId: actor.user.id,
         services: request.services,
         rules: serviceRules,
+        pricingTier,
+        length: request.length,
+        width: request.width,
       });
 
       const postSubmitTasks: Promise<unknown>[] = [];
@@ -900,7 +1034,7 @@ Deno.serve(async (req) => {
           rugNumber: request.rugNumber,
           clientName: resolvedClient?.name ?? request.clientName,
           checkedInAt: intakeDate,
-          totalPrice: request.services.reduce((sum, service) => sum + normalizeNumber(service.line_total), 0),
+          totalPrice: serviceInsert.totalPrice,
         },
       };
 

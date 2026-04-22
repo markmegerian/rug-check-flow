@@ -14,6 +14,7 @@ export interface DbService {
   preferred_price: number;
   vip_price: number;
   category: string;
+  requires_estimate?: boolean | null;
 }
 
 const CATEGORY_ORDER = ["Cleaning", "Repair", "Specialty", "Specialty Repair", "Other"];
@@ -77,10 +78,10 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
       {open && (
         <div className="divide-y divide-border/50">
           {services.map((svc) => {
-            const lineTotal = getLineTotal(svc.id);
             const checked = serviceIds.has(svc.id);
             const isFlat = svc.unit === "flat";
             const isLinear = svc.unit === "per linear ft";
+            const needsCustomPrice = requiresCustomPrice(svc);
             const edges = edgeSelections[svc.id] ?? [];
             const l = Number(watchedLength) || 0;
             const w = Number(watchedWidth) || 0;
@@ -115,7 +116,7 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
                     </span>
                   </div>
                   {isFlat && !checked && (
-                    <span className="shrink-0 text-xs text-muted-foreground">Custom price</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{needsCustomPrice ? "Quote required" : "Custom price"}</span>
                   )}
                 </label>
                 {checked && isLinear && l > 0 && w > 0 && (
@@ -133,22 +134,19 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
                     )}
                   </div>
                 )}
-                {checked && isFlat && (
-                  <div className="flex items-center gap-2 ml-8 mt-1 mb-1">
-                    <span className="text-xs text-muted-foreground">Price $</span>
+                {checked && isFlat && needsCustomPrice && (
+                  <div className="ml-8 mt-1 mb-1 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Quote $</span>
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
                       inputMode="decimal"
-                      placeholder="Enter price"
+                      placeholder="Enter quote"
                       className="h-8 w-28"
                       value={flatPrices[svc.id] ?? ""}
                       onChange={(e) => setFlatPrices((prev) => ({ ...prev, [svc.id]: e.target.value }))}
                     />
-                    {lineTotal > 0 && (
-                      <span className="text-xs text-muted-foreground">saved</span>
-                    )}
                   </div>
                 )}
               </div>
@@ -168,8 +166,7 @@ interface CheckInServiceSelectorProps {
   toggleService: (id: string) => void;
   clearAll: () => void;
   setServices: (ids: string[]) => void;
-  getUnitPrice: (svc: DbService) => number;
-  getLineTotal: (svc: DbService) => number;
+  requiresCustomPrice: (svc: DbService) => boolean;
   edgeSelections: Record<string, RugEdge[]>;
   setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
   flatPrices: Record<string, string>;
@@ -182,7 +179,7 @@ interface CheckInServiceSelectorProps {
 
 export function CheckInServiceSelector({
   dbServices, watchedServices, toggleService, clearAll, setServices,
-  getUnitPrice, getLineTotal, edgeSelections, setEdgeSelections,
+  requiresCustomPrice, edgeSelections, setEdgeSelections,
   flatPrices, setFlatPrices, watchedLength, watchedWidth, tierLabel, error,
 }: CheckInServiceSelectorProps) {
   const [serviceSearch, setServiceSearch] = useState("");
@@ -237,18 +234,18 @@ export function CheckInServiceSelector({
           )}
         </div>
         {tierLabel && (
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-accent text-accent-foreground">
-            {tierLabel} pricing
+          <span className="rounded bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+            {tierLabel}
           </span>
         )}
       </div>
 
       <div className="rounded-[1rem] border border-border/70 bg-white/70 px-3 py-3 text-xs text-muted-foreground">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <div><span className="font-medium text-foreground">Cleaning</span>, priced per square foot</div>
-          <div><span className="font-medium text-foreground">Repairs</span>, priced per linear foot</div>
-          <div><span className="font-medium text-foreground">Specialty</span>, priced per square foot</div>
-          <div><span className="font-medium text-foreground">Specialty repairs</span>, custom price per rug</div>
+          <div><span className="font-medium text-foreground">Cleaning</span>, priced by the backend</div>
+          <div><span className="font-medium text-foreground">Repairs</span>, priced by the backend</div>
+          <div><span className="font-medium text-foreground">Specialty</span>, priced by the backend</div>
+          <div><span className="font-medium text-foreground">Specialty repairs</span>, quote only when required</div>
         </div>
       </div>
 

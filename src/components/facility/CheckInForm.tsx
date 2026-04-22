@@ -23,7 +23,6 @@ import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
 import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
-import { applyCleaningServiceMinimum, isCleaningCategory } from "@/lib/service-pricing";
 
 import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
@@ -87,8 +86,8 @@ interface CheckInFormProps {
     length: number;
     width: number;
     selectedServices: string[];
-    serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
-    totalPrice: number;
+    serviceSnapshots: { service_id: string; service_name: string; quoted_price?: number | null; edges: string[] }[];
+    totalPrice?: number;
     conditionNotes: string;
     photos: File[];
   }) => Promise<{ status: "success" | "warning" | "error"; title: string; description: string; resetForm?: boolean }>;
@@ -246,7 +245,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("id, name, unit, base_price, preferred_price, vip_price, category")
+        .select("id, name, unit, base_price, preferred_price, vip_price, category, requires_estimate")
         .eq("active", true)
         .order("name");
       if (error) throw error;
@@ -276,6 +275,10 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     },
     [clientTier],
   );
+
+  const requiresCustomPrice = useCallback((svc: DbService) => {
+    return svc.unit === "flat" && Boolean(svc.requires_estimate);
+  }, []);
 
   const serviceById = useMemo(() => {
     const map = new Map<string, DbService>();
@@ -308,52 +311,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return null;
   }, [dbServices]);
 
-  const servicePricing = useMemo(() => {
-    if (!shouldLoadServices) return new Map<string, { unitPrice: number; rawTotal: number; adjustedTotal: number }>();
-
-    const pricing = new Map<string, { unitPrice: number; rawTotal: number; adjustedTotal: number }>();
-    for (const svc of dbServices) {
-      const unitPrice = getUnitPrice(svc);
-      let rawTotal = unitPrice;
-
-      if (svc.unit === "per sqft") {
-        rawTotal = unitPrice * sqft;
-      } else if (svc.unit === "per linear ft") {
-        const edges = edgeSelections[svc.id] ?? [];
-        rawTotal = unitPrice * calcSelectedLinearFt(edges, length, width);
-      } else if (svc.unit === "flat") {
-        const manual = parseFloat(flatPrices[svc.id] ?? "");
-        rawTotal = Number.isNaN(manual) ? 0 : manual;
-      }
-
-      pricing.set(svc.id, {
-        unitPrice,
-        rawTotal,
-        adjustedTotal: applyCleaningServiceMinimum(rawTotal, svc.category),
-      });
-    }
-    return pricing;
-  }, [dbServices, edgeSelections, flatPrices, getUnitPrice, length, shouldLoadServices, sqft, width]);
-
-  const getLineTotal = useCallback(
-    (serviceId: string) => servicePricing.get(serviceId)?.adjustedTotal ?? 0,
-    [servicePricing],
-  );
-
   const buildServiceSnapshots = useCallback((selectedServiceIds: string[]) => {
     return selectedServiceIds
       .map((id) => {
         const svc = serviceById.get(id);
         if (!svc) return null;
-        const pricing = servicePricing.get(id);
-        const lt = pricing?.adjustedTotal ?? 0;
-        const rawUnitPrice = svc.unit === "flat" ? lt : (pricing?.unitPrice ?? getUnitPrice(svc));
-        const up = isCleaningCategory(svc.category) ? lt : rawUnitPrice;
         const edges = svc.unit === "per linear ft" ? (edgeSelections[id] ?? []) : [];
-        return { service_id: id, service_name: svc.name, unit_price: up, line_total: lt, edges };
+        const quotedPrice = requiresCustomPrice(svc)
+          ? (() => {
+              const manual = parseFloat(flatPrices[id] ?? "");
+              return Number.isNaN(manual) ? null : manual;
+            })()
+          : null;
+        return { service_id: id, service_name: svc.name, quoted_price: quotedPrice, edges };
       })
-      .filter(Boolean) as { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
-  }, [edgeSelections, getUnitPrice, serviceById, servicePricing]);
+      .filter(Boolean) as { service_id: string; service_name: string; quoted_price?: number | null; edges: string[] }[];
+  }, [edgeSelections, flatPrices, requiresCustomPrice, serviceById]);
 
   const selectedServices = values.selectedServices ?? [];
   const hasSelectedServices = selectedServices.length > 0;
@@ -405,7 +378,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           width: parsed.data.width,
           selectedServices: selectedServiceIds,
           serviceSnapshots,
-          totalPrice: serviceSnapshots.reduce((sum, service) => sum + service.line_total, 0),
+          totalPrice: undefined,
           conditionNotes: parsed.data.conditionNotes?.trim() ?? "",
           photos: photos.map((photo) => photo.file),
         })
@@ -643,15 +616,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                   setEdgeSelections({});
                 }}
                 setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-                getUnitPrice={getUnitPrice}
-                getLineTotal={getLineTotal}
+                requiresCustomPrice={requiresCustomPrice}
                 edgeSelections={edgeSelections}
                 setEdgeSelections={setEdgeSelections}
                 flatPrices={flatPrices}
                 setFlatPrices={setFlatPrices}
                 watchedLength={length}
                 watchedWidth={width}
-                tierLabel={tierLabel}
+                tierLabel={null}
                 error={form.formState.errors.selectedServices?.message}
               />
             ) : (
