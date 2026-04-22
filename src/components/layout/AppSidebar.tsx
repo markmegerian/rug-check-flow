@@ -56,19 +56,19 @@ const FACILITY_ITEMS = [
 
 const OFFICE_ITEMS = [
   { title: "Pricing", url: "/office/pricing", icon: DollarSign, active: (path: string) => path === "/office/pricing", adminOnly: true },
-  { title: "Estimates", url: "/office/estimates", icon: ClipboardCheck, active: (path: string) => path === "/office/estimates" },
+  { title: "Estimate Attention", url: "/office/estimates", icon: ClipboardCheck, active: (path: string) => path === "/office/estimates" },
   { title: "Clients", url: "/office/clients", icon: Users, active: (path: string) => path === "/office/clients" },
-  { title: "Jobs", url: "/office/jobs", icon: FolderOpen, active: (path: string) => path === "/office/jobs" },
+  { title: "Jobs Attention", url: "/office/jobs", icon: FolderOpen, active: (path: string) => path === "/office/jobs" },
 ] as const;
 
 const LOGISTICS_ITEMS = [
   { title: "Deliveries", url: "/logistics/deliveries", icon: Truck, active: (path: string) => path === "/logistics/deliveries" },
-  { title: "Routes", url: "/logistics/routes", icon: Map, active: (path: string) => path === "/logistics/routes" },
-  { title: "Proofs", url: "/logistics/proofs", icon: Camera, active: (path: string) => path === "/logistics/proofs" },
+  { title: "Route Planning", url: "/logistics/routes", icon: Map, active: (path: string) => path === "/logistics/routes" },
+  { title: "Delivery Proofs", url: "/logistics/proofs", icon: Camera, active: (path: string) => path === "/logistics/proofs" },
 ] as const;
 
 const FINANCE_ITEMS = [
-  { title: "Invoices", url: "/finance/invoices", icon: FileText, active: (path: string) => path === "/finance/invoices" },
+  { title: "Invoice Management", url: "/finance/invoices", icon: FileText, active: (path: string) => path === "/finance/invoices" },
   { title: "Payments", url: "/finance/payments", icon: DollarSign, active: (path: string) => path === "/finance/payments" },
   { title: "Credits", url: "/finance/credits", icon: Receipt, active: (path: string) => path === "/finance/credits" },
   { title: "Collections", url: "/finance/collections", icon: Inbox, active: (path: string) => path === "/finance/collections" },
