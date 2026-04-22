@@ -63,17 +63,17 @@ describe("critical journey acceptance coverage", () => {
   });
 
   it("journey 6: messaging and reminder lifecycle stays wired into the product", () => {
-    const operations = readFileSync(resolve(process.cwd(), "src/pages/Operations.tsx"), "utf-8");
     const portal = readFileSync(resolve(process.cwd(), "src/pages/WholesalePortal.tsx"), "utf-8");
     const officeInbox = readFileSync(resolve(process.cwd(), "src/components/office/InboxTab.tsx"), "utf-8");
     const portalMessages = readFileSync(resolve(process.cwd(), "src/components/portal/PortalMessagesTab.tsx"), "utf-8");
     const cadenceProcessor = readFileSync(resolve(process.cwd(), "supabase/functions/process-notification-cadence/index.ts"), "utf-8");
 
-    expect(operations).toContain('id: "inbox"');
     expect(portal).toContain('key: "messages"');
+    expect(portal).toContain('const requestedThreadId = searchParams.get("threadId")');
     expect(officeInbox).toContain("Unread only");
     expect(officeInbox).toContain("Archive");
     expect(portalMessages).toContain("Unread only");
+    expect(portalMessages).toContain('if (requestedThreadId)');
     expect(cadenceProcessor).toContain("communication_events");
     expect(cadenceProcessor).toContain('from("messages")');
   });

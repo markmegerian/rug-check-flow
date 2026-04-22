@@ -10,11 +10,11 @@ describe("office thread routing", () => {
     expect(invoices).toContain("/portal/messages?threadId=");
   });
 
-  it("threads requestedThreadId through Operations into InboxTab", () => {
-    const operations = readFileSync(resolve(process.cwd(), "src/pages/Operations.tsx"), "utf-8");
-    const inbox = readFileSync(resolve(process.cwd(), "src/components/office/InboxTab.tsx"), "utf-8");
-    expect(operations).toContain('const requestedThreadId = searchParams.get("threadId")');
-    expect(operations).toContain('<InboxTab requestedThreadId={requestedThreadId} />');
-    expect(inbox).toContain('if (requestedThreadId)');
+  it("threads requestedThreadId through portal messages", () => {
+    const portal = readFileSync(resolve(process.cwd(), "src/pages/WholesalePortal.tsx"), "utf-8");
+    const messages = readFileSync(resolve(process.cwd(), "src/components/portal/PortalMessagesTab.tsx"), "utf-8");
+    expect(portal).toContain('const requestedThreadId = searchParams.get("threadId")');
+    expect(portal).toContain('<PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />');
+    expect(messages).toContain('if (requestedThreadId)');
   });
 });
