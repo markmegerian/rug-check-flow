@@ -61,7 +61,7 @@ export default function Auth() {
             <span className="text-sm font-bold text-background">R</span>
           </div>
           <h1 className="text-lg font-semibold text-foreground">{APP_NAME}</h1>
-          <p className="text-xs text-muted-foreground">Sign in to your workspace</p>
+          <p className="text-xs text-muted-foreground">Sign in to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

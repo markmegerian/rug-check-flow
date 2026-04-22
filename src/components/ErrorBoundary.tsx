@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               {this.props.fallbackTitle ?? "Something went wrong"}
             </h3>
             <p className="text-sm text-muted-foreground">
-              An unexpected error occurred in this workspace. Your data is safe.
+              An unexpected error occurred on this page. Your data is safe.
             </p>
             {this.state.error && (
               <p className="text-xs text-muted-foreground font-mono bg-muted rounded p-2 break-all">
@@ -53,7 +53,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             )}
             <Button onClick={this.handleReset} variant="outline" size="sm" className="gap-2">
               <RefreshCw className="h-3.5 w-3.5" />
-              Reload workspace
+              Reload page
             </Button>
           </div>
         </div>

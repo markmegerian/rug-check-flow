@@ -15,6 +15,6 @@ export function WorkspaceSurface({ children, className }: WorkspaceSurfaceProps)
   );
 }
 
-export function WorkspaceFallback({ label = "workspace" }: { label?: string }) {
+export function WorkspaceFallback({ label = "workflow" }: { label?: string }) {
   return <div className="p-6 text-sm text-muted-foreground">Loading {label}…</div>;
 }
