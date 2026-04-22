@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("office thread routing", () => {
-  it("uses /ops inbox deep links from estimate and invoice actions", () => {
+  it("uses portal message deep links from estimate and invoice actions", () => {
     const estimates = readFileSync(resolve(process.cwd(), "src/components/office/EstimatesTab.tsx"), "utf-8");
     const invoices = readFileSync(resolve(process.cwd(), "src/components/office/InvoicesTab.tsx"), "utf-8");
-    expect(estimates).toContain("/ops?tab=inbox&threadId=");
-    expect(invoices).toContain("/ops?tab=inbox&threadId=");
+    expect(estimates).toContain("/portal/messages?threadId=");
+    expect(invoices).toContain("/portal/messages?threadId=");
   });
 
   it("threads requestedThreadId through Operations into InboxTab", () => {

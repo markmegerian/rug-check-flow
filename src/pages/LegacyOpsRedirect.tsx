@@ -7,7 +7,7 @@ export default function LegacyOpsRedirect() {
   const requestedThreadId = searchParams.get("threadId");
   const target = requestedTab ? LEGACY_OPS_TAB_REDIRECTS[requestedTab] : "/facility/production";
 
-  if (!requestedThreadId || target !== "/office/inbox") {
+  if (!requestedThreadId || target !== "/portal/messages") {
     return <Navigate to={target} replace />;
   }
 

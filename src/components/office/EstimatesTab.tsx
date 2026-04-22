@@ -547,7 +547,7 @@ export function EstimatesTab() {
         threadType: "estimate",
         entityId: estimate.id,
       });
-      navigate(`/ops?tab=inbox&threadId=${threadId}`);
+      navigate(`/portal/messages?threadId=${threadId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       toast({ title: "Could not open thread", description: message, variant: "destructive" });
