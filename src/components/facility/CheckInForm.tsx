@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { Loader2, Search, Check } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
@@ -130,6 +131,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const clientLookupCacheRef = useRef<ClientLookupCache>({});
   const [flatPrices, setFlatPrices] = useState<Record<string, string>>({});
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
+  const [clientSearch, setClientSearch] = useState("");
+  const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
   const [step, setStep] = useState<CheckInStep>("details");
   const [washDecision, setWashDecision] = useState<WashDecision>("standard");
   const [shouldLoadServices, setShouldLoadServices] = useState(false);
@@ -150,6 +153,14 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       clientLookupCacheRef.current = {};
     }
   }, []);
+
+  useEffect(() => {
+    const trimmed = clientSearch.trim();
+    const timer = window.setTimeout(() => {
+      setDebouncedClientSearch(trimmed);
+    }, 160);
+    return () => window.clearTimeout(timer);
+  }, [clientSearch]);
 
   const resolveClientLookup = useCallback(async (clientName: string, preferredClientId?: string | null) => {
     const normalizedClient = clientName.trim().toLowerCase();
@@ -205,6 +216,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setFlatPrices({});
       setEdgeSelections({});
       setKnownClientId(selectedRug.clientId ?? null);
+      setClientSearch(selectedRug.clientName);
       setWashDecision("standard");
       setStep("details");
       setShouldLoadServices(false);
@@ -227,6 +239,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setFlatPrices({});
       setEdgeSelections({});
       setKnownClientId(null);
+      setClientSearch(editingEntry.clientName);
       const editingIsCustom = editingEntry.services.some((s) => s.name !== STANDARD_WASH_SERVICE_NAME);
       setWashDecision(editingIsCustom ? "custom" : "standard");
       setStep(editingIsCustom ? "services" : "details");
@@ -239,6 +252,22 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     if (step !== "services") return;
     setShouldLoadServices(true);
   }, [step]);
+
+  const { data: matchingClients = [], isFetching: searchingClients } = useQuery({
+    queryKey: ["checkin", "client-lookup", debouncedClientSearch],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name, pricing_tier")
+        .ilike("name", `%${debouncedClientSearch}%`)
+        .order("name")
+        .limit(8);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: debouncedClientSearch.length >= 2,
+    staleTime: 30_000,
+  });
 
   const { data: dbServices = [] } = useQuery({
     queryKey: ["services", "active", "checkin", step === "services"],
@@ -406,9 +435,12 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const validateDetailsStep = useCallback(async () => {
     const valid = await form.trigger(["rugNumber", "clientName", "rugType", "length", "width"]);
     if (!valid) return false;
-    await resolveClientLookup(form.getValues("clientName"), selectedRug?.clientId ?? null);
+    if (!knownClientId) {
+      form.setError("clientName", { message: "Select an existing client before continuing." });
+      return false;
+    }
     return true;
-  }, [form, resolveClientLookup, selectedRug?.clientId]);
+  }, [form, knownClientId]);
 
   const handleAdvanceFromDetails = useCallback(async () => {
     const valid = await validateDetailsStep();
@@ -514,18 +546,59 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                 </div>
                 <div className="space-y-2">
                   <Label>Client Name</Label>
-                  <Input
-                    placeholder="Client name"
-                    value={values.clientName}
-                    onChange={(event) => {
-                      setKnownClientId(null);
-                      form.setValue("clientName", event.target.value, { shouldValidate: true });
-                    }}
-                    onBlur={() => {
-                      void resolveClientLookup(form.getValues("clientName"));
-                    }}
-                  />
-                  <p className="text-sm text-destructive">{form.formState.errors.clientName?.message}</p>
+                  <div className="relative min-h-[7.5rem]">
+                    <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search existing client"
+                      value={values.clientName}
+                      className="pl-9"
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setKnownClientId(null);
+                        setClientSearch(nextValue);
+                        form.setValue("clientName", nextValue, { shouldValidate: true });
+                      }}
+                    />
+                    {searchingClients ? (
+                      <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : null}
+
+                    <div className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-10 min-h-[4.5rem] rounded-xl border border-border/70 bg-white/96 p-2 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)]">
+                      {knownClientId && values.clientName.trim() ? (
+                        <div className="flex min-h-[3.5rem] items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                          <Check className="h-4 w-4" />
+                          Existing client selected
+                        </div>
+                      ) : debouncedClientSearch.length < 2 ? (
+                        <div className="flex min-h-[3.5rem] items-center px-3 text-xs text-muted-foreground">
+                          Type at least 2 letters to search existing clients.
+                        </div>
+                      ) : matchingClients.length === 0 ? (
+                        <div className="flex min-h-[3.5rem] items-center px-3 text-xs text-muted-foreground">
+                          No existing client match found.
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {matchingClients.map((client) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => {
+                                setKnownClientId(client.id);
+                                setClientSearch(client.name);
+                                setClientTier((client.pricing_tier as PricingTier | undefined) ?? "standard");
+                                form.setValue("clientName", client.name, { shouldValidate: true });
+                              }}
+                              className="flex min-h-[3rem] w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                            >
+                              {client.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="min-h-[1.25rem] text-sm text-destructive">{form.formState.errors.clientName?.message}</p>
                 </div>
               </div>
             )}
