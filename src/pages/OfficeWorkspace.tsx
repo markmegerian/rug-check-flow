@@ -16,8 +16,15 @@ const EstimatesTab = lazy(() => import("@/components/office/EstimatesTab").then(
 const OFFICE_TITLES: Record<string, string> = {
   "/office/pricing": "Pricing",
   "/office/clients": "Clients",
-  "/office/jobs": "Jobs",
-  "/office/estimates": "Estimates",
+  "/office/jobs": "Jobs attention",
+  "/office/estimates": "Estimate attention",
+};
+
+const OFFICE_SUBTITLES: Record<string, string> = {
+  "/office/pricing": "Service catalog and pricing controls",
+  "/office/clients": "Client lookup and relationship history",
+  "/office/jobs": "Grouped operational work that needs action now",
+  "/office/estimates": "Office review, queueing, and send decisions",
 };
 
 export default function OfficeWorkspace() {
@@ -27,11 +34,12 @@ export default function OfficeWorkspace() {
   const canManagePricing = hasRole("admin");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
-  const subtitle = OFFICE_TITLES[location.pathname] ?? "Office";
+  const title = OFFICE_TITLES[location.pathname] ?? "Office";
+  const subtitle = OFFICE_SUBTITLES[location.pathname] ?? "Office workflows";
 
   return (
     <AppShell
-      title="Office"
+      title={title}
       subtitle={subtitle}
       contentClassName="overflow-hidden flex flex-col"
       statusBar={<WorkspaceStatusBar />}
