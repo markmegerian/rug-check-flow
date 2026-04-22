@@ -476,6 +476,22 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       delivery_status: string | null;
     }[];
   };
+  get_delivery_route_overview: {
+    Args: Record<string, never>;
+    Returns: {
+      route_day: string;
+      client_id: string;
+      client_name: string;
+      client_address: string | null;
+      delivery_list_id: string | null;
+      target_date: string | null;
+      list_status: Database["public"]["Enums"]["delivery_list_status"] | null;
+      confirmed_at: string | null;
+      checked_out_at: string | null;
+      created_at: string | null;
+      rug_count: number;
+    }[];
+  };
   queue_estimate_group_batch: {
     Args: { p_estimate_ids: string[] };
     Returns: {

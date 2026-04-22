@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Truck, CheckCircle2, Package, Calendar, ChevronRight, AlertCircle, RefreshCw, History, FileText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { format, addDays } from "date-fns";
 
 import { DAYS_OF_WEEK, DAY_INDEX } from "@/lib/constants";
 import { DELIVERY_LIST_ELIGIBLE_RUG_STATUSES, shouldPromoteRugToReadyForDelivery } from "@/lib/delivery-lists";
+import { fetchDeliveryRouteOverview } from "@/lib/delivery-route-overview";
 import { DeliveryStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
 
 type DeliveryList = {
@@ -75,15 +77,11 @@ export function DeliveriesTab() {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [historyInvoices, setHistoryInvoices] = useState<Record<string, InvoiceInfo[]>>({});
 
-  const fetchClients = useCallback(async () => {
-    const { data } = await supabase
-      .from("clients")
-      .select("id, name, route_day, address")
-      .not("route_day", "is", null)
-      .neq("route_day", "")
-      .order("name");
-    setClients((data ?? []) as ClientInfo[]);
-  }, []);
+  const routeOverviewQuery = useQuery({
+    queryKey: ["delivery-route-overview"],
+    queryFn: fetchDeliveryRouteOverview,
+    staleTime: 30_000,
+  });
 
   const fetchDeliveryLists = useCallback(async () => {
     const { data } = await supabase
@@ -96,9 +94,26 @@ export function DeliveriesTab() {
   }, []);
 
   useEffect(() => {
-    fetchClients();
+    if (routeOverviewQuery.data) {
+      const nextClients: ClientInfo[] = [];
+      const seen = new Set<string>();
+      for (const row of routeOverviewQuery.data) {
+        if (seen.has(row.client_id)) continue;
+        seen.add(row.client_id);
+        nextClients.push({
+          id: row.client_id,
+          name: row.client_name,
+          route_day: row.route_day,
+          address: row.client_address,
+        });
+      }
+      setClients(nextClients);
+    }
+  }, [routeOverviewQuery.data]);
+
+  useEffect(() => {
     fetchDeliveryLists();
-  }, [fetchClients, fetchDeliveryLists]);
+  }, [fetchDeliveryLists]);
 
   const clientsByDay = useMemo(() => {
     const map: Record<string, ClientInfo[]> = {};
