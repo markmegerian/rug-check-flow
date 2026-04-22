@@ -37,6 +37,7 @@ import { APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 import { isFacilityPath, isFinancePath, isLogisticsPath, isOfficePath, isPortalPath } from "@/lib/navigation-domains";
 import microNavyGoldTexture from "@/assets/micro-navy-gold-texture.png";
+import sidebarLogo from "@/assets/sidebar-logo.jpg";
 
 const SUPERADMIN_NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home, active: (path: string) => path === "/" },
@@ -176,8 +177,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
     >
       <SidebarHeader className="p-3 space-y-3">
         <div className="flex items-center gap-2 px-1">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(180deg,rgba(109,181,255,1),rgba(111,92,255,1))] shadow-[0_14px_28px_-20px_rgba(82,116,255,0.55)]">
-            <span className="text-xs font-bold text-slate-900">R</span>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white shadow-[0_14px_28px_-20px_rgba(82,116,255,0.35)]">
+            <img src={sidebarLogo} alt="RugBoost logo" className="h-full w-full object-cover" />
           </div>
           {!collapsed && (
             <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">{APP_NAME}</span>
