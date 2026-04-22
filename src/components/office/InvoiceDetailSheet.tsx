@@ -201,34 +201,61 @@ export function InvoiceDetailSheet({
 
               <div className="space-y-2">
                 <Label className="text-sm font-semibold text-foreground">Actions</Label>
-                <div className="rounded-xl border border-border/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,249,255,0.94))] p-3 shadow-[0_16px_40px_-32px_rgba(40,61,120,0.16)]">
-                  <div className="flex flex-wrap gap-2">
+                <div className="rounded-2xl border border-slate-300/90 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/40">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   {invoice.status === "draft" && (
                     <>
-                      <Button size="sm" onClick={() => onUpdateStatus("sent")} className="gap-1.5">
+                      <Button
+                        size="sm"
+                        onClick={() => onUpdateStatus("sent")}
+                        className="min-h-10 justify-center gap-1.5 border border-primary/20 shadow-[0_12px_24px_-18px_hsl(var(--primary)/0.45)] sm:justify-start"
+                      >
                         <Send className="h-3.5 w-3.5" /> Mark as Sent
                       </Button>
-                      <Button size="sm" variant="destructive" onClick={onDeleteDraft} className="gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={onDeleteDraft}
+                        className="min-h-10 justify-center gap-1.5 border border-red-300/80 shadow-[0_12px_24px_-18px_rgba(220,38,38,0.35)] sm:justify-start dark:border-red-800/80"
+                      >
                         <Trash2 className="h-3.5 w-3.5" /> Delete Draft
                       </Button>
                     </>
                   )}
                   {invoice.status === "sent" && (
                     <>
-                      <Button size="sm" onClick={() => onUpdateStatus("paid")} className="gap-1.5">
+                      <Button
+                        size="sm"
+                        onClick={() => onUpdateStatus("paid")}
+                        className="min-h-10 justify-center gap-1.5 border border-primary/20 shadow-[0_12px_24px_-18px_hsl(var(--primary)/0.45)] sm:justify-start"
+                      >
                         <DollarSign className="h-3.5 w-3.5" /> Mark as Paid
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => onUpdateStatus("overdue")} className="gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onUpdateStatus("overdue")}
+                        className="min-h-10 justify-center gap-1.5 border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100 sm:justify-start dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800"
+                      >
                         <AlertTriangle className="h-3.5 w-3.5" /> Mark as Overdue
                       </Button>
                     </>
                   )}
                   {invoice.status === "overdue" && (
-                    <Button size="sm" onClick={() => onUpdateStatus("paid")} className="gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => onUpdateStatus("paid")}
+                      className="min-h-10 justify-center gap-1.5 border border-primary/20 shadow-[0_12px_24px_-18px_hsl(var(--primary)/0.45)] sm:justify-start"
+                    >
                       <DollarSign className="h-3.5 w-3.5" /> Mark as Paid
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" onClick={() => onDownloadPdf(invoice)} className="gap-1.5 border-border/80 bg-white text-foreground hover:bg-accent/70">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onDownloadPdf(invoice)}
+                    className="min-h-10 justify-center gap-1.5 border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100 sm:justify-start dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-800"
+                  >
                     <Download className="h-3.5 w-3.5" /> Download PDF
                   </Button>
                   </div>
