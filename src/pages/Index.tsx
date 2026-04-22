@@ -32,15 +32,15 @@ const SECTIONS: Array<{
   {
     to: "/facility/production",
     icon: Factory,
-    label: "Facility",
-    description: "Production, delivery prep, and facility operations beyond intake",
+    label: "Facility Workflow",
+    description: "Production, delivery prep, and facility work beyond intake",
     roles: ["admin", "office", "checkin_staff"],
   },
   {
     to: "/office/jobs",
     icon: FolderOpen,
-    label: "Office",
-    description: "Clients, jobs, estimates, inbox, and office coordination",
+    label: "Office Attention",
+    description: "Clients, jobs, estimates, and office coordination",
     roles: ["admin", "office", "checkin_staff"],
   },
   {
@@ -53,7 +53,7 @@ const SECTIONS: Array<{
   {
     to: "/finance/invoices",
     icon: ShieldCheck,
-    label: "Finance",
+    label: "Finance Management",
     description: "Invoices, payments, credits, and collections",
     roles: ["admin", "office"],
   },
