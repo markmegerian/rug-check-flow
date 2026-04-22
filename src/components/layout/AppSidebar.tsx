@@ -36,6 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 import { isFacilityPath, isFinancePath, isLogisticsPath, isOfficePath, isPortalPath } from "@/lib/navigation-domains";
+import microNavyGoldTexture from "@/assets/micro-navy-gold-texture.png";
 
 const SUPERADMIN_NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home, active: (path: string) => path === "/" },
@@ -85,8 +86,8 @@ const PORTAL_ITEMS = [
 ] as const;
 
 export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { state, isMobile, openMobile } = useSidebar();
+  const collapsed = isMobile ? !openMobile : state === "collapsed";
   const location = useLocation();
   const { user, signOut, isSuperAdmin, isPortalUser, hasRole } = useAuth();
 
@@ -163,7 +164,16 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
   })();
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/80 bg-[linear-gradient(180deg,rgba(26,54,125,0.98),rgba(39,56,124,0.98)_54%,rgba(69,46,132,0.99))] text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03)]">
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border/80 text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03)]"
+      style={{
+        backgroundImage: `linear-gradient(180deg, rgba(17,32,78,0.97), rgba(19,33,72,0.97) 56%, rgba(34,29,74,0.98)), url(${microNavyGoldTexture})`,
+        backgroundSize: "cover, 780px auto",
+        backgroundPosition: "center, center",
+        backgroundBlendMode: "normal, soft-light",
+      }}
+    >
       <SidebarHeader className="p-3 space-y-3">
         <div className="flex items-center gap-2 px-1">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(180deg,rgba(109,181,255,1),rgba(111,92,255,1))] shadow-[0_14px_28px_-20px_rgba(82,116,255,0.55)]">
