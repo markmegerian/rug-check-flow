@@ -60,7 +60,7 @@ const SECTIONS: Array<{
   {
     to: "/portal",
     icon: Store,
-    label: "Wholesale Portal",
+    label: "Client Portal",
     description: "Client-facing rug tracking & pickups",
     roles: ["admin", "office", "checkin_staff", "driver"],
   },
@@ -119,10 +119,10 @@ export default function Index() {
         <section className="app-hero space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
-              <p className="app-chip">Today&apos;s workspace</p>
+              <p className="app-chip">Today&apos;s focus</p>
               <h2 className="text-balance text-2xl font-semibold text-foreground sm:text-3xl">Welcome back</h2>
               <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-                Jump into today&apos;s operations with your recommended workflows.
+                Jump into today&apos;s priority workflows from the surfaces that matter most.
               </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground shadow-sm">
@@ -152,7 +152,7 @@ export default function Index() {
 
         <section className="space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Quick actions
+            Recommended next work
           </h3>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {fallbackRecommendations.map((section) => {
@@ -183,7 +183,7 @@ export default function Index() {
 
         <section className="space-y-3">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            All workspaces
+            All workflow surfaces
           </h3>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {SECTIONS.map((s) => {
