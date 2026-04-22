@@ -45,7 +45,7 @@ export default function FinanceWorkspace() {
       statusBar={<WorkspaceStatusBar />}
     >
       <WorkspaceSurface>
-        <Suspense fallback={<WorkspaceFallback label="workspace" />}>
+        <Suspense fallback={<WorkspaceFallback label="finance workflow" />}>
           {location.pathname === "/finance/invoices" ? <InvoicesTab /> : null}
           {location.pathname === "/finance/payments" ? <Placeholder title="Payments" /> : null}
           {location.pathname === "/finance/credits" ? <Placeholder title="Credits" /> : null}

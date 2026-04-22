@@ -33,7 +33,7 @@ export default function LogisticsWorkspace() {
       statusBar={<WorkspaceStatusBar />}
     >
       <WorkspaceSurface>
-        <Suspense fallback={<WorkspaceFallback label="workspace" />}>
+        <Suspense fallback={<WorkspaceFallback label="logistics workflow" />}>
           {location.pathname === "/logistics/deliveries" ? <DeliveriesTab /> : null}
           {location.pathname === "/logistics/routes" ? <RouteBuilder /> : null}
           {location.pathname === "/logistics/proofs" ? <DeliveryProofBoard /> : null}

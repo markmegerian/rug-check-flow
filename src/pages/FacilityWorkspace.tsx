@@ -38,7 +38,7 @@ export default function FacilityWorkspace() {
       onSearchOpen={() => setSearchOpen(true)}
     >
       <WorkspaceSurface>
-        <Suspense fallback={<WorkspaceFallback label="workspace" />}>
+        <Suspense fallback={<WorkspaceFallback label="facility workflow" />}>
           {location.pathname === "/facility/delivery-prep" ? <DeliveryPrepTab /> : null}
           {location.pathname === "/facility/invoices" ? <InvoiceGeneratorPanel /> : null}
           {location.pathname === "/facility/production" ? <ProductionBoard /> : null}

@@ -91,7 +91,7 @@ export function PortalOnboardingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Welcome to your Wholesale Portal</DialogTitle>
+          <DialogTitle>Welcome to your Client Portal</DialogTitle>
           <DialogDescription>
             Quick guided walkthrough to help your team get value immediately.
           </DialogDescription>

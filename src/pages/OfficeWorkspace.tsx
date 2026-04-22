@@ -47,7 +47,7 @@ export default function OfficeWorkspace() {
       actions={<ClientPricingDialog triggerLabel="Price Lookup" />}
     >
       <WorkspaceSurface>
-        <Suspense fallback={<WorkspaceFallback label="workspace" />}>
+        <Suspense fallback={<WorkspaceFallback label="office workflow" />}>
           {location.pathname === "/office/pricing" && canManagePricing ? <PricingTab /> : null}
           {location.pathname === "/office/clients" ? <ClientsTab /> : null}
           {location.pathname === "/office/jobs" ? <JobsTab onOpenRug={setDetailRugId} /> : null}
