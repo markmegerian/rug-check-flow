@@ -181,8 +181,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
             onClick={onSearchOpen}
             aria-label="Search rugs (Cmd+K)"
             className={cn(
-              "border-sidebar-border/80 bg-white/6 text-sidebar-foreground/78 hover:bg-white/10 hover:text-sidebar-foreground",
-              collapsed ? "h-9 w-9" : "h-9 w-full justify-start gap-2 text-xs font-normal"
+              "border-white/14 bg-white/10 text-white/92 hover:bg-white/14 hover:text-white",
+              collapsed ? "h-9 w-9" : "h-9 w-full justify-start gap-2 text-xs font-medium"
             )}
           >
             <Search className="h-3.5 w-3.5" />
@@ -201,7 +201,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
       <SidebarContent>
         {topLevelNavItems.length > 0 ? (
           <SidebarGroup>
-            {!collapsed ? <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/45">Navigate</div> : null}
+            {!collapsed ? <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">Navigate</div> : null}
             <SidebarGroupContent>
               <SidebarMenu>
                 {topLevelNavItems.map((item) => (
@@ -214,8 +214,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                       <Link
                         to={item.url}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-white/8 hover:text-sidebar-foreground",
-                          item.active && "bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.1))] text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(146,179,255,0.22)]"
+                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-white/88 transition-colors hover:bg-white/10 hover:text-white",
+                          item.active && "bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.12))] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(146,179,255,0.24)]"
                         )}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
@@ -231,7 +231,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
 
         {contextualTabItems.length > 0 ? (
           <SidebarGroup>
-            {!collapsed ? <div className="px-3 pb-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-sidebar-foreground/45">Workspace</div> : null}
+            {!collapsed ? <div className="px-3 pb-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">Workflow</div> : null}
             <SidebarGroupContent>
               <SidebarMenu>
                 {contextualTabItems.map((item) => (
@@ -244,8 +244,8 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
                       <Link
                         to={item.url}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/72 transition-colors hover:bg-white/8 hover:text-sidebar-foreground",
-                          item.active && "bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.1))] text-sidebar-foreground font-medium shadow-[inset_0_0_0_1px_rgba(146,179,255,0.22)]"
+                          "flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-white/88 transition-colors hover:bg-white/10 hover:text-white",
+                          item.active && "bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.12))] text-white font-semibold shadow-[inset_0_0_0_1px_rgba(146,179,255,0.24)]"
                         )}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
@@ -264,18 +264,18 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
         {!collapsed && (
           <div className="space-y-2">
             {isSuperAdmin && (
-              <Badge variant="outline" className="w-full justify-center border-sky-200/20 bg-sky-300/10 text-[10px] text-sky-50">
+              <Badge variant="outline" className="w-full justify-center border-sky-200/30 bg-sky-300/16 text-[10px] text-white">
                 Mission Control
               </Badge>
             )}
-            <p className="truncate px-1 text-[11px] text-sidebar-foreground/56">
+            <p className="truncate px-1 text-[11px] text-white/72">
               {user?.email}
             </p>
             <Button
               variant="ghost"
               size="sm"
               onClick={signOut}
-              className="h-8 w-full justify-start gap-2 text-xs text-sidebar-foreground/70 hover:bg-white/8 hover:text-sidebar-foreground"
+              className="h-8 w-full justify-start gap-2 text-xs text-white/80 hover:bg-white/10 hover:text-white"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sign out
@@ -287,7 +287,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
             variant="ghost"
             size="icon"
             onClick={signOut}
-            className="h-8 w-8 text-sidebar-foreground/70 hover:bg-white/8 hover:text-sidebar-foreground"
+            className="h-8 w-8 text-white/80 hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-3.5 w-3.5" />
           </Button>
