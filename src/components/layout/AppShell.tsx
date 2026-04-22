@@ -42,14 +42,14 @@ export function AppShell({
           <AppSidebar onSearchOpen={onSearchOpen} />
 
           <div className="flex-1 flex min-w-0 flex-col">
-            <header className="sticky top-0 z-40 mx-2 mt-2 flex min-h-16 items-center gap-3 rounded-[1.5rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(250,247,242,0.88))] px-3 py-2.5 shadow-[0_24px_60px_-34px_rgba(28,39,56,0.32)] backdrop-blur-xl md:mx-4 md:px-5">
+            <header className="sticky top-0 z-40 mx-2 mt-2 flex min-h-16 items-center gap-3 rounded-[1.75rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(242,247,255,0.9))] px-3 py-2.5 shadow-[0_28px_68px_-36px_rgba(40,61,120,0.28)] backdrop-blur-xl md:mx-4 md:px-5">
               <SidebarTrigger className="-ml-1 touch-target rounded-xl" />
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <h1 className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground sm:text-base">{title}</h1>
+                <h1 className="truncate text-sm font-semibold tracking-[-0.03em] text-foreground sm:text-base">{title}</h1>
                 {subtitle && (
                   <>
                     <span className="hidden text-muted-foreground/40 sm:inline">/</span>
-                    <span className="hidden truncate text-xs text-muted-foreground sm:inline">{subtitle}</span>
+                    <span className="hidden truncate text-xs text-muted-foreground/90 sm:inline">{subtitle}</span>
                   </>
                 )}
               </div>

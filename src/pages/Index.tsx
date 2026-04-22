@@ -125,7 +125,7 @@ export default function Index() {
                 Jump into today&apos;s priority workflows from the surfaces that matter most.
               </p>
             </div>
-            <div className="rounded-2xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground shadow-sm">
+            <div className="rounded-[1.35rem] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(243,247,255,0.92))] px-4 py-3 text-sm text-muted-foreground shadow-[0_20px_52px_-34px_rgba(62,91,197,0.2)]">
               <div className="font-medium text-foreground">Premium mobile pass</div>
               <div className="mt-1 text-xs sm:text-sm">Faster entry points, cleaner cards, better touch targets.</div>
             </div>
@@ -161,10 +161,10 @@ export default function Index() {
                 <Link
                   key={`recommended-${section.to}`}
                   to={section.to}
-                  className="group rounded-2xl border border-border/70 bg-card/95 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_18px_50px_-30px_rgba(99,102,241,0.55)] sm:p-5"
+                  className="group rounded-[1.4rem] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,248,255,0.94))] p-4 shadow-[0_22px_52px_-36px_rgba(62,91,197,0.22)] transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_26px_56px_-32px_rgba(99,102,241,0.38)] sm:p-5"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="rounded-2xl bg-primary/10 p-2.5 text-primary transition-colors group-hover:bg-primary/15">
+                    <div className="rounded-2xl bg-[linear-gradient(180deg,hsl(var(--primary)/0.14),hsl(var(--primary)/0.08))] p-2.5 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] transition-colors group-hover:bg-[linear-gradient(180deg,hsl(var(--primary)/0.18),hsl(var(--primary)/0.1))]">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -192,9 +192,9 @@ export default function Index() {
                 <Link
                   key={s.to}
                   to={s.to}
-                  className="flex min-h-[88px] items-center gap-3 rounded-2xl border border-border/70 bg-card/90 px-4 py-3 shadow-sm transition-all hover:border-primary/30 hover:shadow-[0_18px_40px_-32px_rgba(15,23,42,0.55)]"
+                  className="flex min-h-[88px] items-center gap-3 rounded-[1.3rem] border border-white/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,249,255,0.93))] px-4 py-3 shadow-[0_18px_42px_-34px_rgba(40,61,120,0.18)] transition-all hover:border-primary/25 hover:shadow-[0_22px_48px_-30px_rgba(62,91,197,0.28)]"
                 >
-                  <div className="rounded-xl bg-muted p-2">
+                  <div className="rounded-xl bg-[linear-gradient(180deg,rgba(230,238,255,0.95),rgba(241,245,255,0.9))] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
                     <Icon className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0">
