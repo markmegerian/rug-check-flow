@@ -252,16 +252,29 @@ export function CheckInLayout() {
           })}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {mobilePanel === "form" && (
+        <div className="relative flex-1 min-h-0">
+          <div
+            className={cn(
+              "absolute inset-0 min-h-0 transition-opacity duration-150",
+              mobilePanel === "form" ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+            aria-hidden={mobilePanel !== "form"}
+          >
             <CheckInForm
               key={`mobile-${formResetKey}`}
               selectedRug={selectedRug}
               editingEntry={editingEntry}
               onCheckInComplete={handleCheckInComplete}
             />
-          )}
-          {mobilePanel === "pending" && (
+          </div>
+
+          <div
+            className={cn(
+              "absolute inset-0 min-h-0 transition-opacity duration-150",
+              mobilePanel === "pending" ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+            aria-hidden={mobilePanel !== "pending"}
+          >
             <div className="relative h-full">
               <Suspense fallback={<PanelFallback label="pending rugs" />}>
                 <PendingRugsPanel
@@ -282,7 +295,7 @@ export function CheckInLayout() {
                 <ClipboardList className="h-5 w-5" />
               </button>
             </div>
-          )}
+          </div>
         </div>
       </div>
     );
