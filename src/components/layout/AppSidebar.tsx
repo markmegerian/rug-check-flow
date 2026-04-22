@@ -36,7 +36,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 import { isFacilityPath, isFinancePath, isLogisticsPath, isOfficePath, isPortalPath } from "@/lib/navigation-domains";
-import microNavyGoldTexture from "@/assets/micro-navy-gold-texture.png";
 import sidebarLogo from "@/assets/sidebar-logo.jpg";
 
 const SUPERADMIN_NAV_ITEMS = [
@@ -167,13 +166,7 @@ export function AppSidebar({ onSearchOpen }: { onSearchOpen?: () => void }) {
   return (
     <Sidebar
       collapsible="icon"
-      className="border-r border-sidebar-border/80 text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03)]"
-      style={{
-        backgroundImage: `linear-gradient(180deg, rgba(17,32,78,0.97), rgba(19,33,72,0.97) 56%, rgba(34,29,74,0.98)), url(${microNavyGoldTexture})`,
-        backgroundSize: "cover, 780px auto",
-        backgroundPosition: "center, center",
-        backgroundBlendMode: "normal, soft-light",
-      }}
+      className="border-r border-sidebar-border/80 bg-[radial-gradient(circle_at_top,rgba(214,176,92,0.16),transparent_22%),linear-gradient(180deg,rgba(17,32,78,0.98),rgba(19,33,72,0.98)_56%,rgba(34,29,74,0.99))] text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03)]"
     >
       <SidebarHeader className="p-3 space-y-3">
         <div className="flex items-center gap-2 px-1">
