@@ -452,6 +452,30 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       estimate_request_details: string | null;
     }[];
   };
+  get_production_board_snapshot: {
+    Args: Record<string, never>;
+    Returns: {
+      id: string;
+      tag: string;
+      description: string | null;
+      status: string;
+      size_length: number | null;
+      size_width: number | null;
+      checked_in_at: string;
+      notes: string | null;
+      client_id: string | null;
+      client_name: string | null;
+      photo_url: string | null;
+      services: {
+        name: string;
+        line_total: number;
+        edges: string[];
+        approval_status: string;
+      }[] | null;
+      delivery_target_date: string | null;
+      delivery_status: string | null;
+    }[];
+  };
   queue_estimate_group_batch: {
     Args: { p_estimate_ids: string[] };
     Returns: {

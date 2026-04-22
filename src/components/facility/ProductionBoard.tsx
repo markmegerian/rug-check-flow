@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,11 +7,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductionRugCard } from "./ProductionRugCard";
 import { cn } from "@/lib/utils";
-import { useRugs, type RugWithServices } from "@/hooks/useRugs";
-import { useDeliveryAllocations } from "@/hooks/useDeliveryAllocations";
+import { fetchProductionBoardSnapshot, type ProductionBoardRow } from "@/lib/production-board-snapshot";
 import { RugDetailSheet } from "./RugDetailSheet";
 
-export type DbRug = RugWithServices;
+export type DbRug = ProductionBoardRow;
 
 type ProductionView = "active" | "ready" | "all";
 
@@ -34,8 +34,11 @@ function getStageRank(status: string) {
 }
 
 export function ProductionBoard() {
-  const { data: rugs = [], isLoading: loading } = useRugs();
-  const { data: deliveryAllocations } = useDeliveryAllocations();
+  const { data: rugs = [], isLoading: loading } = useQuery({
+    queryKey: ["production-board-snapshot"],
+    queryFn: fetchProductionBoardSnapshot,
+    staleTime: 30_000,
+  });
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ProductionView>("all");
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
@@ -179,8 +182,8 @@ export function ProductionBoard() {
                 key={rug.id}
                 rug={rug}
                 onViewDetail={setDetailRugId}
-                deliveryDate={deliveryAllocations?.get(rug.id)?.target_date}
-                deliveryStatus={deliveryAllocations?.get(rug.id)?.status}
+                deliveryDate={rug.delivery_target_date ?? undefined}
+                deliveryStatus={rug.delivery_status ?? undefined}
               />
             ))
           )}
