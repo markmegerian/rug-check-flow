@@ -33,8 +33,8 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   services,
   isFirst,
   serviceIds,
-  getLineTotal,
   toggleService,
+  requiresCustomPrice,
   edgeSelections,
   setEdgeSelections,
   flatPrices,
@@ -46,8 +46,8 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   services: DbService[];
   isFirst: boolean;
   serviceIds: Set<string>;
-  getLineTotal: (serviceId: string) => number;
   toggleService: (id: string) => void;
+  requiresCustomPrice: (svc: DbService) => boolean;
   edgeSelections: Record<string, RugEdge[]>;
   setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
   flatPrices: Record<string, string>;
@@ -306,8 +306,8 @@ export function CheckInServiceSelector({
             services={grouped[cat]}
             isFirst={catIdx === 0}
             serviceIds={serviceIds}
-            getLineTotal={getLineTotal}
             toggleService={toggleService}
+            requiresCustomPrice={requiresCustomPrice}
             edgeSelections={edgeSelections}
             setEdgeSelections={setEdgeSelections}
             flatPrices={flatPrices}
