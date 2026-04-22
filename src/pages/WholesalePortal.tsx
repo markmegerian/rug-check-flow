@@ -164,19 +164,11 @@ export default function WholesalePortal() {
       <div className="app-page space-y-4">
         <section className="app-hero space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 sm:pb-0">
-              {TABS.map((tab) => (
-                <Button
-                  key={tab.key}
-                  type="button"
-                  size="sm"
-                  variant={activeTab === tab.key ? "default" : "outline"}
-                  className="h-9 rounded-xl px-3 whitespace-nowrap"
-                  onClick={() => changeTab(tab.key)}
-                >
-                  {tab.label}
-                </Button>
-              ))}
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Client workflow</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Use the portal navigation to move between rugs, pickups, estimates, invoices, messages, and prices.
+              </p>
             </div>
             {clientId ? (
               <Button
