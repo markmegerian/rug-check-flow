@@ -9,11 +9,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-[linear-gradient(180deg,hsl(var(--primary)),hsl(217 78% 48%))] text-primary-foreground shadow-[0_18px_36px_-22px_hsl(var(--primary)/0.55)] hover:brightness-[1.03] hover:shadow-[0_22px_42px_-22px_hsl(var(--primary)/0.6)]",
-        destructive: "bg-[linear-gradient(180deg,hsl(var(--destructive)),hsl(4 76% 48%))] text-destructive-foreground shadow-[0_18px_36px_-22px_hsl(var(--destructive)/0.45)] hover:brightness-[1.03]",
-        outline: "border border-border/80 bg-white/85 text-foreground shadow-[0_12px_28px_-22px_rgba(15,23,42,0.22)] hover:border-primary/25 hover:bg-accent/70 hover:text-accent-foreground",
-        secondary: "bg-secondary/90 text-secondary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] hover:bg-secondary",
-        ghost: "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+        default: "border border-primary/25 bg-[linear-gradient(180deg,hsl(var(--primary)/0.18),hsl(217_82%_56%/0.28))] text-[hsl(221_70%_22%)] shadow-[0_18px_36px_-22px_hsl(var(--primary)/0.28)] hover:bg-[linear-gradient(180deg,hsl(var(--primary)/0.24),hsl(217_82%_56%/0.34))] dark:border-primary/30 dark:bg-[linear-gradient(180deg,hsl(var(--primary)/0.28),hsl(217_82%_56%/0.4))] dark:text-[hsl(210_40%_96%)] dark:hover:bg-[linear-gradient(180deg,hsl(var(--primary)/0.34),hsl(217_82%_56%/0.46))]",
+        destructive: "border border-red-300/80 bg-[linear-gradient(180deg,rgba(254,226,226,0.98),rgba(254,202,202,0.96))] text-[hsl(0_72%_30%)] shadow-[0_18px_36px_-22px_hsl(var(--destructive)/0.2)] hover:bg-[linear-gradient(180deg,rgba(254,220,220,1),rgba(252,186,186,0.98))] dark:border-red-800/80 dark:bg-[linear-gradient(180deg,rgba(127,29,29,0.88),rgba(153,27,27,0.9))] dark:text-[hsl(0_0%_98%)] dark:hover:bg-[linear-gradient(180deg,rgba(153,27,27,0.96),rgba(185,28,28,0.96))]",
+        outline: "border border-primary/20 bg-primary/10 text-[hsl(221_70%_24%)] shadow-[0_12px_28px_-22px_rgba(37,99,235,0.24)] hover:border-primary/30 hover:bg-primary/14 hover:text-[hsl(221_70%_20%)] dark:border-primary/25 dark:bg-primary/20 dark:text-[hsl(210_40%_96%)] dark:hover:bg-primary/26",
+        secondary: "border border-slate-300/80 bg-slate-100 text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
+        ghost: "text-[hsl(221_45%_32%)] hover:bg-primary/10 hover:text-[hsl(221_70%_24%)] dark:text-slate-200 dark:hover:bg-primary/16 dark:hover:text-white",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
