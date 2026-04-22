@@ -1,42 +1,17 @@
-import { Suspense, lazy, useCallback, useState } from "react";
+import { Suspense, lazy } from "react";
+
 const CheckInLayout = lazy(() => import("@/components/facility/CheckInLayout").then((m) => ({ default: m.CheckInLayout })));
-const RugSearchDialog = lazy(() => import("@/components/facility/RugSearchDialog").then((m) => ({ default: m.RugSearchDialog })));
-const RugDetailSheet = lazy(() => import("@/components/facility/RugDetailSheet").then((m) => ({ default: m.RugDetailSheet })));
-import { AppShell } from "@/components/layout/AppShell";
-import { ClientPricingDialog } from "@/components/pricing/ClientPricingDialog";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function CheckInPage() {
-  const { hasRole } = useAuth();
-  const isOffice = hasRole("admin") || hasRole("office");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [detailRugId, setDetailRugId] = useState<string | null>(null);
-  const handleRugSelect = useCallback((rugId: string) => setDetailRugId(rugId), []);
-
   return (
-    <AppShell
-      title="Check-In"
-      subtitle="Fast intake"
-      contentClassName="overflow-hidden flex flex-col"
-      onSearchOpen={() => setSearchOpen(true)}
-      actions={isOffice ? <ClientPricingDialog triggerLabel="Price Lookup" /> : undefined}
-    >
-      <div className="app-hero flex-1 min-h-0 min-w-0 overflow-hidden md:mx-4 md:mt-4 md:h-[calc(100vh-11.5rem)]">
-        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading check-in…</div>}>
-          <CheckInLayout />
-        </Suspense>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(80,132,255,0.12),transparent_42%),linear-gradient(180deg,rgba(247,250,255,0.98),rgba(241,246,255,0.96))]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1800px] flex-col px-3 py-3 sm:px-4 sm:py-4 lg:px-5 lg:py-5">
+        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden rounded-[1.9rem] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(244,248,255,0.86))] shadow-[0_32px_80px_-44px_rgba(30,51,110,0.3)]">
+          <Suspense fallback={<div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">Loading check-in…</div>}>
+            <CheckInLayout />
+          </Suspense>
+        </div>
       </div>
-
-      {searchOpen ? (
-        <Suspense fallback={null}>
-          <RugSearchDialog open={searchOpen} onOpenChange={setSearchOpen} onSelectRug={handleRugSelect} />
-        </Suspense>
-      ) : null}
-      {detailRugId ? (
-        <Suspense fallback={null}>
-          <RugDetailSheet rugId={detailRugId} open={Boolean(detailRugId)} onOpenChange={(open) => { if (!open) setDetailRugId(null); }} />
-        </Suspense>
-      ) : null}
-    </AppShell>
+    </div>
   );
 }

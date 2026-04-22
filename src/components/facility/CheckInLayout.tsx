@@ -1,10 +1,8 @@
 import { useState, useCallback, lazy, Suspense, useRef } from "react";
-import { ClipboardList, Plus } from "lucide-react";
 import { CheckInForm } from "./CheckInForm";
 import { type CheckInEntry } from "@/data/check-in-log";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useCheckInData } from "@/hooks/useCheckInData";
 import { uploadCheckinPhotoFile } from "@/lib/checkin-operations";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
@@ -13,8 +11,6 @@ const PendingRugsPanel = lazy(async () => {
   const module = await import("./PendingRugsPanel");
   return { default: module.PendingRugsPanel };
 });
-
-type MobilePanel = "form" | "pending";
 
 type CheckInWorkflowPhoto = {
   storage_path: string;
@@ -47,28 +43,25 @@ function PanelFallback({ label }: { label: string }) {
 
 export function CheckInLayout() {
   const { user } = useAuth();
-  const isMobile = useIsMobile();
   const [selectedRugId, setSelectedRugId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("pending");
   const checkInIdempotencyKeyRef = useRef<string | null>(null);
   const {
     pendingRugs,
     checkInLog,
-    addWalkIn,
     removePendingRug,
     upsertCheckInLogEntry,
   } = useCheckInData({ enableTodayLog: false });
 
   const selectedRug = pendingRugs.find((r) => r.id === selectedRugId) ?? null;
   const editingEntry = checkInLog.find((e) => e.id === editingEntryId) ?? null;
+  const hasPendingRail = pendingRugs.length > 0;
 
   const handleSelectRug = useCallback((id: string) => {
     setSelectedRugId(id);
     setEditingEntryId(null);
-    if (isMobile) setMobilePanel("form");
-  }, [isMobile]);
+  }, []);
 
   const handleCheckInComplete = useCallback(
     async (data: {
@@ -80,8 +73,8 @@ export function CheckInLayout() {
       length: number;
       width: number;
       selectedServices: string[];
-      serviceSnapshots: { service_id: string; service_name: string; unit_price: number; line_total: number; edges: string[] }[];
-      totalPrice: number;
+      serviceSnapshots: { service_id: string; service_name: string; quoted_price?: number | null; edges: string[] }[];
+      totalPrice?: number;
       conditionNotes: string;
       photos: File[];
     }) => {
@@ -140,7 +133,7 @@ export function CheckInLayout() {
       const workflow = await safeInvoke<CheckInWorkflowResponse>("check-in-workflow", {
         mode: editingEntryId ? "edit" : "create",
         rugId: editingEntryId ?? undefined,
-        sourceRugId: selectedRug?.pickupRequestItemId ?? (data.rugId?.startsWith("walkin-") ? null : data.rugId ?? null),
+        sourceRugId: selectedRug?.pickupRequestItemId ?? data.rugId ?? null,
         actorUserId: user?.id ?? null,
         clientId: data.clientId ?? selectedRug?.clientId ?? null,
         clientName: data.clientName,
@@ -149,7 +142,7 @@ export function CheckInLayout() {
         length: data.length,
         width: data.width,
         conditionNotes: data.conditionNotes,
-        source: selectedRug?.source === "pickup" ? "pickup" : "dropoff",
+        source: "pickup",
         services: data.serviceSnapshots,
         photos: photoPayload,
       }, workflowHeaders);
@@ -189,9 +182,9 @@ export function CheckInLayout() {
         services: data.serviceSnapshots.map((service) => ({
           id: service.service_id,
           name: service.service_name,
-          price: Number(service.line_total) || 0,
+          price: 0,
         })),
-        totalPrice: workflowResult.summary?.totalPrice ?? data.totalPrice,
+        totalPrice: workflowResult.summary?.totalPrice ?? data.totalPrice ?? 0,
         checkedInAt: new Date(checkedInAt),
         checkedInBy: "Staff",
       });
@@ -213,107 +206,29 @@ export function CheckInLayout() {
 
       return finalizeResult(successResult(resultDescription));
     },
-    [editingEntryId, removePendingRug, selectedRug?.clientId, selectedRug?.pickupRequestItemId, selectedRug?.source, upsertCheckInLogEntry, user?.id]
+    [editingEntryId, removePendingRug, selectedRug?.clientId, selectedRug?.pickupRequestItemId, upsertCheckInLogEntry, user?.id],
   );
 
-  const handleAddWalkIn = useCallback((clientName: string, rugNumber: string, clientId?: string | null) => {
-    const id = addWalkIn(clientName, rugNumber, clientId);
-    setSelectedRugId(id);
-    setEditingEntryId(null);
-    if (isMobile) setMobilePanel("form");
-  }, [isMobile, addWalkIn]);
-
-  if (isMobile) {
-    return (
-      <div className="h-full flex flex-col rounded-[1.45rem] bg-transparent">
-        <div className="flex shrink-0 border-b border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(241,247,252,0.54))]">
-          {([
-            { id: "form" as MobilePanel, label: "Check-In", icon: ClipboardList },
-            { id: "pending" as MobilePanel, label: `Pending (${pendingRugs.length})`, icon: Plus },
-          ]).map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setMobilePanel(tab.id);
-                }}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs font-medium transition-colors",
-                  mobilePanel === tab.id
-                    ? "border-b-2 border-primary bg-white/80 text-foreground"
-                    : "text-muted-foreground"
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="relative flex-1 min-h-0">
-          <div
-            className={cn(
-              "absolute inset-0 min-h-0 transition-opacity duration-150",
-              mobilePanel === "form" ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
-            aria-hidden={mobilePanel !== "form"}
-          >
-            <CheckInForm
-              key={`mobile-${formResetKey}`}
-              selectedRug={selectedRug}
-              editingEntry={editingEntry}
-              onCheckInComplete={handleCheckInComplete}
-            />
-          </div>
-
-          <div
-            className={cn(
-              "absolute inset-0 min-h-0 transition-opacity duration-150",
-              mobilePanel === "pending" ? "opacity-100" : "pointer-events-none opacity-0",
-            )}
-            aria-hidden={mobilePanel !== "pending"}
-          >
-            <div className="relative h-full">
-              <Suspense fallback={<PanelFallback label="pending rugs" />}>
-                <PendingRugsPanel
-                  rugs={pendingRugs}
-                  selectedRugId={selectedRugId}
-                  onSelectRug={handleSelectRug}
-                  onAddWalkIn={handleAddWalkIn}
-                />
-              </Suspense>
-              <button
-                onClick={() => {
-                  setSelectedRugId(null);
-                  setEditingEntryId(null);
-                  setMobilePanel("form");
-                }}
-                className="absolute bottom-4 right-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_22px_40px_-20px_rgba(59,108,235,0.32)] transition-colors hover:bg-primary/90"
-              >
-                <ClipboardList className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={cn("h-full grid grid-cols-[320px_minmax(0,1fr)] gap-4 max-xl:grid-cols-[280px_minmax(0,1fr)]")}> 
-      <Suspense fallback={<PanelFallback label="pending rugs" />}>
-        <PendingRugsPanel
-          rugs={pendingRugs}
-          selectedRugId={selectedRugId}
-          onSelectRug={handleSelectRug}
-          onAddWalkIn={handleAddWalkIn}
-        />
-      </Suspense>
-      <div className="app-section relative min-h-0 min-w-0 overflow-hidden">
+    <div className={cn(
+      "flex h-full min-h-0 min-w-0 gap-4 p-4 md:p-5",
+      hasPendingRail ? "lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-5" : "block",
+    )}>
+      {hasPendingRail ? (
+        <div className="hidden min-h-0 lg:block">
+          <Suspense fallback={<PanelFallback label="pending rugs" />}>
+            <PendingRugsPanel
+              rugs={pendingRugs}
+              selectedRugId={selectedRugId}
+              onSelectRug={handleSelectRug}
+            />
+          </Suspense>
+        </div>
+      ) : null}
+
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-[1.5rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.92))] shadow-[0_24px_60px_-40px_rgba(28,39,56,0.18)]">
         <CheckInForm
-          key={`desktop-${formResetKey}`}
+          key={`checkin-${formResetKey}`}
           selectedRug={selectedRug}
           editingEntry={editingEntry}
           onCheckInComplete={handleCheckInComplete}

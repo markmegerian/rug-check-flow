@@ -29,15 +29,6 @@ type PickupSnapshotCache = {
 const PICKUP_SNAPSHOT_CACHE_KEY = "checkin-pending-pickups-v2";
 const EASTERN_TIME_ZONE = "America/New_York";
 
-function getNextWalkInCounter(): number {
-  const dateKey = new Date().toISOString().slice(0, 10);
-  const storageKey = `walkInCounter-${dateKey}`;
-  const current = parseInt(localStorage.getItem(storageKey) ?? "100", 10);
-  const next = current + 1;
-  localStorage.setItem(storageKey, String(next));
-  return next;
-}
-
 function getTimeZoneParts(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -140,10 +131,7 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     const cachedItems = readPickupSnapshotCache(targetDate);
 
     if (cachedItems) {
-      setPendingRugs((prev) => {
-        const walkIns = prev.filter((rug) => rug.source === "walkin");
-        return [...cachedItems, ...walkIns];
-      });
+      setPendingRugs(cachedItems);
       return;
     }
 
@@ -152,18 +140,14 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
 
       if (mappedPending.length === 0) {
         writePickupSnapshotCache(targetDate, []);
-        setPendingRugs((prev) => prev.filter((rug) => rug.source === "walkin"));
+        setPendingRugs([]);
         return;
       }
 
       writePickupSnapshotCache(targetDate, mappedPending);
-      setPendingRugs((prev) => {
-        const walkIns = prev.filter((rug) => rug.source === "walkin");
-        return [...mappedPending, ...walkIns];
-      });
+      setPendingRugs(mappedPending);
     } catch (itemError) {
       console.error("Failed to fetch completed pickup items", itemError);
-      return;
     }
   }, []);
 
@@ -227,10 +211,7 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     const cachedItems = readPickupSnapshotCache(targetDate);
 
     if (cachedItems) {
-      setPendingRugs((prev) => {
-        const walkIns = prev.filter((rug) => rug.source === "walkin");
-        return [...cachedItems, ...walkIns];
-      });
+      setPendingRugs(cachedItems);
       return;
     }
 
@@ -260,20 +241,6 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     return () => window.clearTimeout(timer);
   }, [fetchTodayLog, options?.enableTodayLog]);
 
-  const addWalkIn = useCallback((clientName: string, rugNumber: string, clientId?: string | null): string => {
-    const id = `walkin-${getNextWalkInCounter()}`;
-    const newRug: PendingRug = {
-      id,
-      rugNumber,
-      clientId: clientId ?? null,
-      clientName,
-      requestedServices: [],
-      source: "walkin",
-    };
-    setPendingRugs((prev) => [...prev, newRug]);
-    return id;
-  }, []);
-
   const removePendingRug = useCallback((rugId: string) => {
     removePickupFromSnapshotCache(rugId);
     setPendingRugs((prev) => prev.filter((r) => r.id !== rugId));
@@ -292,7 +259,6 @@ export function useCheckInData(options?: { enableTodayLog?: boolean }) {
     checkInLog,
     fetchTodayLog,
     fetchPendingPickupRugs,
-    addWalkIn,
     removePendingRug,
     upsertCheckInLogEntry,
   };
