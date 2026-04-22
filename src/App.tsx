@@ -25,7 +25,6 @@ const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const CheckInPage = lazy(() => import("./pages/CheckIn"));
-const Operations = lazy(() => import("./pages/Operations"));
 const WholesalePortal = lazy(() => import("./pages/WholesalePortal"));
 const StopPortal = lazy(() => import("./pages/StopPortal"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
