@@ -84,7 +84,7 @@ export function RolesTab() {
         <EmptyState
           className="border-dashed"
           title="No role assignments yet"
-          description="Role definitions are ready. Assign users to activate workspace access."
+          description="Role definitions are ready. Assign users to activate the right workflow access."
         />
       ) : (
         <p className="text-sm text-muted-foreground">

@@ -29,7 +29,7 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
         <div className="text-center space-y-2">
           <h2 className="text-lg font-semibold text-foreground">Access Denied</h2>
           <p className="text-sm text-muted-foreground">
-            Your account is not assigned to an internal workflow surface.
+            Your account is not assigned to an internal access role yet.
           </p>
         </div>
       </div>
