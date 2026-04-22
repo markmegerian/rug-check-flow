@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { PortalTabProps } from "./portal-tab-props";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
-import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
+import { downloadInvoicePdf, openInvoicePdfUrl } from "@/lib/invoice-artifacts";
 import { getCollectionsStateBadgeClass, getPortalBillingState, type CollectionsStateTone } from "@/lib/billing";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import { type InvoiceStatus } from "@/components/shared/StatusBadge";
@@ -297,7 +297,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
       });
-      window.open(artifact.signedUrl, "_blank", "noopener,noreferrer");
+      openInvoicePdfUrl(artifact.signedUrl);
       setExpandedRow(invoice.id);
       setPdfReadyByInvoiceId((current) => ({
         ...current,
@@ -462,7 +462,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                       <p className="text-muted-foreground">{pdfReadyByInvoiceId[inv.id].message}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => window.open(pdfReadyByInvoiceId[inv.id].signedUrl, "_blank", "noopener,noreferrer")}>Open PDF</Button>
+                      <Button size="sm" onClick={() => openInvoicePdfUrl(pdfReadyByInvoiceId[inv.id].signedUrl)}>Open PDF</Button>
                       <Button size="sm" variant="outline" onClick={() => setPdfReadyByInvoiceId((current) => {
                         const next = { ...current };
                         delete next[inv.id];

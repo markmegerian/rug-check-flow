@@ -14,6 +14,12 @@ export type InvoicePdfDownloadResult = {
   generated: boolean;
 };
 
+export function openInvoicePdfUrl(signedUrl: string) {
+  if (typeof window !== "undefined") {
+    window.open(signedUrl, "_blank", "noopener,noreferrer");
+  }
+}
+
 export async function downloadInvoicePdf(artifact: InvoicePdfArtifact): Promise<InvoicePdfDownloadResult> {
   const payload = {
     invoice_id: artifact.invoiceId ?? "",

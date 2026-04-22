@@ -11,7 +11,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
 import { toast } from "@/hooks/use-toast";
-import { downloadInvoicePdf } from "@/lib/invoice-artifacts";
+import { downloadInvoicePdf, openInvoicePdfUrl } from "@/lib/invoice-artifacts";
 import { InvoiceFilters } from "@/components/office/InvoiceFilters";
 import { InvoiceDetailSheet } from "@/components/office/InvoiceDetailSheet";
 import { InvoiceCreateSheet } from "@/components/office/InvoiceCreateSheet";
@@ -235,7 +235,7 @@ export function InvoicesTab() {
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
       const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
-      const openPdf = () => window.open(artifact.signedUrl, "_blank", "noopener,noreferrer");
+      const openPdf = () => openInvoicePdfUrl(artifact.signedUrl);
       openPdf();
       setPdfReadyNotice({
         invoiceId: invoice.id,

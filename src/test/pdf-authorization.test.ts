@@ -22,11 +22,13 @@ describe("pdf authorization hardening", () => {
     const officeInvoices = readFileSync(resolve(process.cwd(), "src/components/office/InvoicesTab.tsx"), "utf-8");
     const portalInvoices = readFileSync(resolve(process.cwd(), "src/components/portal/PortalInvoicesTab.tsx"), "utf-8");
     expect(helper).toContain('const signedUrl = functionData.signed_url as string;');
+    expect(helper).toContain('export function openInvoicePdfUrl(signedUrl: string)');
+    expect(helper).toContain('window.open(signedUrl, "_blank", "noopener,noreferrer")');
     expect(helper).toContain('signedUrl,');
     expect(helper).not.toContain('fetch(functionData.signed_url)');
     expect(helper).not.toContain('URL.createObjectURL(data)');
-    expect(officeInvoices).toContain('window.open(artifact.signedUrl, "_blank", "noopener,noreferrer")');
-    expect(portalInvoices).toContain('window.open(artifact.signedUrl, "_blank", "noopener,noreferrer")');
+    expect(officeInvoices).toContain('const openPdf = () => openInvoicePdfUrl(artifact.signedUrl);');
+    expect(portalInvoices).toContain('openInvoicePdfUrl(artifact.signedUrl);');
   });
 
   it("surfaces edge-function error details instead of only generic non-2xx failures", () => {
