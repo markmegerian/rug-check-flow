@@ -54,13 +54,14 @@ The safest current DB truth source is still:
 ## Should do soon
 
 ### 3. Improve full schema comparison confidence
-**Status:** Open, blocked by shadow replay failure
+**Status:** Open, blocked by shadow replay failure (reconfirmed 2026-04-22)
 
 **Problem:**
 `supabase db pull --linked --schema public --yes` is not replay-safe right now.
 
 **Known failure:**
 - FK replay failure around `admin_audit_logs.company_id -> public.companies`
+- reconfirmed by fresh run on 2026-04-22 in `docs/database-schema-pull-verification-2026-04-22.md`
 
 **Why it matters:**
 This is not the main launch risk, but it limits confidence for full remote-schema comparison.
