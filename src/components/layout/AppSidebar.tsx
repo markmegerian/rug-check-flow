@@ -39,8 +39,9 @@ import { isFacilityPath, isFinancePath, isLogisticsPath, isOfficePath, isPortalP
 
 const SUPERADMIN_NAV_ITEMS = [
   { title: "Home", url: "/", icon: Home, active: (path: string) => path === "/" },
-  { title: "Operations", url: "/ops", icon: Factory, active: (path: string) => path.startsWith("/ops") },
-  { title: "Wholesale Portal", url: "/portal", icon: Store, active: (path: string) => path.startsWith("/portal") },
+  { title: "Check-In Intake", url: "/checkin", icon: ClipboardCheck, active: (path: string) => path.startsWith("/checkin") },
+  { title: "Office Attention", url: "/office/jobs", icon: FolderOpen, active: (path: string) => path.startsWith("/office") },
+  { title: "Client Portal", url: "/portal/rugs", icon: Store, active: (path: string) => path.startsWith("/portal") },
   { title: "Driver Portal", url: "/driver", icon: Truck, active: (path: string) => path.startsWith("/driver") },
   { title: "Mission Control", url: "/admin", icon: ShieldCheck, active: (path: string) => path.startsWith("/admin") },
 ] as const;
