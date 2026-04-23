@@ -8,7 +8,6 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { downloadInvoicePdf, openInvoicePdfUrl } from "@/lib/invoice-artifacts";
 import { getCollectionsStateBadgeClass, getPortalBillingState, type CollectionsStateTone } from "@/lib/billing";
-import { openOrCreateThread } from "@/lib/thread-navigation";
 import { type InvoiceStatus } from "@/components/shared/StatusBadge";
 type PaymentAttemptStatus = "pending" | "succeeded" | "failed";
 
@@ -272,23 +271,6 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
     setLoadingMore(false);
   };
 
-  const handleOpenThread = useCallback(async (invoice: PortalInvoice, event?: MouseEvent<HTMLButtonElement>) => {
-    event?.stopPropagation();
-    if (!clientId) return;
-
-    try {
-      const threadId = await openOrCreateThread({
-        clientId,
-        threadType: "invoice",
-        entityId: invoice.id,
-      });
-      navigate(`/portal?tab=messages&threadId=${threadId}`);
-    } catch (error) {
-      const description = error instanceof Error ? error.message : "Unknown error";
-      toast({ title: "Could not open thread", description, variant: "destructive" });
-    }
-  }, [clientId, navigate, toast]);
-
   const handleDownload = async (invoice: PortalInvoice, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
 
@@ -415,14 +397,6 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
               <div className="hidden sm:flex justify-end gap-1">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={(event) => void handleOpenThread(inv, event)}
-                >
-                  Contact
-                </Button>
-                <Button
-                  variant="ghost"
                   size="icon"
                   className="h-7 w-7"
                   onClick={(event) => handleDownload(inv, event)}
@@ -436,9 +410,6 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                 <div className="pt-2 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Line items</p>
-                    <Button size="sm" variant="secondary" onClick={(event) => void handleOpenThread(inv, event)}>
-                      Contact office
-                    </Button>
                   </div>
                   {inv.lineItems.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No line items found.</p>
