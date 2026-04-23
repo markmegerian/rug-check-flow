@@ -81,7 +81,6 @@ const PORTAL_ITEMS = [
   { title: "Pickups", url: "/portal/pickups", icon: Truck, active: (path: string) => path === "/portal/pickups" },
   { title: "Estimates", url: "/portal/estimates", icon: ClipboardCheck, active: (path: string) => path === "/portal/estimates" },
   { title: "Invoices", url: "/portal/invoices", icon: Receipt, active: (path: string) => path === "/portal/invoices" },
-  { title: "Messages", url: "/portal/messages", icon: Inbox, active: (path: string) => path === "/portal/messages" },
   { title: "Prices", url: "/portal/prices", icon: DollarSign, active: (path: string) => path === "/portal/prices" },
 ] as const;
 

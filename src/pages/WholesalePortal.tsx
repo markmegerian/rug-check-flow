@@ -4,7 +4,6 @@ const PortalPickupsTab = lazy(() => import("@/components/portal/PortalPickupsTab
 const PortalInvoicesTab = lazy(() => import("@/components/portal/PortalInvoicesTab"));
 const PortalEstimatesTab = lazy(() => import("@/components/portal/PortalEstimatesTab"));
 const PortalPricingTab = lazy(() => import("@/components/portal/PortalPricingTab"));
-const PortalMessagesTab = lazy(() => import("@/components/portal/PortalMessagesTab"));
 import { PortalAccountSnapshot } from "@/components/portal/PortalAccountSnapshot";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -17,14 +16,13 @@ import { PortalOnboardingDialog } from "@/components/portal/PortalOnboardingDial
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
-type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "messages" | "prices";
+type Tab = "rugs" | "pickups" | "estimates" | "invoices" | "prices";
 
 const TABS: { key: Tab; label: string; path: string }[] = [
   { key: "rugs", label: "Rugs", path: "/portal/rugs" },
   { key: "pickups", label: "Pickups", path: "/portal/pickups" },
   { key: "estimates", label: "Estimates", path: "/portal/estimates" },
   { key: "invoices", label: "Invoices", path: "/portal/invoices" },
-  { key: "messages", label: "Messages", path: "/portal/messages" },
   { key: "prices", label: "Prices", path: "/portal/prices" },
 ];
 
@@ -74,7 +72,7 @@ export default function WholesalePortal() {
     setActiveTab(nextTab);
     const target = TABS.find((tab) => tab.key === nextTab)?.path ?? "/portal/rugs";
     const next = new URLSearchParams();
-    if (nextTab === "messages" && requestedThreadId) {
+    if (nextTab === "rugs" && requestedThreadId) {
       next.set("threadId", requestedThreadId);
     }
     navigate(`${target}${next.toString() ? `?${next.toString()}` : ""}`);
@@ -224,9 +222,6 @@ export default function WholesalePortal() {
                 ) : null}
                 {activeTab === "invoices" ? (
                   <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                ) : null}
-                {activeTab === "messages" ? (
-                  <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
                 {activeTab === "prices" ? (
                   <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
