@@ -430,19 +430,13 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
   return (
     <div className="space-y-8">
       <section className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="bg-muted/50 px-4 py-3 border-b">
-          <p className="text-sm text-muted-foreground">
-            We pick up in <strong className="text-foreground">{region}</strong> on <strong className="text-foreground">{routeDay}s</strong>.
-          </p>
-        </div>
-
         <div className="p-4 space-y-6">
           {!nextPendingPickup ? (
             <>
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Request a pickup</h2>
+                <h2 className="text-lg font-semibold text-foreground">Request pickup</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your next pickup date is <strong className="text-foreground">{scheduledDateStr}</strong>. Click below to request it, then tell us which rugs to pick up.
+                  Your next pickup date is <strong className="text-foreground">{scheduledDateStr}</strong>.
                 </p>
               </div>
               <Button size="lg" className="w-full sm:w-auto" onClick={handleSchedulePickup} disabled={requesting}>
@@ -455,11 +449,11 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">
-                    Your upcoming pickup
+                    Upcoming pickup
                     {isLocked && <Lock className="inline-block ml-2 h-4 w-4 text-muted-foreground" />}
                   </h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    <strong className="text-foreground">{scheduledDateStr}</strong> · {isLocked ? "This pickup has been confirmed." : "Add or change rugs below, then save."}
+                    <strong className="text-foreground">{scheduledDateStr}</strong> · {isLocked ? "Confirmed" : "Update your rug list below and save."}
                   </p>
                 </div>
                 {!isLocked && (
@@ -471,7 +465,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
 
               {!isLocked && (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-medium text-foreground">Which rugs are we picking up?</h3>
+                  <h3 className="text-sm font-medium text-foreground">Rugs for pickup</h3>
 
                   <div className="space-y-2">
                     {draftRugs.map((rug) => (
@@ -494,9 +488,9 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-foreground block mb-1">Anything else we should know?</label>
+                    <label className="text-sm font-medium text-foreground block mb-1">Notes</label>
                     <Input
-                      placeholder="Optional notes…"
+                      placeholder="Add notes if needed"
                       value={draftNotes}
                       onChange={(e) => setDraftNotes(e.target.value)}
                       className="h-11 rounded-2xl"
@@ -515,7 +509,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
 
       {pastPickups.length > 0 && (
         <section>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Past pickups</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">History</h3>
           <div className="space-y-2">
             {pastPickupsPagination.items.map((pickup) => (
               <PickupHistoryRow key={pickup.id} pickup={pickup} onCancel={handleCancel} />
