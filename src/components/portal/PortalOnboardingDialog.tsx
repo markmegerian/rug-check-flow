@@ -21,38 +21,38 @@ type OnboardingStep = {
 const STEPS: OnboardingStep[] = [
   {
     tab: "rugs",
-    title: "Track your rugs in one place",
-    description: "See every active rug with current status and service details.",
+    title: "See your rugs",
+    description: "View active rugs and their current status.",
     bullets: [
-      "Use Rugs to confirm which pieces are checked in, in production, or ready.",
-      "Open each row for service and condition context when needed.",
+      "Check which rugs are checked in, in progress, or ready.",
+      "Open a rug to see more detail when needed.",
     ],
   },
   {
     tab: "pickups",
-    title: "Request a pickup",
-    description: "Tell us when to pick up rugs and which ones.",
+    title: "Request pickup",
+    description: "Choose your next pickup and tell us which rugs are going out.",
     bullets: [
-      "Click “Request pickup” to schedule your next pickup date.",
-      "Check the rugs we’ve cleaned before, or add new ones, then save.",
+      "Request your next pickup date.",
+      "Add rugs and save the list.",
     ],
   },
   {
     tab: "estimates",
-    title: "Approve estimates without back-and-forth",
-    description: "Review estimate totals and approve or reject directly in portal.",
+    title: "Review estimates",
+    description: "Approve or decline estimate work directly in the portal.",
     bullets: [
-      "Pending approvals appear first so your team can move work forward fast.",
-      "History remains visible for audit and pricing review.",
+      "Open estimates that are ready for review.",
+      "Past estimate decisions stay visible in history.",
     ],
   },
   {
     tab: "invoices",
-    title: "Download invoices and review payment timeline",
-    description: "Access invoice PDFs and payment attempt history in one view.",
+    title: "View invoices",
+    description: "Open invoice PDFs and review payment status.",
     bullets: [
-      "Use Download to save invoice PDFs for your records.",
-      "Review payment attempt statuses to resolve billing issues quickly.",
+      "Download invoices for your records.",
+      "Check payment history when needed.",
     ],
   },
 ];
@@ -91,9 +91,9 @@ export function PortalOnboardingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Welcome to your Client Portal</DialogTitle>
+          <DialogTitle>Portal guide</DialogTitle>
           <DialogDescription>
-            Quick guided walkthrough to help your team get value immediately.
+            A quick walkthrough of the main portal sections.
           </DialogDescription>
         </DialogHeader>
 
@@ -115,7 +115,7 @@ export function PortalOnboardingDialog({
             ))}
           </div>
 
-          <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Badge variant="secondary">{step.tab}</Badge>
               <p className="text-sm font-semibold">{step.title}</p>
@@ -131,14 +131,14 @@ export function PortalOnboardingDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Remind me later
+            Close
           </Button>
           <Button variant="outline" onClick={() => goToStep(safeStepIndex - 1)} disabled={isFirstStep}>
             Back
           </Button>
           {isLastStep ? (
             <Button onClick={onComplete} disabled={completing}>
-              {completing ? "Saving..." : "Finish onboarding"}
+              {completing ? "Saving..." : "Finish"}
             </Button>
           ) : (
             <Button onClick={() => goToStep(safeStepIndex + 1)}>Next</Button>
