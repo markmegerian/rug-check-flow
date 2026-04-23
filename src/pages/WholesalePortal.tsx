@@ -50,7 +50,6 @@ export default function WholesalePortal() {
     [location.pathname],
   );
   const [activeTab, setActiveTab] = useState<Tab>(routeTab ?? (requestedTab && TABS.some((tab) => tab.key === requestedTab) ? requestedTab as Tab : "rugs"));
-  const [mountedTabs, setMountedTabs] = useState<Record<Tab, boolean>>({ rugs: true, pickups: false, estimates: false, invoices: false, messages: false, prices: false });
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -70,11 +69,6 @@ export default function WholesalePortal() {
       setActiveTab((current) => current === requestedTab ? current : requestedTab as Tab);
     }
   }, [requestedTab, routeTab]);
-
-  useEffect(() => {
-    setMountedTabs((current) => current[activeTab] ? current : { ...current, [activeTab]: true });
-  }, [activeTab]);
-
 
   const changeTab = (nextTab: Tab) => {
     setActiveTab(nextTab);
@@ -162,32 +156,6 @@ export default function WholesalePortal() {
       contentClassName="overflow-auto"
     >
       <div className="app-page space-y-4">
-        <section className="app-hero space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Client workflow</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Use the portal navigation to move between rugs, pickups, estimates, invoices, messages, and prices.
-              </p>
-            </div>
-            {clientId ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 rounded-xl px-4 text-xs self-start sm:self-auto"
-                onClick={openOnboarding}
-                disabled={!onboardingUnlocked}
-              >
-                {onboardingCompletedAt
-                  ? "View guide"
-                  : onboardingUnlocked
-                    ? "Start onboarding"
-                    : "Change password to unlock"}
-              </Button>
-            ) : null}
-          </div>
-        </section>
-
         <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.45)]">
           {requiresPasswordReset ? (
             <div className="mx-auto max-w-md space-y-4 p-4 sm:p-6 lg:p-8">
@@ -225,38 +193,43 @@ export default function WholesalePortal() {
             </div>
           ) : (
             <div className="p-3 sm:p-4 md:p-6 space-y-4">
-              {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={changeTab} /> : null}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={changeTab} /> : <div />}
+                {clientId ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 rounded-xl px-4 text-xs"
+                    onClick={openOnboarding}
+                    disabled={!onboardingUnlocked}
+                  >
+                    {onboardingCompletedAt
+                      ? "View guide"
+                      : onboardingUnlocked
+                        ? "Start onboarding"
+                        : "Change password to unlock"}
+                  </Button>
+                ) : null}
+              </div>
 
               <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading portal view…</div>}>
-                {mountedTabs.rugs ? (
-                  <div className={activeTab === "rugs" ? "block" : "hidden"}>
-                    <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                  </div>
+                {activeTab === "rugs" ? (
+                  <PortalRugsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
-                {mountedTabs.pickups ? (
-                  <div className={activeTab === "pickups" ? "block" : "hidden"}>
-                    <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                  </div>
+                {activeTab === "pickups" ? (
+                  <PortalPickupsTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
-                {mountedTabs.estimates ? (
-                  <div className={activeTab === "estimates" ? "block" : "hidden"}>
-                    <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                  </div>
+                {activeTab === "estimates" ? (
+                  <PortalEstimatesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
-                {mountedTabs.invoices ? (
-                  <div className={activeTab === "invoices" ? "block" : "hidden"}>
-                    <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                  </div>
+                {activeTab === "invoices" ? (
+                  <PortalInvoicesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
-                {mountedTabs.messages ? (
-                  <div className={activeTab === "messages" ? "block" : "hidden"}>
-                    <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                  </div>
+                {activeTab === "messages" ? (
+                  <PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
-                {mountedTabs.prices ? (
-                  <div className={activeTab === "prices" ? "block" : "hidden"}>
-                    <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
-                  </div>
+                {activeTab === "prices" ? (
+                  <PortalPricingTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />
                 ) : null}
               </Suspense>
             </div>
