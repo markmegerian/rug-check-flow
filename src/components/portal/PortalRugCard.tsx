@@ -17,7 +17,7 @@ interface PortalRugCardProps {
 
 function estimateBadge(summary?: RugEstimateSummary | null) {
   if (!summary) return null;
-  if (summary.status === "sent") return <Badge className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Estimate pending</Badge>;
+  if (summary.status === "sent") return <Badge className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Estimate ready</Badge>;
   if (summary.status === "approved") return <Badge className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">Estimate approved</Badge>;
   if (summary.status === "rejected") return <Badge className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Estimate declined</Badge>;
   return <Badge variant="outline" className="text-[10px]">Estimate {summary.status}</Badge>;
@@ -30,11 +30,11 @@ export default function PortalRugCard({ rug, estimateSummary, onClick }: PortalR
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left rounded-lg border bg-card p-3 hover:shadow-md hover:border-primary/30 transition-all"
+      className="w-full text-left rounded-2xl border border-border/70 bg-card/90 p-3 hover:shadow-md hover:border-primary/30 transition-all"
     >
       <div className="flex items-start gap-3">
         {/* Thumbnail */}
-        <div className="h-14 w-14 rounded-md bg-muted flex items-center justify-center overflow-hidden shrink-0">
+        <div className="h-14 w-14 rounded-xl bg-muted/70 flex items-center justify-center overflow-hidden shrink-0">
           {rug.photo_url ? (
             <img src={rug.photo_url} alt={rug.tag} className="h-full w-full object-cover" />
           ) : (
@@ -59,7 +59,7 @@ export default function PortalRugCard({ rug, estimateSummary, onClick }: PortalR
 
           {/* Service badges */}
           {rug.services && rug.services.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
+            <div className="flex flex-wrap gap-1 mt-1">
               {rug.services.map((s) => (
                 <span
                   key={s}
@@ -79,7 +79,7 @@ export default function PortalRugCard({ rug, estimateSummary, onClick }: PortalR
           ) : null}
 
           {/* Progress stepper */}
-          <div className="flex items-center gap-1 mt-2">
+          <div className="flex items-center gap-1 mt-1.5">
             {PROGRESS_STEPS.map((step, i) => {
               const filled = stepIndex >= i;
               return (

@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, MessageSquare, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   supabaseExtended,
@@ -35,35 +35,34 @@ interface PortalRugDetailPanelProps {
 function getClientNextStep(rugStatus: string, estimateSummary?: RugEstimateSummary | null) {
   if (estimateSummary?.status === "sent") {
     return {
-      title: "Decision needed from you",
-      detail: `Review ${estimateSummary.estimateNumber} to approve or reject the proposed work before this rug can move forward.`,
+      title: "Estimate ready",
+      detail: `Review ${estimateSummary.estimateNumber} to approve or decline the proposed work.`,
       tone: "bg-blue-50 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100",
     };
   }
   if (rugStatus === "ready") {
     return {
-      title: "Ready for pickup",
-      detail: "This rug has finished production and is ready for the next pickup or delivery step.",
+      title: "Ready",
+      detail: "This rug has finished production and is ready for pickup or delivery.",
       tone: "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100",
     };
   }
   if (rugStatus === "in_production") {
     return {
-      title: "Work in progress",
-      detail: "Our team is actively working on this rug. If you need a touchpoint, you can request an update below.",
+      title: "In progress",
+      detail: "Our team is actively working on this rug.",
       tone: "bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100",
     };
   }
   return {
-    title: "Awaiting production progress",
-    detail: "This rug is checked in and queued in the service cycle. We'll update status as work advances.",
+    title: "Checked in",
+    detail: "This rug is in the service queue. Status will update as work moves forward.",
     tone: "bg-muted/40 text-foreground",
   };
 }
 
 export default function PortalRugDetailPanel({ rug, estimateSummary, open, onOpenChange }: PortalRugDetailPanelProps) {
   const { toast } = useToast();
-  const [requestingUpdate, setRequestingUpdate] = useState(false);
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [lineItemsByEstimate, setLineItemsByEstimate] = useState<Record<string, EstimateItemRow[]>>({});
   const [loadingEstimates, setLoadingEstimates] = useState(false);
@@ -146,7 +145,7 @@ export default function PortalRugDetailPanel({ rug, estimateSummary, open, onOpe
           <SheetTitle className="font-mono">{rug.tag}</SheetTitle>
         </SheetHeader>
 
-        <div className="space-y-5 mt-4">
+        <div className="space-y-4 mt-4">
           {/* Rug Journey Timeline */}
           <RugJourneyTimeline rug={rug} />
 
@@ -222,38 +221,6 @@ export default function PortalRugDetailPanel({ rug, estimateSummary, open, onOpe
             )}
           </div>
 
-          {/* Request status update for stuck rugs */}
-          {(rug.status === "checked_in" || rug.status === "in_production") && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5"
-              disabled={requestingUpdate}
-              onClick={async () => {
-                setRequestingUpdate(true);
-                const { error } = await supabaseExtended
-                  .from("communication_events")
-                  .insert({
-                    rug_id: rug.id,
-                    event_type: "status_update_requested_by_client",
-                    channel: "in_app_chat",
-                    direction: "inbound",
-                    subject: `Status update requested for ${rug.tag}`,
-                    body: `Client requested a status update for rug ${rug.tag} (currently: ${rug.status}).`,
-                  });
-                setRequestingUpdate(false);
-                if (error) {
-                  toast({ title: "Request failed", description: error.message, variant: "destructive" });
-                } else {
-                  toast({ title: "Update requested", description: "The office has been notified about this rug." });
-                }
-              }}
-            >
-              <MessageSquare className="h-3.5 w-3.5" />
-              {requestingUpdate ? "Sending..." : "Request status update"}
-            </Button>
-          )}
-
           {/* Notes */}
           {rug.notes && (
             <div>
@@ -279,7 +246,7 @@ function EstimateCard({
   const statusBadge = () => {
     switch (estimate.status) {
       case "sent":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px]">Pending</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px]">Ready</Badge>;
       case "approved":
         return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-[10px]">Approved</Badge>;
       case "rejected":
@@ -290,7 +257,7 @@ function EstimateCard({
   };
 
   return (
-    <div className="rounded-lg border p-3 space-y-2">
+    <div className="rounded-xl border border-border/70 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{estimate.estimate_number}</span>
         <div className="flex items-center gap-2">
