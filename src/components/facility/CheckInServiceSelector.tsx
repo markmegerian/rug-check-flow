@@ -103,10 +103,10 @@ const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
                     checked={checked}
                     onCheckedChange={() => toggleService(svc.id)}
                   />
-                  <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex min-w-0 flex-1 items-baseline gap-2">
                     <span className="truncate text-sm">{svc.name}</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {isLinear ? "per linear foot" : isFlat ? "price per rug" : svc.unit === "per sqft" ? "per square foot" : svc.unit}
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {isLinear ? "/lft" : isFlat ? "/rug" : svc.unit === "per sqft" ? "/sqft" : svc.unit}
                     </span>
                   </div>
                   {isFlat && !checked && (
@@ -232,15 +232,6 @@ export function CheckInServiceSelector({
             {tierLabel}
           </span>
         )}
-      </div>
-
-      <div className="rounded-[1rem] border border-border/70 bg-white/70 px-3 py-3 text-xs text-muted-foreground">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <div><span className="font-medium text-foreground">Cleaning</span>, priced by the backend</div>
-          <div><span className="font-medium text-foreground">Repairs</span>, priced by the backend</div>
-          <div><span className="font-medium text-foreground">Specialty</span>, priced by the backend</div>
-          <div><span className="font-medium text-foreground">Specialty repairs</span>, quote only when required</div>
-        </div>
       </div>
 
       {dbServices.length > 0 && (
