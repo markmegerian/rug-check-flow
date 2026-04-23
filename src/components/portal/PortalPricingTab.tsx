@@ -57,7 +57,7 @@ export default function PortalPricingTab({ clientId, loading, errorMessage }: Po
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Price schedule for <span className="font-medium text-foreground">{clientPricing?.name ?? "your account"}</span> ({tier} tier).
+        Service pricing for <span className="font-medium text-foreground">{clientPricing?.name ?? "your account"}</span>.
       </p>
 
       {isLoading ? <p className="text-sm text-muted-foreground">Loading pricing…</p> : null}
@@ -69,7 +69,7 @@ export default function PortalPricingTab({ clientId, loading, errorMessage }: Po
               <tr>
                 <th className="px-3 py-2 font-medium">Service</th>
                 <th className="px-3 py-2 font-medium">Unit</th>
-                <th className="px-3 py-2 font-medium">Price</th>
+                <th className="px-3 py-2 font-medium">Your price</th>
               </tr>
             </thead>
             <tbody>
