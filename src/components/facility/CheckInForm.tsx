@@ -28,7 +28,6 @@ import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
 
 type PricingTier = "standard" | "preferred" | "vip";
-type WashDecision = "custom";
 
 type ClientLookupCache = Record<string, { id: string | null; tier: PricingTier }>;
 type WindowWithIdleCallback = Window & typeof globalThis & {
@@ -37,18 +36,6 @@ type WindowWithIdleCallback = Window & typeof globalThis & {
 };
 
 const STANDARD_WASH_SERVICE_NAME = "Standard Wash";
-const STANDARD_WASH_SERVICE_ALIASES = [
-  "standard wash",
-  "standard cleaning",
-  "hand cleaning",
-  "hand cleaning (standard cleaning)",
-  "wash standard",
-  "basic wash",
-  "basic clean",
-  "basic cleaning",
-  "regular wash",
-  "regular cleaning",
-] as const;
 const CLIENT_LOOKUP_CACHE_KEY = "checkin-client-lookup-v1";
 
 const checkInSchema = z.object({
@@ -131,7 +118,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
   const [clientSearch, setClientSearch] = useState("");
   const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
-  const [washDecision] = useState<WashDecision>("custom");
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -254,7 +240,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   });
 
   const { data: dbServices = [] } = useQuery({
-    queryKey: ["services", "active", "checkin", washDecision],
+    queryKey: ["services", "active", "checkin"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
@@ -265,7 +251,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       return (data ?? []) as DbService[];
     },
     staleTime: 5 * 60_000,
-    enabled: washDecision === "custom",
+    enabled: true,
   });
 
   const values = form.watch();
@@ -297,31 +283,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     const map = new Map<string, DbService>();
     for (const svc of dbServices) map.set(svc.id, svc);
     return map;
-  }, [dbServices]);
-
-  const standardWashService = useMemo(() => {
-    const normalizedServices = dbServices.map((svc) => ({
-      service: svc,
-      name: svc.name.trim().toLowerCase(),
-      category: (svc.category ?? "").trim().toLowerCase(),
-    }));
-
-    const exactAliasMatch = normalizedServices.find(({ name }) => STANDARD_WASH_SERVICE_ALIASES.includes(name as typeof STANDARD_WASH_SERVICE_ALIASES[number]));
-    if (exactAliasMatch) return exactAliasMatch.service;
-
-    const cleaningCandidates = normalizedServices.filter(({ category }) => category === "cleaning");
-
-    const partialAliasMatch = cleaningCandidates.find(({ name }) =>
-      STANDARD_WASH_SERVICE_ALIASES.some((alias) => name.includes(alias) || alias.includes(name)),
-    );
-    if (partialAliasMatch) return partialAliasMatch.service;
-
-    const genericCleaningMatch = cleaningCandidates.find(({ name }) =>
-      name.includes("standard") || name.includes("regular") || name.includes("basic"),
-    );
-    if (genericCleaningMatch) return genericCleaningMatch.service;
-
-    return null;
   }, [dbServices]);
 
   const buildServiceSnapshots = useCallback((selectedServiceIds: string[]) => {
@@ -408,7 +369,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       description: result.description,
       variant: result.status === "error" ? "destructive" : "default",
     });
-  }, [buildServiceSnapshots, form, isEditing, knownClientId, onCheckInComplete, photos, selectedRug?.clientId, selectedRug?.id, washDecision]);
+  }, [buildServiceSnapshots, form, isEditing, knownClientId, onCheckInComplete, photos, selectedRug?.clientId, selectedRug?.id]);
 
   const validateForm = useCallback(async () => {
     const valid = await form.trigger(["rugNumber", "clientName", "rugType", "length", "width"]);
