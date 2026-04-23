@@ -10,11 +10,11 @@ describe("office thread routing", () => {
     expect(invoices).toContain("/portal/messages?threadId=");
   });
 
-  it("threads requestedThreadId through portal messages", () => {
+  it("keeps requestedThreadId parsing while portal messages stay detached from the active shell", () => {
     const portal = readFileSync(resolve(process.cwd(), "src/pages/WholesalePortal.tsx"), "utf-8");
     const messages = readFileSync(resolve(process.cwd(), "src/components/portal/PortalMessagesTab.tsx"), "utf-8");
     expect(portal).toContain('const requestedThreadId = searchParams.get("threadId")');
-    expect(portal).toContain('<PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />');
+    expect(portal).not.toContain('<PortalMessagesTab clientId={clientId} loading={portalClientLoading} errorMessage={errorMessage} requestedThreadId={requestedThreadId} />');
     expect(messages).toContain('if (requestedThreadId)');
   });
 });
