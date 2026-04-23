@@ -94,13 +94,6 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
     nextDueAt: summary?.nextDueAt ?? null,
   }), [summary]);
 
-  const headline = useMemo(() => {
-    if (!summary) return "Loading account snapshot…";
-    if (summary.overdueInvoices > 0) return "You have invoices that need payment attention.";
-    if (summary.pendingEstimates > 0) return "You have estimates waiting for review.";
-    if (summary.activeRugs > 0) return "Your current rugs and billing activity are summarized below.";
-    return "Your account is currently quiet.";
-  }, [summary]);
   const attentionItems = useMemo(() => {
     if (!summary) return [] as Array<{ key: string; title: string; detail: string; tab: PortalSnapshotTab }>;
     const items: Array<{ key: string; title: string; detail: string; tab: PortalSnapshotTab }> = [];
@@ -145,17 +138,14 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
 
   return (
     <section className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Account snapshot</h2>
-          <p className="text-sm text-muted-foreground">{headline}</p>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">Account snapshot</h2>
         <Badge className={getCollectionsStateBadgeClass(billingState.tone)} variant="secondary">
           {billingState.label}
         </Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
           <div className="text-xs text-muted-foreground">Active rugs</div>
           <div className="mt-1 text-lg font-semibold text-foreground">{summary.activeRugs}</div>
@@ -173,23 +163,15 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
           <div className="mt-1 text-lg font-semibold text-foreground">{summary.pendingEstimates}</div>
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-          <div className="text-xs text-muted-foreground">Overdue balance</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">${summary.overdueBalance.toFixed(2)}</div>
+          <div className="text-xs text-muted-foreground">Open balance</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">${summary.openBalance.toFixed(2)}</div>
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-        <Badge variant="outline">Open invoices: {summary.openInvoices}</Badge>
-        <Badge variant="outline">Open balance: ${summary.openBalance.toFixed(2)}</Badge>
-        <Badge variant="outline">Overdue invoices: {summary.overdueInvoices}</Badge>
-        <Badge variant="outline">Next due: {summary.nextDueAt ? new Date(summary.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</Badge>
       </div>
 
       {attentionItems.length > 0 ? (
         <div className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold text-foreground">What needs attention</h3>
-            <p className="text-sm text-muted-foreground">Jump straight to the part of the portal that matters right now.</p>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             {attentionItems.map((item) => (
@@ -199,7 +181,7 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
                   <div className="mt-1 text-sm text-muted-foreground">{item.detail}</div>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => onFocusTab?.(item.tab)}>
-                  Open {item.tab}
+                  Open
                 </Button>
               </div>
             ))}
