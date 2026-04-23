@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { RUG_TYPES } from "@/data/services";
 import { type PendingRug } from "@/types/pending-rug";
@@ -29,7 +28,7 @@ import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
 
 type PricingTier = "standard" | "preferred" | "vip";
-type WashDecision = "standard" | "custom";
+type WashDecision = "custom";
 
 type ClientLookupCache = Record<string, { id: string | null; tier: PricingTier }>;
 type WindowWithIdleCallback = Window & typeof globalThis & {
@@ -132,7 +131,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
   const [edgeSelections, setEdgeSelections] = useState<Record<string, RugEdge[]>>({});
   const [clientSearch, setClientSearch] = useState("");
   const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
-  const [washDecision, setWashDecision] = useState<WashDecision>("standard");
+  const [washDecision] = useState<WashDecision>("custom");
 
   const form = useForm<CheckInValues>({
     resolver: zodResolver(checkInSchema),
@@ -214,7 +213,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setEdgeSelections({});
       setKnownClientId(selectedRug.clientId ?? null);
       setClientSearch(selectedRug.clientName);
-      setWashDecision("standard");
       void resolveClientLookup(selectedRug.clientName, selectedRug.clientId ?? null);
     }
   }, [selectedRug, form, resolveClientLookup]);
@@ -235,8 +233,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setEdgeSelections({});
       setKnownClientId(null);
       setClientSearch(editingEntry.clientName);
-      const editingIsCustom = editingEntry.services.some((s) => s.name !== STANDARD_WASH_SERVICE_NAME);
-      setWashDecision(editingIsCustom ? "custom" : "standard");
       void resolveClientLookup(editingEntry.clientName);
     }
   }, [editingEntry, form, resolveClientLookup]);
@@ -405,7 +401,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       setEdgeSelections({});
       setClientTier("standard");
       setKnownClientId(null);
-      setWashDecision("standard");
     }
 
     toast({
@@ -434,22 +429,8 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       return;
     }
 
-    if (washDecision === "standard") {
-      if (!standardWashService) {
-        toast({
-          title: "Standard wash unavailable",
-          description: "No matching standard-cleaning service could be resolved from the service catalog. Please use custom services for now.",
-          variant: "destructive",
-        });
-        setWashDecision("custom");
-        return;
-      }
-      await submitCheckIn([standardWashService.id]);
-      return;
-    }
-
     await submitCheckIn(selectedServices);
-  }, [photos.length, selectedServices, standardWashService, submitCheckIn, validateForm, washDecision]);
+  }, [photos.length, selectedServices, submitCheckIn, validateForm]);
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[1.5rem] bg-transparent">
@@ -470,7 +451,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           </div>
           <div className="min-w-[12rem] rounded-2xl border border-white/14 bg-white/10 px-4 py-3 text-sm text-primary-foreground/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground/70">Intake mode</p>
-            <p className="mt-1 text-sm font-medium text-primary-foreground">{washDecision === "standard" ? "Standard cleaning" : "Custom services"}</p>
+            <p className="mt-1 text-sm font-medium text-primary-foreground">Custom services</p>
             <p className="mt-1 text-xs text-primary-foreground/70">Single-page intake form</p>
           </div>
         </div>
@@ -619,72 +600,41 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,24rem)]">
-            <div className="space-y-5">
-              <div className="space-y-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.88))] p-4 shadow-[0_10px_24px_-22px_rgba(51,84,181,0.16)]">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Standard cleaning?</p>
-                  <p className="text-xs text-muted-foreground">Most rugs should finish here. Only open custom services when extra work is actually needed.</p>
-                </div>
-                <RadioGroup value={washDecision} onValueChange={(value) => setWashDecision(value as WashDecision)} className="space-y-3">
-                  <label className="flex cursor-pointer items-center gap-3 rounded-[1rem] border border-border/75 bg-white/90 px-4 py-4 transition-colors hover:bg-white">
-                    <RadioGroupItem value="standard" id="wash-standard" />
-                    <div>
-                      <p className="text-sm font-medium">Yes, standard wash only</p>
-                      <p className="text-xs text-muted-foreground">Use the existing Standard Wash service and finish immediately.</p>
-                    </div>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-[1rem] border border-border/75 bg-white/90 px-4 py-4 transition-colors hover:bg-white">
-                    <RadioGroupItem value="custom" id="wash-custom" />
-                    <div>
-                      <p className="text-sm font-medium">No, additional services needed</p>
-                      <p className="text-xs text-muted-foreground">Open custom services for repair, specialty treatment, protection, or custom pricing.</p>
-                    </div>
-                  </label>
-                </RadioGroup>
+            <div className="space-y-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.88))] p-4 shadow-[0_10px_24px_-22px_rgba(51,84,181,0.16)]">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Photos</p>
+                <p className="text-xs text-muted-foreground">Upload at least one photo. This area stays mounted so the page geometry stays calm.</p>
               </div>
-
-              <div className="space-y-3 rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.88))] p-4 shadow-[0_10px_24px_-22px_rgba(51,84,181,0.16)]">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Photos</p>
-                  <p className="text-xs text-muted-foreground">Upload at least one photo. This area stays mounted so the page geometry stays calm.</p>
-                </div>
-                <MemoizedCheckInPhotoSection photos={photos} onPhotosChange={setPhotos} />
-              </div>
+              <MemoizedCheckInPhotoSection photos={photos} onPhotosChange={setPhotos} />
             </div>
 
             <div className="min-h-[26rem] rounded-[1.1rem] border border-border/75 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.88))] p-4 shadow-[0_10px_24px_-22px_rgba(51,84,181,0.16)]">
-              {washDecision === "custom" ? (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">Custom services</p>
-                    <p className="text-xs text-muted-foreground">Use this only when the rug needs more than standard cleaning.</p>
-                  </div>
-                  <MemoizedCheckInServiceSelector
-                    dbServices={dbServices}
-                    watchedServices={selectedServices}
-                    toggleService={toggleService}
-                    clearAll={() => {
-                      form.setValue("selectedServices", [], { shouldValidate: true });
-                      setFlatPrices({});
-                      setEdgeSelections({});
-                    }}
-                    setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
-                    requiresCustomPrice={requiresCustomPrice}
-                    edgeSelections={edgeSelections}
-                    setEdgeSelections={setEdgeSelections}
-                    flatPrices={flatPrices}
-                    setFlatPrices={setFlatPrices}
-                    watchedLength={length}
-                    watchedWidth={width}
-                    tierLabel={null}
-                    error={form.formState.errors.selectedServices?.message}
-                  />
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">Custom services</p>
+                  <p className="text-xs text-muted-foreground">Add the services this rug actually needs.</p>
                 </div>
-              ) : (
-                <div className="flex min-h-full items-center justify-center rounded-[1rem] border border-dashed border-border/70 bg-white/60 px-6 text-center text-sm text-muted-foreground">
-                  Standard cleaning selected. Custom services stay hidden unless you switch this rug to additional-service intake.
-                </div>
-              )}
+                <MemoizedCheckInServiceSelector
+                  dbServices={dbServices}
+                  watchedServices={selectedServices}
+                  toggleService={toggleService}
+                  clearAll={() => {
+                    form.setValue("selectedServices", [], { shouldValidate: true });
+                    setFlatPrices({});
+                    setEdgeSelections({});
+                  }}
+                  setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
+                  requiresCustomPrice={requiresCustomPrice}
+                  edgeSelections={edgeSelections}
+                  setEdgeSelections={setEdgeSelections}
+                  flatPrices={flatPrices}
+                  setFlatPrices={setFlatPrices}
+                  watchedLength={length}
+                  watchedWidth={width}
+                  tierLabel={null}
+                  error={form.formState.errors.selectedServices?.message}
+                />
+              </div>
             </div>
           </div>
         </StepShell>
@@ -694,17 +644,13 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       <div className="border-t border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,248,255,0.88))] px-4 py-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="text-sm text-muted-foreground">
-            {washDecision === "standard"
-              ? `${photos.length} photo${photos.length !== 1 ? "s" : ""} added · Standard wash fast path`
-              : hasSelectedServices
-                ? `${selectedServices.length} service${selectedServices.length !== 1 ? "s" : ""} selected · ${photos.length} photo${photos.length !== 1 ? "s" : ""} added`
-                : `${photos.length} photo${photos.length !== 1 ? "s" : ""} added · Select at least one service`}
+            {hasSelectedServices
+              ? `${selectedServices.length} service${selectedServices.length !== 1 ? "s" : ""} selected · ${photos.length} photo${photos.length !== 1 ? "s" : ""} added`
+              : `${photos.length} photo${photos.length !== 1 ? "s" : ""} added · Select at least one service`}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" className="rounded-xl" onClick={() => void handleSubmitCurrent()}>
-              {washDecision === "standard"
-                ? (isEditing ? "Update" : "Complete Check-In")
-                : (isEditing ? "Update with Services" : "Complete Check-In")}
+              {isEditing ? "Update" : "Complete Check-In"}
             </Button>
           </div>
         </div>
