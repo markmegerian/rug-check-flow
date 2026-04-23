@@ -434,29 +434,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-[1.5rem] bg-transparent">
-      <div className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(31,122,232,0.96),rgba(59,108,235,0.92)_48%,rgba(109,66,230,0.88))] px-4 py-5 text-primary-foreground md:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-primary-foreground/80">Check In</p>
-            <div className="space-y-1">
-              <h2 className="text-xl font-semibold tracking-[-0.025em]">
-                {values.rugNumber || selectedRug?.rugNumber || editingEntry?.rugNumber || "New intake"}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-primary-foreground/88">
-                <span>{values.clientName || selectedRug?.clientName || editingEntry?.clientName || "No client selected yet"}</span>
-                {tierLabel && <span className="rounded-full border border-white/16 bg-white/14 px-2.5 py-1 text-[11px] font-medium">{tierLabel}</span>}
-                {isEditing && <span className="rounded-full border border-white/16 bg-white/14 px-2.5 py-1 text-[11px] font-medium">Editing</span>}
-              </div>
-            </div>
-          </div>
-          <div className="min-w-[12rem] rounded-2xl border border-white/14 bg-white/10 px-4 py-3 text-sm text-primary-foreground/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-foreground/70">Intake mode</p>
-            <p className="mt-1 text-sm font-medium text-primary-foreground">Custom services</p>
-            <p className="mt-1 text-xs text-primary-foreground/70">Single-page intake form</p>
-          </div>
-        </div>
-      </div>
-
       <div className="flex-1 min-h-0 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.24),rgba(245,248,255,0.14))] p-4 md:p-5">
         <div className="space-y-5">
         {selectedRug?.estimateRequested && (
@@ -470,7 +447,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
           </Alert>
         )}
 
-        <StepShell eyebrow="Intake" title="Check in this rug" description="Complete the intake on one stable page. Standard cleaning should finish quickly, and custom services only expand when needed.">
+        <StepShell title="Check in" description="">
           {isReadOnlyIdentity ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
