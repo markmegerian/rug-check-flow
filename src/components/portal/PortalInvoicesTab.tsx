@@ -323,30 +323,27 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
     <div className="space-y-4">
       {billingSummary ? (
         <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Billing summary</h3>
-              <p className="text-sm text-muted-foreground">{portalBillingState.detail}</p>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Invoices</h3>
             <Badge className={getCollectionsStateBadgeClass(portalBillingState.tone as CollectionsStateTone)} variant="secondary">
               {portalBillingState.label}
             </Badge>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Current balance</div>
+              <div className="text-xs text-muted-foreground">Open balance</div>
               <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.openBalance.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Overdue balance</div>
+              <div className="text-xs text-muted-foreground">Overdue</div>
               <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.overdueBalance.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Invoices due</div>
+              <div className="text-xs text-muted-foreground">Open invoices</div>
               <div className="mt-1 text-lg font-semibold text-foreground">{billingSummary.openInvoices}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Next due date</div>
+              <div className="text-xs text-muted-foreground">Next due</div>
               <div className="mt-1 text-sm font-semibold text-foreground">{billingSummary.nextDueAt ? new Date(billingSummary.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</div>
             </div>
           </div>
@@ -409,10 +406,10 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
               <div className="px-4 pb-3 pl-10 space-y-4 border-t bg-muted/20">
                 <div className="pt-2 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Line items</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Items</p>
                   </div>
                   {inv.lineItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No line items found.</p>
+                    <p className="text-sm text-muted-foreground">No items found.</p>
                   ) : (
                     inv.lineItems.map((li) => (
                       <div key={li.key} className="flex justify-between text-sm max-w-md gap-4">
@@ -429,7 +426,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                 {pdfReadyByInvoiceId[inv.id] ? (
                   <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
                     <div>
-                      <p className="font-medium text-foreground">Invoice PDF ready</p>
+                      <p className="font-medium text-foreground">PDF ready</p>
                       <p className="text-muted-foreground">{pdfReadyByInvoiceId[inv.id].message}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -445,13 +442,13 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment attempts</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
                     {paymentHistoryError ? (
-                      <span className="text-xs text-destructive">Unable to refresh payments ({paymentHistoryError})</span>
+                      <span className="text-xs text-destructive">Unable to refresh payments</span>
                     ) : null}
                   </div>
                   {inv.paymentAttempts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No payment attempts have been recorded yet.</p>
+                    <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
                   ) : (
                     <div className="space-y-1.5">
                       {inv.paymentAttempts.map((attempt) => (
@@ -476,7 +473,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                           {attempt.errorMessage ? (
                             <span className="basis-full text-xs text-destructive">{attempt.errorMessage}</span>
                           ) : (
-                            <span className="basis-full text-xs text-muted-foreground">Provider: {attempt.provider}</span>
+                            <span className="basis-full text-xs text-muted-foreground">{attempt.provider}</span>
                           )}
                         </div>
                       ))}
@@ -492,7 +489,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
         {hasMore ? (
           <div className="flex justify-center border-t px-4 py-3">
             <Button variant="outline" size="sm" onClick={loadOlderInvoices} disabled={loadingMore}>
-              {loadingMore ? "Loading…" : "Load older invoices"}
+              {loadingMore ? "Loading…" : "Load more"}
             </Button>
           </div>
         ) : null}
