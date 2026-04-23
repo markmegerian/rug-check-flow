@@ -144,12 +144,12 @@ export default function WholesalePortal() {
 
     setNewPassword("");
     setConfirmPassword("");
-    toast({ title: "Password updated", description: "You can now start the onboarding guide." });
+    toast({ title: "Password updated", description: "You can now open the portal guide." });
   };
 
   return (
     <AppShell
-      title="Client Portal"
+      title="Portal"
       subtitle={activeTabLabel}
       contentClassName="overflow-auto"
     >
@@ -204,7 +204,7 @@ export default function WholesalePortal() {
                     {onboardingCompletedAt
                       ? "View guide"
                       : onboardingUnlocked
-                        ? "Start onboarding"
+                        ? "Open guide"
                         : "Change password to unlock"}
                   </Button>
                 ) : null}
