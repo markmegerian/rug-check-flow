@@ -22,12 +22,6 @@ const CATEGORY_ORDER = ["Cleaning", "Repair", "Specialty", "Specialty Repair", "
 const REPAIR_KEYWORDS = ["fringe", "bind", "binding", "overcast", "zenj", "pb", "mb", "leather", "glue"];
 const SPECIALTY_REPAIR_KEYWORDS = ["stain removal", "color run", "patch", "reweave", "latex patch", "color restoration", "repair"];
 
-const PRESETS = [
-  { label: "Basic Clean", names: ["Standard Wash", "Standard Cleaning", "Hand Cleaning", "Hand Cleaning (Standard Cleaning)", "Basic Clean", "Regular Wash"] },
-  { label: "Full Service", names: ["Deep Wash", "Scotchgard"] },
-  { label: "Pet Owner", names: ["Pet Stain Treatment", "Odor Removal", "Scotchgard"] },
-];
-
 const ServiceCategoryGroup = memo(function ServiceCategoryGroup({
   category,
   services,
@@ -248,38 +242,6 @@ export function CheckInServiceSelector({
           <div><span className="font-medium text-foreground">Specialty repairs</span>, quote only when required</div>
         </div>
       </div>
-
-      {dbServices.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {PRESETS.map((preset) => {
-            const ids = preset.names
-              .map((n) => dbServices.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id)
-              .filter(Boolean) as string[];
-            if (ids.length === 0) return null;
-            const allSelected = ids.length > 0 && ids.every((id) => serviceIds.has(id));
-            return (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => {
-                  if (allSelected) {
-                    setServices(watchedServices.filter((id) => !ids.includes(id)));
-                  } else {
-                    setServices(Array.from(new Set([...watchedServices, ...ids])));
-                  }
-                }}
-                className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  allSelected
-                    ? "border-primary bg-primary text-primary-foreground shadow-[0_14px_28px_-20px_rgba(59,108,235,0.28)]"
-                    : "border-border bg-white/60 text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                }`}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
 
       {dbServices.length > 0 && (
         <div className="relative">
