@@ -50,7 +50,7 @@ function isCleaningLineItem(item: EstimateItemRow): boolean {
 }
 
 const statusBadge = (status: EstimateStatus) => {
-  if (status === "sent") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Pending approval</Badge>;
+  if (status === "sent") return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Review needed</Badge>;
   if (status === "approved") return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>;
   if (status === "rejected") return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Rejected</Badge>;
   if (status === "expired") return <Badge variant="secondary">Expired</Badge>;
@@ -244,15 +244,15 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            Estimates for your review
+            Estimates
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Review each estimate below and approve or decline it clearly. Your decision is sent to the office right away, and you can include an optional note for the team.
+            Review the work below and approve or decline it.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
           {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">You do not have any estimates waiting for review right now.</p>
+            <p className="text-sm text-muted-foreground">You do not have any estimates waiting right now.</p>
           ) : (
             pendingPagination.items.map((estimate) => {
               const lineItems = lineItemsByEstimateId[estimate.id] ?? [];
@@ -263,15 +263,15 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                     <div>
                       <p className="font-medium text-foreground">{estimate.estimate_number}</p>
                       <p className="text-sm text-muted-foreground">
-                        Rug: {estimate.rugs?.tag ?? "—"} · Total ${Number(estimate.total).toFixed(2)}
+                        {estimate.rugs?.tag ?? "—"} · ${Number(estimate.total).toFixed(2)}
                       </p>
                     </div>
                     {statusBadge(estimate.status)}
                   </div>
                   {lineItems.length > 0 && (
                     <div className="rounded border bg-background p-3 space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Line items</p>
-                      <p className="text-xs text-muted-foreground">Cleaning is always included and proceeds. Only other services can be approved or rejected.</p>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Services</p>
+                      <p className="text-xs text-muted-foreground">Cleaning is included automatically. Other services can be approved or declined.</p>
                       <ul className="text-sm space-y-2">
                         {lineItems.map((item) => {
                           const isCleaning = isCleaningLineItem(item);
@@ -293,7 +293,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 {isCleaning ? (
-                                  <Badge variant="secondary" className="text-xs">Included — cleaning always proceeds</Badge>
+                                  <Badge variant="secondary" className="text-xs">Included</Badge>
                                 ) : decided ? (
                                   item.client_approved ? (
                                     <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Approved</Badge>
@@ -331,11 +331,11 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                     </div>
                   )}
                   <div>
-                    <label className="text-xs text-muted-foreground block mb-1">Optional note for the office</label>
+                    <label className="text-xs text-muted-foreground block mb-1">Optional note</label>
                     <Textarea
                       value={decisionNotes[estimate.id] ?? ""}
                       onChange={(e) => updateDecisionNote(estimate.id, e.target.value)}
-                      placeholder="e.g. Please proceed with cleaning. / I need to discuss before approving."
+                      placeholder="Add any note you want the team to see."
                       className="min-h-16 text-sm resize-none"
                     />
                   </div>
@@ -347,7 +347,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       <Check className="h-3.5 w-3.5 mr-1.5" />
-                      {isUpdating ? "Updating…" : "Approve and continue"}
+                      {isUpdating ? "Updating…" : "Approve"}
                     </Button>
                     <Button
                       size="sm"
@@ -356,7 +356,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                       disabled={isUpdating}
                     >
                       <X className="h-3.5 w-3.5 mr-1.5" />
-                      {isUpdating ? "Updating…" : "Decline estimate"}
+                      {isUpdating ? "Updating…" : "Decline"}
                     </Button>
                   </div>
                 </div>
@@ -377,10 +377,10 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Estimate history</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">History</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No estimate history yet.</p>
+            <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
             historyPagination.items.map((estimate, index) => (
               <div key={estimate.id}>
