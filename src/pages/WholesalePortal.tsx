@@ -153,7 +153,7 @@ export default function WholesalePortal() {
       subtitle={activeTabLabel}
       contentClassName="overflow-auto"
     >
-      <div className="app-page space-y-4">
+      <div className="app-page space-y-3">
         <div className="overflow-hidden rounded-3xl border border-border/70 bg-card/95 shadow-[0_18px_40px_-32px_rgba(15,23,42,0.45)]">
           {requiresPasswordReset ? (
             <div className="mx-auto max-w-md space-y-4 p-4 sm:p-6 lg:p-8">
@@ -190,8 +190,8 @@ export default function WholesalePortal() {
               </Button>
             </div>
           ) : (
-            <div className="p-3 sm:p-4 md:p-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="p-3 sm:p-4 md:p-5 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 {clientId ? <PortalAccountSnapshot clientId={clientId} onFocusTab={changeTab} /> : <div />}
                 {clientId ? (
                   <Button

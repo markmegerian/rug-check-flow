@@ -428,15 +428,15 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
   const rugCount = draftRugs.filter((r) => r.label.trim()).length;
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="p-4 space-y-6">
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-border/70 bg-card/90 shadow-sm overflow-hidden">
+        <div className="p-4 space-y-5">
           {!nextPendingPickup ? (
             <>
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Request pickup</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your next pickup date is <strong className="text-foreground">{scheduledDateStr}</strong>.
+              <div className="space-y-1">
+                <h2 className="text-base font-semibold text-foreground">Request pickup</h2>
+                <p className="text-sm text-muted-foreground">
+                  Next pickup: <strong className="text-foreground">{scheduledDateStr}</strong>
                 </p>
               </div>
               <Button size="lg" className="w-full sm:w-auto" onClick={handleSchedulePickup} disabled={requesting}>
@@ -448,7 +448,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
             <>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">
+                  <h2 className="text-base font-semibold text-foreground">
                     Upcoming pickup
                     {isLocked && <Lock className="inline-block ml-2 h-4 w-4 text-muted-foreground" />}
                   </h2>
@@ -464,7 +464,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
               </div>
 
               {!isLocked && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <h3 className="text-sm font-medium text-foreground">Rugs for pickup</h3>
 
                   <div className="space-y-2">
@@ -487,8 +487,8 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
                     </Button>
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium text-foreground block mb-1">Notes</label>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-foreground block">Notes</label>
                     <Input
                       placeholder="Add notes if needed"
                       value={draftNotes}
@@ -508,7 +508,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
       </section>
 
       {pastPickups.length > 0 && (
-        <section>
+        <section className="space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">History</h3>
           <div className="space-y-2">
             {pastPickupsPagination.items.map((pickup) => (

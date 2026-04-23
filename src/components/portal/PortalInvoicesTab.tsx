@@ -320,29 +320,29 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {billingSummary ? (
-        <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground">Invoices</h3>
             <Badge className={getCollectionsStateBadgeClass(portalBillingState.tone as CollectionsStateTone)} variant="secondary">
               {portalBillingState.label}
             </Badge>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+            <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Open balance</div>
               <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.openBalance.toFixed(2)}</div>
             </div>
-            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+            <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Overdue</div>
               <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.overdueBalance.toFixed(2)}</div>
             </div>
-            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+            <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Open invoices</div>
               <div className="mt-1 text-lg font-semibold text-foreground">{billingSummary.openInvoices}</div>
             </div>
-            <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+            <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Next due</div>
               <div className="mt-1 text-sm font-semibold text-foreground">{billingSummary.nextDueAt ? new Date(billingSummary.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</div>
             </div>
@@ -403,8 +403,8 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
               </div>
             </button>
             {isExpanded && (
-              <div className="px-4 pb-3 pl-10 space-y-4 border-t bg-muted/20">
-                <div className="pt-2 space-y-2">
+              <div className="px-4 pb-3 pl-10 space-y-3 border-t bg-muted/20">
+                <div className="pt-2 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Items</p>
                   </div>
@@ -440,7 +440,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
                   </div>
                 ) : null}
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
                     {paymentHistoryError ? (
