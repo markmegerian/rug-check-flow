@@ -1,5 +1,5 @@
 import { Suspense, lazy, useState } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkspaceStatusBar } from "@/components/layout/WorkspaceStatusBar";
 import { WorkspaceFallback, WorkspaceSurface } from "@/components/layout/WorkspaceSurface";
@@ -29,7 +29,6 @@ const OFFICE_SUBTITLES: Record<string, string> = {
 
 export default function OfficeWorkspace() {
   const location = useLocation();
-  const [searchParams] = useSearchParams();
   const { hasRole } = useAuth();
   const canManagePricing = hasRole("admin");
   const [searchOpen, setSearchOpen] = useState(false);

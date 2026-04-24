@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +57,6 @@ const statusBadge = (status: EstimateStatus) => {
 };
 
 export default function PortalEstimatesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [lineItemsByEstimateId, setLineItemsByEstimateId] = useState<Record<string, EstimateItemRow[]>>({});

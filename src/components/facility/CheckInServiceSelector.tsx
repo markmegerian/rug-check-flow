@@ -159,7 +159,6 @@ interface CheckInServiceSelectorProps {
   watchedServices: string[];
   toggleService: (id: string) => void;
   clearAll: () => void;
-  setServices: (ids: string[]) => void;
   requiresCustomPrice: (svc: DbService) => boolean;
   edgeSelections: Record<string, RugEdge[]>;
   setEdgeSelections: React.Dispatch<React.SetStateAction<Record<string, RugEdge[]>>>;
@@ -172,7 +171,7 @@ interface CheckInServiceSelectorProps {
 }
 
 export function CheckInServiceSelector({
-  dbServices, watchedServices, toggleService, clearAll, setServices,
+  dbServices, watchedServices, toggleService, clearAll,
   requiresCustomPrice, edgeSelections, setEdgeSelections,
   flatPrices, setFlatPrices, watchedLength, watchedWidth, tierLabel, error,
 }: CheckInServiceSelectorProps) {

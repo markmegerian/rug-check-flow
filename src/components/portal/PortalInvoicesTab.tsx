@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -84,7 +83,6 @@ const PAYMENT_STATUS_STYLE: Record<PaymentAttemptStatus, string> = {
 };
 
 export default function PortalInvoicesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

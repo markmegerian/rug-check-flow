@@ -27,7 +27,11 @@ import { openOrCreateThread } from "@/lib/thread-navigation";
 import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
-import { expireEstimateGroup, markEstimateGroupReady, queueEstimateGroupBatch } from "@/lib/estimate-group-actions";
+import {
+  expireEstimateGroup as expireEstimateGroupBatch,
+  markEstimateGroupReady,
+  queueEstimateGroupBatch,
+} from "@/lib/estimate-group-actions";
 import { fetchEstimateGroupDetails } from "@/lib/estimate-group-details";
 import {
   cancelEstimateSendBatch,
@@ -458,7 +462,7 @@ export function EstimatesTab() {
     }
   }, [fetchData, resolveGroupEstimates, toast]);
 
-  const expireEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
+  const handleExpireEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
     const clientId = estimatesInGroup[0]?.client_id ?? null;
     const resolvedGroups = await Promise.all([
       resolveGroupEstimates("needs_office_review", clientId, estimatesInGroup),
@@ -475,7 +479,7 @@ export function EstimatesTab() {
 
     setBulkExpiringGroupKey(groupName);
     try {
-      const expiredCount = await expireEstimateGroup(expirable);
+      const expiredCount = await expireEstimateGroupBatch(expirable);
       await fetchData();
       toast({ title: "Group expired", description: `${expiredCount} estimate${expiredCount === 1 ? "" : "s"} from ${groupName} marked expired.` });
     } catch (error) {
@@ -845,7 +849,7 @@ export function EstimatesTab() {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs"
-                        onClick={() => expireEstimateGroup(group.groupName, group.estimates)}
+                        onClick={() => handleExpireEstimateGroup(group.groupName, group.estimates)}
                         disabled={bulkExpiringGroupKey === group.groupName || !((group.summary?.estimate_count ?? group.estimates.length) > 0)}
                       >
                         {bulkExpiringGroupKey === group.groupName ? "Expiring..." : "Expire active group"}

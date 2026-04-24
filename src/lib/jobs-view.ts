@@ -1,4 +1,3 @@
-import type { Tables } from "@/integrations/supabase/types";
 import type { ExtendedTableRow } from "@/integrations/supabase/extended";
 
 export type PickupRequestRow = Pick<

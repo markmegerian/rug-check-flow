@@ -398,7 +398,7 @@ export function TruckLoadingView({ isOnline, onTruckFinalized }: TruckLoadingVie
         toast({ title: "Error", description: message, variant: "destructive" });
       }
     },
-    [deliveryListId, fetchData, rugs, toast],
+    [deliveryListId, rugs, toast],
   );
 
   const handleSubmit = useCallback(async () => {

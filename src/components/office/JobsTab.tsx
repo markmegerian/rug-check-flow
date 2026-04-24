@@ -27,7 +27,7 @@ import { InvoiceStatusBadge, RugStatusBadge } from "@/components/shared/StatusBa
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import {
   type JobItemView,
   type JobView,

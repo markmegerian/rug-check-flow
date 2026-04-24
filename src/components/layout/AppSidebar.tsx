@@ -47,8 +47,6 @@ const SUPERADMIN_NAV_ITEMS = [
   { title: "Mission Control", url: "/admin", icon: ShieldCheck, active: (path: string) => path.startsWith("/admin") },
 ] as const;
 
-const CHECKIN_ITEM = { title: "Check-In", url: "/checkin", icon: ClipboardCheck } as const;
-
 const FACILITY_ITEMS = [
   { title: "Check-In Intake", url: "/checkin", icon: ClipboardCheck, active: (path: string) => path.startsWith("/checkin") },
   { title: "Production", url: "/facility/production", icon: Factory, active: (path: string) => path === "/facility/production" },

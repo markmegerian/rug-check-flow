@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { calculateInvoiceDueDate, formatInvoiceTermsLabel, type BillingReminderPreference } from "@/lib/billing";
+import { calculateInvoiceDueDate, formatInvoiceTermsLabel } from "@/lib/billing";
 import { applyCleaningServiceMinimum } from "@/lib/service-pricing";
 import type { Tables } from "@/integrations/supabase/types";
 

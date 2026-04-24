@@ -40,7 +40,7 @@ export default function WholesalePortal() {
   } = usePortalClient();
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const requestedThreadId = searchParams.get("threadId");
   const routeTab = useMemo(

@@ -22,7 +22,7 @@ import { RUG_TYPES } from "@/data/services";
 import { type PendingRug } from "@/types/pending-rug";
 import { type CheckInEntry } from "@/data/check-in-log";
 import { supabase } from "@/integrations/supabase/client";
-import { calcSelectedLinearFt, type RugEdge } from "@/lib/rug-edges";
+import { type RugEdge } from "@/lib/rug-edges";
 
 import { CheckInPhotoSection, type PhotoItem } from "./CheckInPhotoSection";
 import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector";
@@ -30,12 +30,7 @@ import { CheckInServiceSelector, type DbService } from "./CheckInServiceSelector
 type PricingTier = "standard" | "preferred" | "vip";
 
 type ClientLookupCache = Record<string, { id: string | null; tier: PricingTier }>;
-type WindowWithIdleCallback = Window & typeof globalThis & {
-  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-  cancelIdleCallback?: (handle: number) => void;
-};
 
-const STANDARD_WASH_SERVICE_NAME = "Standard Wash";
 const CLIENT_LOOKUP_CACHE_KEY = "checkin-client-lookup-v1";
 
 const checkInSchema = z.object({
@@ -264,17 +259,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
     return 2 * (length + width);
   }, [length, width]);
 
-  const getUnitPrice = useCallback(
-    (svc: DbService): number => {
-      switch (clientTier) {
-        case "vip": return Number(svc.vip_price);
-        case "preferred": return Number(svc.preferred_price);
-        default: return Number(svc.base_price);
-      }
-    },
-    [clientTier],
-  );
-
   const requiresCustomPrice = useCallback((svc: DbService) => {
     return svc.unit === "flat" && Boolean(svc.requires_estimate);
   }, []);
@@ -302,7 +286,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
       .filter(Boolean) as { service_id: string; service_name: string; quoted_price?: number | null; edges: string[] }[];
   }, [edgeSelections, flatPrices, requiresCustomPrice, serviceById]);
 
-  const selectedServices = values.selectedServices ?? [];
+  const selectedServices = useMemo(() => values.selectedServices ?? [], [values.selectedServices]);
   const hasSelectedServices = selectedServices.length > 0;
   const tierLabel = clientTier !== "standard" ? clientTier.toUpperCase() : null;
 
@@ -561,7 +545,6 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                     setFlatPrices({});
                     setEdgeSelections({});
                   }}
-                  setServices={(ids) => form.setValue("selectedServices", ids, { shouldValidate: true })}
                   requiresCustomPrice={requiresCustomPrice}
                   edgeSelections={edgeSelections}
                   setEdgeSelections={setEdgeSelections}
@@ -569,7 +552,7 @@ export function CheckInForm({ selectedRug, editingEntry, onCheckInComplete }: Ch
                   setFlatPrices={setFlatPrices}
                   watchedLength={length}
                   watchedWidth={width}
-                  tierLabel={null}
+                  tierLabel={tierLabel}
                   error={form.formState.errors.selectedServices?.message}
                 />
               </div>
