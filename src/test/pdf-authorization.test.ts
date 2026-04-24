@@ -27,6 +27,7 @@ describe("pdf authorization hardening", () => {
     expect(helper).toContain('signedUrl,');
     expect(helper).not.toContain('fetch(functionData.signed_url)');
     expect(helper).not.toContain('URL.createObjectURL(data)');
+    expect(officeInvoices).toContain('forceRegenerate: true,');
     expect(officeInvoices).toContain('const openPdf = () => openInvoicePdfUrl(artifact.signedUrl);');
     expect(portalInvoices).toContain('openInvoicePdfUrl(artifact.signedUrl);');
   });

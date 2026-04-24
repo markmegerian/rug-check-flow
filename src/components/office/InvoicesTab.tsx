@@ -234,7 +234,11 @@ export function InvoicesTab() {
 
   const handleDownloadInvoice = async (invoice: InvoiceRow) => {
     try {
-      const artifact = await downloadInvoicePdf({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number });
+      const artifact = await downloadInvoicePdf({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoice_number,
+        forceRegenerate: true,
+      });
       const openPdf = () => openInvoicePdfUrl(artifact.signedUrl);
       openPdf();
       setPdfReadyNotice({
