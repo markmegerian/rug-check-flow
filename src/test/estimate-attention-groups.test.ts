@@ -8,7 +8,8 @@ describe("estimate attention group cutover", () => {
     expect(migration).toContain("create or replace function public.get_estimate_attention_groups()");
     expect(migration).toContain("create or replace function public.get_estimate_attention_group_details(");
     expect(migration).toContain("'needs_office_review', 'needs_revision', 'ready_to_send'");
-    expect(migration).toContain("group by c.id, c.name, c.email, c.company");
+    expect(migration).toContain("left join public.companies co on co.id = c.company_id");
+    expect(migration).toContain("group by c.id, c.name, c.email, co.name");
     expect(migration).toContain("grant execute on function public.get_estimate_attention_groups() to authenticated;");
     expect(migration).toContain("grant execute on function public.get_estimate_attention_group_details(uuid) to authenticated;");
   });

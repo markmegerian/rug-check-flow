@@ -21,7 +21,7 @@ as $$
     c.id as client_id,
     c.name as client_name,
     c.email as client_email,
-    nullif(btrim(c.company), '') as company_name,
+    nullif(btrim(co.name), '') as company_name,
     count(*) as estimate_count,
     coalesce(sum(e.total), 0)::numeric as total_amount,
     count(*) filter (where e.status = 'needs_office_review') as review_count,
@@ -32,9 +32,10 @@ as $$
     array_agg(e.id order by e.created_at desc) as estimate_ids
   from public.estimates e
   join public.clients c on c.id = e.client_id
+  left join public.companies co on co.id = c.company_id
   left join public.rugs r on r.id = e.rug_id
   where e.status = any(array['needs_office_review', 'needs_revision', 'ready_to_send']::public.estimate_status[])
-  group by c.id, c.name, c.email, c.company
+  group by c.id, c.name, c.email, co.name
   order by max(e.created_at) desc, c.name asc;
 $$;
 
@@ -78,10 +79,11 @@ as $$
     e.rejected_at,
     c.name as client_name,
     c.email as client_email,
-    nullif(btrim(c.company), '') as company_name,
+    nullif(btrim(co.name), '') as company_name,
     r.tag as rug_tag
   from public.estimates e
   join public.clients c on c.id = e.client_id
+  left join public.companies co on co.id = c.company_id
   left join public.rugs r on r.id = e.rug_id
   where e.client_id = p_client_id
     and e.status = any(array['needs_office_review', 'needs_revision', 'ready_to_send']::public.estimate_status[])
