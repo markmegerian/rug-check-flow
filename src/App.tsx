@@ -164,6 +164,16 @@ const App = () => (
                     }
                   />
                   <Route
+                    path="/office/inbox"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>
+                        <ErrorBoundary fallbackTitle="Office Error">
+                          <OfficeWorkspace />
+                        </ErrorBoundary>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/logistics/deliveries"
                     element={
                       <ProtectedRoute allowedRoles={["admin", "office", "checkin_staff"]}>

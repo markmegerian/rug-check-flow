@@ -59,6 +59,7 @@ const OFFICE_ITEMS = [
   { title: "Estimate Attention", url: "/office/estimates", icon: ClipboardCheck, active: (path: string) => path === "/office/estimates" },
   { title: "Clients", url: "/office/clients", icon: Users, active: (path: string) => path === "/office/clients" },
   { title: "Jobs Attention", url: "/office/jobs", icon: FolderOpen, active: (path: string) => path === "/office/jobs" },
+  { title: "Inbox", url: "/office/inbox", icon: Inbox, active: (path: string) => path === "/office/inbox" },
 ] as const;
 
 const LOGISTICS_ITEMS = [
@@ -79,6 +80,7 @@ const PORTAL_ITEMS = [
   { title: "Pickups", url: "/portal/pickups", icon: Truck, active: (path: string) => path === "/portal/pickups" },
   { title: "Estimates", url: "/portal/estimates", icon: ClipboardCheck, active: (path: string) => path === "/portal/estimates" },
   { title: "Invoices", url: "/portal/invoices", icon: Receipt, active: (path: string) => path === "/portal/invoices" },
+  { title: "Messages", url: "/portal/messages", icon: Inbox, active: (path: string) => path === "/portal/messages" },
   { title: "Prices", url: "/portal/prices", icon: DollarSign, active: (path: string) => path === "/portal/prices" },
 ] as const;
 
