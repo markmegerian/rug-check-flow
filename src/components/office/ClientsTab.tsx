@@ -53,7 +53,6 @@ type OnboardingEmailResponse = {
     portal_url: string;
     email: string;
     reset_link: string | null;
-    temporary_password: string;
     note: string | null;
   };
   error?: string;
@@ -129,12 +128,11 @@ const extractProviderMessage = (response: unknown) => {
 
 const buildManualOnboardingInstructions = (instructions: NonNullable<OnboardingEmailResponse["delivery_instructions"]>) => {
   const lines = [
-    `${APP_NAME} portal sign-in instructions`,
+    `${APP_NAME} portal access link`,
     `Portal URL: ${instructions.portal_url}`,
     `Email: ${instructions.email}`,
-    `Temporary password: ${instructions.temporary_password}`,
-    `Set-password link: ${instructions.reset_link ?? `${instructions.portal_url}/auth/forgot-password`}`,
-    "Action required: user must change password before continuing.",
+    `Secure sign-in link: ${instructions.reset_link ?? `${instructions.portal_url}/auth/reset-password`}`,
+    "Action required: open the secure link and create a password before continuing.",
   ];
   if (instructions.note) lines.push(instructions.note);
   return lines.join("\n");
@@ -339,7 +337,7 @@ export function ClientsTab() {
     const { error } = await supabase.from("portal_users").insert({ client_id: editingId, company_id: currentCompanyId, email, status: "invited" });
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); return; }
     setNewPortalEmail("");
-    toast({ title: "Portal login staged", description: `${email} added as invited. Activate manually when you're ready. No email will be sent.` });
+    toast({ title: "Portal login staged", description: `${email} added as invited. Activate and send the portal link when you're ready.` });
     fetchPortalUsers(editingId);
   };
 
@@ -369,19 +367,23 @@ export function ClientsTab() {
       if (instructions) {
         try { await navigator.clipboard.writeText(buildManualOnboardingInstructions(instructions)); toast({ title: "No email provider configured", description: "Manual sign-in instructions were copied to your clipboard." }); }
         catch { toast({ title: "No email provider configured", description: "Copy sign-in instructions manually from the portal user details." }); }
-      } else { toast({ title: "Account activated", description: "Email provider is not configured, so no outbound email was sent." }); }
+      } else { toast({ title: "Account activated", description: "Email provider is not configured, so copy the secure link manually from the portal user details." }); }
     }
     return true;
   };
 
-  const activatePortalUser = async (portalUser: PortalUser, _sendEmail?: boolean) => {
+  const activatePortalUser = async (portalUser: PortalUser, sendEmail = false) => {
     if (!editingId) return;
     setPortalActionId(portalUser.id);
     if (portalUser.status !== "active") {
       const { error: activateError } = await supabase.from("portal_users").update({ status: "active" }).eq("id", portalUser.id);
       if (activateError) { toast({ title: "Activation failed", description: activateError.message, variant: "destructive" }); setPortalActionId(null); return; }
     }
-    toast({ title: "Portal user activated", description: `${portalUser.email} is active. Onboarding emails are disabled for now.` });
+    if (!sendEmail) {
+      toast({ title: "Portal user activated", description: `${portalUser.email} is active and ready for a secure portal link.` });
+    } else {
+      await _sendOnboardingEmail(portalUser.id);
+    }
     await fetchPortalUsers(editingId);
     setPortalActionId(null);
   };
@@ -494,7 +496,7 @@ export function ClientsTab() {
       </div>
       <p className="text-xs text-muted-foreground mb-4">
         CSV columns: name, contact_name, phone, email, address, notes, pricing_tier, route_day, portal_email.
-        Imported portal logins are staged as invited and never auto-send onboarding emails.
+        Imported portal logins are staged as invited. Activate and send the secure portal link when you're ready.
       </p>
 
       <div className="overflow-x-auto">

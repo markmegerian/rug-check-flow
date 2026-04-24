@@ -33,7 +33,6 @@ type DeliveryInstructions = {
   portal_url: string;
   email: string;
   reset_link: string | null;
-  temporary_password: string;
   note: string | null;
 };
 
@@ -53,8 +52,6 @@ const decodeJwtPayload = (token: string): JwtPayload | null => {
     return null;
   }
 };
-
-const BOOTSTRAP_PREFIX = "RugBoost!";
 
 const escapeHtml = (value: string) =>
   value
@@ -91,7 +88,7 @@ const ensurePortalUserCredentials = async (
   adminClient: ReturnType<typeof createClient>,
   email: string,
   fullName: string,
-  bootstrapPassword: string
+  seedPassword: string
 ): Promise<CredentialProvisioningResult> => {
   const { data: profileRows, error: existingProfileError } = await adminClient
     .from("profiles")
@@ -110,7 +107,7 @@ const ensurePortalUserCredentials = async (
   if (existingUserId) {
     const { error: updateUserError } = await adminClient.auth.admin.updateUserById(existingUserId, {
       email,
-      password: bootstrapPassword,
+      password: seedPassword,
       email_confirm: true,
       user_metadata: { full_name: fullName, must_change_password: true },
     });
@@ -126,7 +123,7 @@ const ensurePortalUserCredentials = async (
 
   const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
     email,
-    password: bootstrapPassword,
+    password: seedPassword,
     email_confirm: true,
     user_metadata: { full_name: fullName, must_change_password: true },
   });
@@ -170,13 +167,13 @@ const buildPortalUrl = (req: Request) => {
 
 const buildResetRedirectUrl = (portalUrl: string) => {
   const origin = new URL(portalUrl).origin;
-  return `${origin}/auth/reset-password`;
+  const url = new URL("/auth/reset-password", origin);
+  url.searchParams.set("flow", "portal-onboarding");
+  url.searchParams.set("next", "/portal/rugs");
+  return url.toString();
 };
 
-const generateBootstrapPassword = (portalUserId: string) => {
-  const hex = portalUserId.replace(/-/g, "").slice(0, 10);
-  return `${BOOTSTRAP_PREFIX}${hex}`;
-};
+const generateSeedPassword = () => `${crypto.randomUUID()}${crypto.randomUUID()}`;
 
 const generatePasswordResetLink = async (
   adminClient: ReturnType<typeof createClient>,
@@ -247,11 +244,6 @@ Deno.serve(async (req) => {
     const portalUserId = typeof body?.portal_user_id === "string" ? body.portal_user_id : "";
     if (!portalUserId) return json({ error: "portal_user_id is required" }, 400);
 
-    return json({
-      error: "Portal onboarding emails are temporarily disabled. Activate accounts manually.",
-      details: { portal_user_id: portalUserId, mode: "manual_activation_only" },
-    }, 403);
-
     const { data: portalUser, error: portalUserError } = await adminClient
       .from("portal_users")
       .select("id, client_id, email, status, onboarding_completed_at, clients(name, contact_name, phone, address)")
@@ -269,12 +261,12 @@ Deno.serve(async (req) => {
       typedPortalUser.clients?.contact_name?.trim() ||
       typedPortalUser.clients?.name?.trim() ||
       "there";
-    const bootstrapPassword = generateBootstrapPassword(typedPortalUser.id);
+    const seedPassword = generateSeedPassword();
     await ensurePortalUserCredentials(
       adminClient,
       typedPortalUser.email,
       typedPortalUser.clients?.contact_name?.trim() || typedPortalUser.clients?.name?.trim() || "Portal User",
-      bootstrapPassword
+      seedPassword
     );
 
     const { error: portalFlagError } = await adminClient
@@ -284,42 +276,38 @@ Deno.serve(async (req) => {
     if (portalFlagError) return json({ error: portalFlagError.message }, 500);
 
     const resetLink = await generatePasswordResetLink(adminClient, typedPortalUser.email, portalUrl);
-    const setPasswordLink = resetLink ?? `${new URL(portalUrl).origin}/auth/reset-password`;
+    const setPasswordLink = resetLink ?? buildResetRedirectUrl(portalUrl);
 
-    const subject = `RugBoost portal login instructions`;
+    const subject = `Open your RugBoost wholesale portal`;
     const bodyText = [
       `Hello ${contactName},`,
       "",
-      "Your RugBoost wholesale portal account is active.",
+      "Your RugBoost wholesale portal account is ready.",
       "",
-      "Sign-in steps:",
-      `1) Use this temporary password to sign in once: ${bootstrapPassword}`,
-      `2) Immediately set your own new password here: ${setPasswordLink}`,
-      `3) Enter your account email: ${typedPortalUser.email}`,
-      "4) Password change is required before continuing. There is no bypass.",
-      `5) After changing password, sign in at ${portalUrl} and complete onboarding.`,
+      "Open your portal with this secure link:",
+      setPasswordLink,
+      "",
+      "When you open it, you'll be signed in automatically and asked to create your password before continuing.",
+      `This link is tied to ${typedPortalUser.email}.`,
+      "",
+      `After you create your password, you'll land in the portal at ${portalUrl}.`,
       "",
       "Need help? Reply to this email and our team will help immediately.",
     ].join("\n");
     const bodyHtml = [
       `<p>Hello ${escapeHtml(contactName)},</p>`,
-      "<p>Your RugBoost wholesale portal account is active.</p>",
-      "<p><strong>Sign-in steps</strong></p>",
-      "<ol>",
-      `<li>Use this temporary password to sign in once: <strong>${escapeHtml(bootstrapPassword)}</strong></li>`,
-      `<li>Immediately set your own new password here: <a href="${escapeHtml(setPasswordLink)}">${escapeHtml(setPasswordLink)}</a></li>`,
-      `<li>Enter your account email: <strong>${escapeHtml(typedPortalUser.email)}</strong></li>`,
-      "<li><strong>Password change is required before continuing.</strong> There is no bypass.</li>",
-      `<li>After changing password, sign in at <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a> and complete onboarding.</li>`,
-      "</ol>",
+      "<p>Your RugBoost wholesale portal account is ready.</p>",
+      `<p><a href="${escapeHtml(setPasswordLink)}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#111827;color:#ffffff;text-decoration:none;font-weight:600;">Open your portal</a></p>`,
+      "<p>When you open it, you'll be signed in automatically and asked to create your password before continuing.</p>",
+      `<p>This link is tied to <strong>${escapeHtml(typedPortalUser.email)}</strong>.</p>`,
+      `<p>After you create your password, you'll land in the portal at <a href="${escapeHtml(portalUrl)}">${escapeHtml(portalUrl)}</a>.</p>`,
       "<p>Need help? Reply to this email and our team will help immediately.</p>",
     ].join("");
     const deliveryInstructions: DeliveryInstructions = {
       portal_url: portalUrl,
       email: typedPortalUser.email,
       reset_link: resetLink,
-      temporary_password: bootstrapPassword,
-      note: "Temporary password works once; user must set a new password before continuing.",
+      note: "Open the secure link, create a password immediately, and you'll land inside the portal.",
     };
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");

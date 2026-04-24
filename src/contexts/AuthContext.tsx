@@ -22,6 +22,12 @@ interface AuthContextType {
   loading: boolean;
   hasRole: (role: AppRole) => boolean;
   signOut: () => Promise<void>;
+  refreshAuthState: () => Promise<{
+    roles: AppRole[];
+    portalClientId: string | null;
+    isPortalUser: boolean;
+    mustChangePassword: boolean;
+  }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -102,13 +108,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPortalOnboardingCompletedAt(null);
       setPortalMustChangePassword(false);
       setLoading(false);
-      return;
+      return {
+        roles: [] as AppRole[],
+        portalClientId: null,
+        isPortalUser: false,
+        mustChangePassword: false,
+      };
     }
 
     if (options?.skipLookup && !userChanged) {
       // Token refreshes can happen when returning to a tab. Keep the UX stable
       // and avoid full-screen loading or unnecessary role/link round-trips.
-      return;
+      return {
+        roles,
+        portalClientId,
+        isPortalUser: Boolean(portalClientId),
+        mustChangePassword: Boolean(nextUser.user_metadata?.must_change_password) || portalMustChangePassword,
+      };
     }
 
     const [nextRoles, portalLink] = await Promise.all([
@@ -126,13 +142,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles(effectiveRoles);
     setPortalClientId(portalLink?.client_id ?? null);
     setPortalOnboardingCompletedAt(portalLink?.onboarding_completed_at ?? null);
-    setPortalMustChangePassword(
-      portalLink != null
-        ? Boolean(portalLink.must_change_password)
-        : Boolean(nextUser.user_metadata?.must_change_password)
-    );
+    const nextMustChangePassword = portalLink != null
+      ? Boolean(portalLink.must_change_password)
+      : Boolean(nextUser.user_metadata?.must_change_password);
+
+    setPortalMustChangePassword(nextMustChangePassword);
     setLoading(false);
-  }, [fetchPortalLink, fetchRoles]);
+
+    return {
+      roles: effectiveRoles,
+      portalClientId: portalLink?.client_id ?? null,
+      isPortalUser: Boolean(portalLink?.client_id),
+      mustChangePassword: nextMustChangePassword,
+    };
+  }, [fetchPortalLink, fetchRoles, portalClientId, portalMustChangePassword, roles]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -167,6 +190,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPortalMustChangePassword(false);
   };
 
+  const refreshAuthState = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    const refreshed = await syncAuthState(data.session ?? null);
+    return refreshed ?? {
+      roles: [] as AppRole[],
+      portalClientId: null,
+      isPortalUser: false,
+      mustChangePassword: false,
+    };
+  }, [syncAuthState]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -182,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         hasRole,
         signOut,
+        refreshAuthState,
       }}
     >
       {children}

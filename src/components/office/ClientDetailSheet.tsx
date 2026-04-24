@@ -208,7 +208,7 @@ export function ClientDetailSheet({
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">Portal Users</h3>
                 <p className="text-xs text-muted-foreground">
-                  New logins stay invited until you activate them. Onboarding emails are disabled for now, so activation is manual only.
+                  New logins stay invited until you activate them. When you're ready, send the secure portal link so the client can create their password directly.
                 </p>
                 {portalUsers.length === 0 && (
                   <p className="text-sm text-muted-foreground">No portal users yet.</p>
@@ -240,17 +240,27 @@ export function ClientDetailSheet({
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {u.status !== "active" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => onActivatePortalUser(u, false)}
-                          disabled={portalActionId === u.id}
-                        >
-                          Activate
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => onActivatePortalUser(u, true)}
+                            disabled={portalActionId === u.id}
+                          >
+                            Activate + send link
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => onActivatePortalUser(u, false)}
+                            disabled={portalActionId === u.id}
+                          >
+                            Activate only
+                          </Button>
+                        </>
                       ) : (
-                        <span className="text-xs text-muted-foreground">Active manually — email disabled</span>
+                        <span className="text-xs text-muted-foreground">Active</span>
                       )}
                     </div>
                   </div>

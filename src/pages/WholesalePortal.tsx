@@ -27,7 +27,7 @@ const TABS: { key: Tab; label: string; path: string }[] = [
 ];
 
 export default function WholesalePortal() {
-  const { user } = useAuth();
+  const { user, refreshAuthState } = useAuth();
   const { toast } = useToast();
   const {
     clientId,
@@ -137,6 +137,16 @@ export default function WholesalePortal() {
       toast({
         title: "Password updated, but verification is pending",
         description: "Please sign out and sign in again. If this persists, contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const refreshed = await refreshAuthState();
+    if (refreshed.mustChangePassword) {
+      toast({
+        title: "Password updated, but portal access is still locked",
+        description: "Please try once more in a moment. If it keeps happening, contact support.",
         variant: "destructive",
       });
       return;
