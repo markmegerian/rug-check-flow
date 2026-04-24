@@ -1,7 +1,8 @@
-import { PDFDocument, StandardFonts, type PDFPage, type PDFFont } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, type PDFImage, type PDFPage, type PDFFont } from "https://esm.sh/pdf-lib@1.17.1";
+import fontkit from "https://esm.sh/@pdf-lib/fontkit@1.1.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// ─── Types ──────────────────────────────────────────────────────────────────
+import { SAMPLE_FONT_BOLD_BASE64, SAMPLE_FONT_REGULAR_BASE64 } from "./sample-fonts.ts";
+import { SAMPLE_LOGO_PNG_BASE64 } from "./sample-logo.ts";
 
 export type CompanyInfo = {
   businessName: string;
@@ -44,7 +45,6 @@ export type InvoicePdfPayload = {
   total: number;
 };
 
-// Keep old type alias for backward compatibility
 export type InvoicePdfLineItem = {
   description: string;
   quantity: number;
@@ -67,7 +67,10 @@ export function resolveInvoicePdfStoragePath(
   return `clients/${clientId}/${invoiceNumber}.pdf`;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+function decodeBase64(base64: string) {
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
 
 function currency(value: number) {
   return `$${Number(value ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -83,270 +86,273 @@ function formatDate(iso: string | null) {
   return `${m}-${d}-${y}`;
 }
 
-// ─── Column positions (US Letter: 612 x 792) ───────────────────────────────
+const PAGE_W = 595.28;
+const PAGE_H = 841.89;
 
-const PAGE_W = 612;
-const PAGE_H = 792;
-const ML = 48;   // margin left
-const MR = 48;   // margin right
-const CONTENT_W = PAGE_W - ML - MR;
-const RIGHT_EDGE = PAGE_W - MR;
+const HEADER_X = 45.117;
+const HEADER_RIGHT = 548.5;
+const LOGO_X = 269.288;
+const LOGO_Y = 723.504;
+const LOGO_W = 56.194;
+const LOGO_H = 70.435;
 
-// Column X positions for rug table
-const COL_RUG_NUM = ML;           // "Rug #" or "Megerian Rug #"
-const COL_CUST_NUM = ML + 80;     // "Customer Rug #"
-const COL_SIZE = ML + 160;        // "Size"
-const COL_RUG_TYPE = ML + 240;    // "Rug Type"
-const COL_EXT_PRICE = RIGHT_EDGE; // "Ext. Price" (right-aligned)
+const BILLING_X = 45.12;
+const SHIPPING_X = 401.238;
 
-// Service line indents
-const SVC_NAME_X = ML + 100;
-const SVC_PRICING_X = ML + 340;
+const TABLE_HEADER_FIRST_Y = 551.242;
+const TABLE_HEADER_OTHER_Y = 785.651;
+const TABLE_HEADER_SECOND_ROW_OFFSET = 10.996;
+const TABLE_FIRST_ROW_OFFSET = 25.025;
 
-// ─── PDF Renderer ───────────────────────────────────────────────────────────
+const RUG_X = 54.967;
+const CUSTOMER_RUG_X = 124.398;
+const SIZE_X = 157.592;
+const RUG_TYPE_X = 275.994;
+const SERVICE_NAME_X = 209.97;
+const SERVICE_NAME_MAX_WIDTH = 150;
+const PRICING_X = 379.492;
+const PRICE_RIGHT_X = 548;
+const NOTE_TEXT_X = 261.212;
+const NOTE_TEXT_MAX_WIDTH = 250;
+
+const HEADER_FONT_SIZE = 10.989;
+const BLOCK_FONT_SIZE = 11;
+const TABLE_FONT_SIZE = 9.164;
+
+const COMPANY_LINE_STEP = 13.187;
+const ADDRESS_LINE_STEP = 13.2;
+const ROW_STEP = 14.078;
+const WRAP_STEP = 10.996;
+const NOTE_GAP = 11.048;
+const NEXT_RUG_GAP = 14.028;
+
+const SUBTOTAL_Y = 85.53;
+const TOTAL_Y = 72.33;
 
 class PdfBuilder {
   private doc: typeof PDFDocument.prototype;
   private regularFont!: PDFFont;
   private boldFont!: PDFFont;
-  private page!: PDFPage;
-  private y = 0;
+  private logo!: PDFImage;
+  page!: PDFPage;
 
   constructor(doc: typeof PDFDocument.prototype) {
     this.doc = doc;
   }
 
   async init() {
-    this.regularFont = await this.doc.embedFont(StandardFonts.Helvetica);
-    this.boldFont = await this.doc.embedFont(StandardFonts.HelveticaBold);
+    this.doc.registerFontkit(fontkit);
+    this.regularFont = await this.doc.embedFont(decodeBase64(SAMPLE_FONT_REGULAR_BASE64));
+    this.boldFont = await this.doc.embedFont(decodeBase64(SAMPLE_FONT_BOLD_BASE64));
+    this.logo = await this.doc.embedPng(decodeBase64(SAMPLE_LOGO_PNG_BASE64));
     this.newPage();
   }
 
   newPage() {
     this.page = this.doc.addPage([PAGE_W, PAGE_H]);
-    this.y = PAGE_H - 48;
   }
-
-  get currentY() { return this.y; }
-  set currentY(v: number) { this.y = v; }
 
   textWidth(text: string, size: number, bold = false) {
     const font = bold ? this.boldFont : this.regularFont;
     return font.widthOfTextAtSize(text, size);
   }
 
-  drawAt(text: string, x: number, size = 11, bold = false) {
+  drawText(text: string, x: number, y: number, size = BLOCK_FONT_SIZE, bold = false) {
+    if (!text) return;
     this.page.drawText(text, {
       x,
-      y: this.y,
+      y,
       size,
       font: bold ? this.boldFont : this.regularFont,
     });
   }
 
-  drawRight(text: string, rightX: number, size = 11, bold = false) {
+  drawRight(text: string, rightX: number, y: number, size = BLOCK_FONT_SIZE, bold = false) {
     const w = this.textWidth(text, size, bold);
-    this.drawAt(text, rightX - w, size, bold);
+    this.drawText(text, rightX - w, y, size, bold);
   }
 
-  advance(amount = 16) {
-    this.y -= amount;
-  }
-
-  ensureSpace(needed: number) {
-    if (this.y < needed + 48) {
-      this.newPage();
-    }
-  }
-
-  drawLine(fromX: number, toX: number, thickness = 0.5) {
-    this.page.drawLine({
-      start: { x: fromX, y: this.y },
-      end: { x: toX, y: this.y },
-      thickness,
+  drawLogo() {
+    this.page.drawImage(this.logo, {
+      x: LOGO_X,
+      y: LOGO_Y,
+      width: LOGO_W,
+      height: LOGO_H,
     });
   }
 
-  // Word-wrap text to fit within maxWidth, returns lines
   wrapText(text: string, size: number, maxWidth: number, bold = false): string[] {
-    const font = bold ? this.boldFont : this.regularFont;
-    const words = text.split(" ");
-    const lines: string[] = [];
-    let current = "";
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
 
-    for (const word of words) {
-      const test = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(test, size) > maxWidth) {
-        if (current) lines.push(current);
-        current = word;
+    const lines: string[] = [];
+    let current = words[0];
+
+    for (const word of words.slice(1)) {
+      const candidate = `${current} ${word}`;
+      if (this.textWidth(candidate, size, bold) <= maxWidth) {
+        current = candidate;
       } else {
-        current = test;
+        lines.push(current);
+        current = word;
       }
     }
-    if (current) lines.push(current);
+
+    lines.push(current);
     return lines;
   }
 }
 
+function splitLines(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function estimateRugHeight(builder: PdfBuilder, rug: RugSection) {
+  let height = ROW_STEP;
+
+  for (const service of rug.services) {
+    const wrapped = Math.max(builder.wrapText(service.name, TABLE_FONT_SIZE, SERVICE_NAME_MAX_WIDTH).length, 1);
+    height += ROW_STEP + ((wrapped - 1) * WRAP_STEP);
+  }
+
+  const noteLines = builder.wrapText(rug.notes || "", TABLE_FONT_SIZE, NOTE_TEXT_MAX_WIDTH).length;
+  height += NOTE_GAP + NEXT_RUG_GAP + (Math.max(noteLines - 1, 0) * WRAP_STEP);
+  return height;
+}
+
+function drawTableHeader(builder: PdfBuilder, topY: number) {
+  builder.drawText("Megerian", 48.599, topY, TABLE_FONT_SIZE, true);
+  builder.drawText("Rug #", 56.498, topY - TABLE_HEADER_SECOND_ROW_OFFSET, TABLE_FONT_SIZE, true);
+  builder.drawText("Customer", 103.382, topY, TABLE_FONT_SIZE, true);
+  builder.drawText("Rug #", 111.592, topY - TABLE_HEADER_SECOND_ROW_OFFSET, TABLE_FONT_SIZE, true);
+  builder.drawText("Size", 171.374, topY, TABLE_FONT_SIZE, true);
+  builder.drawText("Rug Type", 271.486, topY, TABLE_FONT_SIZE, true);
+  builder.drawRight("Ext. Price", HEADER_RIGHT, topY, TABLE_FONT_SIZE, true);
+
+  return topY - TABLE_FIRST_ROW_OFFSET;
+}
+
+function normalizePhoneForTemplate(phone: string) {
+  return phone.replace(/[^\d]/g, "") || phone;
+}
+
 export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
   const doc = await PDFDocument.create();
-  const b = new PdfBuilder(doc);
-  await b.init();
+  const builder = new PdfBuilder(doc);
+  await builder.init();
 
-  const isMultiRug = payload.rugs.length > 1;
   const docLabel = payload.documentType === "estimate" ? "Estimate" : "Invoice";
 
-  // ─── Company Header ─────────────────────────────────────────────────────
-  b.drawAt(payload.company.businessName, ML, 14, true);
-  b.drawRight(`${docLabel} #: ${payload.documentNumber}`, RIGHT_EDGE, 11);
-  b.advance(16);
+  builder.drawText(payload.company.businessName, HEADER_X, 783.482, HEADER_FONT_SIZE, true);
 
-  // Company address lines
-  const addrLines = payload.company.businessAddress.split("\n").filter(Boolean);
-  for (const line of addrLines) {
-    b.drawAt(line, ML, 10);
-    b.advance(14);
+  const companyAddressLines = splitLines(payload.company.businessAddress);
+  let companyY = 770.356;
+  for (const line of companyAddressLines) {
+    builder.drawText(line, HEADER_X, companyY, HEADER_FONT_SIZE);
+    companyY -= COMPANY_LINE_STEP;
   }
 
-  // Phone/fax
   if (payload.company.businessPhone) {
-    b.drawAt(`Tel: ${payload.company.businessPhone}`, ML, 10);
-    b.drawRight(`${docLabel} Date: ${formatDate(payload.documentDate)}`, RIGHT_EDGE, 10);
-    b.advance(14);
+    builder.drawText(`Tel: ${payload.company.businessPhone}`, HEADER_X, companyY, HEADER_FONT_SIZE);
+    companyY -= COMPANY_LINE_STEP;
   }
+
   if (payload.company.businessFax) {
-    b.drawAt(`Fax: ${payload.company.businessFax}`, ML, 10);
-    b.advance(14);
+    builder.drawText(`Fax: ${payload.company.businessFax}`, HEADER_X, companyY, HEADER_FONT_SIZE);
   }
 
-  b.advance(24);
+  builder.drawLogo();
+  builder.drawRight(`${docLabel} #: ${payload.documentNumber}`, HEADER_RIGHT, 783.543, HEADER_FONT_SIZE);
+  builder.drawRight(`${docLabel} Date: ${formatDate(payload.documentDate)}`, HEADER_RIGHT, 770.356, HEADER_FONT_SIZE);
 
-  // ─── Address Blocks ─────────────────────────────────────────────────────
-  const shippingX = ML + 300;
-
-  b.drawAt("Billing Address:", ML, 10, true);
-  b.drawAt("Shipping Address:", shippingX, 10, true);
-  b.advance(14);
-
-  const addressLines = payload.client.address.split("\n").map((line) => line.trim()).filter(Boolean);
-  const billingLines: string[] = [];
-  if (payload.client.name) billingLines.push(payload.client.name);
-  billingLines.push(...addressLines);
-
-  const shippingLines: string[] = [];
-  shippingLines.push(payload.client.contactName || payload.client.name || "");
-  if (payload.client.phone) shippingLines.push(payload.client.phone);
-  shippingLines.push(...addressLines);
-
-  const maxAddrLines = Math.max(billingLines.length, shippingLines.length);
-  for (let i = 0; i < maxAddrLines; i++) {
-    if (i < billingLines.length) {
-      b.drawAt(billingLines[i], ML, 10, i === 0);
-    }
-    if (i < shippingLines.length) {
-      b.drawAt(shippingLines[i], shippingX, 10, i === 0);
-    }
-    b.advance(14);
+  builder.drawText("Billing Address:", BILLING_X, 664.11, BLOCK_FONT_SIZE, true);
+  const billingLines = splitLines(payload.client.address);
+  let billingY = 650.91;
+  for (const line of billingLines) {
+    builder.drawText(line, BILLING_X, billingY, BLOCK_FONT_SIZE);
+    billingY -= ADDRESS_LINE_STEP;
   }
 
-  b.advance(20);
+  builder.drawText("Shipping Address:", SHIPPING_X, 664.11, BLOCK_FONT_SIZE, true);
+  const shippingLines = [
+    payload.client.contactName || payload.client.name,
+    payload.client.phone ? normalizePhoneForTemplate(payload.client.phone) : "",
+    ...billingLines,
+  ].filter(Boolean);
+  let shippingY = 650.85;
+  for (const [index, line] of shippingLines.entries()) {
+    builder.drawText(line, SHIPPING_X, shippingY, BLOCK_FONT_SIZE, index === 0);
+    shippingY -= ADDRESS_LINE_STEP;
+  }
 
-  // ─── Column Headers ─────────────────────────────────────────────────────
-  const drawColumnHeaders = () => {
-    if (isMultiRug) {
-      b.drawAt("Megerian", COL_RUG_NUM, 9, true);
-      b.drawAt("Customer", COL_CUST_NUM, 9, true);
-      b.advance(12);
-      b.drawAt("Rug #", COL_RUG_NUM, 9, true);
-      b.drawAt("Rug #", COL_CUST_NUM, 9, true);
-    } else {
-      b.drawAt("Rug #", COL_RUG_NUM, 9, true);
-    }
-    b.drawAt("Size", COL_SIZE, 9, true);
-    b.drawAt("Rug Type", COL_RUG_TYPE, 9, true);
-    b.drawRight("Ext. Price", COL_EXT_PRICE, 9, true);
-    b.advance(16);
-  };
+  let rowY = drawTableHeader(builder, TABLE_HEADER_FIRST_Y);
 
-  drawColumnHeaders();
-
-  // ─── Rug Sections ───────────────────────────────────────────────────────
   for (const rug of payload.rugs) {
-    // Estimate space: rug header + services + notes + gap
-    const estimatedHeight = 20 + (rug.services.length * 16) + (rug.notes ? 40 : 0) + 20;
-    b.ensureSpace(estimatedHeight);
-
-    // Rug header row
-    b.drawAt(rug.rugNumber, COL_RUG_NUM, 10);
-    if (isMultiRug) {
-      b.drawAt(rug.customerRugNumber || "|", COL_CUST_NUM, 10);
-    }
-    b.drawAt(rug.size, COL_SIZE, 10);
-    b.drawAt(rug.rugType, COL_RUG_TYPE, 10);
-
-    b.advance(18);
-
-    // Service lines
-    for (const svc of rug.services) {
-      b.ensureSpace(40);
-
-      // Service name (indented)
-      b.drawAt(svc.name, SVC_NAME_X, 10);
-
-      // Pricing label (e.g. "1@490/unit")
-      b.drawAt(svc.pricingLabel, SVC_PRICING_X, 10);
-
-      // Ext price (right-aligned)
-      b.drawRight(currency(svc.extPrice), COL_EXT_PRICE, 10);
-
-      b.advance(16);
+    const estimatedHeight = estimateRugHeight(builder, rug);
+    if (rowY - estimatedHeight < 60) {
+      builder.newPage();
+      rowY = drawTableHeader(builder, TABLE_HEADER_OTHER_Y);
     }
 
-    b.advance(4);
-    b.ensureSpace(40);
+    builder.drawText(rug.rugNumber, RUG_X, rowY, TABLE_FONT_SIZE);
+    builder.drawText(rug.customerRugNumber || "|", CUSTOMER_RUG_X, rowY, TABLE_FONT_SIZE);
+    builder.drawText(rug.size, SIZE_X, rowY, TABLE_FONT_SIZE);
+    builder.drawText(rug.rugType, RUG_TYPE_X, rowY, TABLE_FONT_SIZE);
 
-    const notePrefix = "Rug Notes: ";
-    const fullText = notePrefix + (rug.notes || "");
-    const maxNoteWidth = CONTENT_W - (SVC_NAME_X - ML);
-    const noteLines = b.wrapText(fullText, 10, maxNoteWidth);
+    let cursorY = rowY - ROW_STEP;
 
-    for (let i = 0; i < Math.max(noteLines.length, 1); i++) {
-      b.ensureSpace(20);
-      if (i === 0) {
-        b.drawAt("Rug Notes:", SVC_NAME_X, 10, true);
-        const prefixW = b.textWidth("Rug Notes: ", 10, true);
-        const restText = (noteLines[0] ?? "").replace(/^Rug Notes:\s*/, "");
-        if (restText) {
-          b.drawAt(restText, SVC_NAME_X + prefixW, 10);
-        }
-      } else {
-        b.drawAt(noteLines[i], SVC_NAME_X, 10);
+    for (const service of rug.services) {
+      const nameLines = builder.wrapText(service.name, TABLE_FONT_SIZE, SERVICE_NAME_MAX_WIDTH);
+      const primaryName = nameLines[0] ?? service.name;
+      builder.drawText(primaryName, SERVICE_NAME_X, cursorY, TABLE_FONT_SIZE);
+      builder.drawText(service.pricingLabel, PRICING_X, cursorY, TABLE_FONT_SIZE);
+      builder.drawRight(currency(service.extPrice), PRICE_RIGHT_X, cursorY, TABLE_FONT_SIZE);
+
+      let serviceBottomY = cursorY;
+      for (const extraLine of nameLines.slice(1)) {
+        serviceBottomY -= WRAP_STEP;
+        builder.drawText(extraLine, SERVICE_NAME_X, serviceBottomY, TABLE_FONT_SIZE);
       }
-      b.advance(14);
+
+      cursorY = serviceBottomY - ROW_STEP;
     }
 
-    b.advance(12);
+    const noteY = cursorY - NOTE_GAP;
+    builder.drawText("Rug Notes:", SERVICE_NAME_X, noteY, TABLE_FONT_SIZE, true);
+
+    if (rug.notes.trim()) {
+      const noteLines = builder.wrapText(rug.notes.trim(), TABLE_FONT_SIZE, NOTE_TEXT_MAX_WIDTH);
+      builder.drawText(noteLines[0] ?? rug.notes.trim(), NOTE_TEXT_X, noteY, TABLE_FONT_SIZE);
+      let noteBottomY = noteY;
+      for (const extraLine of noteLines.slice(1)) {
+        noteBottomY -= WRAP_STEP;
+        builder.drawText(extraLine, SERVICE_NAME_X, noteBottomY, TABLE_FONT_SIZE);
+      }
+      rowY = noteBottomY - NEXT_RUG_GAP;
+    } else {
+      rowY = noteY - NEXT_RUG_GAP;
+    }
   }
 
-  // ─── Totals ─────────────────────────────────────────────────────────────
-  b.ensureSpace(60);
-  b.advance(8);
+  if (rowY < 120) {
+    builder.newPage();
+  }
 
-  b.drawRight(`Subtotal: ${currency(payload.subtotal)}`, COL_EXT_PRICE, 11);
-  b.advance(16);
-  b.drawRight(`Total: ${currency(payload.total)}`, COL_EXT_PRICE, 11, true);
+  builder.drawRight(`Subtotal: ${currency(payload.subtotal)}`, HEADER_RIGHT, SUBTOTAL_Y, BLOCK_FONT_SIZE);
+  builder.drawRight(`Total: ${currency(payload.total)}`, HEADER_RIGHT, TOTAL_Y, BLOCK_FONT_SIZE, true);
 
   return doc.save();
 }
-
-// ─── Storage Utilities ──────────────────────────────────────────────────────
 
 export async function ensureInvoicePdfBucket(adminClient: SupabaseClient, bucket: string) {
   const { error } = await adminClient.storage.createBucket(bucket, { public: false });
   if (!error) return;
 
-  const message = (error.message ?? '').toLowerCase();
-  if (message.includes('already exists') || message.includes('duplicate')) return;
+  const message = (error.message ?? "").toLowerCase();
+  if (message.includes("already exists") || message.includes("duplicate")) return;
 
   throw new Error(`Failed to ensure storage bucket ${bucket}: ${error.message}`);
 }
