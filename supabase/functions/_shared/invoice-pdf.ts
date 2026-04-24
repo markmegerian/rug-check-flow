@@ -228,13 +228,15 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
   b.drawAt("Shipping Address:", shippingX, 10, true);
   b.advance(14);
 
-  // Billing: just client address
-  const billingLines = payload.client.address.split("\n").filter(Boolean);
+  const addressLines = payload.client.address.split("\n").map((line) => line.trim()).filter(Boolean);
+  const billingLines: string[] = [];
+  if (payload.client.name) billingLines.push(payload.client.name);
+  billingLines.push(...addressLines);
+
   const shippingLines: string[] = [];
-  if (payload.client.contactName) shippingLines.push(payload.client.contactName);
+  shippingLines.push(payload.client.contactName || payload.client.name || "");
   if (payload.client.phone) shippingLines.push(payload.client.phone);
-  // Reuse same address for shipping
-  shippingLines.push(...billingLines);
+  shippingLines.push(...addressLines);
 
   const maxAddrLines = Math.max(billingLines.length, shippingLines.length);
   for (let i = 0; i < maxAddrLines; i++) {
@@ -282,12 +284,6 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
     b.drawAt(rug.size, COL_SIZE, 10);
     b.drawAt(rug.rugType, COL_RUG_TYPE, 10);
 
-    // Per-rug subtotal on the header row (multi-rug invoices)
-    if (isMultiRug) {
-      const subLabel = `Sub total:   ${currency(rug.subtotal)}`;
-      b.drawRight(subLabel, COL_EXT_PRICE, 10);
-    }
-
     b.advance(18);
 
     // Service lines
@@ -306,32 +302,27 @@ export async function renderInvoicePdfBytes(payload: InvoicePdfPayload) {
       b.advance(16);
     }
 
-    // Rug Notes
-    if (rug.notes) {
-      b.advance(4);
-      b.ensureSpace(40);
+    b.advance(4);
+    b.ensureSpace(40);
 
-      // Word-wrap notes
-      const notePrefix = "Rug Notes: ";
-      const fullText = notePrefix + rug.notes;
-      const maxNoteWidth = CONTENT_W - (SVC_NAME_X - ML);
-      const noteLines = b.wrapText(fullText, 10, maxNoteWidth);
+    const notePrefix = "Rug Notes: ";
+    const fullText = notePrefix + (rug.notes || "");
+    const maxNoteWidth = CONTENT_W - (SVC_NAME_X - ML);
+    const noteLines = b.wrapText(fullText, 10, maxNoteWidth);
 
-      for (let i = 0; i < noteLines.length; i++) {
-        b.ensureSpace(20);
-        if (i === 0) {
-          // Draw "Rug Notes:" bold and rest regular
-          b.drawAt("Rug Notes:", SVC_NAME_X, 10, true);
-          const prefixW = b.textWidth("Rug Notes: ", 10, true);
-          const restText = noteLines[0].replace(/^Rug Notes:\s*/, "");
-          if (restText) {
-            b.drawAt(restText, SVC_NAME_X + prefixW, 10);
-          }
-        } else {
-          b.drawAt(noteLines[i], SVC_NAME_X, 10);
+    for (let i = 0; i < Math.max(noteLines.length, 1); i++) {
+      b.ensureSpace(20);
+      if (i === 0) {
+        b.drawAt("Rug Notes:", SVC_NAME_X, 10, true);
+        const prefixW = b.textWidth("Rug Notes: ", 10, true);
+        const restText = (noteLines[0] ?? "").replace(/^Rug Notes:\s*/, "");
+        if (restText) {
+          b.drawAt(restText, SVC_NAME_X + prefixW, 10);
         }
-        b.advance(14);
+      } else {
+        b.drawAt(noteLines[i], SVC_NAME_X, 10);
       }
+      b.advance(14);
     }
 
     b.advance(12);

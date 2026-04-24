@@ -101,23 +101,23 @@ type CompanyBrandingRow = {
 
 // ─── Pricing label builder ──────────────────────────────────────────────────
 
-function buildPricingLabel(unitPrice: number, lineTotal: number, edges: string[] | null): string {
+function buildPricingLabel(unitPrice: number, lineTotal: number): string {
   if (unitPrice <= 0) return `0@0/unit`;
-
-  // Edges handling: e.g. "Hand Fringe 2 Ends - HF2E"
-  const edgeSuffix = edges && edges.length > 0 && edges.length < 4
-    ? ` - ${edges.map(e => e === "end1" ? "E1" : e === "end2" ? "E2" : e === "side1" ? "S1" : e === "side2" ? "S2" : e).join("")}`
-    : "";
 
   const qty = lineTotal / unitPrice;
   const roundedQty = Math.round(qty * 100) / 100;
 
-  // Format qty: if it's a whole number show no decimals, otherwise 2
   const qtyStr = roundedQty === Math.floor(roundedQty)
     ? String(Math.floor(roundedQty))
     : roundedQty.toFixed(2);
 
-  return `${qtyStr}@${unitPrice}/unit${edgeSuffix}`;
+  return `${qtyStr}@${unitPrice}/unit`;
+}
+
+function extractServiceName(description: string): string {
+  const parts = description.split("—").map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) return parts.slice(1).join(" — ");
+  return description.trim();
 }
 
 function formatRugSize(length: number | null, width: number | null): string {
@@ -224,7 +224,6 @@ async function buildRugSections(
           pricingLabel: buildPricingLabel(
             adjustedUnitPrice,
             adjustedTotal,
-            svc.edges,
           ),
           extPrice: adjustedTotal,
         });
@@ -234,11 +233,10 @@ async function buildRugSections(
       for (const item of rugItems) {
         const _qty = item.unit_price > 0 ? item.total / item.unit_price : item.quantity;
         serviceLines.push({
-          name: item.description.replace(/\s*—\s*.*$/, ""), // Remove " — RUG-TAG" suffix
+          name: extractServiceName(item.description),
           pricingLabel: buildPricingLabel(
             Number(item.unit_price),
             Number(item.total),
-            null,
           ),
           extPrice: Number(item.total),
         });
