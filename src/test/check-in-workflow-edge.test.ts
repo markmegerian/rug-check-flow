@@ -17,7 +17,8 @@ describe("check-in workflow edge function", () => {
     expect(fn).toContain('return isStandardCleaningServiceName(service.service_name);');
     expect(fn).toContain('approval_status: shouldAutoApproveService(service, rule) ? "approved" : "pending"');
     expect(fn).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
-    expect(fn).toContain('notification_type: "estimate_batch_send"');
+    expect(fn).not.toContain('notification_type: "estimate_batch_send"');
+    expect(fn).not.toContain('queueEstimateBatchSend(');
     expect(fn).toContain('company_id: actor.companyId');
   });
 

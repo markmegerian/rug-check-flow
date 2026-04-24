@@ -553,78 +553,6 @@ async function recordCommunicationEvent(adminClient: ReturnType<typeof createCli
   if (error) throw error;
 }
 
-async function queueEstimateBatchSend(adminClient: ReturnType<typeof createClient>, params: {
-  clientId: string;
-  estimateId: string;
-  queuedAt: string;
-}) {
-  const queuedAt = new Date(params.queuedAt);
-  const easternTarget = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(queuedAt);
-
-  const get = (type: string) => Number(easternTarget.find((part) => part.type === type)?.value ?? "0");
-  const toUtc = (year: number, month: number, day: number, hour: number, minute: number) => {
-    let guess = Date.UTC(year, month - 1, day, hour, minute, 0);
-    for (let i = 0; i < 5; i += 1) {
-      const actual = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hourCycle: "h23",
-      }).formatToParts(new Date(guess));
-      const actualValue = (kind: string) => Number(actual.find((part) => part.type === kind)?.value ?? "0");
-      const desiredUtc = Date.UTC(year, month - 1, day, hour, minute, 0);
-      const actualUtc = Date.UTC(actualValue("year"), actualValue("month") - 1, actualValue("day"), actualValue("hour"), actualValue("minute"), actualValue("second"));
-      const diff = desiredUtc - actualUtc;
-      guess += diff;
-      if (diff === 0) break;
-    }
-    return new Date(guess);
-  };
-
-  let scheduledFor = toUtc(get("year"), get("month"), get("day"), 15, 0);
-  if (scheduledFor.getTime() <= queuedAt.getTime()) {
-    const nextDayAnchor = new Date(queuedAt.getTime() + 24 * 60 * 60 * 1000);
-    const nextParts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(nextDayAnchor);
-    const next = (type: string) => Number(nextParts.find((part) => part.type === type)?.value ?? "0");
-    scheduledFor = toUtc(next("year"), next("month"), next("day"), 15, 0);
-  }
-
-  const { error } = await adminClient.from("notification_cadence").upsert({
-    client_id: params.clientId,
-    entity_type: "estimate",
-    entity_id: params.estimateId,
-    notification_type: "estimate_batch_send",
-    scheduled_for: scheduledFor.toISOString(),
-    throttle_key: `estimate-batch:${params.clientId}`,
-  }, {
-    onConflict: "client_id,entity_type,entity_id,notification_type",
-  });
-
-  if (error) throw error;
-}
-
 async function tryCreateIntakeJob(adminClient: ReturnType<typeof createClient>, params: {
   clientId: string | null;
   source: WorkflowSource;
@@ -1006,14 +934,6 @@ Deno.serve(async (req) => {
           subject: `${estimate.estimateNumber} auto-drafted`,
           body: `Estimate ${estimate.estimateNumber} was auto-created from check-in service selections.`,
           created_by: actor.user.id,
-        }));
-      }
-
-      if (clientId && estimate.estimateId) {
-        postSubmitTasks.push(queueEstimateBatchSend(adminClient, {
-          clientId,
-          estimateId: estimate.estimateId,
-          queuedAt: intakeDate,
         }));
       }
 

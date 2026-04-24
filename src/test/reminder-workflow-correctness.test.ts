@@ -31,11 +31,15 @@ describe("reminder workflow correctness", () => {
     expect(edge).not.toContain('estimate_marked_sent_without_email');
   });
 
-  it("keeps check-in estimate gating on the backend workflow", () => {
+  it("keeps check-in estimate creation internal until office explicitly queues the send", () => {
     const workflow = readFileSync(resolve(process.cwd(), "supabase/functions/check-in-workflow/index.ts"), "utf-8");
+    const cleanupMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260424114500_remove_stale_prequeued_estimate_batch_rows.sql"), "utf-8");
     expect(workflow).toContain('Boolean(rule?.requires_estimate) && !isCleaningCategory(rule?.category)');
     expect(workflow).toContain('status: "needs_office_review"');
-    expect(workflow).toContain('notification_type: "estimate_batch_send"');
+    expect(workflow).not.toContain('notification_type: "estimate_batch_send"');
+    expect(workflow).not.toContain('queueEstimateBatchSend(');
+    expect(cleanupMigration).toContain("notification_type = 'estimate_batch_send'");
+    expect(cleanupMigration).toContain("e.status <> 'ready_to_send'");
   });
 
   it("allows manual and scheduler auth paths for reminder cadence processing", () => {

@@ -72,8 +72,8 @@ Status legend:
   - [x] Define client/company-grouped office review requirement so staff can process all estimate work for an account together
   - [x] Define end-of-day grouped send requirement so one client does not receive multiple estimate emails in one day
   - [x] Write formal redesign spec in `docs/estimate-workflow-redesign-2026-04-20.md`
-  - [ ] Inventory current estimate send/review touchpoints and portal dependencies for implementation cutover
-  - [ ] Define final DB/status migration strategy and rollback path
+  - [x] Inventory current estimate send/review touchpoints and portal dependencies for implementation cutover (`docs/estimate-cutover-audit-2026-04-24.md`)
+  - [x] Define final DB/status migration strategy and rollback path (`docs/estimate-migration-strategy-2026-04-24.md`)
   - [ ] Rebuild office Estimates surface around grouped company review queue
   - [ ] Rewrite estimate send path around grouped end-of-day client/company batch sends
   - [ ] Update portal/client estimate visibility and response flow to match the new lifecycle
