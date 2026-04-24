@@ -514,6 +514,32 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       estimate_ids: string[];
     }[];
   };
+  get_portal_estimates: {
+    Args: Record<string, never>;
+    Returns: {
+      estimate_id: string;
+      estimate_number: string;
+      status: EstimateStatus;
+      total: number;
+      created_at: string;
+      sent_at: string | null;
+      approved_at: string | null;
+      rejected_at: string | null;
+      rug_tag: string | null;
+      items: {
+        id: string;
+        estimate_id: string;
+        rug_service_id: string | null;
+        description: string;
+        quantity: number;
+        unit_price: number;
+        total: number;
+        client_approved: boolean | null;
+        client_decision_at: string | null;
+        service_category: string;
+      }[] | null;
+    }[];
+  };
   // Backend/internal estimate batch helper.
   // Browser queueing should use queue_estimate_group_batch instead of calling this directly.
   ensure_estimate_send_batch: {

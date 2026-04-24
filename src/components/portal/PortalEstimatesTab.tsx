@@ -9,39 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import type { PortalTabProps } from "./portal-tab-props";
 import { Check, FileText, X } from "lucide-react";
-import {
-  supabaseExtended,
-  type ExtendedTableRow,
-} from "@/integrations/supabase/extended";
+import { supabaseExtended } from "@/integrations/supabase/extended";
 import { isRugServiceApprovalStatusAvailable } from "@/lib/rug-service-approval";
 import { transitionEstimateStatus } from "@/lib/estimate-group-actions";
+import { fetchPortalEstimates, type PortalEstimateItemRow, type PortalEstimateRow } from "@/lib/portal-estimates";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
-import type { Tables } from "@/integrations/supabase/types";
 
-type EstimateRow = {
-  id: ExtendedTableRow<"estimates">["id"];
-  estimate_number: ExtendedTableRow<"estimates">["estimate_number"];
-  status: ExtendedTableRow<"estimates">["status"];
-  total: ExtendedTableRow<"estimates">["total"];
-  created_at: ExtendedTableRow<"estimates">["created_at"];
-  sent_at: ExtendedTableRow<"estimates">["sent_at"];
-  approved_at: ExtendedTableRow<"estimates">["approved_at"];
-  rejected_at: ExtendedTableRow<"estimates">["rejected_at"];
-  rugs?: Pick<Tables<"rugs">, "tag"> | null;
-};
-
-type EstimateItemRow = {
-  id: string;
-  estimate_id: string;
-  rug_service_id: string | null;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-  client_approved: boolean | null;
-  client_decision_at: string | null;
-  service_category: string;
-};
+type EstimateRow = PortalEstimateRow;
+type EstimateItemRow = PortalEstimateItemRow;
 
 /** Cleaning is always approved and not rejectable; only other services can be approved/rejected by client. */
 function isCleaningLineItem(item: EstimateItemRow): boolean {
@@ -65,38 +40,22 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
 
-  const fetchEstimates = useCallback(async (activeClientId: string) => {
-    const { data, error } = await supabaseExtended
-      .from("estimates")
-      .select("id, estimate_number, status, total, created_at, sent_at, approved_at, rejected_at, rugs(tag)")
-      .eq("client_id", activeClientId)
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (error) {
-      toast({ title: "Failed to load estimates", description: error.message, variant: "destructive" });
-      return;
+  const fetchEstimates = useCallback(async () => {
+    try {
+      const rows = await fetchPortalEstimates();
+      setEstimates(rows);
+      setLineItemsByEstimateId(
+        rows.reduce<Record<string, EstimateItemRow[]>>((acc, estimate) => {
+          if (estimate.items.length > 0) {
+            acc[estimate.id] = estimate.items;
+          }
+          return acc;
+        }, {})
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Failed to load estimates", description: message, variant: "destructive" });
     }
-    const rows = (data ?? []) as unknown as EstimateRow[];
-    setEstimates(rows);
-
-    const pendingIds = rows.filter((e) => e.status === "sent").map((e) => e.id);
-    if (pendingIds.length === 0) {
-      setLineItemsByEstimateId({});
-      return;
-    }
-    const { data: itemsData } = await supabaseExtended
-      .from("estimate_items")
-      .select("id, estimate_id, rug_service_id, description, quantity, unit_price, total, client_approved, client_decision_at, service_category")
-      .in("estimate_id", pendingIds)
-      .order("estimate_id");
-    const items = (itemsData ?? []) as unknown as EstimateItemRow[];
-    const byEstimate: Record<string, EstimateItemRow[]> = {};
-    items.forEach((item) => {
-      if (!byEstimate[item.estimate_id]) byEstimate[item.estimate_id] = [];
-      byEstimate[item.estimate_id].push(item);
-    });
-    setLineItemsByEstimateId(byEstimate);
   }, [toast]);
 
   useEffect(() => {
@@ -109,7 +68,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
 
     const init = async () => {
       setLoading(true);
-      await fetchEstimates(clientId);
+      await fetchEstimates();
       setLoading(false);
     };
 
@@ -185,7 +144,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
       if (result.updatedCount <= 0) {
         toast({ title: "Estimate already updated", description: "Reload and check the latest status." });
         setUpdatingId(null);
-        await fetchEstimates(clientId);
+        await fetchEstimates();
         return;
       }
 
@@ -240,7 +199,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                     <div>
                       <p className="font-medium text-foreground">{estimate.estimate_number}</p>
                       <p className="text-sm text-muted-foreground">
-                        {estimate.rugs?.tag ?? "—"} · ${Number(estimate.total).toFixed(2)}
+                        {estimate.rug_tag ?? "—"} · ${Number(estimate.total).toFixed(2)}
                       </p>
                     </div>
                     {statusBadge(estimate.status)}
@@ -365,7 +324,7 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                   <div>
                     <p className="text-sm font-medium">{estimate.estimate_number}</p>
                     <p className="text-xs text-muted-foreground">
-                      {estimate.rugs?.tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
+                      {estimate.rug_tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
