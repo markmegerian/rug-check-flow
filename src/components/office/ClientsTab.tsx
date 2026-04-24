@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useMemo, useRef, type ChangeEvent } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useSortableTable, type SortState } from "@/hooks/useSortableTable";
 import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -27,7 +29,7 @@ import { parseCsvRows } from "@/lib/validation";
 import { DEFAULT_INVOICE_TERMS_DAYS, normalizeInvoiceTermsDays, type BillingReminderPreference } from "@/lib/billing";
 
 type Client = Tables<"clients">;
-type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status">;
+type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status" | "must_change_password">;
 
 type FormData = {
   name: string;
@@ -57,6 +59,15 @@ type OnboardingEmailResponse = {
   };
   error?: string;
   details?: unknown;
+};
+
+type ResetPortalPasswordResponse = {
+  ok?: boolean;
+  email?: string;
+  password_set?: boolean;
+  portal_status?: string;
+  must_change_password?: boolean;
+  error?: string;
 };
 
 const emptyForm: FormData = {
@@ -185,6 +196,8 @@ export function ClientsTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [importing, setImporting] = useState(false);
   const [portalActionId, setPortalActionId] = useState<string | null>(null);
+  const [resetPortalUser, setResetPortalUser] = useState<PortalUser | null>(null);
+  const [resetPortalPassword, setResetPortalPassword] = useState("");
   const [deletingClient, setDeletingClient] = useState(false);
   const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(null);
 
@@ -224,7 +237,7 @@ export function ClientsTab() {
   const fetchPortalUsers = async (clientId: string) => {
     const { data } = await supabase
       .from("portal_users")
-      .select("id, email, status")
+      .select("id, email, status, must_change_password")
       .eq("client_id", clientId);
     setPortalUsers((data ?? []) as PortalUser[]);
   };
@@ -395,6 +408,50 @@ export function ClientsTab() {
     if (editingId) fetchPortalUsers(editingId);
   };
 
+  const resetPortalPasswordForUser = async () => {
+    if (!resetPortalUser || !editingId) return;
+
+    const password = resetPortalPassword.trim();
+    if (password.length < 8) {
+      toast({ title: "Temporary password too short", description: "Use at least 8 characters.", variant: "destructive" });
+      return;
+    }
+
+    const authHeaders = await getFunctionAuthHeaders();
+    if (!authHeaders) {
+      toast({ title: "Session expired", description: "Please sign out and sign in again before resetting this portal password.", variant: "destructive" });
+      return;
+    }
+
+    setPortalActionId(resetPortalUser.id);
+    const { data, error } = await supabase.functions.invoke<ResetPortalPasswordResponse>(
+      "admin-reset-portal-password",
+      {
+        body: { email: resetPortalUser.email, password },
+        headers: authHeaders,
+      },
+    );
+
+    if (error || data?.error) {
+      toast({
+        title: "Portal password reset failed",
+        description: data?.error || error?.message || "Unknown error",
+        variant: "destructive",
+      });
+      setPortalActionId(null);
+      return;
+    }
+
+    await fetchPortalUsers(editingId);
+    setResetPortalUser(null);
+    setResetPortalPassword("");
+    setPortalActionId(null);
+    toast({
+      title: "Temporary portal password set",
+      description: `${resetPortalUser.email} must change this password at next sign-in.`,
+    });
+  };
+
   const filteredClients = useMemo(() => {
     let result = clients;
     if (filterDay) {
@@ -554,11 +611,56 @@ export function ClientsTab() {
         onAddPortalUser={addPortalUser}
         onRemovePortalUser={removePortalUser}
         onActivatePortalUser={activatePortalUser}
+        onResetPortalPassword={setResetPortalUser}
         portalActionId={portalActionId}
         canDeleteClient={canDeleteClient}
         deletingClient={deletingClient}
         onDeleteClient={deleteClientAccount}
       />
+
+      <Dialog open={Boolean(resetPortalUser)} onOpenChange={(open) => {
+        if (!open) {
+          setResetPortalUser(null);
+          setResetPortalPassword("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset portal password</DialogTitle>
+            <DialogDescription>
+              Set a temporary password for {resetPortalUser?.email}. They will be required to create a new password after signing in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="portal-reset-password">Temporary password</Label>
+            <Input
+              id="portal-reset-password"
+              type="password"
+              value={resetPortalPassword}
+              onChange={(event) => setResetPortalPassword(event.target.value)}
+              minLength={8}
+              placeholder="At least 8 characters"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPortalUser(null);
+                setResetPortalPassword("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={resetPortalPasswordForUser}
+              disabled={!resetPortalUser || portalActionId === resetPortalUser.id}
+            >
+              Set temporary password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

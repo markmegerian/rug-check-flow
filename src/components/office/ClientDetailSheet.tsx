@@ -29,7 +29,7 @@ import { NotificationCadenceCard } from "./NotificationCadenceCard";
 import { type BillingReminderPreference, formatInvoiceTermsLabel } from "@/lib/billing";
 
 type PricingTier = "standard" | "preferred" | "vip";
-type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status">;
+type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status" | "must_change_password">;
 
 const ROUTE_DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
@@ -60,6 +60,7 @@ interface ClientDetailSheetProps {
   onAddPortalUser: () => void;
   onRemovePortalUser: (id: string) => void;
   onActivatePortalUser: (user: PortalUser, sendEmail: boolean) => void;
+  onResetPortalPassword: (user: PortalUser) => void;
   portalActionId: string | null;
   canDeleteClient: boolean;
   deletingClient: boolean;
@@ -79,6 +80,7 @@ export function ClientDetailSheet({
   onAddPortalUser,
   onRemovePortalUser,
   onActivatePortalUser,
+  onResetPortalPassword,
   portalActionId,
   canDeleteClient,
   deletingClient,
@@ -219,7 +221,11 @@ export function ClientDetailSheet({
                       <div className="min-w-0">
                         <p className="truncate">{u.email}</p>
                         <p className="text-xs text-muted-foreground">
-                          {u.status === "active" ? "Active access" : "Pending activation"}
+                          {u.status === "active"
+                            ? u.must_change_password
+                              ? "Active access · password reset required"
+                              : "Active access"
+                            : "Pending activation"}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -260,7 +266,20 @@ export function ClientDetailSheet({
                           </Button>
                         </>
                       ) : (
-                        <span className="text-xs text-muted-foreground">Active</span>
+                        <>
+                          {u.must_change_password && (
+                            <span className="text-xs text-muted-foreground">Password reset required</span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => onResetPortalPassword(u)}
+                            disabled={portalActionId === u.id}
+                          >
+                            Reset password
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
