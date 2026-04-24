@@ -492,6 +492,43 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       rug_count: number;
     }[];
   };
+  get_estimate_attention_groups: {
+    Args: Record<string, never>;
+    Returns: {
+      client_id: string;
+      client_name: string | null;
+      client_email: string | null;
+      company_name: string | null;
+      estimate_count: number;
+      total_amount: number;
+      review_count: number;
+      revision_count: number;
+      ready_count: number;
+      latest_created_at: string | null;
+      rug_tags: string[];
+      estimate_ids: string[];
+    }[];
+  };
+  get_estimate_attention_group_details: {
+    Args: { p_client_id: string };
+    Returns: {
+      id: string;
+      rug_id: string;
+      client_id: string;
+      estimate_number: string;
+      status: EstimateStatus;
+      version: number;
+      total: number;
+      created_at: string;
+      sent_at: string | null;
+      approved_at: string | null;
+      rejected_at: string | null;
+      client_name: string | null;
+      client_email: string | null;
+      company_name: string | null;
+      rug_tag: string | null;
+    }[];
+  };
   queue_estimate_group_batch: {
     Args: { p_estimate_ids: string[] };
     Returns: {

@@ -15,7 +15,6 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   supabaseExtended,
-  type EstimateReviewGroupRow,
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
@@ -25,14 +24,17 @@ import { formatDateTime } from "@/lib/date-helpers";
 import { MS_PER_DAY } from "@/lib/constants";
 import { openOrCreateThread } from "@/lib/thread-navigation";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
-import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
+import {
+  fetchEstimateAttentionGroupDetails,
+  fetchEstimateAttentionGroups,
+  type EstimateAttentionGroupRow,
+} from "@/lib/estimate-attention-groups";
 import {
   expireEstimateGroup as expireEstimateGroupBatch,
   markEstimateGroupReady,
   queueEstimateGroupBatch,
   transitionEstimateStatus,
 } from "@/lib/estimate-group-actions";
-import { fetchEstimateGroupDetails } from "@/lib/estimate-group-details";
 import {
   cancelEstimateSendBatch,
   fetchEstimateSendBatchSummaries,
@@ -56,8 +58,6 @@ type EstimateRow = {
   rugs?: Pick<Tables<"rugs">, "tag"> | null;
 };
 
-const STATUS_ORDER: EstimateStatus[] = ["needs_office_review", "needs_revision", "ready_to_send", "sent", "approved", "rejected", "expired", "draft"];
-
 const STATUS_LABELS: Partial<Record<EstimateStatus, string>> = {
   needs_office_review: "Needs office review",
   needs_revision: "Needs revision",
@@ -71,13 +71,14 @@ type RugOption = {
   clients?: Pick<Tables<"clients">, "name" | "email"> | null;
 };
 
-type EstimateReviewGroupSummary = EstimateReviewGroupRow & {
+type EstimateAttentionGroupSummary = EstimateAttentionGroupRow & {
   groupName: string;
-  groupKey: string;
-  localEstimateCount: number;
 };
 
 const ESTIMATE_STATUS_SET = new Set<EstimateStatus>(["draft", "needs_office_review", "ready_to_send", "sent", "approved", "rejected", "needs_revision", "expired"]);
+const ACTIVE_ATTENTION_STATUSES: EstimateStatus[] = ["needs_office_review", "needs_revision", "ready_to_send"];
+const ACTIVE_ATTENTION_STATUS_SET = new Set<EstimateStatus>(ACTIVE_ATTENTION_STATUSES);
+const MANAGEMENT_STATUS_ORDER: EstimateStatus[] = ["sent", "approved", "rejected", "expired", "draft"];
 
 type EstimateWorkflowResponse = {
   status: "success";
@@ -97,7 +98,7 @@ export function EstimatesTab() {
   const { toast } = useToast();
   const [estimates, setEstimates] = useState<EstimateRow[]>([]);
   const [rugOptions, setRugOptions] = useState<RugOption[]>([]);
-  const [reviewGroups, setReviewGroups] = useState<EstimateReviewGroupSummary[]>([]);
+  const [attentionGroups, setAttentionGroups] = useState<EstimateAttentionGroupSummary[]>([]);
   const [selectedRugId, setSelectedRugId] = useState<string>("none");
   const [estimateSendBatches, setEstimateSendBatches] = useState<EstimateSendBatchSummary[]>([]);
   const [mutatingBatchId, setMutatingBatchId] = useState<string | null>(null);
@@ -108,8 +109,8 @@ export function EstimatesTab() {
   const [bulkReviewingGroupKey, setBulkReviewingGroupKey] = useState<string | null>(null);
   const [bulkExpiringGroupKey, setBulkExpiringGroupKey] = useState<string | null>(null);
   const [clientDecisionByEstimateId, setClientDecisionByEstimateId] = useState<Record<string, { event_type: string; body: string; created_at: string }>>({});
-  const [groupDetailByKey, setGroupDetailByKey] = useState<Record<string, EstimateRow[]>>({});
-  const [loadingGroupKey, setLoadingGroupKey] = useState<string | null>(null);
+  const [attentionDetailByClientId, setAttentionDetailByClientId] = useState<Record<string, EstimateRow[]>>({});
+  const [loadingAttentionClientId, setLoadingAttentionClientId] = useState<string | null>(null);
 
   const statusParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -120,6 +121,8 @@ export function EstimatesTab() {
   const hasReminderFilter = statusFilter !== "all" || minAgeDays > 0;
 
   const fetchData = useCallback(async () => {
+    setAttentionDetailByClientId({});
+
     const { data: estRows, error: estErr } = await supabaseExtended
       .from("estimates")
       .select("id, rug_id, client_id, estimate_number, status, version, total, created_at, sent_at, approved_at, rejected_at, clients(name,email,company), rugs(tag)")
@@ -161,32 +164,20 @@ export function EstimatesTab() {
     setRugOptions((rugsData ?? []) as unknown as RugOption[]);
 
     try {
-      const groupRows = await fetchEstimateReviewGroups();
-      const localEstimateMap = new Map<string, EstimateRow[]>();
-      estimateList.forEach((estimate) => {
-        const key = `${estimate.status}:${estimate.client_id ?? "unknown"}`;
-        if (!localEstimateMap.has(key)) localEstimateMap.set(key, []);
-        localEstimateMap.get(key)!.push(estimate);
-      });
-
-      setReviewGroups(groupRows.map((row) => {
-        const groupName = row.company_name?.trim() ? `${row.company_name} · ${row.client_name ?? "Unknown client"}` : (row.client_name ?? "Unknown client");
-        const groupKey = `${row.status}:${row.client_id}`;
-        const localEstimates = localEstimateMap.get(groupKey) ?? [];
-        return {
-          ...row,
-          groupName,
-          groupKey,
-          localEstimateCount: localEstimates.length,
-        };
-      }));
+      const groupRows = await fetchEstimateAttentionGroups();
+      setAttentionGroups(groupRows.map((row) => ({
+        ...row,
+        groupName: row.company_name?.trim()
+          ? `${row.company_name} · ${row.client_name ?? "Unknown client"}`
+          : (row.client_name ?? "Unknown client"),
+      })));
 
       const batchRows = await fetchEstimateSendBatchSummaries();
       setEstimateSendBatches(batchRows);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to load estimate review groups";
-      toast({ title: "Estimate review summary failed", description: message, variant: "destructive" });
-      setReviewGroups([]);
+      const message = error instanceof Error ? error.message : "Failed to load estimate attention groups";
+      toast({ title: "Estimate attention summary failed", description: message, variant: "destructive" });
+      setAttentionGroups([]);
     }
 
     setLoading(false);
@@ -197,17 +188,17 @@ export function EstimatesTab() {
   }, [fetchData]);
 
 
-  const resolveGroupEstimates = useCallback(async (status: EstimateStatus, clientId: string | null, fallback: EstimateRow[]) => {
+  const resolveAttentionGroupEstimates = useCallback(async (clientId: string | null, fallback: EstimateRow[]) => {
     if (!clientId) return fallback;
 
     try {
-      const detailRows = await fetchEstimateGroupDetails(clientId, status);
+      const detailRows = await fetchEstimateAttentionGroupDetails(clientId);
       return detailRows.map((row) => ({
         id: row.id,
         rug_id: row.rug_id,
         client_id: row.client_id,
         estimate_number: row.estimate_number,
-        status: row.status as EstimateRow["status"],
+        status: row.status,
         version: row.version,
         total: row.total,
         created_at: row.created_at,
@@ -217,7 +208,7 @@ export function EstimatesTab() {
         clients: {
           name: row.client_name ?? null,
           email: row.client_email ?? null,
-          company: null,
+          company: row.company_name ?? null,
         },
         rugs: {
           tag: row.rug_tag ?? null,
@@ -406,20 +397,18 @@ export function EstimatesTab() {
     return next;
   }, [estimates, minAgeDays, statusFilter]);
 
-  const pagination = usePaginatedList(filteredEstimates);
-
   const attentionEstimateCount = useMemo(
-    () => estimates.filter((estimate) => ["needs_office_review", "needs_revision", "ready_to_send"].includes(estimate.status)).length,
-    [estimates],
+    () => attentionGroups.reduce((sum, group) => sum + group.estimate_count, 0),
+    [attentionGroups],
   );
 
-  const managementEstimateCount = useMemo(
-    () => estimates.filter((estimate) => ["sent", "approved", "rejected", "expired", "draft"].includes(estimate.status)).length,
-    [estimates],
+  const readyAttentionCount = useMemo(
+    () => attentionGroups.reduce((sum, group) => sum + group.ready_count, 0),
+    [attentionGroups],
   );
 
-  const moveGroupToReady = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
-    const resolvedEstimates = await resolveGroupEstimates("needs_office_review", estimatesInGroup[0]?.client_id ?? null, estimatesInGroup);
+  const moveGroupToReady = useCallback(async (groupName: string, clientId: string | null, estimatesInGroup: EstimateRow[]) => {
+    const resolvedEstimates = await resolveAttentionGroupEstimates(clientId, estimatesInGroup);
     const reviewEstimates = resolvedEstimates.filter((estimate) => estimate.status === "needs_office_review");
 
     if (reviewEstimates.length === 0) {
@@ -438,17 +427,11 @@ export function EstimatesTab() {
     } finally {
       setBulkReviewingGroupKey(null);
     }
-  }, [fetchData, resolveGroupEstimates, toast]);
+  }, [fetchData, resolveAttentionGroupEstimates, toast]);
 
-  const handleExpireEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
-    const clientId = estimatesInGroup[0]?.client_id ?? null;
-    const resolvedGroups = await Promise.all([
-      resolveGroupEstimates("needs_office_review", clientId, estimatesInGroup),
-      resolveGroupEstimates("ready_to_send", clientId, estimatesInGroup),
-      resolveGroupEstimates("sent", clientId, estimatesInGroup),
-      resolveGroupEstimates("needs_revision", clientId, estimatesInGroup),
-    ]);
-    const expirable = resolvedGroups.flat().filter((estimate) => ["needs_office_review", "ready_to_send", "sent", "needs_revision"].includes(estimate.status));
+  const handleExpireEstimateGroup = useCallback(async (groupName: string, clientId: string | null, estimatesInGroup: EstimateRow[]) => {
+    const resolvedEstimates = await resolveAttentionGroupEstimates(clientId, estimatesInGroup);
+    const expirable = resolvedEstimates.filter((estimate) => ["needs_office_review", "ready_to_send", "needs_revision"].includes(estimate.status));
 
     if (expirable.length === 0) {
       toast({ title: "No expirable estimates", description: "This client group has no active estimates that can be expired.", variant: "destructive" });
@@ -466,10 +449,10 @@ export function EstimatesTab() {
     } finally {
       setBulkExpiringGroupKey(null);
     }
-  }, [fetchData, resolveGroupEstimates, toast]);
+  }, [fetchData, resolveAttentionGroupEstimates, toast]);
 
-  const queueEstimateGroup = useCallback(async (groupName: string, estimatesInGroup: EstimateRow[]) => {
-    const resolvedEstimates = await resolveGroupEstimates("ready_to_send", estimatesInGroup[0]?.client_id ?? null, estimatesInGroup);
+  const queueEstimateGroup = useCallback(async (groupName: string, clientId: string | null, estimatesInGroup: EstimateRow[]) => {
+    const resolvedEstimates = await resolveAttentionGroupEstimates(clientId, estimatesInGroup);
     const readyEstimates = resolvedEstimates.filter((estimate) => estimate.status === "ready_to_send");
 
     if (readyEstimates.length === 0) {
@@ -500,22 +483,19 @@ export function EstimatesTab() {
     } finally {
       setBulkQueueingGroupKey(null);
     }
-  }, [fetchData, resolveGroupEstimates, toast]);
+  }, [fetchData, resolveAttentionGroupEstimates, toast]);
 
-  const loadGroupDetails = useCallback(async (groupKey: string, status: EstimateStatus, clientId: string | null, fallback: EstimateRow[]) => {
-    if (!clientId) {
-      setGroupDetailByKey((prev) => ({ ...prev, [groupKey]: fallback }));
-      return;
-    }
+  const loadAttentionGroupDetails = useCallback(async (clientId: string | null, fallback: EstimateRow[]) => {
+    if (!clientId) return;
 
-    setLoadingGroupKey(groupKey);
+    setLoadingAttentionClientId(clientId);
     try {
-      const rows = await resolveGroupEstimates(status, clientId, fallback);
-      setGroupDetailByKey((prev) => ({ ...prev, [groupKey]: rows }));
+      const rows = await resolveAttentionGroupEstimates(clientId, fallback);
+      setAttentionDetailByClientId((prev) => ({ ...prev, [clientId]: rows }));
     } finally {
-      setLoadingGroupKey((current) => (current === groupKey ? null : current));
+      setLoadingAttentionClientId((current) => (current === clientId ? null : current));
     }
-  }, [resolveGroupEstimates]);
+  }, [resolveAttentionGroupEstimates]);
 
   const openEstimateThread = useCallback(async (estimate: EstimateRow) => {
     if (!estimate.client_id) {
@@ -536,66 +516,62 @@ export function EstimatesTab() {
     }
   }, [navigate, toast]);
 
-  const groupedReviewSummary = useMemo(() => {
-    const grouped = new Map<string, EstimateReviewGroupSummary[]>();
+  const attentionGroupsForDisplay = useMemo(() => {
+    let next = [...attentionGroups];
 
-    reviewGroups.forEach((row) => {
-      if (!grouped.has(row.status)) grouped.set(row.status, []);
-      grouped.get(row.status)!.push(row);
-    });
-
-    return STATUS_ORDER
-      .filter((status) => grouped.has(status))
-      .map((status) => ({
-        status,
-        label: STATUS_LABELS[status] ?? status,
-        groups: grouped.get(status)!.sort((a, b) => a.groupName.localeCompare(b.groupName)),
-      }));
-  }, [reviewGroups]);
-
-  const grouped = useMemo(() => {
-    const reviewGroupMap = new Map(reviewGroups.map((group) => [group.groupKey, group]));
-    const statusMap = new Map<string, Map<string, { groupName: string; groupKey: string; estimates: EstimateRow[]; summary?: EstimateReviewGroupSummary; clientId: string | null }>>();
-
-    reviewGroups.forEach((group) => {
-      if (!statusMap.has(group.status)) statusMap.set(group.status, new Map());
-      statusMap.get(group.status)!.set(group.groupKey, {
-        groupName: group.groupName,
-        groupKey: group.groupKey,
-        estimates: [],
-        summary: group,
-        clientId: group.client_id,
+    if (statusFilter !== "all" && ACTIVE_ATTENTION_STATUS_SET.has(statusFilter)) {
+      next = next.filter((group) => {
+        if (statusFilter === "needs_office_review") return group.review_count > 0;
+        if (statusFilter === "needs_revision") return group.revision_count > 0;
+        if (statusFilter === "ready_to_send") return group.ready_count > 0;
+        return true;
       });
-    });
+    }
 
-    pagination.items.forEach((estimate) => {
+    if (minAgeDays > 0) {
+      next = next.filter((group) => {
+        const ageMs = Date.now() - Date.parse(group.latest_created_at ?? "");
+        if (!Number.isFinite(ageMs)) return false;
+        return ageMs >= minAgeDays * MS_PER_DAY;
+      });
+    }
+
+    return next;
+  }, [attentionGroups, minAgeDays, statusFilter]);
+
+  const managementEstimates = useMemo(() => (
+    filteredEstimates.filter((estimate) => !ACTIVE_ATTENTION_STATUS_SET.has(estimate.status))
+  ), [filteredEstimates]);
+
+  const managementPagination = usePaginatedList(managementEstimates);
+
+  const managementGroups = useMemo(() => {
+    const statusMap = new Map<string, Map<string, { groupName: string; estimates: EstimateRow[] }>>();
+
+    managementPagination.items.forEach((estimate) => {
       const statusKey = estimate.status;
       const groupKey = `${estimate.status}:${estimate.client_id ?? "unknown"}`;
-      const summary = reviewGroupMap.get(groupKey);
-      const groupName = summary?.groupName ?? (estimate.clients?.company?.trim()
+      const groupName = estimate.clients?.company?.trim()
         ? `${estimate.clients.company.trim()} · ${estimate.clients?.name?.trim() || "Unknown client"}`
-        : estimate.clients?.name?.trim() || "Unknown client");
+        : estimate.clients?.name?.trim() || "Unknown client";
 
       if (!statusMap.has(statusKey)) statusMap.set(statusKey, new Map());
       const clientMap = statusMap.get(statusKey)!;
       if (!clientMap.has(groupKey)) clientMap.set(groupKey, {
         groupName,
-        groupKey,
         estimates: [],
-        summary,
-        clientId: estimate.client_id,
       });
       clientMap.get(groupKey)!.estimates.push(estimate);
     });
 
-    return STATUS_ORDER
+    return MANAGEMENT_STATUS_ORDER
       .filter((status) => statusMap.has(status))
       .map((status) => ({
         status,
         label: STATUS_LABELS[status] ?? status,
         groups: Array.from(statusMap.get(status)!.values()).sort((a, b) => a.groupName.localeCompare(b.groupName)),
       }));
-  }, [pagination.items, reviewGroups]);
+  }, [managementPagination.items]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">Loading estimates…</div>;
@@ -622,14 +598,14 @@ export function EstimatesTab() {
             <div className="mt-1 text-xs text-muted-foreground">Needs office review, needs revision, and ready-to-send estimate work.</div>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Grouped review units</div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{reviewGroups.length}</div>
-            <div className="mt-1 text-xs text-muted-foreground">Backend-owned client/company review groups currently available.</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Account review groups</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{attentionGroupsForDisplay.length}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Grouped client/company queues currently needing office attention.</div>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Management / archive</div>
-            <div className="mt-2 text-2xl font-semibold text-foreground">{managementEstimateCount}</div>
-            <div className="mt-1 text-xs text-muted-foreground">Historical, decisioned, or otherwise secondary estimate records still visible here temporarily.</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Ready to queue</div>
+            <div className="mt-2 text-2xl font-semibold text-foreground">{readyAttentionCount}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Reviewed estimates currently eligible for the end-of-day batch.</div>
           </div>
         </div>
       </section>
@@ -709,161 +685,115 @@ export function EstimatesTab() {
         </section>
       ) : null}
 
-      {groupedReviewSummary.length > 0 ? (
+      {attentionGroupsForDisplay.length === 0 ? (
+        <section className="rounded-lg border border-dashed bg-card/60 p-4 text-sm text-muted-foreground">
+          No grouped estimate attention items match the current filters.
+        </section>
+      ) : (
         <section className="rounded-lg border bg-card p-4 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
               <h3 className="text-sm font-medium">Grouped review queue</h3>
-              <p className="text-xs text-muted-foreground">Primary account-level review queue from backend review groups</p>
+              <p className="text-xs text-muted-foreground">One client/company card per active estimate account, with all current review work together.</p>
             </div>
             <span className="text-xs text-muted-foreground">Live RPC-backed</span>
           </div>
-          <div className="space-y-3">
-            {groupedReviewSummary.map(({ status, label, groups }) => (
-              <div key={`summary-${status}`} className="rounded-md border bg-muted/10 overflow-hidden">
-                <div className="px-3 py-2 flex items-center justify-between">
-                  <p className="text-sm font-medium">{label}</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground">{groups.length} group{groups.length === 1 ? "" : "s"}</span>
-                    <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimate_count, 0)}</Badge>
-                  </div>
-                </div>
-                <Separator />
-                <div className="divide-y">
-                  {groups.map((group) => (
-                    <div key={`summary-row-${status}-${group.client_id}`} className="px-3 py-2 text-xs flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="font-medium text-foreground">{group.groupName}</p>
-                        <p className="text-muted-foreground">{group.estimate_count} estimate{group.estimate_count === 1 ? "" : "s"} · ${group.total_amount.toFixed(2)}</p>
-                        {group.localEstimateCount !== group.estimate_count ? (
-                          <p className="text-[11px] text-amber-600">UI/page slice currently shows {group.localEstimateCount} of {group.estimate_count} backend grouped estimate{group.estimate_count === 1 ? "" : "s"}.</p>
+          <div className="space-y-4">
+            {attentionGroupsForDisplay.map((group) => {
+              const fallbackEstimates = estimates
+                .filter((estimate) => estimate.client_id === group.client_id && ACTIVE_ATTENTION_STATUS_SET.has(estimate.status))
+                .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+              const detailRows = attentionDetailByClientId[group.client_id] ?? fallbackEstimates;
+              const isLoadingGroup = loadingAttentionClientId === group.client_id;
+              const canSelectRug = detailRows.some((estimate) => !!estimate.rug_id);
+              const missingLoadedRows = detailRows.length !== group.estimate_count;
+
+              return (
+                <div key={group.client_id} className="rounded-lg border bg-muted/10 overflow-hidden">
+                  <div className="px-4 py-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{group.groupName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {group.estimate_count} active estimate{group.estimate_count === 1 ? "" : "s"} · ${group.total_amount.toFixed(2)}
+                            {group.latest_created_at ? ` · latest ${formatDateTime(group.latest_created_at)}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          <span>{group.review_count} need review</span>
+                          <span>•</span>
+                          <span>{group.revision_count} need revision</span>
+                          <span>•</span>
+                          <span>{group.ready_count} ready to queue</span>
+                        </div>
+                        {group.rug_tags.length > 0 ? (
+                          <p className="text-[11px] text-muted-foreground">Rugs: {group.rug_tags.join(", ")}</p>
+                        ) : null}
+                        {missingLoadedRows ? (
+                          <p className="text-[11px] text-amber-600">Showing {detailRows.length} of {group.estimate_count} active estimate rows locally. Refresh details for the backend-complete group.</p>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex gap-3 text-muted-foreground">
-                          <span>{group.review_count} review</span>
-                          <span>{group.ready_count} ready</span>
-                          <span>{group.sent_count} sent</span>
-                        </div>
+                      <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-7 text-xs"
                           onClick={() => {
-                            const matchingEstimate = estimates.find((estimate) => estimate.client_id === group.client_id && estimate.status === group.status);
+                            const matchingEstimate = detailRows.find((estimate) => !!estimate.rug_id);
                             if (matchingEstimate?.rug_id) {
                               setSelectedRugId(matchingEstimate.rug_id);
                             }
                           }}
-                          disabled={!estimates.some((estimate) => estimate.client_id === group.client_id && estimate.status === group.status && !!estimate.rug_id)}
+                          disabled={!canSelectRug}
                         >
                           Select group rug
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => loadAttentionGroupDetails(group.client_id, fallbackEstimates)}
+                          disabled={isLoadingGroup}
+                        >
+                          {isLoadingGroup ? "Refreshing..." : detailRows.length === 0 ? "Load group details" : "Refresh details"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => moveGroupToReady(group.groupName, group.client_id, detailRows)}
+                          disabled={bulkReviewingGroupKey === group.groupName || group.review_count === 0}
+                        >
+                          {bulkReviewingGroupKey === group.groupName ? "Updating..." : "Mark review group ready"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => queueEstimateGroup(group.groupName, group.client_id, detailRows)}
+                          disabled={bulkQueueingGroupKey === group.groupName || group.ready_count === 0}
+                        >
+                          {bulkQueueingGroupKey === group.groupName ? "Queueing..." : "Queue ready group"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => handleExpireEstimateGroup(group.groupName, group.client_id, detailRows)}
+                          disabled={bulkExpiringGroupKey === group.groupName || group.estimate_count === 0}
+                        >
+                          {bulkExpiringGroupKey === group.groupName ? "Expiring..." : "Expire active group"}
+                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="space-y-2">
-        <div>
-          <h3 className="text-sm font-medium text-foreground">Management and history (transitional)</h3>
-          <p className="text-xs text-muted-foreground">Broader estimate history remains here temporarily until a dedicated management surface is split out.</p>
-        </div>
-      </section>
-
-      {grouped.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No estimates created yet.</p>
-      ) : (
-        grouped.map(({ status, label, groups }) => (
-          <section key={status} className="border rounded-lg bg-card overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <h3 className="font-medium text-sm">{label}</h3>
-              <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimates.length, 0)}</Badge>
-            </div>
-            <Separator />
-            <div>
-              {groups.map((group, groupIndex) => (
-                <div key={`${status}-${group.groupName}`} className={groupIndex > 0 ? "border-t" : ""}>
-                  <div className="px-4 py-3 bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{group.groupName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {group.summary?.estimate_count ?? group.estimates.length} estimate{(group.summary?.estimate_count ?? group.estimates.length) === 1 ? "" : "s"}
-                        {group.summary ? ` · $${group.summary.total_amount.toFixed(2)}` : ""}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                        <span>{group.summary?.review_count ?? group.estimates.filter((estimate) => estimate.status === "needs_office_review").length} in review</span>
-                        <span>•</span>
-                        <span>{group.summary?.ready_count ?? group.estimates.filter((estimate) => estimate.status === "ready_to_send").length} ready</span>
-                        <span>•</span>
-                        <span>{group.summary?.sent_count ?? group.estimates.filter((estimate) => estimate.status === "sent").length} sent</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => moveGroupToReady(group.groupName, group.estimates)}
-                        disabled={bulkReviewingGroupKey === group.groupName || !(group.summary?.review_count ?? group.estimates.filter((estimate) => estimate.status === "needs_office_review").length)}
-                      >
-                        {bulkReviewingGroupKey === group.groupName ? "Updating..." : "Mark review group ready"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => queueEstimateGroup(group.groupName, group.estimates)}
-                        disabled={bulkQueueingGroupKey === group.groupName || !(group.summary?.ready_count ?? group.estimates.filter((estimate) => estimate.status === "ready_to_send").length)}
-                      >
-                        {bulkQueueingGroupKey === group.groupName ? "Queueing..." : "Queue ready group"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => handleExpireEstimateGroup(group.groupName, group.estimates)}
-                        disabled={bulkExpiringGroupKey === group.groupName || !((group.summary?.estimate_count ?? group.estimates.length) > 0)}
-                      >
-                        {bulkExpiringGroupKey === group.groupName ? "Expiring..." : "Expire active group"}
-                      </Button>
                     </div>
                   </div>
-                  {(() => {
-                    const detailRows = groupDetailByKey[group.groupKey] ?? group.estimates;
-                    const isLoadingGroup = loadingGroupKey === group.groupKey;
-
-                    if (detailRows.length === 0) {
-                      return (
-                        <div className="px-4 py-3 space-y-2 text-xs text-muted-foreground">
-                          <p>This backend group exists, but no estimate rows are currently loaded for it.</p>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => loadGroupDetails(group.groupKey, status, group.clientId, group.estimates)}
-                            disabled={isLoadingGroup}
-                          >
-                            {isLoadingGroup ? "Loading details..." : "Load group details"}
-                          </Button>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="divide-y">
-                    {detailRows.map((estimate) => {
-                      const clientDecision = clientDecisionByEstimateId[estimate.id];
-                      const clientNote = clientDecision?.body?.includes("Client note:")
-                        ? clientDecision.body.split("Client note:")[1]?.trim()
-                        : null;
-
-                      return (
+                  <Separator />
+                  {detailRows.length === 0 ? (
+                    <div className="px-4 py-3 text-xs text-muted-foreground">No active estimate rows are currently loaded for this group.</div>
+                  ) : (
+                    <div className="divide-y">
+                      {detailRows.map((estimate) => (
                         <div key={estimate.id} className="px-4 py-3 space-y-2">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <div>
@@ -878,16 +808,6 @@ export function EstimatesTab() {
                           {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send") && !estimate.clients?.email?.trim() && (
                             <div className="rounded border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                               Missing client email, add an email on the client record before sending this estimate.
-                            </div>
-                          )}
-
-                          {(estimate.status === "approved" || estimate.status === "rejected") && (
-                            <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
-                              <p className="text-muted-foreground font-medium">
-                                {estimate.status === "approved" && estimate.approved_at && `Client approved ${formatDateTime(estimate.approved_at)}`}
-                                {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${formatDateTime(estimate.rejected_at)}`}
-                              </p>
-                              {clientNote && <p className="text-foreground">Client note: {clientNote}</p>}
                             </div>
                           )}
 
@@ -925,6 +845,92 @@ export function EstimatesTab() {
                                 {sendingEstimateId === estimate.id ? "Queueing..." : !estimate.clients?.email?.trim() ? "Email required" : "Queue for 3 PM ET"}
                               </Button>
                             )}
+                            {estimate.status === "needs_revision" && (
+                              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "needs_office_review")}>
+                                Return to office review
+                              </Button>
+                            )}
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "expired")}>
+                              Mark expired
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-2">
+        <div>
+          <h3 className="text-sm font-medium text-foreground">Management and history (transitional)</h3>
+          <p className="text-xs text-muted-foreground">Broader estimate history remains here temporarily until a dedicated management surface is split out.</p>
+        </div>
+      </section>
+
+      {managementGroups.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No management/history estimates match the current filter.</p>
+      ) : (
+        managementGroups.map(({ status, label, groups }) => (
+          <section key={status} className="border rounded-lg bg-card overflow-hidden">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <h3 className="font-medium text-sm">{label}</h3>
+              <Badge variant="secondary" className="text-xs">{groups.reduce((sum, group) => sum + group.estimates.length, 0)}</Badge>
+            </div>
+            <Separator />
+            <div>
+              {groups.map((group, groupIndex) => (
+                <div key={`${status}-${group.groupName}`} className={groupIndex > 0 ? "border-t" : ""}>
+                  <div className="px-4 py-3 bg-muted/20">
+                    <p className="text-sm font-medium text-foreground">{group.groupName}</p>
+                    <p className="text-xs text-muted-foreground">{group.estimates.length} estimate{group.estimates.length === 1 ? "" : "s"}</p>
+                  </div>
+                  <div className="divide-y">
+                    {group.estimates.map((estimate) => {
+                      const clientDecision = clientDecisionByEstimateId[estimate.id];
+                      const clientNote = clientDecision?.body?.includes("Client note:")
+                        ? clientDecision.body.split("Client note:")[1]?.trim()
+                        : null;
+
+                      return (
+                        <div key={estimate.id} className="px-4 py-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <p className="text-sm font-medium">{estimate.estimate_number}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {estimate.clients?.name ?? "Unknown client"} · {estimate.rugs?.tag ?? "Unknown rug"} · ${Number(estimate.total).toFixed(2)}
+                              </p>
+                            </div>
+                            <EstimateStatusBadge status={estimate.status} />
+                          </div>
+
+                          {(estimate.status === "approved" || estimate.status === "rejected") && (
+                            <div className="rounded border bg-muted/40 px-3 py-2 text-xs space-y-1">
+                              <p className="text-muted-foreground font-medium">
+                                {estimate.status === "approved" && estimate.approved_at && `Client approved ${formatDateTime(estimate.approved_at)}`}
+                                {estimate.status === "rejected" && estimate.rejected_at && `Client denied ${formatDateTime(estimate.rejected_at)}`}
+                              </p>
+                              {clientNote && <p className="text-foreground">Client note: {clientNote}</p>}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => openEstimateThread(estimate)}>
+                              Open thread
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => setSelectedRugId(estimate.rug_id ?? "none")}
+                              disabled={!estimate.rug_id}
+                            >
+                              Select rug
+                            </Button>
                             {estimate.status === "sent" && (
                               <>
                                 <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "approved")}>
@@ -940,23 +946,11 @@ export function EstimatesTab() {
                                 {creating ? "Creating..." : "Revise estimate"}
                               </Button>
                             )}
-                            {estimate.status === "needs_revision" && (
-                              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "needs_office_review")}>
-                                Return to office review
-                              </Button>
-                            )}
-                            {(estimate.status === "needs_office_review" || estimate.status === "ready_to_send" || estimate.status === "sent" || estimate.status === "needs_revision") && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEstimateStatus(estimate, "expired")}>
-                                Mark expired
-                              </Button>
-                            )}
                           </div>
                         </div>
                       );
                     })}
-                      </div>
-                    );
-                  })()}
+                  </div>
                 </div>
               ))}
             </div>
@@ -965,14 +959,14 @@ export function EstimatesTab() {
       )}
 
       <PaginationControls
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        total={pagination.total}
-        hasPrev={pagination.hasPrev}
-        hasNext={pagination.hasNext}
-        onPrev={pagination.prevPage}
-        onNext={pagination.nextPage}
-        label="estimates"
+        page={managementPagination.page}
+        totalPages={managementPagination.totalPages}
+        total={managementPagination.total}
+        hasPrev={managementPagination.hasPrev}
+        hasNext={managementPagination.hasNext}
+        onPrev={managementPagination.prevPage}
+        onNext={managementPagination.nextPage}
+        label="management estimates"
       />
     </div>
   );

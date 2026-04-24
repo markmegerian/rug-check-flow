@@ -74,7 +74,7 @@ Status legend:
   - [x] Write formal redesign spec in `docs/estimate-workflow-redesign-2026-04-20.md`
   - [x] Inventory current estimate send/review touchpoints and portal dependencies for implementation cutover (`docs/estimate-cutover-audit-2026-04-24.md`)
   - [x] Define final DB/status migration strategy and rollback path (`docs/estimate-migration-strategy-2026-04-24.md`)
-  - [ ] Rebuild office Estimates surface around grouped company review queue
+  - [x] Rebuild office Estimates surface around grouped company review queue
   - [~] Rewrite estimate send path around grouped end-of-day client/company batch sends
     - [x] Stop Check In from pre-queueing estimate batch sends before office review
     - [x] Clean up stale unsent pre-queued estimate cadence rows during cutover
