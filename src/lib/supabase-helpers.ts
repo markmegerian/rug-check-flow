@@ -31,6 +31,47 @@ export async function safeMutation<T = null>(
 /**
  * Invoke a Supabase edge function with consistent error handling.
  */
+export async function extractInvokeErrorMessage(error: unknown): Promise<string | null> {
+  if (!error || typeof error !== "object") return null;
+
+  const maybeError = error as {
+    message?: string;
+    context?: Response;
+    status?: number;
+    statusText?: string;
+  };
+
+  if (maybeError.context instanceof Response) {
+    try {
+      const response = maybeError.context.clone();
+      const contentType = response.headers.get("content-type") ?? "";
+
+      if (contentType.includes("application/json")) {
+        const payload = await response.json() as Record<string, unknown>;
+        if (typeof payload.error === "string" && payload.error.trim()) return payload.error.trim();
+        if (typeof payload.message === "string" && payload.message.trim()) return payload.message.trim();
+      }
+
+      const text = (await response.text()).trim();
+      if (text) return text;
+    } catch {
+      // fall through to generic message handling
+    }
+  }
+
+  if (typeof maybeError.message === "string" && maybeError.message.trim()) {
+    return maybeError.message.trim();
+  }
+
+  if (typeof maybeError.status === "number") {
+    return typeof maybeError.statusText === "string" && maybeError.statusText.trim()
+      ? `${maybeError.status} ${maybeError.statusText.trim()}`
+      : `Function error ${maybeError.status}`;
+  }
+
+  return null;
+}
+
 export async function safeInvoke<T = Record<string, unknown>>(
   functionName: string,
   body: Record<string, unknown>,
@@ -38,7 +79,9 @@ export async function safeInvoke<T = Record<string, unknown>>(
 ): Promise<MutationResult<T>> {
   try {
     const { data, error } = await supabase.functions.invoke<T>(functionName, { body, headers });
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      return { success: false, error: await extractInvokeErrorMessage(error) ?? error.message };
+    }
     if (!data) return { success: false, error: "No data returned from function" };
     // Check for error in response body
     const responseObj = data as Record<string, unknown>;
@@ -49,7 +92,7 @@ export async function safeInvoke<T = Record<string, unknown>>(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: await extractInvokeErrorMessage(err) ?? (err instanceof Error ? err.message : "Unknown error"),
     };
   }
 }
