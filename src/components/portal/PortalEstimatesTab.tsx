@@ -11,10 +11,10 @@ import type { PortalTabProps } from "./portal-tab-props";
 import { Check, FileText, X } from "lucide-react";
 import {
   supabaseExtended,
-  type ExtendedTableInsert,
   type ExtendedTableRow,
 } from "@/integrations/supabase/extended";
 import { isRugServiceApprovalStatusAvailable } from "@/lib/rug-service-approval";
+import { transitionEstimateStatus } from "@/lib/estimate-group-actions";
 import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/workflow-guards";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -165,9 +165,6 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
     if (!clientId || estimate.status !== "sent") return;
     setUpdatingId(estimate.id);
 
-    const timestampField = nextStatus === "approved" ? "approved_at" : "rejected_at";
-    const nowIso = new Date().toISOString();
-
     if (!canRoleTransitionEstimateStatus("portal", estimate.status, nextStatus)) {
       toast({
         title: "Update blocked",
@@ -178,52 +175,34 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
       return;
     }
 
-    const { data, error } = await supabaseExtended
-      .from("estimates")
-      .update({ status: nextStatus, [timestampField]: nowIso })
-      .eq("id", estimate.id)
-      .eq("client_id", clientId)
-      .eq("status", "sent")
-      .select("id")
-      .maybeSingle();
-
-    if (error) {
-      toast({ title: "Failed to update estimate", description: error.message, variant: "destructive" });
-      setUpdatingId(null); return;
-    }
-
-    if (!data?.id) {
-      toast({ title: "Estimate already updated", description: "Reload and check the latest status." });
-      setUpdatingId(null);
-      await fetchEstimates(clientId); return;
-    }
-
-    const eventType = nextStatus === "approved" ? "estimate_approved_by_client" : "estimate_rejected_by_client";
-    const decisionNote = (decisionNotes[estimate.id] ?? "").trim();
-    const eventPayload: ExtendedTableInsert<"communication_events"> = {
-      client_id: clientId,
-      estimate_id: estimate.id,
-      channel: "in_app_chat",
-      direction: "inbound",
-      event_type: eventType,
-      subject: `${estimate.estimate_number} ${nextStatus}`,
-      body: decisionNote
-        ? `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.\n\nClient note: ${decisionNote}`
-        : `Portal client marked estimate ${estimate.estimate_number} as ${nextStatus}.`,
-    };
     try {
-      const { error: eventError } = await supabaseExtended.from("communication_events").insert(eventPayload);
-      if (eventError) {
-        console.warn("Communication event insert failed (non-blocking):", eventError.message);
-      }
-    } catch (eventErr) {
-      console.warn("Communication event insert threw (non-blocking):", eventErr);
-    }
+      const result = await transitionEstimateStatus({
+        estimateId: estimate.id,
+        nextStatus,
+        note: decisionNotes[estimate.id] ?? "",
+      });
 
-    setEstimates((prev) => prev.map((row) => row.id === estimate.id ? { ...row, status: nextStatus, [timestampField]: nowIso } : row));
-    setDecisionNotes((prev) => ({ ...prev, [estimate.id]: "" }));
-    toast({ title: `Estimate ${nextStatus}` });
-    setUpdatingId(null);
+      if (result.updatedCount <= 0) {
+        toast({ title: "Estimate already updated", description: "Reload and check the latest status." });
+        setUpdatingId(null);
+        await fetchEstimates(clientId);
+        return;
+      }
+
+      setEstimates((prev) => prev.map((row) => row.id === estimate.id ? {
+        ...row,
+        status: nextStatus,
+        approved_at: result.approvedAt,
+        rejected_at: result.rejectedAt,
+      } : row));
+      setDecisionNotes((prev) => ({ ...prev, [estimate.id]: "" }));
+      toast({ title: `Estimate ${nextStatus}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Failed to update estimate", description: message, variant: "destructive" });
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);

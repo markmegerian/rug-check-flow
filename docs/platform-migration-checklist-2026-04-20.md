@@ -75,8 +75,13 @@ Status legend:
   - [x] Inventory current estimate send/review touchpoints and portal dependencies for implementation cutover (`docs/estimate-cutover-audit-2026-04-24.md`)
   - [x] Define final DB/status migration strategy and rollback path (`docs/estimate-migration-strategy-2026-04-24.md`)
   - [ ] Rebuild office Estimates surface around grouped company review queue
-  - [ ] Rewrite estimate send path around grouped end-of-day client/company batch sends
-  - [ ] Update portal/client estimate visibility and response flow to match the new lifecycle
+  - [~] Rewrite estimate send path around grouped end-of-day client/company batch sends
+    - [x] Stop Check In from pre-queueing estimate batch sends before office review
+    - [x] Clean up stale unsent pre-queued estimate cadence rows during cutover
+    - [x] Route single-estimate office queueing and status transitions through backend helpers instead of browser-owned writes
+  - [~] Update portal/client estimate visibility and response flow to match the new lifecycle
+    - [x] Route portal approve/reject transitions through the shared backend status helper while preserving client-response event logging
+    - [ ] Restrict portal estimate reads/history to client-facing states only
 - [~] Review services catalog, approval behavior, and pricing calculation rules end to end
   - [ ] Audit live services list for names, categories, active state, units, base/preferred/vip prices, sort order, and `requires_estimate`
   - [ ] Compare live catalog against frontend assumptions such as `Standard Wash` naming/category behavior

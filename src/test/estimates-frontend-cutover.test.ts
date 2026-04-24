@@ -12,4 +12,21 @@ describe("estimates frontend cutover", () => {
     expect(file).not.toContain('delete().eq("id", insertedEstimate.id)');
     expect(file).not.toContain('.select("description, quantity, unit_price, total, service_category, rug_service_id")');
   });
+
+  it("routes office estimate status changes and queueing through backend helpers", () => {
+    const file = readFileSync(resolve(process.cwd(), "src/components/office/EstimatesTab.tsx"), "utf-8");
+    expect(file).toContain("markEstimateGroupReady([estimate])");
+    expect(file).toContain("expireEstimateGroupBatch([estimate])");
+    expect(file).toContain("queueEstimateGroupBatch([estimate])");
+    expect(file).toContain("transitionEstimateStatus({");
+    expect(file).not.toContain('.from("estimates")\n      .update(');
+    expect(file).not.toContain("queueEstimateForBatchSend");
+  });
+
+  it("routes portal approve/reject transitions through the shared backend status helper", () => {
+    const file = readFileSync(resolve(process.cwd(), "src/components/portal/PortalEstimatesTab.tsx"), "utf-8");
+    expect(file).toContain("transitionEstimateStatus({");
+    expect(file).not.toContain('.from("estimates")\n      .update({ status: nextStatus');
+    expect(file).not.toContain('.from("communication_events").insert(eventPayload)');
+  });
 });

@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("reminder workflow correctness", () => {
-  it("queues estimates for the daily batch instead of sending immediately from the office tab", () => {
+  it("queues estimates for the daily batch through backend-owned batch helpers instead of a legacy single-send path", () => {
     const estimates = readFileSync(resolve(process.cwd(), "src/components/office/EstimatesTab.tsx"), "utf-8");
-    expect(estimates).toContain("queueEstimateForBatchSend");
+    expect(estimates).toContain("queueEstimateGroupBatch([estimate])");
+    expect(estimates).not.toContain("queueEstimateForBatchSend");
     expect(estimates).not.toContain("send-estimate-email");
   });
 

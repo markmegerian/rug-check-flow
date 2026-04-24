@@ -1,4 +1,5 @@
 import { supabaseExtended, type ExtendedTableRow } from "@/integrations/supabase/extended";
+import type { EstimateStatus } from "@/lib/workflow-guards";
 
 type EstimateRow = {
   id: string;
@@ -47,4 +48,27 @@ export async function queueEstimateGroupBatch(estimatesInGroup: EstimateRow[]) {
 
   if (error) throw error;
   return Number(data?.[0]?.queued_count ?? 0);
+}
+
+export async function transitionEstimateStatus(params: {
+  estimateId: string;
+  nextStatus: Extract<EstimateStatus, "approved" | "rejected" | "needs_office_review">;
+  note?: string;
+}) {
+  const { data, error } = await supabaseExtended.rpc("transition_estimate_status", {
+    p_estimate_id: params.estimateId,
+    p_next_status: params.nextStatus,
+    p_note: params.note ?? null,
+  });
+
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : null;
+  return {
+    updatedCount: Number(row?.updated_count ?? 0),
+    estimateId: row?.estimate_id ?? params.estimateId,
+    status: (row?.status ?? params.nextStatus) as EstimateStatus,
+    approvedAt: row?.approved_at ?? null,
+    rejectedAt: row?.rejected_at ?? null,
+  };
 }

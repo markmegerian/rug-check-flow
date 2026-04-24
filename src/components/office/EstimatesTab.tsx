@@ -24,13 +24,13 @@ import { EstimateStatusBadge } from "@/components/shared/StatusBadge";
 import { formatDateTime } from "@/lib/date-helpers";
 import { MS_PER_DAY } from "@/lib/constants";
 import { openOrCreateThread } from "@/lib/thread-navigation";
-import { queueEstimateForBatchSend } from "@/lib/notification-cadence-store";
 import { getAuthHeaders, safeInvoke } from "@/lib/supabase-helpers";
 import { fetchEstimateReviewGroups } from "@/lib/estimate-review-groups";
 import {
   expireEstimateGroup as expireEstimateGroupBatch,
   markEstimateGroupReady,
   queueEstimateGroupBatch,
+  transitionEstimateStatus,
 } from "@/lib/estimate-group-actions";
 import { fetchEstimateGroupDetails } from "@/lib/estimate-group-details";
 import {
@@ -300,30 +300,6 @@ export function EstimatesTab() {
   };
 
 
-  const logCommunicationEvent = async (estimate: EstimateRow, eventType: string, subject: string, body: string) => {
-    const { error } = await supabaseExtended.from("communication_events").insert({
-      client_id: estimate.client_id,
-      rug_id: estimate.rug_id,
-      estimate_id: estimate.id,
-      channel: "email",
-      direction: "outbound",
-      event_type: eventType,
-      subject,
-      body,
-      sent_to: estimate.clients?.email ?? null,
-    });
-
-    if (error) {
-      toast({
-        title: "Communication event logging failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-
-    return !error;
-  };
-
   const reviseEstimate = async (estimate: EstimateRow) => {
     if (estimate.status !== "rejected") return;
     setCreating(true);
@@ -361,15 +337,13 @@ export function EstimatesTab() {
 
     setSendingEstimateId(estimate.id);
     try {
-      await queueEstimateForBatchSend({
-        clientId: estimate.client_id,
-        estimateId: estimate.id,
-        queuedAt: new Date().toISOString(),
-      });
+      const queuedCount = await queueEstimateGroupBatch([estimate]);
       await fetchData();
       toast({
-        title: "Estimate queued",
-        description: `${estimate.estimate_number} will send in the daily 3:00 PM Eastern batch.`,
+        title: queuedCount > 0 ? "Estimate queued" : "Estimate queue skipped",
+        description: queuedCount > 0
+          ? `${estimate.estimate_number} will send in the daily 3:00 PM Eastern batch.`
+          : `${estimate.estimate_number} could not be queued.`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -389,28 +363,32 @@ export function EstimatesTab() {
       return;
     }
 
-    const updates: Partial<ExtendedTableRow<"estimates">> = { status };
-    if (status === "approved") updates.approved_at = new Date().toISOString();
-    if (status === "rejected") updates.rejected_at = new Date().toISOString();
+    try {
+      if (status === "ready_to_send") {
+        await markEstimateGroupReady([estimate]);
+      } else if (status === "expired") {
+        await expireEstimateGroupBatch([estimate]);
+      } else if (status === "approved" || status === "rejected" || status === "needs_office_review") {
+        const result = await transitionEstimateStatus({
+          estimateId: estimate.id,
+          nextStatus: status,
+        });
 
-    const { error } = await supabaseExtended
-      .from("estimates")
-      .update(updates)
-      .eq("id", estimate.id);
+        if (result.updatedCount <= 0) {
+          toast({ title: "Status update skipped", description: `${estimate.estimate_number} could not be updated.`, variant: "destructive" });
+          return;
+        }
+      } else {
+        toast({ title: "Unsupported action", description: `No backend transition is configured for ${status}.`, variant: "destructive" });
+        return;
+      }
 
-    if (error) {
-      toast({ title: "Status update failed", description: error.message, variant: "destructive" });
-      return;
+      await fetchData();
+      toast({ title: `Estimate ${status}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Status update failed", description: message, variant: "destructive" });
     }
-
-    const updatedEstimate = { ...estimate, ...updates } as EstimateRow;
-    setEstimates((prev) => prev.map((e) => (e.id === estimate.id ? updatedEstimate : e)));
-
-    const baseSubject = `${estimate.estimate_number} ${status}`;
-    const baseBody = `Estimate ${estimate.estimate_number} for ${estimate.clients?.name ?? "client"} is now ${status}.`;
-    await logCommunicationEvent(updatedEstimate, `estimate_${status}`, baseSubject, baseBody);
-
-    toast({ title: `Estimate ${status}` });
   };
 
   const filteredEstimates = useMemo(() => {
