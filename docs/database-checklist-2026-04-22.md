@@ -54,20 +54,25 @@ The safest current DB truth source is still:
 ## Should do soon
 
 ### 3. Improve full schema comparison confidence
-**Status:** Open, blocked by shadow replay failure (reconfirmed 2026-04-22)
+**Status:** Advanced on 2026-04-26 via dump-based alternative; replay-safe pull still open as later cleanup
 
 **Problem:**
-`supabase db pull --linked --schema public --yes` is not replay-safe right now.
+`supabase db pull --linked --schema public --yes` is not replay-safe right now because `0001_initial.sql` is a context snapshot, not an executable baseline.
 
 **Known failure:**
 - FK replay failure around `admin_audit_logs.company_id -> public.companies`
-- reconfirmed by fresh run on 2026-04-22 in `docs/database-schema-pull-verification-2026-04-22.md`
+- reconfirmed by fresh debug run on 2026-04-26
+
+**New working alternative:**
+- `supabase db dump --linked --schema public --file <path>` succeeds against the linked project
+- documented in `docs/database-schema-dump-verification-2026-04-26.md`
 
 **Why it matters:**
-This is not the main launch risk, but it limits confidence for full remote-schema comparison.
+This restores a truthful whole-schema capture path without depending on shadow replay.
 
 **Exit condition:**
-- either repair the baseline replay path, or establish a documented alternative full-schema comparison method
+- met enough for current checklist purposes via documented dump-based remote schema capture
+- replay-safe baseline repair remains later tooling cleanup, not the current blocker
 
 ---
 
@@ -140,7 +145,7 @@ These do **not** appear to be the main remaining DB problem right now:
 **Live end-to-end cadence verification**
 
 ### Secondary DB item
-**Recover reliable full schema comparison confidence**
+**Live end-to-end cadence verification remains the main open DB proof gap; schema capture confidence now has a workable dump-based path**
 
 ### Not urgent right now
 **Large new migration authoring spree**
@@ -151,5 +156,6 @@ These do **not** appear to be the main remaining DB problem right now:
 
 1. Verify `process-notification-cadence` live with the right credential context
 2. Record result in docs with exact verification boundary/output
-3. Repair or replace the broken `supabase db pull` confidence path
-4. Only then decide whether any new DB consolidation slice is actually necessary now
+3. Use the documented dump-based schema capture path when whole-schema confidence is needed
+4. Treat `db pull` replay repair as later tooling cleanup, not the next blocker
+5. Only then decide whether any new DB consolidation slice is actually necessary now

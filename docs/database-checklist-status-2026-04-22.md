@@ -17,7 +17,7 @@ At this point, the primary database posture is:
 - **Most planned additive schema/function work for the current workflow redesign has been applied live already**
 - **Several newer RPC/database primitives were directly probed and verified live earlier**
 - **The biggest remaining DB gap is runtime verification completeness**, especially for the estimate-batch cadence/send path
-- **Full schema diff confidence is still limited** because `supabase db pull --linked --schema public --yes` is not replay-safe against the current baseline snapshot
+- **`db pull` replay safety is still broken**, but whole-schema remote capture is now available through `supabase db dump --linked --schema public`
 
 ## 1. Applied and verified live
 
@@ -95,9 +95,14 @@ Currently blocked because this session does not have:
 
 Known failure pattern:
 - foreign key replay failure around `admin_audit_logs.company_id` referencing `public.companies`
+- root cause confirmed again on 2026-04-26: `0001_initial.sql` explicitly declares itself non-executable context only
+
+Working alternative:
+- `supabase db dump --linked --schema public --file <path>` succeeds and produces a truthful remote schema snapshot
+- documented in `docs/database-schema-dump-verification-2026-04-26.md`
 
 Implication:
-- for now, **migration history + targeted live probes** remain more trustworthy than a full generated pull diff
+- use **migration history + targeted live probes + dump-based remote schema capture** as the current trustworthy truth sources
 
 ## 4. What is *not* currently the problem
 
@@ -129,14 +134,15 @@ to:
 
 ### Open, but only because of verification ceiling
 - cadence runtime end-to-end proof
-- full schema pull confidence
+- replay-safe `db pull` baseline repair
 
 ### Best truth sources right now
 Use these in order:
 1. remote migration history
 2. targeted live RPC probes
-3. deployed function/version evidence
-4. documented verification ceiling where credentials are unavailable
+3. dump-based remote schema capture (`supabase db dump --linked --schema public`)
+4. deployed function/version evidence
+5. documented verification ceiling where credentials are unavailable
 
 Avoid overstating certainty from:
 - failed shadow-db pull diffs
