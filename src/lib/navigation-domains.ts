@@ -9,7 +9,6 @@ export const OFFICE_ROUTES = [
   "/office/clients",
   "/office/jobs",
   "/office/estimates",
-  "/office/inbox",
   "/office/pricing",
 ] as const;
 
@@ -68,7 +67,7 @@ export const LEGACY_OPS_TAB_REDIRECTS: Record<LegacyOpsTab, string> = {
   estimates: "/office/estimates",
   clients: "/office/clients",
   jobs: "/office/jobs",
-  inbox: "/office/inbox",
+  inbox: "/portal/messages",
   deliveries: "/logistics/deliveries",
   routes: "/logistics/routes",
   proofs: "/logistics/proofs",
