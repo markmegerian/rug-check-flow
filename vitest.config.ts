@@ -17,7 +17,10 @@ export default defineConfig({
       NODE_ENV: "test",
     },
     environment: "node",
-    environmentMatchGlobs: [["src/test/hooks.test.ts", "jsdom"]],
+    environmentMatchGlobs: [
+      ["src/test/hooks.test.ts", "jsdom"],
+      ["src/test/auth-context.test.tsx", "jsdom"],
+    ],
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
