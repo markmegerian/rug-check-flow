@@ -16,7 +16,7 @@ At this point, the primary database posture is:
 
 - **Most planned additive schema/function work for the current workflow redesign has been applied live already**
 - **Several newer RPC/database primitives were directly probed and verified live earlier**
-- **The biggest remaining DB gap is runtime verification completeness**, especially for the estimate-batch cadence/send path
+- **The scheduler-mode cadence runtime path is now proven live** via scheduled secret-backed invocation; the remaining uncertainty is narrower and mostly about outbound delivery posture rather than runtime execution
 - **`db pull` replay safety is still broken**, but whole-schema remote capture is now available through `supabase db dump --linked --schema public`
 
 ## 1. Applied and verified live
@@ -67,12 +67,20 @@ Status:
 - config/auth shape reviewed
 - helper/database boundary cleaned up
 - code path updated toward batch-owned estimate sending
+- truthful live scheduler invocation now documented on 2026-04-26 in `docs/process-notification-cadence-live-verification-2026-04-26.md`
 
-Still missing:
-- truthful live dry-run or real invocation from the intended scheduler/admin context
+Observed live result:
+- scheduled GitHub Actions workflow invoked the edge function with the configured cron secret
+- returned `HTTP 200`
+- returned `success: true`
+- returned `mode: "scheduler"`
+- processed 50 due rows successfully
+
+Remaining caveat:
+- current environment still disables outbound client email delivery, so this proves runtime execution but not actual email send behavior
 
 Why this matters:
-- this is the main remaining gap between “schema/function exists” and “the whole estimate-batch runtime path is proven live end to end”
+- the previous main gap between “schema/function exists” and “the runtime path is proven live” is now closed
 
 ### Operational reminder trigger path
 Status:
@@ -86,9 +94,11 @@ Still missing:
 ## 3. Blocked verification items
 
 ### End-to-end cadence invocation
-Currently blocked because this session does not have:
-- `PROCESS_NOTIFICATION_CADENCE_SECRET`, or
-- a valid office/admin bearer JWT suitable for truthful manual invocation
+No longer blocked for scheduler-mode proof.
+
+A truthful scheduler-mode invocation was recovered from the existing scheduled GitHub Actions workflow that already holds `PROCESS_NOTIFICATION_CADENCE_SECRET`.
+
+What remains unavailable from this session is only direct local invocation with the raw secret or an office/admin bearer JWT.
 
 ### Full schema pull / remote diff confidence
 `supabase db pull --linked --schema public --yes` is still not dependable here because the baseline snapshot is not replay-safe in the shadow database.
@@ -115,15 +125,9 @@ The recent implementation stretch was mostly frontend/navigation/surface cleanup
 
 ## 5. Most important remaining database checklist item
 
-If one DB item should be treated as the main remaining checklist gap, it is:
+The formerly biggest DB checklist gap — truthful live invocation of `process-notification-cadence` in the intended auth/secret context — is now closed for scheduler mode and documented in `docs/process-notification-cadence-live-verification-2026-04-26.md`.
 
-**Run and record a truthful live invocation of `process-notification-cadence` in the intended auth/secret context.**
-
-That is the clearest remaining step needed to move the estimate-batch/cadence work from:
-- applied and structurally verified
-
-to:
-- operationally proven live
+The remaining nuance is not runtime reachability; it is whether and when outbound client email delivery should be enabled and separately verified.
 
 ## 6. Practical next DB-status categories
 
@@ -133,7 +137,7 @@ to:
 - helper-boundary hardening for backend-only batch helpers
 
 ### Open, but only because of verification ceiling
-- cadence runtime end-to-end proof
+- outbound delivery verification once client email delivery is intentionally enabled
 - replay-safe `db pull` baseline repair
 
 ### Best truth sources right now

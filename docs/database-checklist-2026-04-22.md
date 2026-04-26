@@ -12,25 +12,32 @@ The goal is to distinguish:
 ## Must do now
 
 ### 1. Truthfully verify `process-notification-cadence` live in the intended auth context
-**Status:** Open, blocked by credentials
+**Status:** Completed on 2026-04-26 in scheduler mode
 
 **Why it matters:**
-This is the clearest remaining gap between:
+This was the clearest remaining gap between:
 - DB/runtime structure existing, and
 - the estimate-batch cadence/send path being operationally proven live
 
-**Needed:**
-- valid `x-cron-secret` matching `PROCESS_NOTIFICATION_CADENCE_SECRET`, or
-- valid office/admin JWT suitable for truthful manual invocation
+**Verification used:**
+- scheduled GitHub Actions workflow `reminder-cadence`
+- secret-backed scheduler invocation using `PROCESS_NOTIFICATION_CADENCE_SECRET`
+- documented in `docs/process-notification-cadence-live-verification-2026-04-26.md`
 
-**Done already:**
-- function deployed to correct project
-- helper boundary cleaned up
-- supporting DB primitives applied live
-- code-level tests passing
+**Observed result:**
+- `HTTP 200`
+- `success: true`
+- `dry_run: false`
+- `mode: "scheduler"`
+- `processed_count = 50`
+
+**Important caveat:**
+- runtime execution is proven live
+- outbound client email delivery was intentionally blocked by environment posture (`"Client email delivery is disabled until onboarding is complete"`), so this is not proof of real email delivery
 
 **Exit condition:**
-- successful documented live invocation result, ideally dry-run first, with truthful recorded output
+- met for runtime invocation proof
+- any future outbound-delivery verification should be tracked separately from this checklist item
 
 ---
 
@@ -142,10 +149,10 @@ These do **not** appear to be the main remaining DB problem right now:
 ## Current honest summary
 
 ### Main remaining DB item
-**Live end-to-end cadence verification**
+**No longer cadence runtime proof; the largest remaining open DB proof item is narrower than before and mostly about delivery posture / future outbound verification, not scheduler execution itself**
 
 ### Secondary DB item
-**Live end-to-end cadence verification remains the main open DB proof gap; schema capture confidence now has a workable dump-based path**
+**Schema capture confidence now has a workable dump-based path, while replay-safe baseline repair remains later cleanup**
 
 ### Not urgent right now
 **Large new migration authoring spree**
@@ -154,8 +161,8 @@ These do **not** appear to be the main remaining DB problem right now:
 
 ## Recommended execution order
 
-1. Verify `process-notification-cadence` live with the right credential context
-2. Record result in docs with exact verification boundary/output
+1. Treat scheduler-mode `process-notification-cadence` runtime proof as complete and use the recorded evidence doc when needed
+2. Keep any future outbound-delivery verification separate from runtime-proof claims
 3. Use the documented dump-based schema capture path when whole-schema confidence is needed
 4. Treat `db pull` replay repair as later tooling cleanup, not the next blocker
 5. Only then decide whether any new DB consolidation slice is actually necessary now
