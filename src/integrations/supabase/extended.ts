@@ -379,7 +379,12 @@ type ExtendedTables = Database["public"]["Tables"] & {
 
 type ExtendedFunctions = Database["public"]["Functions"] & {
   get_jobs_summary: {
-    Args: Record<string, never>;
+    Args: {
+      p_source_type?: string | null;
+      p_search?: string | null;
+      p_page?: number;
+      p_page_size?: number;
+    };
     Returns: {
       job_key: string;
       source_type: string;
@@ -394,6 +399,7 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
       updated_at: string;
       notes: string[] | null;
       items: Json;
+      total_count: number;
     }[];
   };
   get_thread_summaries: {
@@ -552,7 +558,11 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
     }[];
   };
   get_portal_estimates: {
-    Args: Record<string, never>;
+    Args: {
+      p_status_scope?: string | null;
+      p_page?: number;
+      p_page_size?: number;
+    };
     Returns: {
       estimate_id: string;
       estimate_number: string;
@@ -575,6 +585,7 @@ type ExtendedFunctions = Database["public"]["Functions"] & {
         client_decision_at: string | null;
         service_category: string;
       }[] | null;
+      total_count: number;
     }[];
   };
   // Backend/internal estimate batch helper.

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { LoadingState } from "@/components/states/PageState";
@@ -14,6 +13,7 @@ import { supabaseExtended } from "@/integrations/supabase/extended";
 import { canRoleTransitionPickupStatus, type PickupRequestStatus } from "@/lib/workflow-guards";
 import {
   usePickupRequests,
+  usePickupRequestCounts,
   usePickupItems,
   useInvalidatePickupRequests,
   type PickupRequestRow,
@@ -25,12 +25,14 @@ import { MS_PER_DAY } from "@/lib/constants";
 
 const STATUS_ORDER: PickupRequestStatus[] = ["pending", "confirmed", "assigned", "completed", "cancelled"];
 const STATUS_SET = new Set<PickupRequestStatus>(STATUS_ORDER);
+const PAGE_SIZE = 20;
 
 export function PickupRequestsTab() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [driverSelection, setDriverSelection] = useState<Record<string, string>>({});
   const [quickFilter, setQuickFilter] = useState<PickupRequestStatus | "all">("all");
+  const [page, setPage] = useState(0);
 
   const statusFilterParam = searchParams.get("status");
   const minAgeDays = Number(searchParams.get("minAgeDays") ?? 0);
@@ -40,7 +42,22 @@ export function PickupRequestsTab() {
     .filter((status): status is PickupRequestStatus => STATUS_SET.has(status as PickupRequestStatus));
   const hasReminderFilter = statusFilters.length > 0 || minAgeDays > 0;
 
-  const { data: requests = [], isLoading: loading } = usePickupRequests();
+  const updatedBefore = minAgeDays > 0 ? new Date(Date.now() - minAgeDays * MS_PER_DAY).toISOString() : undefined;
+  const activeStatuses = statusFilters.length > 0
+    ? statusFilters
+    : quickFilter !== "all" && !hasReminderFilter
+      ? [quickFilter]
+      : undefined;
+
+  const { data: requestPage, isLoading: loading } = usePickupRequests({
+    statuses: activeStatuses,
+    page,
+    pageSize: PAGE_SIZE,
+    updatedBefore,
+  });
+  const requests = requestPage?.rows ?? [];
+  const total = requestPage?.total ?? 0;
+  const { data: statusCounts = { all: 0, pending: 0, confirmed: 0, assigned: 0, completed: 0, cancelled: 0 } } = usePickupRequestCounts();
   const invalidatePickupRequests = useInvalidatePickupRequests();
   const { data: drivers = [] } = useDrivers();
 
@@ -55,43 +72,21 @@ export function PickupRequestsTab() {
     setDriverSelection(defaultSelections);
   }, [requests]);
 
-  const filteredRequests = useMemo(() => {
-    let filtered = [...requests];
-    if (statusFilters.length > 0) {
-      filtered = filtered.filter((request) => statusFilters.includes(request.status));
-    }
-    if (minAgeDays > 0) {
-      filtered = filtered.filter((request) => {
-        const ageMs = Date.now() - Date.parse(request.updated_at);
-        if (!Number.isFinite(ageMs)) return false;
-        return ageMs >= minAgeDays * MS_PER_DAY;
-      });
-    }
-    if (quickFilter !== "all" && !hasReminderFilter) {
-      filtered = filtered.filter((request) => request.status === quickFilter);
-    }
-    return filtered;
-  }, [minAgeDays, requests, statusFilters, quickFilter, hasReminderFilter]);
+  useEffect(() => {
+    setPage(0);
+  }, [quickFilter, statusFilterParam, minAgeDays]);
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: requests.length };
-    for (const req of requests) {
-      counts[req.status] = (counts[req.status] ?? 0) + 1;
-    }
-    return counts;
-  }, [requests]);
-
-  const pagination = usePaginatedList(filteredRequests);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const requestsByRoute = useMemo(() => {
     const map: Record<string, PickupRequestRow[]> = {};
-    for (const req of pagination.items) {
+    for (const req of requests) {
       const key = req.route_day || "Unassigned";
       if (!map[key]) map[key] = [];
       map[key].push(req);
     }
     return map;
-  }, [pagination.items]);
+  }, [requests]);
 
   const itemCounts = useMemo(() => {
     const counts: Record<string, { ready: number; newRugs: number }> = {};
@@ -173,7 +168,7 @@ export function PickupRequestsTab() {
     );
   }
 
-  if (filteredRequests.length === 0) {
+  if (total === 0) {
     return (
       <div className="app-page flex h-full items-center justify-center text-muted-foreground">
         {hasReminderFilter ? "No pickup requests match the active reminder filter." : "No pickup requests yet."}
@@ -281,13 +276,13 @@ export function PickupRequestsTab() {
       ))}
 
       <PaginationControls
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        total={pagination.total}
-        hasPrev={pagination.hasPrev}
-        hasNext={pagination.hasNext}
-        onPrev={pagination.prevPage}
-        onNext={pagination.nextPage}
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        hasPrev={page > 0}
+        hasNext={page < totalPages - 1}
+        onPrev={() => setPage((current) => Math.max(current - 1, 0))}
+        onNext={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
         label="requests"
       />
     </div>

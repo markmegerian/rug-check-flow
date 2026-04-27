@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { useCallback, useEffect, useState } from "react";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,10 +59,15 @@ type ClientLookupRow = {
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
+const HISTORY_PAGE_SIZE = 10;
+
 export default function PortalPickupsTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
 
-  const [pickups, setPickups] = useState<PortalPickup[]>([]);
+  const [nextPendingPickup, setNextPendingPickup] = useState<PortalPickup | null>(null);
+  const [historyPickups, setHistoryPickups] = useState<PortalPickup[]>([]);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyTotal, setHistoryTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [routeDay, setRouteDay] = useState(DEFAULT_ROUTE_DAY);
   const [region, setRegion] = useState(DEFAULT_REGION);
@@ -74,10 +78,6 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
   const [draftNotes, setDraftNotes] = useState("");
   const [supportsEstimateFields, setSupportsEstimateFields] = useState(true);
   const [draftHydratedPickupId, setDraftHydratedPickupId] = useState<string | null>(null);
-
-  const nextPendingPickup = useMemo(() => pickups.find((p) => p.status === "pending") ?? null, [pickups]);
-  const pastPickups = useMemo(() => pickups.filter((p) => p.id !== nextPendingPickup?.id), [pickups, nextPendingPickup]);
-  const pastPickupsPagination = usePaginatedList(pastPickups);
 
   const isLocked = nextPendingPickup?.status === "confirmed";
   const [expandedRugId, setExpandedRugId] = useState<string | null>(null);
@@ -149,22 +149,40 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
   /* ---- Fetch pickups ---- */
 
   const fetchPickups = useCallback(
-    async (activeClientId: string, activeRegion: string) => {
-      const { data: reqData, error: reqError } = await supabaseExtended
-        .from("pickup_requests")
-        .select("id, client_id, route_day, scheduled_date, status, notes")
-        .eq("client_id", activeClientId)
-        .order("scheduled_date", { ascending: true })
-        .limit(150);
+    async (activeClientId: string, activeRegion: string, page = historyPage) => {
+      const [pendingResult, historyResult] = await Promise.all([
+        supabaseExtended
+          .from("pickup_requests")
+          .select("id, client_id, route_day, scheduled_date, status, notes")
+          .eq("client_id", activeClientId)
+          .eq("status", "pending")
+          .order("scheduled_date", { ascending: true })
+          .limit(1),
+        supabaseExtended
+          .from("pickup_requests")
+          .select("id, client_id, route_day, scheduled_date, status, notes", { count: "exact" })
+          .eq("client_id", activeClientId)
+          .neq("status", "pending")
+          .order("scheduled_date", { ascending: false })
+          .range(page * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE - 1),
+      ]);
 
-      if (reqError) {
-        toast({ title: "Failed to load pickups", description: reqError.message, variant: "destructive" });
+      if (pendingResult.error) {
+        toast({ title: "Failed to load pickups", description: pendingResult.error.message, variant: "destructive" });
+        return;
+      }
+      if (historyResult.error) {
+        toast({ title: "Failed to load pickup history", description: historyResult.error.message, variant: "destructive" });
         return;
       }
 
-      const requests = (reqData ?? []) as PickupRequestRow[];
+      const pendingRequests = (pendingResult.data ?? []) as PickupRequestRow[];
+      const historyRequests = (historyResult.data ?? []) as PickupRequestRow[];
+      const requests = [...pendingRequests, ...historyRequests];
+      setHistoryTotal(historyResult.count ?? historyRequests.length);
       if (requests.length === 0) {
-        setPickups([]);
+        setNextPendingPickup(null);
+        setHistoryPickups([]);
         return;
       }
 
@@ -232,12 +250,18 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
           })),
         };
       });
-      setPickups(mapped);
+      const mappedById = new Map(mapped.map((pickup) => [pickup.id, pickup]));
+      setNextPendingPickup(pendingRequests[0] ? mappedById.get(pendingRequests[0].id) ?? null : null);
+      setHistoryPickups(historyRequests.map((req) => mappedById.get(req.id)).filter((pickup): pickup is PortalPickup => Boolean(pickup)));
     },
-    [supportsEstimateFields, toast],
+    [historyPage, supportsEstimateFields, toast],
   );
 
   /* ---- Init: resolve client, route day, then fetch ---- */
+
+  useEffect(() => {
+    setHistoryPage(0);
+  }, [clientId]);
 
   useEffect(() => {
     if (portalClientLoading) {
@@ -247,11 +271,16 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
       setLoading(false);
-      setPickups([]);
+      setNextPendingPickup(null);
+      setHistoryPickups([]);
+      setHistoryTotal(0);
       return;
     }
     if (!clientId) {
       setLoading(false);
+      setNextPendingPickup(null);
+      setHistoryPickups([]);
+      setHistoryTotal(0);
       return;
     }
 
@@ -275,12 +304,12 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
       setRegion(derivedRegion);
       setRequestDate(getNextDateForRouteDay(derivedRouteDay));
 
-      await fetchPickups(selectedClient.id, derivedRegion);
+      await fetchPickups(selectedClient.id, derivedRegion, historyPage);
       setLoading(false);
     };
 
     init();
-  }, [clientId, errorMessage, fetchPickups, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchPickups, historyPage, portalClientLoading, toast]);
 
   /* ---- Schedule a new pickup ---- */
 
@@ -303,7 +332,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
         return;
       }
       await autoAssignPickupToDriver(insertedPickup.id);
-      await fetchPickups(clientId, region);
+      await fetchPickups(clientId, region, historyPage);
       toast({ title: "Pickup requested", description: `We'll pick up on ${formatPickupDate(scheduledDate)}. Add your rugs below and save.` });
     } finally {
       setRequesting(false);
@@ -383,13 +412,13 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
       }
     }
 
-    await fetchPickups(clientId, region);
+    await fetchPickups(clientId, region, historyPage);
     toast({ title: "Saved", description: "Your pickup list is updated." });
   };
 
   const handleCancel = async (id: string) => {
     if (!clientId) return;
-    const pickup = pickups.find((entry) => entry.id === id);
+    const pickup = nextPendingPickup?.id === id ? nextPendingPickup : historyPickups.find((entry) => entry.id === id);
     if (!pickup || !canRoleTransitionPickupStatus("portal", pickup.status, "cancelled")) {
       toast({ title: "Can't cancel", description: "Only your current pickup can be cancelled.", variant: "destructive" });
       return;
@@ -404,7 +433,7 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
       toast({ title: "Cancellation failed", description: deleteRequestError.message, variant: "destructive" });
       return;
     }
-    await fetchPickups(clientId, region);
+    await fetchPickups(clientId, region, historyPage);
     toast({ title: "Pickup cancelled" });
   };
 
@@ -507,22 +536,22 @@ export default function PortalPickupsTab({ clientId, loading: portalClientLoadin
         </div>
       </section>
 
-      {pastPickups.length > 0 && (
+      {historyPickups.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">History</h3>
           <div className="space-y-2">
-            {pastPickupsPagination.items.map((pickup) => (
+            {historyPickups.map((pickup) => (
               <PickupHistoryRow key={pickup.id} pickup={pickup} onCancel={handleCancel} />
             ))}
           </div>
           <PaginationControls
-            page={pastPickupsPagination.page}
-            totalPages={pastPickupsPagination.totalPages}
-            total={pastPickupsPagination.total}
-            hasPrev={pastPickupsPagination.hasPrev}
-            hasNext={pastPickupsPagination.hasNext}
-            onPrev={pastPickupsPagination.prevPage}
-            onNext={pastPickupsPagination.nextPage}
+            page={historyPage}
+            totalPages={Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE))}
+            total={historyTotal}
+            hasPrev={historyPage > 0}
+            hasNext={historyPage < Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE)) - 1}
+            onPrev={() => setHistoryPage((current) => Math.max(current - 1, 0))}
+            onNext={() => setHistoryPage((current) => Math.min(current + 1, Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE)) - 1))}
             label="pickups"
           />
         </section>

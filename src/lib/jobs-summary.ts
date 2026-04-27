@@ -16,6 +16,12 @@ type JobsSummaryRow = {
   updated_at: string;
   notes: string[] | null;
   items: unknown;
+  total_count: number;
+};
+
+export type JobsSummaryPage = {
+  rows: JobView[];
+  total: number;
 };
 
 function parseJobItems(items: unknown): JobItemView[] {
@@ -23,24 +29,42 @@ function parseJobItems(items: unknown): JobItemView[] {
   return items as JobItemView[];
 }
 
-export async function fetchJobsSummary(): Promise<JobView[]> {
-  const { data, error } = await supabaseExtended.rpc("get_jobs_summary");
+export async function fetchJobsSummary({
+  sourceType,
+  search,
+  page = 0,
+  pageSize = 10,
+}: {
+  sourceType?: "pickup" | "walkin";
+  search?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<JobsSummaryPage> {
+  const { data, error } = await supabaseExtended.rpc("get_jobs_summary", {
+    p_source_type: sourceType ?? null,
+    p_search: search?.trim() ? search.trim() : null,
+    p_page: page,
+    p_page_size: pageSize,
+  });
   if (error) throw error;
 
   const rows = (data ?? []) as JobsSummaryRow[];
-  return rows.map((row) => ({
-    key: row.job_key,
-    sourceType: row.source_type,
-    clientId: row.client_id,
-    clientName: row.client_name,
-    clientAddress: row.client_address,
-    scheduledDate: row.scheduled_date,
-    routeDay: row.route_day,
-    requestIds: row.request_ids ?? [],
-    primaryRequestId: row.primary_request_id ?? "",
-    statuses: row.statuses ?? [],
-    updatedAt: row.updated_at,
-    notes: row.notes ?? [],
-    items: parseJobItems(row.items),
-  }));
+  return {
+    rows: rows.map((row) => ({
+      key: row.job_key,
+      sourceType: row.source_type,
+      clientId: row.client_id,
+      clientName: row.client_name,
+      clientAddress: row.client_address,
+      scheduledDate: row.scheduled_date,
+      routeDay: row.route_day,
+      requestIds: row.request_ids ?? [],
+      primaryRequestId: row.primary_request_id ?? "",
+      statuses: row.statuses ?? [],
+      updatedAt: row.updated_at,
+      notes: row.notes ?? [],
+      items: parseJobItems(row.items),
+    })),
+    total: rows.length > 0 ? Number(rows[0].total_count ?? 0) : 0,
+  };
 }

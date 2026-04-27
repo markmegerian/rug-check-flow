@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { usePortalBillingSummary } from "@/hooks/usePortalBillingSummary";
 import { useToast } from "@/hooks/use-toast";
 import type { PortalTabProps } from "./portal-tab-props";
 import { supabaseExtended } from "@/integrations/supabase/extended";
@@ -60,15 +61,6 @@ type PortalInvoice = {
   paymentAttempts: PortalInvoicePaymentAttempt[];
 };
 
-type PortalBillingSummary = {
-  openBalance: number;
-  overdueBalance: number;
-  openInvoices: number;
-  overdueInvoices: number;
-  nextDueAt: string | null;
-  oldestOverdueAgeDays: number | null;
-};
-
 const STATUS_VARIANT: Record<InvoiceStatus, "default" | "secondary" | "outline" | "destructive"> = {
   sent: "default",
   paid: "secondary",
@@ -91,41 +83,8 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
   const [hasMore, setHasMore] = useState(false);
   const [paymentHistoryError, setPaymentHistoryError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<PortalInvoice[]>([]);
-  const [billingSummary, setBillingSummary] = useState<PortalBillingSummary | null>(null);
   const [pdfReadyByInvoiceId, setPdfReadyByInvoiceId] = useState<Record<string, { message: string; signedUrl: string }>>({});
-
-  const fetchBillingSummary = useCallback(async (activeClientId: string) => {
-      const { data: invoiceRows, error } = await supabaseExtended
-        .from("invoices")
-        .select("status, total, due_at, created_at")
-        .eq("client_id", activeClientId)
-        .returns<Array<Pick<InvoiceLookup, "status" | "total" | "due_at" | "created_at">>>();
-
-      if (error) {
-        toast({ title: "Failed to load billing summary", description: error.message, variant: "destructive" });
-        setBillingSummary(null);
-        return;
-      }
-
-      const openInvoices = (invoiceRows ?? []).filter((invoice) => ["sent", "overdue"].includes(invoice.status));
-      const overdueInvoices = (invoiceRows ?? []).filter((invoice) => invoice.status === "overdue");
-      const datedOpenInvoices = openInvoices.filter((invoice) => Boolean(invoice.due_at));
-      const nextDueAt = datedOpenInvoices.length > 0
-        ? [...datedOpenInvoices].sort((a, b) => Date.parse(a.due_at ?? a.created_at) - Date.parse(b.due_at ?? b.created_at))[0]?.due_at ?? null
-        : null;
-      const oldestOverdueAgeDays = overdueInvoices.length > 0
-        ? Math.max(...overdueInvoices.map((invoice) => Math.max(0, Math.floor((Date.now() - Date.parse(invoice.due_at ?? invoice.created_at)) / 86_400_000))))
-        : null;
-
-      setBillingSummary({
-        openBalance: openInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
-        overdueBalance: overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
-        openInvoices: openInvoices.length,
-        overdueInvoices: overdueInvoices.length,
-        nextDueAt,
-        oldestOverdueAgeDays,
-      });
-  }, [toast]);
+  const billingSummaryQuery = usePortalBillingSummary(clientId, Boolean(clientId) && !portalClientLoading && !errorMessage);
 
   const fetchInvoicesPage = useCallback(async (activeClientId: string, targetPageIndex: number, append: boolean) => {
       const from = targetPageIndex * PAGE_SIZE;
@@ -233,7 +192,6 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
       setInvoices([]);
-      setBillingSummary(null);
       setHasMore(false);
       setLoading(false);
       return;
@@ -241,7 +199,6 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
 
     if (!clientId) {
       setInvoices([]);
-      setBillingSummary(null);
       setHasMore(false);
       setLoading(false);
       return;
@@ -250,15 +207,12 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
     const loadInitial = async () => {
       setLoading(true);
       setExpandedRow(null);
-      await Promise.all([
-        fetchInvoicesPage(clientId, 0, false),
-        fetchBillingSummary(clientId),
-      ]);
+      await fetchInvoicesPage(clientId, 0, false);
       setLoading(false);
     };
 
     loadInitial();
-  }, [clientId, errorMessage, fetchBillingSummary, fetchInvoicesPage, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchInvoicesPage, portalClientLoading, toast]);
 
   const loadOlderInvoices = async () => {
     if (!clientId || loadingMore || !hasMore) {
@@ -301,11 +255,11 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
   };
 
   const portalBillingState = useMemo(() => getPortalBillingState({
-    overdueInvoices: billingSummary?.overdueInvoices ?? 0,
-    oldestOverdueAgeDays: billingSummary?.oldestOverdueAgeDays ?? null,
-    openInvoices: billingSummary?.openInvoices ?? 0,
-    nextDueAt: billingSummary?.nextDueAt ?? null,
-  }), [billingSummary]);
+    overdueInvoices: billingSummaryQuery.data?.overdueInvoices ?? 0,
+    oldestOverdueAgeDays: billingSummaryQuery.data?.oldestOverdueAgeDays ?? null,
+    openInvoices: billingSummaryQuery.data?.openInvoices ?? 0,
+    nextDueAt: billingSummaryQuery.data?.nextDueAt ?? null,
+  }), [billingSummaryQuery.data]);
 
   const emptyState = useMemo(() => !loading && invoices.length === 0, [loading, invoices.length]);
 
@@ -319,7 +273,7 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
 
   return (
     <div className="space-y-3">
-      {billingSummary ? (
+      {billingSummaryQuery.data ? (
         <div className="rounded-2xl border border-border/70 bg-card/90 p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-foreground">Invoices</h3>
@@ -330,19 +284,19 @@ export default function PortalInvoicesTab({ clientId, loading: portalClientLoadi
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
             <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Open balance</div>
-              <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.openBalance.toFixed(2)}</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">${billingSummaryQuery.data.openBalance.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Overdue</div>
-              <div className="mt-1 text-lg font-semibold text-foreground">${billingSummary.overdueBalance.toFixed(2)}</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">${billingSummaryQuery.data.overdueBalance.toFixed(2)}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Open invoices</div>
-              <div className="mt-1 text-lg font-semibold text-foreground">{billingSummary.openInvoices}</div>
+              <div className="mt-1 text-lg font-semibold text-foreground">{billingSummaryQuery.data.openInvoices}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-background/80 p-2.5">
               <div className="text-xs text-muted-foreground">Next due</div>
-              <div className="mt-1 text-sm font-semibold text-foreground">{billingSummary.nextDueAt ? new Date(billingSummary.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{billingSummaryQuery.data.nextDueAt ? new Date(billingSummaryQuery.data.nextDueAt).toLocaleDateString("en-US") : "No balance due"}</div>
             </div>
           </div>
         </div>

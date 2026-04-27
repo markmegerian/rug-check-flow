@@ -444,18 +444,23 @@ export function DeliveriesTab() {
     const checkedOutLists = deliveryLists.filter((dl) => dl.status === "checked_out");
     if (checkedOutLists.length === 0) return;
 
-    // Fetch invoices with explicit delivery list linkage
+    const checkedOutListIds = checkedOutLists.map((dl) => dl.id);
     const { data: invoices } = await supabase
       .from("invoices")
       .select("id, invoice_number, delivery_list_id, client_id, total, status")
-      .order("created_at", { ascending: false })
-      .limit(200);
+      .in("delivery_list_id", checkedOutListIds)
+      .order("created_at", { ascending: false });
 
     const invoiceMap: Record<string, InvoiceInfo[]> = {};
-    if (invoices) {
-      for (const dl of checkedOutLists) {
-        invoiceMap[dl.id] = (invoices as unknown as InvoiceInfo[]).filter((inv) => inv.delivery_list_id === dl.id);
+    for (const dl of checkedOutLists) {
+      invoiceMap[dl.id] = [];
+    }
+    for (const invoice of (invoices ?? []) as unknown as InvoiceInfo[]) {
+      if (!invoice.delivery_list_id) continue;
+      if (!invoiceMap[invoice.delivery_list_id]) {
+        invoiceMap[invoice.delivery_list_id] = [];
       }
+      invoiceMap[invoice.delivery_list_id].push(invoice);
     }
     setHistoryInvoices(invoiceMap);
   };

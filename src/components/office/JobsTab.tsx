@@ -24,7 +24,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { LoadingState } from "@/components/states/PageState";
 import { InvoiceStatusBadge, RugStatusBadge } from "@/components/shared/StatusBadge";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
@@ -33,6 +32,8 @@ import {
   type JobView,
 } from "@/lib/jobs-view";
 import { fetchJobsSummary } from "@/lib/jobs-summary";
+
+const PAGE_SIZE = 10;
 
 type JobFilter = "all" | "estimate_open" | "uninvoiced" | "delivered" | "returns" | "attention";
 
@@ -80,6 +81,9 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const [sourceTabTouched, setSourceTabTouched] = useState(false);
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
   const [jobFilters, setJobFilters] = useState<Record<string, JobFilter>>({});
+  const [page, setPage] = useState(0);
+  const [totalJobs, setTotalJobs] = useState(0);
+  const [sourceCounts, setSourceCounts] = useState({ pickup: 0, walkin: 0 });
   const [editor, setEditor] = useState<ItemEditorState | null>(null);
   const [noteEditor, setNoteEditor] = useState<JobNoteEditorState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -88,9 +92,16 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
   const loadJobs = useCallback(async () => {
     setLoading(true);
     try {
-      const nextJobs = await fetchJobsSummary();
+      const [jobsPage, pickupPage, walkinPage] = await Promise.all([
+        fetchJobsSummary({ sourceType: sourceTab, search, page, pageSize: PAGE_SIZE }),
+        fetchJobsSummary({ sourceType: "pickup", page: 0, pageSize: 1 }),
+        fetchJobsSummary({ sourceType: "walkin", page: 0, pageSize: 1 }),
+      ]);
+      const nextJobs = jobsPage.rows;
 
       setJobs(nextJobs);
+      setTotalJobs(jobsPage.total);
+      setSourceCounts({ pickup: pickupPage.total, walkin: walkinPage.total });
       if (!sourceTabTouched) {
         const newestSource = nextJobs[0]?.sourceType;
         if (newestSource === "pickup" || newestSource === "walkin") {
@@ -113,43 +124,18 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
     } finally {
       setLoading(false);
     }
-  }, [sourceTabTouched, toast]);
+  }, [page, search, sourceTab, sourceTabTouched, toast]);
 
   useEffect(() => {
     void loadJobs();
   }, [loadJobs]);
 
-  const filteredJobs = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return jobs.filter((job) => {
-      if (job.sourceType !== sourceTab) return false;
-      if (!query) return true;
-      const haystacks = [job.clientName.toLowerCase(), job.scheduledDate.toLowerCase(), job.routeDay.toLowerCase()];
-      if (haystacks.some((value) => value.includes(query))) return true;
-      return job.items.some((item) => {
-        const rugValues = [item.rug_number, item.rug_type ?? "", item.linkedRug?.tag ?? "", ...(item.linkedServices ?? [])];
-        return rugValues.some((value) => value.toLowerCase().includes(query));
-      });
-    });
-  }, [jobs, search, sourceTab]);
-
-  const sourceCounts = useMemo(
-    () => ({
-      pickup: jobs.filter((job) => job.sourceType === "pickup").length,
-      walkin: jobs.filter((job) => job.sourceType === "walkin").length,
-    }),
-    [jobs],
-  );
-
-  const pagination = usePaginatedList(filteredJobs);
-
-  const sourceJobs = useMemo(
-    () => jobs.filter((job) => job.sourceType === sourceTab),
-    [jobs, sourceTab],
-  );
+  useEffect(() => {
+    setPage(0);
+  }, [search, sourceTab]);
 
   const sourceAttentionCounts = useMemo(
-    () => sourceJobs.reduce(
+    () => jobs.reduce(
       (totals, job) => {
         for (const item of job.items) {
           if (item.estimate_requested && !item.latestEstimateResponse) {
@@ -176,8 +162,10 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       },
       { estimateOpen: 0, uninvoiced: 0, delivered: 0, returns: 0, attention: 0 },
     ),
-    [sourceJobs],
+    [jobs],
   );
+
+  const totalPages = Math.max(1, Math.ceil(totalJobs / PAGE_SIZE));
 
   const openJobNoteDialog = (job: JobView) => {
     setNoteEditor({
@@ -407,12 +395,12 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
         </div>
       </section>
 
-      {filteredJobs.length === 0 ? (
+      {totalJobs === 0 ? (
         <div className="app-section rounded-2xl border border-dashed border-border/70 bg-card/70 p-8 text-center text-muted-foreground">
           No {sourceTab === "pickup" ? "pickup" : "walk-in"} jobs match the current filters.
         </div>
       ) : (
-        pagination.items.map((job) => {
+        jobs.map((job) => {
           const expanded = expandedJobs[job.key] ?? true;
           const activeJobFilter = jobFilters[job.key] ?? "all";
           const estimateCount = job.items.filter((item) => item.estimate_requested).length;
@@ -611,13 +599,13 @@ export function JobsTab({ onOpenRug }: { onOpenRug: (rugId: string) => void }) {
       )}
 
       <PaginationControls
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        total={pagination.total}
-        hasPrev={pagination.hasPrev}
-        hasNext={pagination.hasNext}
-        onPrev={pagination.prevPage}
-        onNext={pagination.nextPage}
+        page={page}
+        totalPages={totalPages}
+        total={totalJobs}
+        hasPrev={page > 0}
+        hasNext={page < totalPages - 1}
+        onPrev={() => setPage((current) => Math.max(current - 1, 0))}
+        onNext={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
         label="jobs"
       />
 

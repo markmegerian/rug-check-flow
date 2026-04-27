@@ -34,7 +34,7 @@ describe("estimates frontend cutover", () => {
     const helper = readFileSync(resolve(process.cwd(), "src/lib/portal-estimates.ts"), "utf-8");
     const file = readFileSync(resolve(process.cwd(), "src/components/portal/PortalEstimatesTab.tsx"), "utf-8");
     expect(helper).toContain('rpc("get_portal_estimates"');
-    expect(file).toContain("fetchPortalEstimates()");
+    expect(file).toContain("fetchPortalEstimates({");
     expect(file).not.toContain('.from("estimates")\n      .select("id, estimate_number, status, total, created_at, sent_at, approved_at, rejected_at, rugs(tag)")');
   });
 });

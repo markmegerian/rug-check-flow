@@ -54,6 +54,11 @@ PY
 }
 
 
+should_retry_http_status() {
+  local status="$1"
+  [[ "$status" == "502" || "$status" == "503" || "$status" == "504" ]]
+}
+
 http_check() {
   local label="$1"
   local url="$2"
@@ -78,15 +83,21 @@ http_check() {
     curl_args+=( -H "Content-Type: application/json" -d "$data" )
   fi
 
-  local status
+  local status attempts=1
   status="$(curl "${curl_args[@]}")"
+  if should_retry_http_status "$status"; then
+    attempts=2
+    echo "Transient ${status} from ${label}; retrying once" >&2
+    sleep 2
+    status="$(curl "${curl_args[@]}")"
+  fi
 
   local ok="false"
   if [[ "$status" =~ ^2 ]]; then
     ok="true"
   fi
 
-  echo "{\"label\":\"${label}\",\"url\":\"${url}\",\"status\":${status},\"ok\":${ok},\"body\":$(python - <<'PY' "$out_file"
+  echo "{\"label\":\"${label}\",\"url\":\"${url}\",\"status\":${status},\"ok\":${ok},\"attempts\":${attempts},\"body\":$(python - <<'PY' "$out_file"
 import json,sys
 text=open(sys.argv[1],encoding='utf-8').read()
 print(json.dumps(text[:500]))

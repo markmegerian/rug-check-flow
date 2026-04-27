@@ -27,12 +27,29 @@ export type PortalEstimateRow = {
   items: PortalEstimateItemRow[];
 };
 
-export async function fetchPortalEstimates() {
-  const { data, error } = await supabaseExtended.rpc("get_portal_estimates", {});
+export type PortalEstimatePage = {
+  rows: PortalEstimateRow[];
+  total: number;
+};
+
+export async function fetchPortalEstimates({
+  statusScope = "all",
+  page = 0,
+  pageSize = 10,
+}: {
+  statusScope?: "all" | "pending" | "history";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<PortalEstimatePage> {
+  const { data, error } = await supabaseExtended.rpc("get_portal_estimates", {
+    p_status_scope: statusScope,
+    p_page: page,
+    p_page_size: pageSize,
+  });
 
   if (error) throw error;
 
-  return ((data ?? []) as {
+  const rows = ((data ?? []) as {
     estimate_id: string;
     estimate_number: string;
     status: EstimateStatus;
@@ -43,6 +60,7 @@ export async function fetchPortalEstimates() {
     rejected_at: string | null;
     rug_tag: string | null;
     items: PortalEstimateItemRow[] | null;
+    total_count: number;
   }[]).map((row) => ({
     id: row.estimate_id,
     estimate_number: row.estimate_number,
@@ -62,4 +80,9 @@ export async function fetchPortalEstimates() {
         }))
       : [],
   }));
+
+  return {
+    rows,
+    total: data && data.length > 0 ? Number((data[0] as { total_count?: number }).total_count ?? 0) : 0,
+  };
 }

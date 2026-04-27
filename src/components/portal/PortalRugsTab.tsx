@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { useCallback, useEffect, useState } from "react";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -18,6 +17,8 @@ import {
 import PortalRugCard from "./PortalRugCard";
 import PortalRugDetailPanel from "./PortalRugDetailPanel";
 
+const PAGE_SIZE = 20;
+
 export default function PortalRugsTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,8 @@ export default function PortalRugsTab({ clientId, loading: portalClientLoading, 
   const [panelOpen, setPanelOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
   const [estimateSummaryByRugId, setEstimateSummaryByRugId] = useState<Record<string, RugEstimateSummary>>({});
 
   // Debounce search
@@ -65,49 +68,57 @@ export default function PortalRugsTab({ clientId, loading: portalClientLoading, 
     setEstimateSummaryByRugId(next);
   }, [toast]);
 
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch, clientId]);
+
   // Load rugs
   useEffect(() => {
     if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
-      setLoading(false); setRugs([]); return;
+      setLoading(false); setRugs([]); setTotal(0); return;
     }
-    if (!clientId) { setLoading(false); return; }
+    if (!clientId) { setLoading(false); setRugs([]); setTotal(0); return; }
 
     const loadRugs = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let query = supabase
         .from("rugs")
-        .select("id, tag, description, services, size_length, size_width, checked_in_at, status, notes, photo_url")
+        .select("id, tag, description, services, size_length, size_width, checked_in_at, status, notes, photo_url", { count: "exact" })
         .eq("client_id", clientId)
         .in("status", ACTIVE_STATUSES)
         .order("checked_in_at", { ascending: false })
-        .limit(250)
-        .returns<RugRow[]>();
+        .order("id", { ascending: false })
+        .range(from, to);
+
+      if (debouncedSearch) {
+        query = query.ilike("tag", `%${debouncedSearch}%`);
+      }
+
+      const { data, error, count } = await query.returns<RugRow[]>();
 
       if (error) {
         toast({ title: "Failed to load rugs", description: error.message, variant: "destructive" });
-        setRugs([]); setLoading(false); return;
+        setRugs([]); setTotal(0); setLoading(false); return;
       }
 
       const loadedRugs = data ?? [];
       setRugs(loadedRugs);
+      setTotal(count ?? loadedRugs.length);
 
       await loadEstimateSummaries(loadedRugs);
       setLoading(false);
     };
 
     loadRugs();
-  }, [clientId, errorMessage, portalClientLoading, toast, loadEstimateSummaries]);
+  }, [clientId, debouncedSearch, errorMessage, page, portalClientLoading, toast, loadEstimateSummaries]);
 
-  // Filter rugs by search
-  const filteredRugs = useMemo(() => {
-    if (!debouncedSearch) return rugs;
-    const q = debouncedSearch.toLowerCase();
-    return rugs.filter((r) => r.tag.toLowerCase().includes(q));
-  }, [rugs, debouncedSearch]);
-
-  const pagination = usePaginatedList(filteredRugs);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasPrev = page > 0;
+  const hasNext = page < totalPages - 1;
 
   const handleCardClick = (rug: RugRow) => {
     setSelectedRug(rug);
@@ -150,41 +161,41 @@ export default function PortalRugsTab({ clientId, loading: portalClientLoading, 
       {/* Search results (flat list) */}
       {debouncedSearch ? (
         <>
-          {pagination.items.length === 0 ? (
+          {rugs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No rugs matching &ldquo;{debouncedSearch}&rdquo;</p>
           ) : (
             <div className="space-y-3">
-              {pagination.items.map((rug) => (
+              {rugs.map((rug) => (
                 <PortalRugCard key={rug.id} rug={rug} estimateSummary={estimateSummaryByRugId[rug.id] ?? null} onClick={() => handleCardClick(rug)} />
               ))}
             </div>
           )}
           <PaginationControls
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            hasPrev={pagination.hasPrev}
-            hasNext={pagination.hasNext}
-            onPrev={pagination.prevPage}
-            onNext={pagination.nextPage}
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            hasPrev={hasPrev}
+            hasNext={hasNext}
+            onPrev={() => setPage((current) => Math.max(current - 1, 0))}
+            onNext={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
             label="rugs"
           />
         </>
       ) : (
         <>
           <div className="space-y-3">
-            {pagination.items.map((rug) => (
+            {rugs.map((rug) => (
               <PortalRugCard key={rug.id} rug={rug} estimateSummary={estimateSummaryByRugId[rug.id] ?? null} onClick={() => handleCardClick(rug)} />
             ))}
           </div>
           <PaginationControls
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            total={pagination.total}
-            hasPrev={pagination.hasPrev}
-            hasNext={pagination.hasNext}
-            onPrev={pagination.prevPage}
-            onNext={pagination.nextPage}
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            hasPrev={hasPrev}
+            hasNext={hasNext}
+            onPrev={() => setPage((current) => Math.max(current - 1, 0))}
+            onNext={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
             label="rugs"
           />
         </>

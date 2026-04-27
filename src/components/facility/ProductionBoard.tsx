@@ -6,13 +6,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductionRugCard } from "./ProductionRugCard";
-import { cn } from "@/lib/utils";
 import { fetchProductionBoardSnapshot, type ProductionBoardRow } from "@/lib/production-board-snapshot";
 import { RugDetailSheet } from "./RugDetailSheet";
 
 export type DbRug = ProductionBoardRow;
-
-type ProductionView = "active" | "ready" | "all";
 
 function normalizeSearchValue(value: string | null | undefined) {
   return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -40,7 +37,6 @@ export function ProductionBoard() {
     staleTime: 30_000,
   });
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<ProductionView>("all");
   const [detailRugId, setDetailRugId] = useState<string | null>(null);
 
   const visibleRugs = useMemo(() => {
@@ -49,14 +45,8 @@ export function ProductionBoard() {
     const queryTokens = q.split(/\s+/).filter(Boolean);
     const normalizedTokens = queryTokens.map((token) => normalizeSearchValue(token)).filter(Boolean);
 
-    const base = rugs.filter((rug) => {
-      if (view === "active") return rug.status === "checked_in" || rug.status === "in_production";
-      if (view === "ready") return rug.status === "ready";
-      return true;
-    });
-
     const filtered = q
-      ? base.filter((rug) => {
+      ? rugs.filter((rug) => {
           const rawValues = [
             rug.tag,
             rug.client_name ?? "",
@@ -70,7 +60,7 @@ export function ProductionBoard() {
           return queryTokens.every((token) => haystack.includes(token)) ||
             normalizedTokens.every((token) => normalizedHaystack.includes(token));
         })
-      : base;
+      : rugs;
 
     return [...filtered].sort((a, b) => {
       if (q) {
@@ -101,7 +91,7 @@ export function ProductionBoard() {
       if (stageDiff !== 0) return stageDiff;
       return Date.parse(b.checked_in_at) - Date.parse(a.checked_in_at);
     });
-  }, [rugs, search, view]);
+  }, [rugs, search]);
 
   const openTopResult = () => {
     if (visibleRugs.length > 0) setDetailRugId(visibleRugs[0].id);
@@ -126,7 +116,7 @@ export function ProductionBoard() {
       <div className="border-b bg-muted/20 px-4 py-4 shrink-0 space-y-3">
         <div>
           <h2 className="text-base font-semibold">Production</h2>
-          <p className="text-sm text-muted-foreground">Find a rug fast, open it, and update it without hunting through columns.</p>
+          <p className="text-sm text-muted-foreground">Approved non-cleaning work queue only — rugs stay here until that work is finished.</p>
         </div>
 
         <div className="relative max-w-xl">
@@ -145,29 +135,13 @@ export function ProductionBoard() {
           />
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {([
-            { id: "active", label: "Active" },
-            { id: "ready", label: "Ready" },
-            { id: "all", label: "All" },
-          ] as const).map((option) => (
-            <Button
-              key={option.id}
-              type="button"
-              size="sm"
-              variant={view === option.id ? "default" : "outline"}
-              className={cn("h-8 px-3", view === option.id && "shadow-none")}
-              onClick={() => setView(option.id)}
-            >
-              {option.label}
-            </Button>
-          ))}
-          {search.trim() && visibleRugs.length > 0 && (
+        {search.trim() && visibleRugs.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
             <Button type="button" size="sm" variant="outline" className="h-8 px-3" onClick={openTopResult}>
               Open top result
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1">

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
+import { useCallback, useEffect, useState } from "react";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import { canRoleTransitionEstimateStatus, type EstimateStatus } from "@/lib/work
 
 type EstimateRow = PortalEstimateRow;
 type EstimateItemRow = PortalEstimateItemRow;
+const PAGE_SIZE = 10;
 
 /** Cleaning is always approved and not rejectable; only other services can be approved/rejected by client. */
 function isCleaningLineItem(item: EstimateItemRow): boolean {
@@ -33,17 +33,29 @@ const statusBadge = (status: EstimateStatus) => {
 
 export default function PortalEstimatesTab({ clientId, loading: portalClientLoading, errorMessage }: PortalTabProps) {
   const { toast } = useToast();
-  const [estimates, setEstimates] = useState<EstimateRow[]>([]);
+  const [pendingEstimates, setPendingEstimates] = useState<EstimateRow[]>([]);
+  const [historyEstimates, setHistoryEstimates] = useState<EstimateRow[]>([]);
+  const [pendingPage, setPendingPage] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [historyTotal, setHistoryTotal] = useState(0);
   const [lineItemsByEstimateId, setLineItemsByEstimateId] = useState<Record<string, EstimateItemRow[]>>({});
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
   const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
 
-  const fetchEstimates = useCallback(async () => {
+  const fetchEstimates = useCallback(async (nextPendingPage = pendingPage, nextHistoryPage = historyPage) => {
     try {
-      const rows = await fetchPortalEstimates();
-      setEstimates(rows);
+      const [pendingResult, historyResult] = await Promise.all([
+        fetchPortalEstimates({ statusScope: "pending", page: nextPendingPage, pageSize: PAGE_SIZE }),
+        fetchPortalEstimates({ statusScope: "history", page: nextHistoryPage, pageSize: PAGE_SIZE }),
+      ]);
+      const rows = [...pendingResult.rows, ...historyResult.rows];
+      setPendingEstimates(pendingResult.rows);
+      setHistoryEstimates(historyResult.rows);
+      setPendingTotal(pendingResult.total);
+      setHistoryTotal(historyResult.total);
       setLineItemsByEstimateId(
         rows.reduce<Record<string, EstimateItemRow[]>>((acc, estimate) => {
           if (estimate.items.length > 0) {
@@ -56,24 +68,29 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
       const message = error instanceof Error ? error.message : "Unknown error";
       toast({ title: "Failed to load estimates", description: message, variant: "destructive" });
     }
-  }, [toast]);
+  }, [historyPage, pendingPage, toast]);
+
+  useEffect(() => {
+    setPendingPage(0);
+    setHistoryPage(0);
+  }, [clientId]);
 
   useEffect(() => {
     if (portalClientLoading) { setLoading(true); return; }
     if (errorMessage) {
       toast({ title: "No portal access", description: errorMessage, variant: "destructive" });
-      setLoading(false); setEstimates([]); return;
+      setLoading(false); setPendingEstimates([]); setHistoryEstimates([]); setPendingTotal(0); setHistoryTotal(0); return;
     }
     if (!clientId) { setLoading(false); return; }
 
     const init = async () => {
       setLoading(true);
-      await fetchEstimates();
+      await fetchEstimates(pendingPage, historyPage);
       setLoading(false);
     };
 
     init();
-  }, [clientId, errorMessage, fetchEstimates, portalClientLoading, toast]);
+  }, [clientId, errorMessage, fetchEstimates, historyPage, pendingPage, portalClientLoading, toast]);
 
   const updateDecisionNote = (estimateId: string, value: string) => {
     setDecisionNotes((prev) => ({ ...prev, [estimateId]: value }));
@@ -148,12 +165,13 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
         return;
       }
 
-      setEstimates((prev) => prev.map((row) => row.id === estimate.id ? {
+      setPendingEstimates((prev) => prev.map((row) => row.id === estimate.id ? {
         ...row,
         status: nextStatus,
         approved_at: result.approvedAt,
         rejected_at: result.rejectedAt,
       } : row));
+      await fetchEstimates(pendingPage, historyPage);
       setDecisionNotes((prev) => ({ ...prev, [estimate.id]: "" }));
       toast({ title: `Estimate ${nextStatus}` });
     } catch (error) {
@@ -164,11 +182,8 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
     }
   };
 
-  const pending = useMemo(() => estimates.filter((e) => e.status === "sent"), [estimates]);
-  const history = useMemo(() => estimates.filter((e) => e.status !== "sent"), [estimates]);
-
-  const pendingPagination = usePaginatedList(pending);
-  const historyPagination = usePaginatedList(history);
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingTotal / PAGE_SIZE));
+  const historyTotalPages = Math.max(1, Math.ceil(historyTotal / PAGE_SIZE));
 
   if (portalClientLoading || loading) {
     return <div className="text-sm text-muted-foreground">Loading estimates…</div>;
@@ -187,10 +202,10 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {pending.length === 0 ? (
+          {pendingTotal === 0 ? (
             <p className="text-sm text-muted-foreground">You do not have any estimates waiting right now.</p>
           ) : (
-            pendingPagination.items.map((estimate) => {
+            pendingEstimates.map((estimate) => {
               const lineItems = lineItemsByEstimateId[estimate.id] ?? [];
               const isUpdating = updatingId === estimate.id;
               return (
@@ -300,13 +315,13 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
             })
           )}
           <PaginationControls
-            page={pendingPagination.page}
-            totalPages={pendingPagination.totalPages}
-            total={pendingPagination.total}
-            hasPrev={pendingPagination.hasPrev}
-            hasNext={pendingPagination.hasNext}
-            onPrev={pendingPagination.prevPage}
-            onNext={pendingPagination.nextPage}
+            page={pendingPage}
+            totalPages={pendingTotalPages}
+            total={pendingTotal}
+            hasPrev={pendingPage > 0}
+            hasNext={pendingPage < pendingTotalPages - 1}
+            onPrev={() => setPendingPage((current) => Math.max(current - 1, 0))}
+            onNext={() => setPendingPage((current) => Math.min(current + 1, pendingTotalPages - 1))}
             label="estimates"
           />
         </CardContent>
@@ -315,10 +330,10 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
       <Card>
         <CardHeader><CardTitle className="text-base">History</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {history.length === 0 ? (
+          {historyTotal === 0 ? (
             <p className="text-sm text-muted-foreground">No history yet.</p>
           ) : (
-            historyPagination.items.map((estimate, index) => (
+            historyEstimates.map((estimate, index) => (
               <div key={estimate.id}>
                 <div className="flex items-center justify-between gap-3 py-1.5">
                   <div>
@@ -331,18 +346,18 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
                     {statusBadge(estimate.status)}
                   </div>
                 </div>
-                {index < historyPagination.items.length - 1 && <Separator />}
+                {index < historyEstimates.length - 1 && <Separator />}
               </div>
             ))
           )}
           <PaginationControls
-            page={historyPagination.page}
-            totalPages={historyPagination.totalPages}
-            total={historyPagination.total}
-            hasPrev={historyPagination.hasPrev}
-            hasNext={historyPagination.hasNext}
-            onPrev={historyPagination.prevPage}
-            onNext={historyPagination.nextPage}
+            page={historyPage}
+            totalPages={historyTotalPages}
+            total={historyTotal}
+            hasPrev={historyPage > 0}
+            hasNext={historyPage < historyTotalPages - 1}
+            onPrev={() => setHistoryPage((current) => Math.max(current - 1, 0))}
+            onNext={() => setHistoryPage((current) => Math.min(current + 1, historyTotalPages - 1))}
             label="estimates"
           />
         </CardContent>
@@ -350,4 +365,3 @@ export default function PortalEstimatesTab({ clientId, loading: portalClientLoad
     </div>
   );
 }
-

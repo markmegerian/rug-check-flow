@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseExtended } from "@/integrations/supabase/extended";
+import { usePortalBillingSummary } from "@/hooks/usePortalBillingSummary";
 import { ACTIVE_STATUSES } from "./portal-rug-types";
 import { getCollectionsStateBadgeClass, getPortalBillingState } from "@/lib/billing";
 
@@ -18,24 +19,19 @@ type SnapshotState = {
   inProductionRugs: number;
   readyRugs: number;
   pendingEstimates: number;
-  openBalance: number;
-  overdueBalance: number;
-  openInvoices: number;
-  overdueInvoices: number;
-  nextDueAt: string | null;
-  oldestOverdueAgeDays: number | null;
 };
 
 export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSnapshotProps) {
   const [summary, setSummary] = useState<SnapshotState | null>(null);
   const [loading, setLoading] = useState(true);
+  const billingSummaryQuery = usePortalBillingSummary(clientId, Boolean(clientId));
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
-      const [rugsResult, estimatesResult, invoicesResult] = await Promise.all([
+      const [rugsResult, estimatesResult] = await Promise.all([
         supabase
           .from("rugs")
           .select("id, status")
@@ -47,38 +43,17 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
           .eq("client_id", clientId)
           .eq("status", "sent")
           .limit(100),
-        supabaseExtended
-          .from("invoices")
-          .select("status, total, due_at, created_at")
-          .eq("client_id", clientId)
-          .returns<Array<{ status: string; total: number | null; due_at: string | null; created_at: string }>>(),
       ]);
 
       if (cancelled) return;
 
       const activeRugRows = rugsResult.data ?? [];
-      const invoices = invoicesResult.data ?? [];
-      const openInvoices = invoices.filter((invoice) => ["sent", "overdue"].includes(invoice.status));
-      const overdueInvoices = invoices.filter((invoice) => invoice.status === "overdue");
-      const datedOpenInvoices = openInvoices.filter((invoice) => Boolean(invoice.due_at));
-      const nextDueAt = datedOpenInvoices.length > 0
-        ? [...datedOpenInvoices].sort((a, b) => Date.parse(a.due_at ?? a.created_at) - Date.parse(b.due_at ?? b.created_at))[0]?.due_at ?? null
-        : null;
-      const oldestOverdueAgeDays = overdueInvoices.length > 0
-        ? Math.max(...overdueInvoices.map((invoice) => Math.max(0, Math.floor((Date.now() - Date.parse(invoice.due_at ?? invoice.created_at)) / 86_400_000))))
-        : null;
 
       setSummary({
         activeRugs: activeRugRows.length,
         inProductionRugs: activeRugRows.filter((rug) => rug.status === "in_production").length,
         readyRugs: activeRugRows.filter((rug) => rug.status === "ready").length,
         pendingEstimates: estimatesResult.data?.length ?? 0,
-        openBalance: openInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
-        overdueBalance: overdueInvoices.reduce((sum, invoice) => sum + Number(invoice.total ?? 0), 0),
-        openInvoices: openInvoices.length,
-        overdueInvoices: overdueInvoices.length,
-        nextDueAt,
-        oldestOverdueAgeDays,
       });
       setLoading(false);
     };
@@ -88,25 +63,25 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
   }, [clientId]);
 
   const billingState = useMemo(() => getPortalBillingState({
-    overdueInvoices: summary?.overdueInvoices ?? 0,
-    oldestOverdueAgeDays: summary?.oldestOverdueAgeDays ?? null,
-    openInvoices: summary?.openInvoices ?? 0,
-    nextDueAt: summary?.nextDueAt ?? null,
-  }), [summary]);
+    overdueInvoices: billingSummaryQuery.data?.overdueInvoices ?? 0,
+    oldestOverdueAgeDays: billingSummaryQuery.data?.oldestOverdueAgeDays ?? null,
+    openInvoices: billingSummaryQuery.data?.openInvoices ?? 0,
+    nextDueAt: billingSummaryQuery.data?.nextDueAt ?? null,
+  }), [billingSummaryQuery.data]);
 
   const attentionItems = useMemo(() => {
     if (!summary) return [] as Array<{ key: string; title: string; tab: PortalSnapshotTab }>;
     const items: Array<{ key: string; title: string; tab: PortalSnapshotTab }> = [];
-    if (summary.overdueInvoices > 0) {
+    if ((billingSummaryQuery.data?.overdueInvoices ?? 0) > 0) {
       items.push({
         key: "overdue-invoices",
-        title: `${summary.overdueInvoices} overdue invoice${summary.overdueInvoices === 1 ? "" : "s"}`,
+        title: `${billingSummaryQuery.data?.overdueInvoices} overdue invoice${billingSummaryQuery.data?.overdueInvoices === 1 ? "" : "s"}`,
         tab: "invoices",
       });
-    } else if (summary.openInvoices > 0) {
+    } else if ((billingSummaryQuery.data?.openInvoices ?? 0) > 0) {
       items.push({
         key: "open-invoices",
-        title: `${summary.openInvoices} open invoice${summary.openInvoices === 1 ? "" : "s"}`,
+        title: `${billingSummaryQuery.data?.openInvoices} open invoice${billingSummaryQuery.data?.openInvoices === 1 ? "" : "s"}`,
         tab: "invoices",
       });
     }
@@ -125,10 +100,10 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
       });
     }
     return items;
-  }, [summary]);
+  }, [billingSummaryQuery.data, summary]);
 
 
-  if (loading || !summary) {
+  if (loading || billingSummaryQuery.isLoading || !summary || !billingSummaryQuery.data) {
     return <div className="rounded-2xl border border-border/70 bg-card/90 px-4 py-5 text-sm text-muted-foreground">Loading account snapshot…</div>;
   }
 
@@ -156,7 +131,7 @@ export function PortalAccountSnapshot({ clientId, onFocusTab }: PortalAccountSna
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 p-3">
           <div className="text-xs text-muted-foreground">Open balance</div>
-          <div className="mt-1 text-lg font-semibold text-foreground">${summary.openBalance.toFixed(2)}</div>
+          <div className="mt-1 text-lg font-semibold text-foreground">${billingSummaryQuery.data.openBalance.toFixed(2)}</div>
         </div>
       </div>
 

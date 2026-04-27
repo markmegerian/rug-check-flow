@@ -98,6 +98,24 @@ export function useRugCountsByClient() {
   });
 }
 
+export function useRugCountsByClientIds(clientIds: string[]) {
+  return useQuery({
+    queryKey: ["rugs", "countsByClientIds", clientIds],
+    queryFn: async () => {
+      if (clientIds.length === 0) return {} as Record<string, number>;
+      const { data, error } = await supabase.from("rugs").select("client_id").in("client_id", clientIds);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((r) => {
+        if (r.client_id) counts[r.client_id] = (counts[r.client_id] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: clientIds.length > 0,
+    staleTime: 30_000,
+  });
+}
+
 /** Single rug detail query */
 export function useRug(id: string | null) {
   return useQuery({

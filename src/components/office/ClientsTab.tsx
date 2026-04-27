@@ -3,7 +3,6 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search, Upload } from "lucide-re
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSortableTable, type SortState } from "@/hooks/useSortableTable";
-import { usePaginatedList } from "@/hooks/usePaginatedList";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
-import { useClients, useInvalidateClients } from "@/hooks/useClients";
-import { useRugCountsByClient, useInvalidateRugs } from "@/hooks/useRugs";
+import { useClientsPage, useInvalidateClients } from "@/hooks/useClients";
+import { useRugCountsByClientIds, useInvalidateRugs } from "@/hooks/useRugs";
 import { ClientDetailSheet } from "@/components/office/ClientDetailSheet";
 import { LoadingState } from "@/components/states/PageState";
 import { APP_NAME } from "@/lib/branding";
@@ -30,6 +29,7 @@ import { DEFAULT_INVOICE_TERMS_DAYS, normalizeInvoiceTermsDays, type BillingRemi
 
 type Client = Tables<"clients">;
 type PortalUser = Pick<Tables<"portal_users">, "id" | "email" | "status" | "must_change_password">;
+const PAGE_SIZE = 25;
 
 type FormData = {
   name: string;
@@ -183,8 +183,6 @@ export function ClientsTab() {
   const { toast } = useToast();
   const { user, hasRole, isSuperAdmin } = useAuth();
   const csvInputRef = useRef<HTMLInputElement | null>(null);
-  const { data: clients = [], isLoading: loading } = useClients();
-  const { data: rugCounts = {} } = useRugCountsByClient();
   const invalidateClients = useInvalidateClients();
   const invalidateRugs = useInvalidateRugs();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -200,8 +198,30 @@ export function ClientsTab() {
   const [resetPortalPassword, setResetPortalPassword] = useState("");
   const [deletingClient, setDeletingClient] = useState(false);
   const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   const { sort, toggleSort } = useSortableTable<ClientSortCol>("name");
+
+  const sortColumn = sort?.column === "contact"
+    ? "contact_name"
+    : sort?.column === "tier"
+      ? "pricing_tier"
+      : sort?.column === "rugs"
+        ? "name"
+        : sort?.column ?? "name";
+  const sortDirection = sort?.direction ?? "asc";
+
+  const { data: clientsPage, isLoading: loading } = useClientsPage({
+    page,
+    pageSize: PAGE_SIZE,
+    search: searchQuery,
+    routeDay: filterDay || undefined,
+    sortColumn: sortColumn as "name" | "contact_name" | "phone" | "route_day" | "pricing_tier" | "created_at",
+    sortDirection,
+  });
+  const clients = clientsPage?.rows ?? [];
+  const totalClients = clientsPage?.total ?? 0;
+  const { data: rugCounts = {} } = useRugCountsByClientIds(clients.map((client) => client.id));
 
   const getFunctionAuthHeaders = useCallback(async () => {
     const { getAuthHeaders } = await import("@/lib/supabase-helpers");
@@ -452,43 +472,15 @@ export function ClientsTab() {
     });
   };
 
-  const filteredClients = useMemo(() => {
-    let result = clients;
-    if (filterDay) {
-      result = result.filter((c) => filterDay === "unassigned" ? !c.route_day : c.route_day === filterDay);
-    }
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      result = result.filter((c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.contact_name ?? "").toLowerCase().includes(q) ||
-        (c.phone ?? "").toLowerCase().includes(q) ||
-        (c.email ?? "").toLowerCase().includes(q)
-      );
-    }
-    if (sort) {
-      const dir = sort.direction === "asc" ? 1 : -1;
-      result = [...result].sort((a, b) => {
-        let cmp = 0;
-        switch (sort.column) {
-          case "name": cmp = a.name.localeCompare(b.name); break;
-          case "contact": cmp = (a.contact_name ?? "").localeCompare(b.contact_name ?? ""); break;
-          case "phone": cmp = (a.phone ?? "").localeCompare(b.phone ?? ""); break;
-          case "route_day": cmp = (a.route_day ?? "").localeCompare(b.route_day ?? ""); break;
-          case "rugs": cmp = (rugCounts[a.id] ?? 0) - (rugCounts[b.id] ?? 0); break;
-          case "tier": cmp = a.pricing_tier.localeCompare(b.pricing_tier); break;
-        }
-        return cmp * dir;
-      });
-    }
-    return result;
-  }, [clients, filterDay, searchQuery, sort, rugCounts]);
+  const visibleClients = useMemo(() => {
+    if (sort?.column !== "rugs") return clients;
+    const dir = sort.direction === "asc" ? 1 : -1;
+    return [...clients].sort((a, b) => ((rugCounts[a.id] ?? 0) - (rugCounts[b.id] ?? 0)) * dir);
+  }, [clients, rugCounts, sort]);
 
-  const pagination = usePaginatedList(filteredClients);
+  useEffect(() => { setPage(0); }, [searchQuery, filterDay, sort]);
 
-  // Reset to page 0 when search or filter changes
-  const { resetPage } = pagination;
-  useEffect(() => { resetPage(); }, [searchQuery, filterDay, sort, resetPage]);
+  const totalPages = Math.max(1, Math.ceil(totalClients / PAGE_SIZE));
 
   const canDeleteClient = hasRole("admin") || isSuperAdmin;
 
@@ -542,9 +534,7 @@ export function ClientsTab() {
             </SelectContent>
           </Select>
           <Badge variant="secondary" className="text-xs">
-            {filteredClients.length === clients.length
-              ? `${clients.length}`
-              : `${filteredClients.length} of ${clients.length}`}
+            {totalClients}
           </Badge>
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1" /> Add Client
@@ -569,7 +559,7 @@ export function ClientsTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {pagination.items.map((c) => (
+          {visibleClients.map((c) => (
             <TableRow key={c.id} className="cursor-pointer" onClick={() => openEdit(c)}>
               <TableCell className="font-medium">{c.name}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{c.contact_name}</TableCell>
@@ -588,13 +578,13 @@ export function ClientsTab() {
       </div>
 
       <PaginationControls
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        total={pagination.total}
-        hasPrev={pagination.hasPrev}
-        hasNext={pagination.hasNext}
-        onPrev={pagination.prevPage}
-        onNext={pagination.nextPage}
+        page={page}
+        totalPages={totalPages}
+        total={totalClients}
+        hasPrev={page > 0}
+        hasNext={page < totalPages - 1}
+        onPrev={() => setPage((current) => Math.max(current - 1, 0))}
+        onNext={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
         label="clients"
       />
 
